@@ -1,0 +1,10 @@
+{
+  "name": "@hotel-chicago/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Application desktop Hôtel Chicago (Electron) — non implémentée, voir README.md",
+  "scripts": {
+    "build": "echo \"apps/desktop n'est pas encore implémenté (Phases 2-3)\" && exit 0",
+    "dev": "echo \"apps/desktop n'est pas encore implémenté (Phases 2-3)\" && exit 0"
+  }
+}

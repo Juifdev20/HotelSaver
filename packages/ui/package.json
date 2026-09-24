@@ -1,0 +1,9 @@
+{
+  "name": "@hotel-chicago/ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Composants partagés + design system Hôtel Chicago — non implémenté, voir README.md",
+  "scripts": {
+    "build": "echo \"packages/ui n'est pas encore implémenté (Phase 2+)\" && exit 0"
+  }
+}

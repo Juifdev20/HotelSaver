@@ -1,0 +1,9 @@
+{
+  "name": "@hotel-chicago/api-client",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Client HTTP typé partagé (web, mobile, desktop) — non implémenté, voir README.md",
+  "scripts": {
+    "build": "echo \"packages/api-client n'est pas encore implémenté (Phase 2+)\" && exit 0"
+  }
+}

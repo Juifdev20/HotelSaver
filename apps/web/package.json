@@ -1,0 +1,10 @@
+{
+  "name": "@hotel-chicago/web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Site web public Hôtel Chicago (Next.js) — non implémenté, voir README.md",
+  "scripts": {
+    "build": "echo \"apps/web n'est pas encore implémenté (Phase 7)\" && exit 0",
+    "dev": "echo \"apps/web n'est pas encore implémenté (Phase 7)\" && exit 0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@hotel-chicago/mobile",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Application mobile Hôtel Chicago (React Native / Expo) — non implémentée, voir README.md",
+  "scripts": {
+    "build": "echo \"apps/mobile n'est pas encore implémenté (Phase 5)\" && exit 0",
+    "dev": "echo \"apps/mobile n'est pas encore implémenté (Phase 5)\" && exit 0"
+  }
+}

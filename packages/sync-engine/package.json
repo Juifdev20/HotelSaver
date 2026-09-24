@@ -1,0 +1,9 @@
+{
+  "name": "@hotel-chicago/sync-engine",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Moteur de synchronisation hors ligne (mobile + desktop) — non implémenté, voir README.md",
+  "scripts": {
+    "build": "echo \"packages/sync-engine n'est pas encore implémenté (Phase 4)\" && exit 0"
+  }
+}
