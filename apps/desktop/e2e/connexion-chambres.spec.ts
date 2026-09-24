@@ -75,7 +75,7 @@ test("un mauvais mot de passe affiche une erreur claire, sans quitter l'écran d
   await app.close();
 });
 
-test("connexion réelle → écran Chambres avec les vraies données, thème sombre, session conservée au redémarrage", async () => {
+test("connexion réelle → tableau de bord puis Chambres avec les vraies données, thème sombre, session conservée au redémarrage", async () => {
   let app = await lancerApp();
   let fenetre = await app.firstWindow();
 
@@ -83,8 +83,21 @@ test("connexion réelle → écran Chambres avec les vraies données, thème som
   await fenetre.getByLabel("Mot de passe").fill(MOT_DE_PASSE!);
   await fenetre.getByRole("button", { name: "Se connecter" }).click();
 
+  // Coquille : tableau de bord par défaut, utilisateur affiché, état RÉEL du serveur.
+  await expect(fenetre.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
+  await expect(fenetre.getByTestId("utilisateur-connecte")).toContainText(/Patron|Réceptionniste|Cafétaria/);
+  await expect(fenetre.getByTestId("indicateur-connexion")).toHaveText("Serveur connecté");
+  await expect(fenetre.getByText("En dollars", { exact: true })).toBeVisible();
+
+  const navigation = fenetre.getByRole("complementary", { name: "Navigation principale" });
+  await expect(navigation).toBeVisible();
+
+  // Un écran pas encore construit est affiché « Bientôt », jamais une page vide.
+  await navigation.getByRole("button", { name: /Réservations/ }).click();
+  await expect(fenetre.getByTestId("ecran-bientot")).toBeVisible();
+
+  await navigation.getByRole("button", { name: "Chambres" }).click();
   await expect(fenetre.getByRole("heading", { name: "Chambres" })).toBeVisible();
-  await expect(fenetre.getByText(/Connecté en tant que .+ \((RECEPTIONNISTE|CAFETARIA|PATRON)\)/)).toBeVisible();
 
   const grille = fenetre.getByTestId("grille-chambres");
   for (const numero of (process.env.E2E_CHAMBRES_ATTENDUES ?? "").split(",").filter(Boolean)) {
@@ -105,13 +118,21 @@ test("connexion réelle → écran Chambres avec les vraies données, thème som
   await app.close();
 
   // Section 14 : l'appareil reste connecté entre deux lancements — on relance
-  // avec le même dossier de configuration et on doit arriver directement sur
-  // Chambres, sans repasser par l'écran de connexion.
+  // avec le même dossier de configuration et on doit arriver directement dans
+  // l'application, sans repasser par l'écran de connexion.
   app = await lancerApp();
   fenetre = await app.firstWindow();
-  await expect(fenetre.getByRole("heading", { name: "Chambres" })).toBeVisible();
+  await expect(fenetre.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
   await expect(fenetre.getByLabel("Mot de passe")).toHaveCount(0);
   await expect(fenetre.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  // Fenêtre étroite (format tablette/mobile) : barre latérale masquée, barre du bas visible.
+  await fenetre.setViewportSize({ width: 600, height: 800 });
+  await expect(fenetre.getByRole("complementary", { name: "Navigation principale" })).toBeHidden();
+  const barreDuBas = fenetre.getByRole("navigation", { name: "Navigation rapide" });
+  await expect(barreDuBas).toBeVisible();
+  await barreDuBas.getByRole("button", { name: "Chambres" }).click();
+  await expect(fenetre.getByRole("heading", { name: "Chambres" })).toBeVisible();
 
   await app.close();
 });

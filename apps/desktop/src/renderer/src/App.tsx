@@ -1,13 +1,17 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ClientApi, connecterAvecMotDePasse, rafraichirSession } from "@hotel-chicago/api-client";
+import { ClientApi, ErreurApi, connecterAvecMotDePasse, rafraichirSession } from "@hotel-chicago/api-client";
 import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
 import type { ConfigurationApp } from "../../main/config-store";
+import { IdPage, libellePage } from "./navigation";
+import { Coquille } from "./layout/Coquille";
 import { EcranConnexion } from "./screens/EcranConnexion";
 import { EcranChambres } from "./screens/EcranChambres";
 import { EcranParametres } from "./screens/EcranParametres";
+import { EcranTableauDeBord } from "./screens/EcranTableauDeBord";
+import { EcranBientot } from "./screens/EcranBientot";
 
-type Ecran = "chargement" | "connexion" | "chambres" | "parametres";
+type Ecran = "chargement" | "connexion" | "parametres-hors-connexion" | "application";
 
 const CLE_THEME = "hotel-chicago:theme-sombre";
 
@@ -19,11 +23,20 @@ function themeSombrePrefere(): boolean {
   }
 }
 
+/** 404 sur /auth/me = l'adresse répond, mais ce n'est pas le serveur de l'hôtel (ex. un autre projet sur le même port). */
+function messageErreurProfil(erreur: Error): string {
+  if (erreur instanceof ErreurApi && erreur.statusCode === 404) {
+    return "L'adresse de l'API ne correspond pas au serveur de l'hôtel. Vérifiez les Paramètres.";
+  }
+  return erreur.message;
+}
+
 export function App() {
   const [configuration, setConfiguration] = useState<ConfigurationApp | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [utilisateur, setUtilisateur] = useState<UtilisateurAuthentifie | null>(null);
   const [ecran, setEcran] = useState<Ecran>("chargement");
+  const [page, setPage] = useState<IdPage>("tableau-de-bord");
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
   const [themeSombre, setThemeSombre] = useState(themeSombrePrefere);
@@ -72,10 +85,10 @@ export function App() {
       .moi()
       .then((donnees) => {
         setUtilisateur(donnees);
-        setEcran("chambres");
+        setEcran("application");
       })
       .catch((erreur: Error) => {
-        setErreurConnexion(erreur.message);
+        setErreurConnexion(messageErreurProfil(erreur));
         setEcran("connexion");
       });
   }, [client]);
@@ -103,6 +116,7 @@ export function App() {
     await window.hotelChicago.ecrireConfiguration({ refreshToken: null });
     setAccessToken(null);
     setUtilisateur(null);
+    setPage("tableau-de-bord");
     setEcran("connexion");
   }
 
@@ -112,36 +126,56 @@ export function App() {
   }
 
   if (ecran === "chargement" || !configuration) {
-    return <p className="hc-text-body">Chargement…</p>;
-  }
-
-  if (ecran === "parametres") {
     return (
-      <EcranParametres
-        configuration={configuration}
-        onEnregistrer={enregistrerParametres}
-        onRetour={() => setEcran(utilisateur ? "chambres" : "connexion")}
-      />
+      <div className="hc-page-centree">
+        <p className="hc-text-body">Chargement…</p>
+      </div>
     );
   }
 
-  if (ecran === "chambres" && client && utilisateur) {
+  if (ecran === "parametres-hors-connexion") {
     return (
-      <EcranChambres
+      <div className="hc-page-centree">
+        <EcranParametres
+          configuration={configuration}
+          onEnregistrer={enregistrerParametres}
+          onRetour={() => setEcran("connexion")}
+        />
+      </div>
+    );
+  }
+
+  if (ecran === "application" && client && utilisateur) {
+    let contenu: React.ReactNode;
+    if (page === "tableau-de-bord") {
+      contenu = <EcranTableauDeBord client={client} utilisateur={utilisateur} onNaviguer={setPage} />;
+    } else if (page === "chambres") {
+      contenu = <EcranChambres client={client} />;
+    } else if (page === "parametres") {
+      contenu = <EcranParametres configuration={configuration} onEnregistrer={enregistrerParametres} />;
+    } else {
+      contenu = <EcranBientot titre={libellePage(page)} />;
+    }
+
+    return (
+      <Coquille
         client={client}
         utilisateur={utilisateur}
+        pageActive={page}
+        onNaviguer={setPage}
         themeSombre={themeSombre}
         onBasculerTheme={() => setThemeSombre((v) => !v)}
-        onOuvrirParametres={() => setEcran("parametres")}
         onDeconnexion={seDeconnecter}
-      />
+      >
+        {contenu}
+      </Coquille>
     );
   }
 
   return (
     <EcranConnexion
       onConnexion={seConnecter}
-      onOuvrirParametres={() => setEcran("parametres")}
+      onOuvrirParametres={() => setEcran("parametres-hors-connexion")}
       erreur={erreurConnexion}
       enCours={connexionEnCours}
     />

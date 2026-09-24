@@ -1,6 +1,8 @@
 import * as React from "react";
 import { useState } from "react";
 import { Button } from "@hotel-chicago/ui";
+// Section 12.6 : le logo n'apparaît que sur l'écran de connexion, le site public et les impressions.
+import logo from "../../../../../../assets/logo/logo-couleur.png";
 
 export interface EcranConnexionProps {
   onConnexion: (email: string, motDePasse: string) => void;
@@ -14,52 +16,59 @@ export function EcranConnexion({ onConnexion, onOuvrirParametres, erreur, enCour
   const [motDePasse, setMotDePasse] = useState("");
 
   return (
-    <div className="hc-ecran-connexion">
-      <h1 className="hc-text-display-md">Hôtel Chicago</h1>
-      <p className="hc-text-body">Quartier Congo ya Sika, Kasindi, Nord-Kivu, RDC</p>
+    <div className="hc-page-centree">
+      <div className="hc-ecran-connexion">
+        <img className="hc-ecran-connexion__logo" src={logo} alt="" />
+        <div className="hc-ecran-connexion__entete">
+          <h1 className="hc-text-display-md">Hôtel Chicago</h1>
+          <p className="hc-text-caption texte-discret">Quartier Congo ya Sika, Kasindi, Nord-Kivu, RDC</p>
+        </div>
 
-      <form
-        onSubmit={(evenement) => {
-          evenement.preventDefault();
-          onConnexion(email, motDePasse);
-        }}
-      >
-        <label className="hc-text-label" htmlFor="champ-email">
-          Email
-        </label>
-        <input
-          id="champ-email"
-          type="email"
-          value={email}
-          onChange={(evenement) => setEmail(evenement.target.value)}
-          required
-        />
+        <form
+          onSubmit={(evenement) => {
+            evenement.preventDefault();
+            onConnexion(email, motDePasse);
+          }}
+        >
+          <label className="hc-text-label" htmlFor="champ-email">
+            Email
+          </label>
+          <input
+            id="champ-email"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(evenement) => setEmail(evenement.target.value)}
+            required
+          />
 
-        <label className="hc-text-label" htmlFor="champ-mot-de-passe">
-          Mot de passe
-        </label>
-        <input
-          id="champ-mot-de-passe"
-          type="password"
-          value={motDePasse}
-          onChange={(evenement) => setMotDePasse(evenement.target.value)}
-          required
-        />
+          <label className="hc-text-label" htmlFor="champ-mot-de-passe">
+            Mot de passe
+          </label>
+          <input
+            id="champ-mot-de-passe"
+            type="password"
+            autoComplete="current-password"
+            value={motDePasse}
+            onChange={(evenement) => setMotDePasse(evenement.target.value)}
+            required
+          />
 
-        {erreur && (
-          <p className="hc-text-body" role="alert" data-testid="erreur-connexion" style={{ color: "var(--hc-danger)" }}>
-            {erreur}
-          </p>
-        )}
+          {erreur && (
+            <p className="hc-text-body texte-erreur" role="alert" data-testid="erreur-connexion">
+              {erreur}
+            </p>
+          )}
 
-        <Button type="submit" disabled={enCours}>
-          {enCours ? "Connexion…" : "Se connecter"}
+          <Button type="submit" disabled={enCours}>
+            {enCours ? "Connexion…" : "Se connecter"}
+          </Button>
+        </form>
+
+        <Button type="button" variant="secondary" size="sm" onClick={onOuvrirParametres}>
+          Paramètres
         </Button>
-      </form>
-
-      <Button type="button" variant="secondary" size="sm" onClick={onOuvrirParametres}>
-        Paramètres
-      </Button>
+      </div>
     </div>
   );
 }

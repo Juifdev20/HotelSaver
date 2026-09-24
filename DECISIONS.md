@@ -481,6 +481,33 @@ nouveau).
 utilisateur ne peut se connecter tant qu'un compte Supabase Auth ET une
 ligne `Utilisateur` liée n'ont pas été créés (voir le README racine).
 
+## Phase 2b, tranche 2 — Coquille de l'app desktop
+
+La première tranche n'avait ni navigation ni barre d'état : jugé inutilisable
+par le client. Choix validés avec lui :
+
+- **Barre latérale** regroupée par métier (Réception, Cafétaria,
+  Administration), filtrée par rôle selon la matrice 9.3
+  (`src/renderer/src/navigation.ts`). Le PATRON voit tout.
+- **Écrans pas encore construits** : affichés grisés avec « Bientôt » ; un
+  clic ouvre une page qui le dit clairement, jamais une page vide.
+- **Barre du haut** : date, état RÉEL du serveur (ping `/health` toutes les
+  20 s, et on vérifie que c'est bien `hotel-chicago-api` qui répond),
+  mode sombre, utilisateur + rôle, déconnexion. On n'affiche volontairement
+  pas « Synchronisé » : le moteur hors ligne (section 10) n'existe pas
+  encore côté app.
+- **Fenêtre étroite (< 900 px)** : la barre latérale disparaît au profit
+  d'une barre du bas (4 entrées + « Plus » qui ouvre le menu complet).
+  C'est aussi le modèle de navigation prévu pour l'app mobile.
+- **Pas de maquette fournie** : mise en page conçue depuis la charte
+  (section 12). L'entrée active utilise surface-300 + rust, pas l'accent,
+  qui reste réservé au bouton d'action principal.
+- **Logo** uniquement sur l'écran de connexion (section 12.6), dans un cadre
+  blanc parce que le fichier fourni a un fond blanc.
+- Une réponse 404 sur `/auth/me` signifie que l'adresse répond mais que ce
+  n'est pas notre serveur (cas réel : un autre projet sur le port 3000) : le
+  message le dit en français au lieu de « Cannot GET /auth/me ».
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase
