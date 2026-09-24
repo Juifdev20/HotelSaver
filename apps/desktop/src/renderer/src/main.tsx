@@ -1,15 +1,13 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-// Polices embarquées dans l'app (pas Google Fonts) : l'app doit fonctionner
+// Police embarquée dans l'app (pas Google Fonts) : l'app doit fonctionner
 // hors ligne (section 2) — sans internet, un chargement distant retombait sur
-// Times New Roman / Arial. Uniquement les graisses utilisées (section 12.3).
-import "@fontsource/fraunces/500.css";
-import "@fontsource/fraunces/600.css";
-import "@fontsource/public-sans/400.css";
-import "@fontsource/public-sans/600.css";
-import "@fontsource/ibm-plex-mono/400.css";
-import "@fontsource/ibm-plex-mono/500.css";
-import "@fontsource/ibm-plex-mono/600.css";
+// Times New Roman / Arial. Une seule famille dans toute l'app (Inter, voir
+// DECISIONS.md — refonte du 24/09/2026), uniquement les graisses utilisées.
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
 import "@hotel-chicago/ui/dist/tokens.css";
 import "@hotel-chicago/ui/dist/typography.css";
 import "./styles.css";

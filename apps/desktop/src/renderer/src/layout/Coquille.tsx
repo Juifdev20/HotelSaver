@@ -1,11 +1,14 @@
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import {
   ArrowLeftRight,
+  Bell,
   BedDouble,
+  Building2,
   CalendarDays,
+  ChevronDown,
   ClipboardList,
   Coins,
   LayoutDashboard,
@@ -15,6 +18,7 @@ import {
   Moon,
   Package,
   Receipt,
+  Search,
   Settings,
   ShoppingCart,
   Sun,
@@ -63,6 +67,28 @@ function initiales(nom: string): string {
     .join("");
 }
 
+/** Ferme un menu déroulant au clic en dehors ou à la touche Échap. Réutilisé
+ * par les écrans qui ont leurs propres menus contextuels (ex. Chambres). */
+export function useFermetureExterne(ouvert: boolean, fermer: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!ouvert) return;
+    const surClic = (evenement: MouseEvent) => {
+      if (ref.current && !ref.current.contains(evenement.target as Node)) fermer();
+    };
+    const surEchap = (evenement: KeyboardEvent) => {
+      if (evenement.key === "Escape") fermer();
+    };
+    document.addEventListener("mousedown", surClic);
+    document.addEventListener("keydown", surEchap);
+    return () => {
+      document.removeEventListener("mousedown", surClic);
+      document.removeEventListener("keydown", surEchap);
+    };
+  }, [ouvert, fermer]);
+  return ref;
+}
+
 export interface CoquilleProps {
   client: ClientApi;
   utilisateur: UtilisateurAuthentifie;
@@ -71,6 +97,8 @@ export interface CoquilleProps {
   themeSombre: boolean;
   onBasculerTheme: () => void;
   onDeconnexion: () => void;
+  /** Recherche globale (barre du haut) → applique le terme sur l'écran Chambres. */
+  onRechercherChambre: (terme: string) => void;
   children: React.ReactNode;
 }
 
@@ -93,7 +121,7 @@ function LienNavigation({
       onClick={() => onNaviguer(entree.id)}
       aria-current={actif ? "page" : undefined}
     >
-      <Icone size={variante === "bas" ? 22 : 20} strokeWidth={1.75} aria-hidden="true" />
+      <Icone size={variante === "bas" ? 22 : 19} strokeWidth={1.9} aria-hidden="true" />
       <span className="lien-nav__libelle">{variante === "bas" ? entree.libelleCourt : entree.libelle}</span>
       {!entree.disponible && variante === "laterale" && <span className="lien-nav__bientot">Bientôt</span>}
     </button>
@@ -108,15 +136,28 @@ export function Coquille({
   themeSombre,
   onBasculerTheme,
   onDeconnexion,
+  onRechercherChambre,
   children,
 }: CoquilleProps) {
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
+  const [menuProfilOuvert, setMenuProfilOuvert] = useState(false);
+  const [notificationsOuvertes, setNotificationsOuvertes] = useState(false);
+  const [recherche, setRecherche] = useState("");
   const sections = sectionsPourRole(utilisateur.role);
   const barreDuBas = entreesBarreDuBas(utilisateur.role);
+
+  const refProfil = useFermetureExterne(menuProfilOuvert, () => setMenuProfilOuvert(false));
+  const refNotifications = useFermetureExterne(notificationsOuvertes, () => setNotificationsOuvertes(false));
 
   const naviguer = (page: IdPage) => {
     setMenuMobileOuvert(false);
     onNaviguer(page);
+  };
+
+  const lancerRecherche = () => {
+    if (!recherche.trim()) return;
+    onRechercherChambre(recherche.trim());
+    onNaviguer("chambres");
   };
 
   const navigationComplete = (
@@ -142,8 +183,13 @@ export function Coquille({
     <div className="coquille">
       <aside className="coquille__laterale" aria-label="Navigation principale">
         <div className="coquille__marque">
-          <span className="hc-text-heading coquille__nom-hotel">Hôtel Chicago</span>
-          <span className="hc-text-caption coquille__ville">Kasindi</span>
+          <span className="coquille__logo" aria-hidden="true">
+            <Building2 size={22} strokeWidth={2} />
+          </span>
+          <span className="coquille__marque-textes">
+            <span className="hc-text-heading coquille__nom-hotel">Hôtel Chicago</span>
+            <span className="coquille__slogan">Confort · Élégance · Service</span>
+          </span>
         </div>
         <nav className="coquille__nav">{navigationComplete}</nav>
         <div className="coquille__pied-laterale">
@@ -166,26 +212,104 @@ export function Coquille({
           >
             <Menu size={22} aria-hidden="true" />
           </button>
-          <span className="hc-text-body coquille__date">{dateDuJour()}</span>
+
+          <span className="coquille__marque-etroit coquille__seulement-etroit">Hôtel Chicago</span>
+
+          <label className="coquille__recherche coquille__masque-etroit">
+            <Search size={18} aria-hidden="true" />
+            <span className="visuellement-cache">Rechercher une chambre, un client…</span>
+            <input
+              type="search"
+              placeholder="Rechercher une chambre, un client…"
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") lancerRecherche();
+              }}
+            />
+          </label>
+
+          <span className="hc-text-body coquille__date coquille__masque-etroit">{dateDuJour()}</span>
+
           <div className="coquille__actions-haut">
             <IndicateurConnexion client={client} />
-            <button type="button" className="coquille__bouton-texte" onClick={onBasculerTheme}>
-              {themeSombre ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
-              <span className="coquille__masque-etroit">{themeSombre ? "Mode clair" : "Mode sombre"}</span>
-            </button>
-            <div className="coquille__utilisateur" data-testid="utilisateur-connecte">
-              <span className="coquille__avatar" aria-hidden="true">
-                {initiales(utilisateur.nom)}
-              </span>
-              <span className="coquille__identite coquille__masque-etroit">
-                <span className="hc-text-body-strong">{utilisateur.nom}</span>
-                <span className="hc-text-caption coquille__role">{LIBELLE_ROLE[utilisateur.role]}</span>
-              </span>
+
+            <div className="coquille__menu-conteneur" ref={refNotifications}>
+              <button
+                type="button"
+                className="coquille__bouton-icone-rond"
+                onClick={() => setNotificationsOuvertes((v) => !v)}
+                aria-label="Notifications"
+                aria-expanded={notificationsOuvertes}
+              >
+                <Bell size={19} aria-hidden="true" />
+              </button>
+              {notificationsOuvertes && (
+                <div className="coquille__menu-deroulant coquille__menu-deroulant--notifications" role="menu">
+                  <p className="hc-text-body-strong">Notifications</p>
+                  <p className="hc-text-caption texte-discret">Aucune notification pour le moment.</p>
+                </div>
+              )}
             </div>
-            <button type="button" className="coquille__bouton-texte" onClick={onDeconnexion}>
-              <LogOut size={18} aria-hidden="true" />
-              <span className="coquille__masque-etroit">Déconnexion</span>
+
+            <button
+              type="button"
+              className="coquille__bouton-icone-rond"
+              onClick={onBasculerTheme}
+              aria-label={themeSombre ? "Mode clair" : "Mode sombre"}
+              title={themeSombre ? "Mode clair" : "Mode sombre"}
+            >
+              {themeSombre ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
             </button>
+
+            <div className="coquille__menu-conteneur" ref={refProfil}>
+              <button
+                type="button"
+                className="coquille__utilisateur"
+                data-testid="utilisateur-connecte"
+                onClick={() => setMenuProfilOuvert((v) => !v)}
+                aria-expanded={menuProfilOuvert}
+                aria-haspopup="menu"
+              >
+                <span className="coquille__avatar" aria-hidden="true">
+                  {initiales(utilisateur.nom)}
+                </span>
+                <span className="coquille__identite coquille__masque-etroit">
+                  <span className="hc-text-body-strong">{utilisateur.nom}</span>
+                  <span className="hc-text-caption coquille__role">{LIBELLE_ROLE[utilisateur.role]}</span>
+                </span>
+                <ChevronDown size={16} className="coquille__masque-etroit" aria-hidden="true" />
+              </button>
+              {menuProfilOuvert && (
+                <div className="coquille__menu-deroulant" role="menu">
+                  <p className="hc-text-body-strong coquille__menu-entete">{utilisateur.nom}</p>
+                  <p className="hc-text-caption texte-discret coquille__menu-sous-entete">
+                    {LIBELLE_ROLE[utilisateur.role]}
+                  </p>
+                  <button
+                    type="button"
+                    className="coquille__item-menu"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuProfilOuvert(false);
+                      naviguer("parametres");
+                    }}
+                  >
+                    <Settings size={17} aria-hidden="true" />
+                    Paramètres
+                  </button>
+                  <button
+                    type="button"
+                    className="coquille__item-menu coquille__item-menu--danger"
+                    role="menuitem"
+                    onClick={onDeconnexion}
+                  >
+                    <LogOut size={17} aria-hidden="true" />
+                    Déconnexion
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -204,7 +328,7 @@ export function Coquille({
           />
         ))}
         <button type="button" className="lien-nav lien-nav--bas" onClick={() => setMenuMobileOuvert(true)}>
-          <Menu size={22} strokeWidth={1.75} aria-hidden="true" />
+          <Menu size={22} strokeWidth={1.9} aria-hidden="true" />
           <span className="lien-nav__libelle">Plus</span>
         </button>
       </nav>
@@ -212,7 +336,12 @@ export function Coquille({
       {menuMobileOuvert && (
         <div className="coquille__tiroir" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="coquille__tiroir-entete">
-            <span className="hc-text-heading coquille__nom-hotel">Hôtel Chicago</span>
+            <div className="coquille__marque">
+              <span className="coquille__logo" aria-hidden="true">
+                <Building2 size={20} strokeWidth={2} />
+              </span>
+              <span className="hc-text-heading coquille__nom-hotel">Hôtel Chicago</span>
+            </div>
             <button
               type="button"
               className="coquille__bouton-icone"

@@ -43,7 +43,7 @@ test.afterEach(() => {
   rmSync(dossierDonnees, { recursive: true, force: true });
 });
 
-test("les polices de la charte (Fraunces, Public Sans) sont réellement chargées", async () => {
+test("la police de la charte (Inter) est réellement chargée", async () => {
   const app = await lancerApp();
   const fenetre = await app.firstWindow();
   await expect(fenetre.getByRole("heading", { name: "Hôtel Chicago" })).toBeVisible();
@@ -55,7 +55,7 @@ test("les polices de la charte (Fraunces, Public Sans) sont réellement chargée
     await document.fonts.ready;
     return [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family.replace(/["']/g, ""));
   });
-  expect(polices).toEqual(expect.arrayContaining(["Fraunces", "Public Sans"]));
+  expect(polices).toEqual(expect.arrayContaining(["Inter"]));
 
   await app.close();
 });

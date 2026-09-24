@@ -37,6 +37,7 @@ export function App() {
   const [utilisateur, setUtilisateur] = useState<UtilisateurAuthentifie | null>(null);
   const [ecran, setEcran] = useState<Ecran>("chargement");
   const [page, setPage] = useState<IdPage>("tableau-de-bord");
+  const [rechercheChambres, setRechercheChambres] = useState("");
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
   const [themeSombre, setThemeSombre] = useState(themeSombrePrefere);
@@ -150,7 +151,7 @@ export function App() {
     if (page === "tableau-de-bord") {
       contenu = <EcranTableauDeBord client={client} utilisateur={utilisateur} onNaviguer={setPage} />;
     } else if (page === "chambres") {
-      contenu = <EcranChambres client={client} />;
+      contenu = <EcranChambres client={client} rechercheInitiale={rechercheChambres} onNaviguer={setPage} />;
     } else if (page === "parametres") {
       contenu = <EcranParametres configuration={configuration} onEnregistrer={enregistrerParametres} />;
     } else {
@@ -166,6 +167,7 @@ export function App() {
         themeSombre={themeSombre}
         onBasculerTheme={() => setThemeSombre((v) => !v)}
         onDeconnexion={seDeconnecter}
+        onRechercherChambre={setRechercheChambres}
       >
         {contenu}
       </Coquille>
