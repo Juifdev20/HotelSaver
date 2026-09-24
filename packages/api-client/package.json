@@ -2,8 +2,21 @@
   "name": "@hotel-chicago/api-client",
   "private": true,
   "version": "0.1.0",
-  "description": "Client HTTP typé partagé (web, mobile, desktop) — non implémenté, voir README.md",
+  "description": "Client HTTP typé partagé entre desktop, mobile et le futur site public",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "echo \"packages/api-client n'est pas encore implémenté (Phase 2+)\" && exit 0"
+    "build": "tsc -p tsconfig.json",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@hotel-chicago/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.13",
+    "@types/node": "^20.16.10",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.3"
   }
 }
