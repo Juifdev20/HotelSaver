@@ -51,3 +51,39 @@ export interface Chambre {
   updatedAt: string;
   syncVersion: number;
 }
+
+/** Forme JSON d'un Produit (Decimal → string, voir Chambre). */
+export interface Produit {
+  id: string;
+  nom: string;
+  categorie: string;
+  prix: string;
+  devise: Devise;
+  photo: string | null;
+  stockActuel: string;
+  seuilAlerte: string;
+  actif: boolean;
+}
+
+/** Deux montants séparés, jamais fusionnés (section 9.4). */
+export interface MontantsParDevise {
+  montantUSD: number;
+  montantCDF: number;
+}
+
+/** GET /dashboard/recette-du-jour — `chambres`/`cafeteria` absents selon le rôle. */
+export interface RecetteDuJour {
+  chambres?: MontantsParDevise;
+  cafeteria?: MontantsParDevise;
+  total: MontantsParDevise;
+}
+
+/** GET /dashboard/occupation */
+export interface Occupation {
+  total: number;
+  libres: number;
+  occupees: number;
+  reservees: number;
+  enNettoyage: number;
+  tauxOccupationPourcent: number;
+}

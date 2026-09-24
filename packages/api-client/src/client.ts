@@ -1,4 +1,4 @@
-import { Chambre, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Chambre, Occupation, Produit, RecetteDuJour, UtilisateurAuthentifie } from "@hotel-chicago/types";
 
 export class ErreurApi extends Error {
   constructor(
@@ -43,6 +43,29 @@ export class ClientApi {
       method: "PATCH",
       body: JSON.stringify({ statut }),
     });
+  }
+
+  /** Vrai si le serveur de l'hôtel répond — et c'est bien lui (pas un autre
+   * service sur la même adresse, ex. un autre projet sur le port 3000). */
+  async estJoignable(): Promise<boolean> {
+    try {
+      const sante = await this.requete<{ service?: string }>("/health");
+      return sante.service === "hotel-chicago-api";
+    } catch {
+      return false;
+    }
+  }
+
+  async recetteDuJour(): Promise<RecetteDuJour> {
+    return this.requete<RecetteDuJour>("/dashboard/recette-du-jour");
+  }
+
+  async occupation(): Promise<Occupation> {
+    return this.requete<Occupation>("/dashboard/occupation");
+  }
+
+  async stockBas(): Promise<Produit[]> {
+    return this.requete<Produit[]>("/dashboard/stock-bas");
   }
 
   private async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {

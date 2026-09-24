@@ -1,0 +1,49 @@
+.hc-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-1);
+  padding: var(--hc-space-4);
+  background-color: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  color: var(--hc-ink);
+  text-align: left;
+  font-family: var(--hc-font-body);
+  min-width: 0;
+}
+
+button.hc-stat {
+  cursor: pointer;
+}
+button.hc-stat:hover {
+  background-color: var(--hc-surface-300);
+}
+
+/* Filtre actif : contour renforcé, sans nouvelle couleur vive (section 12, préambule). */
+.hc-stat--selectionne {
+  background-color: var(--hc-surface-300);
+  border-color: var(--hc-ink-muted);
+}
+
+.hc-stat__libelle {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  color: var(--hc-ink-muted);
+}
+
+.hc-stat__pastille {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--hc-radius-pill);
+  flex-shrink: 0;
+}
+.hc-stat__pastille--success { background-color: var(--hc-success); }
+.hc-stat__pastille--warning { background-color: var(--hc-warning); }
+.hc-stat__pastille--danger { background-color: var(--hc-danger); }
+.hc-stat__pastille--info { background-color: var(--hc-info); }
+.hc-stat__pastille--neutral { background-color: var(--hc-neutral); }
+
+.hc-stat__precision {
+  color: var(--hc-ink-muted);
+}

@@ -67,6 +67,33 @@ describe("ClientApi", () => {
     expect((erreurCapturee as ErreurApi).message).toMatch(/Impossible de joindre le serveur/);
   });
 
+  describe("estJoignable", () => {
+    it("vrai quand c'est bien le serveur de l'hôtel qui répond", async () => {
+      mockFetchOnce(200, { status: "ok", service: "hotel-chicago-api" });
+      await expect(new ClientApi("http://x", () => null).estJoignable()).resolves.toBe(true);
+    });
+
+    it("faux quand un AUTRE service répond sur cette adresse (ex. un autre projet sur le port 3000)", async () => {
+      mockFetchOnce(200, { status: "ok", uptime: 123 });
+      await expect(new ClientApi("http://x", () => null).estJoignable()).resolves.toBe(false);
+    });
+
+    it("faux quand le serveur est injoignable, sans lever d'erreur", async () => {
+      (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      await expect(new ClientApi("http://x", () => null).estJoignable()).resolves.toBe(false);
+    });
+  });
+
+  it.each([
+    ["recetteDuJour", "/dashboard/recette-du-jour"],
+    ["occupation", "/dashboard/occupation"],
+    ["stockBas", "/dashboard/stock-bas"],
+  ] as const)("%s appelle %s", async (methode, chemin) => {
+    mockFetchOnce(200, {});
+    await new ClientApi("http://localhost:3000", () => "jeton")[methode]();
+    expect(global.fetch).toHaveBeenCalledWith(`http://localhost:3000${chemin}`, expect.anything());
+  });
+
   it("construit la query string des filtres pour listerChambres", async () => {
     mockFetchOnce(200, []);
     const client = new ClientApi("http://localhost:3000", () => "jeton");
