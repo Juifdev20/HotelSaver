@@ -5,6 +5,7 @@
   "description": "Client HTTP typé partagé entre desktop, mobile et le futur site public",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "jest"

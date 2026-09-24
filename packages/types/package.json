@@ -3,10 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "description": "Types TypeScript partagés (DTO, entités, enums) — minimal en Phase 1 (Auth/RBAC uniquement)",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "types": "dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/cjs/index.d.ts"
+    }
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json && node scripts/finaliser-build.cjs"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

@@ -4,7 +4,16 @@
     "outDir": "dist",
     "rootDir": "src",
     "lib": ["ES2022", "DOM"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    // ESM plutôt que le commonjs hérité de tsconfig.base.json : le seul
+    // consommateur actuel est le renderer Electron bundlé par Vite (contexte
+    // ESM/navigateur). tsc compile les ré-exports de barrel (`export {...}
+    // from`) en accesseurs Object.defineProperty en CJS, un motif que
+    // l'interop CJS→ESM de Rollup ne détecte pas de façon fiable comme un
+    // export nommé — constaté en buildant apps/desktop ("Button" is not
+    // exported by .../dist/index.js malgré un export réel).
+    "module": "ESNext",
+    "moduleResolution": "bundler"
   },
   "include": ["src"],
   "exclude": ["src/**/*.spec.tsx", "src/**/*.spec.ts"]

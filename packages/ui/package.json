@@ -5,8 +5,9 @@
   "description": "Design system partagé (web) — jetons section 12, Button/StatusBadge/RoomCard/formatMontant",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/copy-css.js",
+    "build": "tsc -p tsconfig.json && node scripts/copy-css.cjs",
     "test": "jest"
   },
   "dependencies": {

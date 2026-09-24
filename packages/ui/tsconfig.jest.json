@@ -1,5 +1,12 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // ts-jest tourne sous le runtime CommonJS de Jest : le build "réel" de ce
+    // paquet est en ESM (voir tsconfig.json) mais les tests, eux, doivent
+    // rester en commonjs, indépendamment de dist/.
+    "module": "commonjs",
+    "moduleResolution": "node"
+  },
   "include": ["src"],
   "exclude": []
 }

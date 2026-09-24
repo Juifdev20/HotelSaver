@@ -8,7 +8,7 @@ module.exports = {
   },
   moduleFileExtensions: ["ts", "tsx", "js", "json"],
   moduleNameMapper: {
-    "\\.css$": "<rootDir>/src/css-mock.js",
+    "\\.css$": "<rootDir>/src/css-mock.cjs",
   },
   setupFilesAfterEnv: ["<rootDir>/src/jest.setup.ts"],
 };
