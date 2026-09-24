@@ -86,7 +86,14 @@ create policy "chambre_update" on "Chambre"
   for update
   using (public.role_utilisateur_courant() in ('RECEPTIONNISTE', 'PATRON'))
   with check (public.role_utilisateur_courant() in ('RECEPTIONNISTE', 'PATRON'));
--- Pas de policy DELETE : jamais de suppression physique d'une chambre en service.
+
+-- Contrairement à Reservation/Facture/VenteCafeteria, une Chambre n'est pas une
+-- donnée financière : la matrice 9.3 autorise explicitement PATRON à la
+-- "Supprimer" (ex. chambre retirée du service). ChambresService.remove()
+-- refuse déjà la suppression si des réservations existent encore (contrainte FK).
+create policy "chambre_delete_patron" on "Chambre"
+  for delete
+  using (public.role_utilisateur_courant() = 'PATRON');
 
 -- Trigger complémentaire : un RECEPTIONNISTE ne peut modifier QUE le statut
 -- (et les photos) d'une chambre, jamais numero/type/prixParNuit/devise —
@@ -112,6 +119,13 @@ begin
         raise exception 'RECEPTIONNISTE ne peut modifier que le statut ou les photos d''une chambre, jamais son prix ou son type.';
       end if;
     end if;
+  end if;
+  -- NEW est NULL sur un trigger DELETE (seul OLD existe alors) : renvoyer NEW
+  -- sans condition annulerait silencieusement TOUTE suppression de chambre,
+  -- quel que soit le rôle — bug réel trouvé en testant le vrai endpoint DELETE
+  -- (Phase 2), où PATRON se voyait refuser une suppression qu'il devrait pouvoir faire.
+  if TG_OP = 'DELETE' then
+    return OLD;
   end if;
   return NEW;
 end;

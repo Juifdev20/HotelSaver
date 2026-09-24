@@ -87,6 +87,10 @@ model Reservation {
   statut      String // EN_ATTENTE, CONFIRMEE, EN_COURS, TERMINEE, ANNULEE
   origine     String // RECEPTION, SITE_PUBLIC
   createdBy   String // Utilisateur.id
+  // Ajoutés en Phase 2 (absents du schéma section 7, mais requis par la section 8/17 :
+  // "aucune suppression physique ... uniquement des annulations tracées avec motif") :
+  annuleLe        DateTime?
+  motifAnnulation String?
   facture     Facture?
   updatedAt   DateTime @updatedAt
   syncVersion Int      @default(1)
@@ -112,6 +116,12 @@ model Facture {
   deviseRegleeParClient Devise?
   montantRegleParClient Decimal?
   tauxChangeApplique    Decimal? // copie du taux du jour utilisé pour le paiement croisé, jamais recalculé après coup
+  // Ajoutés en Phase 2 : la devise dans laquelle le caissier a choisi de rendre la
+  // monnaie n'est pas dérivable des autres champs (c'est un choix indépendant, voir
+  // section 9.4) — sans ces deux colonnes, cette information serait perdue après la
+  // transaction et impossible à réimprimer correctement (gabarit section 11.2).
+  deviseMonnaieRendue   Devise?
+  montantMonnaieRendue  Decimal?
   numeroRecu            String    @unique
   imprimeLe             DateTime?
   annuleLe              DateTime?
