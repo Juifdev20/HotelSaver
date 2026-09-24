@@ -13,11 +13,14 @@ Factures/Produits/Stock/Cafétaria avec logique métier réelle — disponibilit
 check-in/out, gestion de stock, comptes ouverts et sous-comptes, calcul
 multi-devises et paiement croisé, intégration ventes cafétaria → facture de
 chambre —, Dashboard patron scopé par rôle, endpoints publics du site
-vitrine, et synchronisation hors ligne avec détection de conflit). Ce qui
-reste : l'application Electron elle-même (UI + impression thermique), les
-appareils SQLite locaux qui consommeraient ce module de sync, le mobile, et
-le site public lui-même (Next.js) — voir le README de chaque paquet dans
-`apps/` pour le détail, et `DECISIONS.md` pour le découpage en phases.
+vitrine, et synchronisation hors ligne avec détection de conflit).
+
+**L'app Electron a commencé** : connexion Supabase réelle + écran Chambres,
+testés de bout en bout avec Playwright sur la vraie app. Ce qui reste : les
+autres écrans Electron (réservations, facturation, cafétaria) et
+l'impression thermique, les bases SQLite locales qui consommeraient le
+module de sync, le mobile, et le site public lui-même (Next.js) — voir le
+README de chaque paquet dans `apps/` et `DECISIONS.md`.
 
 ## Structure
 
@@ -26,12 +29,12 @@ apps/
   api/       Backend NestJS — construit (Phase 1 : Auth/RBAC ; Phases 2-3 : Réception + Cafétaria)
   web/       Site public Next.js — pas encore construit (Phase 7)
   mobile/    App React Native — pas encore construite (Phase 5)
-  desktop/   App Electron — pas encore construite (Phase 2b/3b : UI + impression)
+  desktop/   App Electron — connexion + écran Chambres (reste à venir : autres écrans, impression)
 packages/
   database/      Schéma Prisma + client, connecté à Supabase Postgres
-  types/         Types partagés (minimal pour l'instant : Auth/RBAC)
-  ui/            Design system partagé — pas encore construit
-  api-client/    Client HTTP typé partagé — pas encore construit
+  types/         Types partagés (double build CJS pour l'API / ESM pour le renderer)
+  ui/            Design system (section 12) : jetons, Button, StatusBadge, RoomCard, formatMontant
+  api-client/    Client HTTP typé + connexion Supabase Auth
   sync-engine/   Moteur de synchronisation hors ligne — pas encore construit
 assets/      Ressources graphiques statiques (logo, icônes...) — voir section 5.1 du prompt
 ```
@@ -88,6 +91,24 @@ pnpm --filter database migrate:dev
 # Applique ensuite les policies RLS (pas gérées par Prisma) :
 pnpm --filter database apply-rls
 ```
+
+## Créer un compte du personnel (dont le premier compte patron)
+
+Se connecter demande **deux** choses : un compte Supabase Auth (email + mot
+de passe) et une ligne `Utilisateur` liée qui porte le rôle métier. Aucun
+écran de gestion des comptes n'existe encore ; ce script crée les deux d'un
+coup (et supprime le compte Supabase si l'écriture en base échoue, pour ne
+jamais laisser de compte sans rôle) :
+
+```bash
+pnpm --filter database build
+MOT_DE_PASSE='...' pnpm --filter database creer-utilisateur patron@exemple.com "Nom du patron" PATRON
+```
+
+Rôles : `PATRON`, `RECEPTIONNISTE`, `CAFETARIA`. Le mot de passe passe par
+une variable d'environnement pour ne pas rester dans l'historique des
+arguments. Nécessite `DATABASE_URL` (`packages/database/.env`) et
+`SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` (`apps/api/.env`).
 
 ## Compiler les paquets partagés
 
@@ -147,10 +168,15 @@ pnpm --filter api start:dev
 ## Tests
 
 ```bash
-pnpm --filter api test
+pnpm test                    # tous les tests unitaires (api, ui, api-client)
+pnpm --filter api test       # API seule
 ```
 
-Vérifie notamment la matrice de permissions complète
+Tests E2E de l'app Electron (vraie app, vraie API, vrai compte Supabase) :
+voir `apps/desktop/README.md` — ignorés tant que les variables `E2E_*` ne
+sont pas définies.
+
+Côté API, les tests vérifient notamment la matrice de permissions complète
 (`apps/api/test/roles.e2e-spec.ts`, requis section 14) : un rôle
 `CAFETARIA` reçoit bien 403 sur les routes Chambres/Réservations, un rôle
 `RECEPTIONNISTE` reçoit bien 403 sur les routes Produits/Stock/Cafétaria, et

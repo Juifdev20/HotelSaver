@@ -2,9 +2,29 @@
   "name": "@hotel-chicago/desktop",
   "private": true,
   "version": "0.1.0",
-  "description": "Application desktop Hôtel Chicago (Electron) — non implémentée, voir README.md",
+  "description": "Application desktop Hôtel Chicago (Electron) — Réception : connexion + écran Chambres (slice 1)",
+  "main": "./out/main/index.js",
   "scripts": {
-    "build": "echo \"apps/desktop n'est pas encore implémenté (Phases 2-3)\" && exit 0",
-    "dev": "echo \"apps/desktop n'est pas encore implémenté (Phases 2-3)\" && exit 0"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@hotel-chicago/api-client": "workspace:*",
+    "@hotel-chicago/types": "workspace:*",
+    "@hotel-chicago/ui": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.2",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "electron": "^32.1.2",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8"
   }
 }

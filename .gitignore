@@ -29,6 +29,10 @@ packages/database/prisma/migrations/dev.db
 apps/desktop/out/
 apps/desktop/dist/
 
+# Playwright (tests E2E Electron)
+apps/desktop/test-results/
+apps/desktop/playwright-report/
+
 # Expo / React Native
 apps/mobile/.expo/
 apps/mobile/android/

@@ -423,6 +423,53 @@ mais via le chemin générique de sync cette fois). Un rôle non autorisé
 (CAFETARIA créant un `Produit`) reçoit une erreur d'opération propre, jamais
 un crash du lot entier.
 
+## Phase 2b, tranche 1 — Electron : connexion + écran Chambres
+
+Première UI réelle. Plutôt que d'attaquer toute la surface Electron
+(réservations, facturation, cafétaria, impression) d'un coup, une seule
+tranche verticale complète et vérifiée : connexion Supabase réelle → écran
+Chambres alimenté par la vraie API. Le reste suivra écran par écran.
+
+**Choix techniques** (non imposés par le prompt au-delà de « Electron +
+React ») : `electron-vite` (un seul outil pour main/preload/renderer), pas de
+routeur ni de gestionnaire d'état pour trois écrans (état React local),
+configuration persistée dans `configuration.json` du dossier `userData` via
+IPC (section 6 : URL de l'API modifiable depuis un écran Paramètres).
+La clé *anon* Supabase est pré-remplie dans l'app : elle est publique par
+conception (protégée par la RLS), contrairement à la clé `service_role`,
+qui n'apparaît jamais côté client.
+
+**Vérification sans outil visuel.** Aucun outil de capture d'écran n'est
+disponible dans cet environnement. La vérification passe donc par
+Playwright en mode Electron : il lance la vraie app buildée et interroge le
+DOM réellement rendu (texte, attributs, comportement), contre la vraie API,
+la vraie base et un vrai compte Supabase Auth créé puis supprimé pour le
+test. Ce qui est vérifié : connexion réelle, message d'erreur en français,
+chambres réelles avec prix formatés (`45.00 $`, `20 000 FC`) et statuts
+(`Libre`, `Occupée`), bascule du mode sombre, session conservée au
+redémarrage. Ce qui ne l'est **pas** : l'apparence exacte (couleurs,
+espacements, polices) par rapport à la charte — contrôle humain requis.
+
+**Trois problèmes réels révélés par cette première UI** (tous corrigés) :
+1. **Vérification des jetons** : Supabase signe en ES256 via JWKS, pas avec
+   le secret HS256 supposé en Phase 1 — voir la section « Authentification
+   Supabase » ci-dessus. Aucun utilisateur réel n'aurait pu se connecter.
+2. **Paquets partagés non bundlables par Vite** (interop CJS→ESM) :
+   `packages/ui` et `packages/api-client` passent en ESM, `packages/types`
+   en double build CJS + ESM (consommé à la fois par l'API Node et par le
+   renderer).
+3. **Messages d'erreur en anglais** : Supabase renvoie "Invalid login
+   credentials" — désormais traduit par code d'erreur (`invalid_credentials`,
+   `user_banned`, etc.). Une coupure internet donne aussi un message français
+   explicite au lieu de "Failed to fetch".
+
+Ajout côté API : `GET /auth/me` (nom et rôle de l'utilisateur connecté),
+nécessaire à tout client pour savoir quoi afficher après connexion.
+
+**Pas encore fait** : aucun écran de gestion des comptes n'existe. Aucun
+utilisateur ne peut se connecter tant qu'un compte Supabase Auth ET une
+ligne `Utilisateur` liée n'ont pas été créés (voir le README racine).
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase

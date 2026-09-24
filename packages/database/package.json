@@ -12,7 +12,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "migrate:status": "prisma migrate status",
     "studio": "prisma studio",
-    "apply-rls": "node scripts/apply-rls.js"
+    "apply-rls": "node scripts/apply-rls.js",
+    "creer-utilisateur": "node scripts/creer-utilisateur.js"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0"

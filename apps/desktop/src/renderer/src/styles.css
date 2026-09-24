@@ -1,0 +1,57 @@
+/* Mise en page propre à cette app — pas des jetons de charte graphique
+ * (ceux-là vivent dans @hotel-chicago/ui/dist/tokens.css). */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.hc-ecran-connexion {
+  max-width: 360px;
+  margin: var(--hc-space-7) auto;
+  padding: var(--hc-space-5);
+  background-color: var(--hc-surface-100);
+  color: var(--hc-ink);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+}
+
+.hc-ecran-connexion form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+}
+
+.hc-ecran-connexion input {
+  padding: var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  border: 1px solid var(--hc-border);
+  background-color: var(--hc-surface-200);
+  color: var(--hc-ink);
+  font-family: var(--hc-font-body);
+  font-size: 15px;
+}
+
+.hc-ecran-chambres {
+  padding: var(--hc-space-5);
+  min-height: 100vh;
+  background-color: var(--hc-surface-100);
+  color: var(--hc-ink);
+}
+
+.hc-ecran-chambres header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--hc-space-5);
+}
+
+.hc-grille-chambres {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--hc-space-4);
+}
