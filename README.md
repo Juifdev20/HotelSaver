@@ -5,18 +5,19 @@ Monorepo pnpm/Turborepo pour l'application de gestion de l'Hôtel Chicago
 racine pour la spécification complète du produit, et `DECISIONS.md` pour les
 hypothèses prises pendant la réalisation.
 
-**État actuel : le backend est fonctionnellement complet et vérifié en
-conditions réelles** (monorepo, schéma de base de données appliqué à
-Supabase de production, policies RLS appliquées, authentification, matrice
-de permissions testée de bout en bout, modules Chambres/Réservations/
+**État actuel : le backend est fonctionnellement complet (toute la section 8)
+et vérifié en conditions réelles** (monorepo, schéma de base de données
+appliqué à Supabase de production, policies RLS appliquées, authentification,
+matrice de permissions testée de bout en bout, modules Chambres/Réservations/
 Factures/Produits/Stock/Cafétaria avec logique métier réelle — disponibilité,
 check-in/out, gestion de stock, comptes ouverts et sous-comptes, calcul
 multi-devises et paiement croisé, intégration ventes cafétaria → facture de
-chambre — plus Dashboard patron scopé par rôle et les endpoints publics du
-site vitrine). L'application Electron (UI + impression thermique), le mode
-hors ligne, le mobile et le site public lui-même (Next.js) ne sont pas
-encore construits — voir le README de chaque paquet dans `apps/` pour le
-détail, et `DECISIONS.md` pour le découpage en phases.
+chambre —, Dashboard patron scopé par rôle, endpoints publics du site
+vitrine, et synchronisation hors ligne avec détection de conflit). Ce qui
+reste : l'application Electron elle-même (UI + impression thermique), les
+appareils SQLite locaux qui consommeraient ce module de sync, le mobile, et
+le site public lui-même (Next.js) — voir le README de chaque paquet dans
+`apps/` pour le détail, et `DECISIONS.md` pour le découpage en phases.
 
 ## Structure
 
@@ -133,6 +134,15 @@ pnpm --filter api start:dev
   (jamais confirmée automatiquement). Ne jamais ajouter de guard global qui
   s'appliquerait à ce contrôleur — le site public n'a pas de compte
   (section 9.1).
+- `/sync/push`, `/sync/pull` (section 10.3) : synchronisation hors ligne.
+  Chaque opération de `push` délègue au service métier existant de son type
+  d'entité (Chambre, Réservation, Produit, MouvementStock, CompteCafeteria,
+  SousCompte, LigneCommande — Facture/VenteCafeteria exclues, voir
+  `DECISIONS.md`), avec détection de conflit par `syncVersion` : si la
+  version serveur a changé depuis la dernière lecture de l'appareil, le
+  serveur gagne et renvoie l'état actuel (statut `CONFLICT`), rien n'est
+  écrasé silencieusement (section 10.4). Une opération invalide renvoie un
+  statut `ERROR` pour elle seule, sans faire échouer tout le lot.
 
 ## Tests
 

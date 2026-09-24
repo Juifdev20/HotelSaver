@@ -354,6 +354,64 @@ voit le total complet ; `/public/*` répond sans authentification ; une
 demande publique n'empêche pas la disponibilité de la chambre pour les mêmes
 dates.
 
+## SyncModule (section 10.3) — dernier module backend de la section 8
+
+`POST /sync/push` et `GET /sync/pull` complètent la surface API listée
+section 8. Construit maintenant plutôt qu'en attendant une vraie app
+Electron/mobile hors ligne (aucune n'existe encore) parce que le contrat
+push/pull et la résolution de conflit (section 10.4) sont entièrement
+testables à la main (curl simulant un appareil), exactement comme le reste
+du backend — pas besoin d'UI pour vérifier que ça fonctionne.
+
+**Chaque type d'entité délègue à son service métier existant**
+(`ChambresService`, `ReservationsService`, `ProduitsService`, `StockService`,
+`CafeteriaService`) plutôt qu'un passthrough Prisma générique. Décision
+importante : un `create()` générique aurait cassé des invariants déjà en
+place — par exemple, `LigneCommande` doit décrémenter le stock
+atomiquement (voir Phase 3), ce qui n'existe que dans
+`CafeteriaService.ajouterLigne()`. Déléguer aux services existants garantit
+aussi que la sync ne peut jamais faire plus que ce que l'endpoint direct
+équivalent permettrait déjà (ex. la restriction RECEPTIONNISTE sur les
+champs de `Chambre` s'applique automatiquement, sans dupliquer la règle).
+
+**Entités exclues de `POST /sync/push`** (mais lisibles via `GET /sync/pull`,
+qui n'a pas ce problème puisqu'il ne fait que lire) : `Facture` et
+`VenteCafeteria`. Leur création implique un calcul serveur trop spécifique
+(numéro de reçu séquentiel, montants multi-devises, intégration cafétaria →
+facture chambre) pour un passthrough générique, et le préfixe `TEMP-` de
+réimpression décrit section 11.3 (pour un reçu imprimé hors ligne avant
+d'avoir un numéro définitif) n'a pas encore de véritable consommateur —
+aucune app hors ligne n'existe pour révéler la forme exacte dont elle aurait
+besoin. À traiter quand Phase 2b/3b (Electron) ou une app mobile existera
+réellement.
+
+**Limite connue** : la réponse d'un `CREATE` ne renvoie que `{localId,
+remoteId, syncVersion}` de l'entité elle-même — pas ses sous-ressources
+créées en cascade. `CompteCafeteria` crée automatiquement un premier
+`SousCompte` "Personne 1" (voir Phase 3), mais son `remoteId` n'apparaît pas
+dans la réponse de sync : un appareil voulant y ajouter une ligne juste après
+doit d'abord faire un `GET /cafeteria/comptes/:id` (ou attendre le prochain
+`pull`). Repéré en testant justement ce scénario contre la vraie base.
+
+**Bug corrigé avant de construire ce module** : `syncVersion` n'était
+jamais incrémenté après sa valeur initiale (`@default(1)`) sur AUCUNE des
+Phases 1-3 — la détection de conflit aurait donc été un mécanisme
+complètement inerte. Voir le commit dédié « Fix syncVersion... » : chaque
+site d'écriture across `ChambresService`, `ReservationsService`,
+`ProduitsService`, `StockService`, `FacturesService`, `CafeteriaService`
+incrémente désormais `syncVersion` à chaque modification.
+
+Vérifié de bout en bout contre la vraie base, en simulant deux appareils qui
+divergent hors ligne : appareil A pousse `statut=OCCUPEE` avec
+`baseSyncVersion=1` → accepté, `syncVersion` passe à 2 ; appareil B pousse
+`statut=RESERVEE` avec le même `baseSyncVersion=1` (périmé) → refusé
+proprement en `CONFLICT` avec l'état serveur actuel, rien n'est écrasé ; B
+relance avec `baseSyncVersion=2` → accepté. `LigneCommande` poussée via sync
+décrémente bien le stock automatiquement (mêmes vérifications que Phase 3,
+mais via le chemin générique de sync cette fois). Un rôle non autorisé
+(CAFETARIA créant un `Produit`) reçoit une erreur d'opération propre, jamais
+un crash du lot entier.
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase
