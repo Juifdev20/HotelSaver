@@ -47,14 +47,24 @@ export class ClientApi {
 
   private async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {
     const token = this.getAccessToken();
-    const reponse = await fetch(`${this.baseUrl}${chemin}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-    });
+    let reponse: Response;
+    try {
+      reponse = await fetch(`${this.baseUrl}${chemin}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...options.headers,
+        },
+      });
+    } catch {
+      // statusCode 0 = aucune réponse reçue (internet coupé, serveur injoignable) —
+      // distinct d'une vraie erreur HTTP, pour que l'appelant puisse le traiter à part.
+      throw new ErreurApi(
+        0,
+        "Impossible de joindre le serveur de l'hôtel. Vérifiez la connexion internet ou l'URL de l'API dans les Paramètres."
+      );
+    }
 
     if (!reponse.ok) {
       const corps = await reponse.json().catch(() => ({}));

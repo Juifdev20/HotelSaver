@@ -39,18 +39,32 @@ describe("connecterAvecMotDePasse", () => {
     expect(session).toEqual({ accessToken: "at", refreshToken: "rt", expiresAt: 1_000_000 + 3600 });
   });
 
-  it("traduit un échec Supabase en message d'erreur clair", async () => {
-    mockFetchOnce(false, 400, { error_description: "Invalid login credentials" });
+  it("traduit en français la vraie réponse Supabase à un mauvais mot de passe (jamais l'anglais brut)", async () => {
+    // Réponse réelle observée : {"code":400,"error_code":"invalid_credentials","msg":"Invalid login credentials"}
+    mockFetchOnce(false, 400, { code: 400, error_code: "invalid_credentials", msg: "Invalid login credentials" });
 
-    await expect(connecterAvecMotDePasse(config, "a@b.com", "mauvais")).rejects.toThrow(
-      "Invalid login credentials"
-    );
+    const promesse = connecterAvecMotDePasse(config, "a@b.com", "mauvais");
+    await expect(promesse).rejects.toThrow("Email ou mot de passe incorrect.");
   });
 
-  it("donne un message par défaut si Supabase ne fournit aucun détail", async () => {
+  it("donne un message français par défaut si Supabase ne fournit aucun code connu", async () => {
     mockFetchOnce(false, 400, {});
     await expect(connecterAvecMotDePasse(config, "a@b.com", "mauvais")).rejects.toThrow(
       "Email ou mot de passe incorrect."
+    );
+  });
+
+  it("explique un compte désactivé en français", async () => {
+    mockFetchOnce(false, 400, { error_code: "user_banned", msg: "User is banned" });
+    await expect(connecterAvecMotDePasse(config, "a@b.com", "x")).rejects.toThrow(
+      "Ce compte a été désactivé. Contactez le patron."
+    );
+  });
+
+  it("explique une coupure internet au lieu d'une erreur technique brute", async () => {
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await expect(connecterAvecMotDePasse(config, "a@b.com", "x")).rejects.toThrow(
+      /Impossible de joindre le serveur de connexion/
     );
   });
 });

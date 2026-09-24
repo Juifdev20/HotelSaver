@@ -17,15 +17,51 @@ export interface SessionSupabase {
   expiresAt: number;
 }
 
+/**
+ * Messages Supabase (en anglais) → messages français concrets (section 17).
+ * On ne réaffiche jamais le texte brut de Supabase au personnel : constaté en
+ * test réel, un mauvais mot de passe renvoyait "Invalid login credentials".
+ */
+const MESSAGES_PAR_CODE: Record<string, string> = {
+  invalid_credentials: "Email ou mot de passe incorrect.",
+  invalid_grant: "Email ou mot de passe incorrect.",
+  email_not_confirmed: "Ce compte n'est pas encore activé. Contactez le patron.",
+  user_banned: "Ce compte a été désactivé. Contactez le patron.",
+  over_request_rate_limit: "Trop de tentatives. Patientez quelques minutes avant de réessayer.",
+  refresh_token_not_found: "Votre session a expiré. Reconnectez-vous.",
+  refresh_token_already_used: "Votre session a expiré. Reconnectez-vous.",
+};
+
+function messageErreurAuth(status: number, corps: { error_code?: string; error?: string }): string {
+  const code = corps.error_code ?? corps.error;
+  if (code && MESSAGES_PAR_CODE[code]) {
+    return MESSAGES_PAR_CODE[code];
+  }
+  if (status === 400 || status === 401) {
+    return "Email ou mot de passe incorrect.";
+  }
+  if (status === 429) {
+    return MESSAGES_PAR_CODE.over_request_rate_limit;
+  }
+  return `Le service de connexion a répondu avec une erreur (${status}). Réessayez dans un instant.`;
+}
+
+async function envoyer(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    // Internet coupé (fréquent à l'hôtel, section 0) : fetch lève avant toute réponse.
+    throw new Error(
+      "Impossible de joindre le serveur de connexion. Vérifiez la connexion internet puis réessayez."
+    );
+  }
+}
+
 async function traiterReponseJeton(reponse: Response): Promise<SessionSupabase> {
   const corps = await reponse.json().catch(() => ({}));
 
   if (!reponse.ok) {
-    const message =
-      corps.error_description ||
-      corps.msg ||
-      (reponse.status === 400 ? "Email ou mot de passe incorrect." : `Erreur d'authentification (${reponse.status}).`);
-    throw new Error(message);
+    throw new Error(messageErreurAuth(reponse.status, corps));
   }
 
   return {
@@ -40,7 +76,7 @@ export async function connecterAvecMotDePasse(
   email: string,
   motDePasse: string
 ): Promise<SessionSupabase> {
-  const reponse = await fetch(`${config.url}/auth/v1/token?grant_type=password`, {
+  const reponse = await envoyer(`${config.url}/auth/v1/token?grant_type=password`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: config.anonKey },
     body: JSON.stringify({ email, password: motDePasse }),
@@ -52,7 +88,7 @@ export async function rafraichirSession(
   config: ConfigSupabaseAuth,
   refreshToken: string
 ): Promise<SessionSupabase> {
-  const reponse = await fetch(`${config.url}/auth/v1/token?grant_type=refresh_token`, {
+  const reponse = await envoyer(`${config.url}/auth/v1/token?grant_type=refresh_token`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: config.anonKey },
     body: JSON.stringify({ refresh_token: refreshToken }),

@@ -51,6 +51,22 @@ describe("ClientApi", () => {
     expect((erreurCapturee as ErreurApi).statusCode).toBe(403);
   });
 
+  it("signale une coupure réseau avec statusCode 0 et un message français, pas 'Failed to fetch'", async () => {
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const client = new ClientApi("http://localhost:3000", () => "jeton");
+
+    let erreurCapturee: unknown;
+    try {
+      await client.moi();
+    } catch (erreur) {
+      erreurCapturee = erreur;
+    }
+
+    expect(erreurCapturee).toBeInstanceOf(ErreurApi);
+    expect((erreurCapturee as ErreurApi).statusCode).toBe(0);
+    expect((erreurCapturee as ErreurApi).message).toMatch(/Impossible de joindre le serveur/);
+  });
+
   it("construit la query string des filtres pour listerChambres", async () => {
     mockFetchOnce(200, []);
     const client = new ClientApi("http://localhost:3000", () => "jeton");
