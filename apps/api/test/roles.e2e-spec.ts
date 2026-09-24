@@ -199,6 +199,22 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
     });
   });
 
+  describe("Auth — /auth/me identifie l'utilisateur connecté pour tout client", () => {
+    it("refuse sans authentification", async () => {
+      await request(app.getHttpServer()).get("/auth/me").expect(401);
+    });
+
+    it("retourne le rôle et le nom réels de l'utilisateur, pas ceux du jeton", async () => {
+      const reponse = await request(app.getHttpServer())
+        .get("/auth/me")
+        .set("Authorization", bearer("auth-cafeteria"))
+        .expect(200);
+      expect(reponse.body).toEqual(
+        expect.objectContaining({ userId: "u-cafeteria", role: "CAFETARIA", nom: "Serveur Test" })
+      );
+    });
+  });
+
   describe("Public — section 9.1 : le rôle CLIENT n'a pas de compte", () => {
     it.each(["/public/chambres-disponibles", "/public/menu"])(
       "%s répond 200 SANS aucun jeton d'authentification",

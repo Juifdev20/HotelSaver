@@ -3,6 +3,7 @@ import { Module, ValidationPipe } from "@nestjs/common";
 import { APP_PIPE } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
 import { HealthModule } from "./health/health.module";
+import { AuthModule } from "./auth/auth.module";
 import { ChambresModule } from "./chambres/chambres.module";
 import { ReservationsModule } from "./reservations/reservations.module";
 import { FacturesModule } from "./factures/factures.module";
@@ -21,6 +22,7 @@ import { SyncModule } from "./sync/sync.module";
     // lancée depuis la racine du monorepo (le cas courant) plutôt que depuis apps/api.
     ConfigModule.forRoot({ isGlobal: true, envFilePath: join(__dirname, "..", ".env") }),
     HealthModule,
+    AuthModule,
     ChambresModule,
     ReservationsModule,
     FacturesModule,
