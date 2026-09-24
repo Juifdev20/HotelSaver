@@ -1,0 +1,62 @@
+.hc-button {
+  font-family: var(--hc-font-body);
+  font-weight: 600;
+  border-radius: var(--hc-radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hc-space-2);
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.hc-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hc-button--sm {
+  padding: var(--hc-space-2) var(--hc-space-3);
+  font-size: 13px;
+}
+
+.hc-button--md {
+  padding: var(--hc-space-3) var(--hc-space-4);
+  font-size: 15px;
+}
+
+.hc-button--lg {
+  padding: var(--hc-space-4) var(--hc-space-5);
+  font-size: 16px;
+}
+
+/* primary : unique bouton d'action principal d'un écran (section 12, préambule) */
+.hc-button--primary {
+  background-color: var(--hc-accent);
+  color: var(--hc-on-accent);
+}
+.hc-button--primary:hover:not(:disabled) {
+  background-color: var(--hc-accent-strong);
+}
+
+.hc-button--secondary {
+  background-color: transparent;
+  border-color: var(--hc-rust);
+  color: var(--hc-rust);
+}
+.hc-button--secondary:hover:not(:disabled) {
+  border-color: var(--hc-rust-strong);
+  color: var(--hc-rust-strong);
+}
+
+.hc-button--danger {
+  background-color: var(--hc-danger);
+  color: var(--hc-on-status);
+}
+.hc-button--danger:hover:not(:disabled) {
+  filter: brightness(0.9);
+}

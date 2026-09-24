@@ -1,0 +1,92 @@
+/*
+ * Typographie — section 12.3. Charger la feuille Google Fonts indiquée par
+ * le prompt une seule fois, au niveau de l'app (pas ici, pour éviter de la
+ * charger plusieurs fois si plusieurs composants de ce paquet sont utilisés) :
+ *
+ *   https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap
+ *
+ * - Fraunces : titres pleine page uniquement (écran de connexion, accueil
+ *   site public, titre du tableau de bord).
+ * - Public Sans : tout le reste de l'interface.
+ * - IBM Plex Mono : uniquement les nombres alignés (prix, totaux, numéros).
+ */
+
+:root {
+  --hc-font-display: "Fraunces", serif;
+  --hc-font-body: "Public Sans", sans-serif;
+  --hc-font-mono: "IBM Plex Mono", monospace;
+}
+
+body {
+  font-family: var(--hc-font-body);
+  color: var(--hc-ink);
+  background: var(--hc-surface-100);
+}
+
+.hc-text-display-lg {
+  font-family: var(--hc-font-display);
+  font-size: 34px;
+  font-weight: 600;
+}
+
+.hc-text-display-md {
+  font-family: var(--hc-font-display);
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.hc-text-heading {
+  font-family: var(--hc-font-body);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.hc-text-subheading {
+  font-family: var(--hc-font-body);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.hc-text-body {
+  font-family: var(--hc-font-body);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.hc-text-body-strong {
+  font-family: var(--hc-font-body);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.hc-text-caption {
+  font-family: var(--hc-font-body);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.hc-text-label {
+  font-family: var(--hc-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hc-text-price {
+  font-family: var(--hc-font-mono);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.hc-text-price-lg {
+  font-family: var(--hc-font-mono);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.hc-text-code {
+  font-family: var(--hc-font-mono);
+  font-size: 13px;
+  font-weight: 400;
+}

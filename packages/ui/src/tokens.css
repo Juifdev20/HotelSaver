@@ -1,0 +1,64 @@
+/*
+ * Jetons de la charte graphique — section 12 du prompt d'origine.
+ * Valeurs littérales, ne pas improviser de couleur en dehors de cette liste
+ * (section 12, préambule). Thème clair par défaut sur :root ; thème sombre
+ * activé en posant data-theme="dark" sur un ancêtre (généralement <html>).
+ * Jamais de blanc pur ni de noir pur pour un fond de page (section 12.2).
+ */
+
+:root {
+  /* Couleurs — thème clair (section 12.1) */
+  --hc-surface-100: #fbf5ec;
+  --hc-surface-200: #f3e7d3;
+  --hc-surface-300: #ecd9ba;
+  --hc-border: #ddc9a8;
+  --hc-ink: #2a1f15;
+  --hc-ink-muted: #6e5d49;
+  --hc-accent: #c98a2e;
+  --hc-accent-strong: #a86f1f;
+  --hc-rust: #9a3d1e;
+  --hc-rust-strong: #7a2e15;
+  --hc-on-accent: #241a12;
+  --hc-success: #2f6b41;
+  --hc-warning: #9c6a1e;
+  --hc-danger: #9e3226;
+  --hc-info: #2e5c79;
+  --hc-neutral: #4f4959;
+  /* Texte sur un badge de statut coloré (section 12.1 : "texte blanc") —
+     jeton à part de la règle "jamais de blanc pur" qui ne vise que les FONDS
+     DE PAGE, pas une petite touche de texte sur badge. */
+  --hc-on-status: #ffffff;
+
+  /* Espacements (section 12.4) */
+  --hc-space-1: 4px;
+  --hc-space-2: 8px;
+  --hc-space-3: 12px;
+  --hc-space-4: 16px;
+  --hc-space-5: 24px;
+  --hc-space-6: 32px;
+  --hc-space-7: 48px;
+
+  /* Rayons (section 12.4) */
+  --hc-radius-sm: 6px;
+  --hc-radius-md: 10px;
+  --hc-radius-lg: 16px;
+  --hc-radius-pill: 999px;
+}
+
+:root[data-theme="dark"] {
+  /* Couleurs — thème sombre (section 12.2) */
+  --hc-surface-100: #1b140d;
+  --hc-surface-200: #241b12;
+  --hc-surface-300: #2f2419;
+  --hc-border: #3c2e1f;
+  --hc-ink: #f2e7d8;
+  --hc-ink-muted: #c2af97;
+  --hc-accent: #d79a44;
+  --hc-accent-strong: #e6ac5c;
+  /* rust : texte/icônes uniquement en mode sombre, jamais en grand aplat (section 12.2) */
+  --hc-rust: #e2825a;
+  --hc-rust-strong: #ef9b74;
+  --hc-on-accent: #241a12;
+  /* success/warning/danger/info/neutral : identiques au clair, déjà assez
+     sombres pour porter du texte blanc dans les deux thèmes (section 12.2). */
+}
