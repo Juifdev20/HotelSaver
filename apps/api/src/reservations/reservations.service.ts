@@ -95,9 +95,12 @@ export class ReservationsService {
       await this.verifierAbsenceDeConflit(reservation.chambreId, dateArrivee, dateDepart, id);
     }
 
+    // syncVersion incrémenté manuellement partout dans ce service (voir
+    // ChambresService.update pour le détail) — indispensable pour la
+    // détection de conflit hors ligne (Phase 4).
     return this.prisma.reservation.update({
       where: { id },
-      data: { dateArrivee, dateDepart, acompte: dto.acompte },
+      data: { dateArrivee, dateDepart, acompte: dto.acompte, syncVersion: { increment: 1 } },
       include: { chambre: true, client: true },
     });
   }
@@ -113,7 +116,7 @@ export class ReservationsService {
 
     return this.prisma.reservation.update({
       where: { id },
-      data: { statut: "ANNULEE", annuleLe: new Date(), motifAnnulation: dto.motif },
+      data: { statut: "ANNULEE", annuleLe: new Date(), motifAnnulation: dto.motif, syncVersion: { increment: 1 } },
     });
   }
 
@@ -127,10 +130,13 @@ export class ReservationsService {
     }
 
     const [, chambre] = await this.prisma.$transaction([
-      this.prisma.reservation.update({ where: { id }, data: { statut: "EN_COURS" } }),
+      this.prisma.reservation.update({
+        where: { id },
+        data: { statut: "EN_COURS", syncVersion: { increment: 1 } },
+      }),
       this.prisma.chambre.update({
         where: { id: reservation.chambreId },
-        data: { statut: StatutChambre.OCCUPEE },
+        data: { statut: StatutChambre.OCCUPEE, syncVersion: { increment: 1 } },
       }),
     ]);
 
@@ -147,10 +153,13 @@ export class ReservationsService {
     }
 
     const [, chambre] = await this.prisma.$transaction([
-      this.prisma.reservation.update({ where: { id }, data: { statut: "TERMINEE" } }),
+      this.prisma.reservation.update({
+        where: { id },
+        data: { statut: "TERMINEE", syncVersion: { increment: 1 } },
+      }),
       this.prisma.chambre.update({
         where: { id: reservation.chambreId },
-        data: { statut: StatutChambre.NETTOYAGE },
+        data: { statut: StatutChambre.NETTOYAGE, syncVersion: { increment: 1 } },
       }),
     ]);
 

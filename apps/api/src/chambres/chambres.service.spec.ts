@@ -44,7 +44,7 @@ describe("ChambresService", () => {
       await service.update("c1", { statut: "OCCUPEE" } as any, receptionniste);
       expect(prisma.chambre.update).toHaveBeenCalledWith({
         where: { id: "c1" },
-        data: { statut: "OCCUPEE" },
+        data: { statut: "OCCUPEE", syncVersion: { increment: 1 } },
       });
     });
 

@@ -30,7 +30,12 @@ export class ProduitsService {
 
   async update(id: string, dto: UpdateProduitDto) {
     await this.findOne(id);
-    return this.prisma.produit.update({ where: { id }, data: dto });
+    // syncVersion incrémenté manuellement (voir ChambresService.update pour le
+    // détail complet) — indispensable pour la détection de conflit hors ligne.
+    return this.prisma.produit.update({
+      where: { id },
+      data: { ...dto, syncVersion: { increment: 1 } },
+    });
   }
 
   async remove(id: string) {

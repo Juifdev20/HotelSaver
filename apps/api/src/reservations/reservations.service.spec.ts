@@ -145,8 +145,14 @@ describe("ReservationsService", () => {
 
       await service.checkIn("r1");
 
-      expect(prisma.reservation.update).toHaveBeenCalledWith({ where: { id: "r1" }, data: { statut: "EN_COURS" } });
-      expect(prisma.chambre.update).toHaveBeenCalledWith({ where: { id: "c1" }, data: { statut: "OCCUPEE" } });
+      expect(prisma.reservation.update).toHaveBeenCalledWith({
+        where: { id: "r1" },
+        data: { statut: "EN_COURS", syncVersion: { increment: 1 } },
+      });
+      expect(prisma.chambre.update).toHaveBeenCalledWith({
+        where: { id: "c1" },
+        data: { statut: "OCCUPEE", syncVersion: { increment: 1 } },
+      });
     });
 
     it("refuse le check-out d'une réservation qui n'est pas EN_COURS", async () => {
@@ -161,7 +167,10 @@ describe("ReservationsService", () => {
 
       await service.checkOut("r1");
 
-      expect(prisma.chambre.update).toHaveBeenCalledWith({ where: { id: "c1" }, data: { statut: "NETTOYAGE" } });
+      expect(prisma.chambre.update).toHaveBeenCalledWith({
+        where: { id: "c1" },
+        data: { statut: "NETTOYAGE", syncVersion: { increment: 1 } },
+      });
     });
   });
 });

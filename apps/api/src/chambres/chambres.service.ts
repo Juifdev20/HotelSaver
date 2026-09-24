@@ -63,7 +63,15 @@ export class ChambresService {
     }
 
     try {
-      return await this.prisma.chambre.update({ where: { id }, data: dto });
+      // syncVersion incrémenté manuellement à CHAQUE update : c'est la seule
+      // façon pour un appareil hors ligne (Phase 4) de détecter qu'une ligne a
+      // changé depuis sa dernière lecture. Sans cet incrément, syncVersion
+      // resterait figé à 1 pour toujours et la détection de conflit ne
+      // détecterait jamais rien.
+      return await this.prisma.chambre.update({
+        where: { id },
+        data: { ...dto, syncVersion: { increment: 1 } },
+      });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         throw new ConflictException(`Une chambre avec le numéro "${dto.numero}" existe déjà.`);

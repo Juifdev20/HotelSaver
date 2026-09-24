@@ -143,7 +143,7 @@ export class CafeteriaService {
       // numeroRecu au lieu d'un 409 propre).
       const fermeture = await tx.compteCafeteria.updateMany({
         where: { id: compteId, statut: "OUVERT" },
-        data: { statut: "FERME", fermeLe: new Date() },
+        data: { statut: "FERME", fermeLe: new Date(), syncVersion: { increment: 1 } },
       });
       if (fermeture.count === 0) {
         throw new ConflictException(
@@ -177,7 +177,7 @@ export class CafeteriaService {
     }
     return this.prisma.venteCafeteria.update({
       where: { id },
-      data: { annuleLe: new Date(), motifAnnulation: motif },
+      data: { annuleLe: new Date(), motifAnnulation: motif, syncVersion: { increment: 1 } },
     });
   }
 

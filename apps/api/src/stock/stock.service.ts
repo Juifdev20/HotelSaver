@@ -90,7 +90,13 @@ export class StockService {
       },
     });
 
-    await client.produit.update({ where: { id: params.produitId }, data: { stockActuel: nouveauStock } });
+    // syncVersion incrémenté manuellement (voir ChambresService.update) : un
+    // mouvement de stock modifie Produit.stockActuel, donc Produit change bien,
+    // même si ce n'est pas ProduitsService.update qui l'a fait.
+    await client.produit.update({
+      where: { id: params.produitId },
+      data: { stockActuel: nouveauStock, syncVersion: { increment: 1 } },
+    });
 
     return mouvement;
   }

@@ -114,7 +114,7 @@ export class FacturesService {
     }
     return this.prisma.facture.update({
       where: { id },
-      data: { annuleLe: new Date(), motifAnnulation: dto.motif },
+      data: { annuleLe: new Date(), motifAnnulation: dto.motif, syncVersion: { increment: 1 } },
     });
   }
 
