@@ -173,15 +173,6 @@ p {
   color: #ffffff;
 }
 
-.hero__motif {
-  position: absolute;
-  right: -20px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: rgba(255, 255, 255, 0.08);
-  pointer-events: none;
-}
-
 .hero__contenu {
   position: relative;
   display: flex;
@@ -210,16 +201,25 @@ p {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: flex-start;
+  gap: var(--hc-space-2);
   padding: var(--hc-space-3) var(--hc-space-4);
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(0, 0, 0, 0.25);
   border-radius: var(--hc-radius-md);
   white-space: nowrap;
 }
 
+.hero__horloge-ligne {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  font-size: 14px;
+}
+
 .hero__heure {
   color: #ffffff;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 @media (max-width: 767px) {
@@ -237,88 +237,13 @@ p {
   }
 }
 
-/* ---------- Occupation (donut + légende) ---------- */
+/* ---------- Trois colonnes (occupation / répartition / stock bas) ---------- */
 
-.carte-occupation {
-  display: flex;
-  align-items: center;
-  gap: var(--hc-space-6);
-  padding: var(--hc-space-5);
-  background-color: var(--hc-surface-200);
-  border: 1px solid var(--hc-border);
-  border-radius: var(--hc-radius-lg);
-  box-shadow: var(--hc-shadow-card);
-}
-
-.carte-occupation__donut {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--hc-space-2);
-  flex-shrink: 0;
-}
-
-.legende-occupation {
-  flex: 1;
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.grille-trois-colonnes {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--hc-space-2);
-}
-
-.legende-occupation__ligne {
-  display: flex;
-  align-items: center;
-  gap: var(--hc-space-2);
-  width: 100%;
-  padding: var(--hc-space-2) var(--hc-space-3);
-  border: none;
-  border-radius: var(--hc-radius-sm);
-  background: none;
-  cursor: pointer;
-  text-align: left;
-}
-
-.legende-occupation__ligne:hover {
-  background-color: var(--hc-surface-300);
-}
-
-.legende-occupation__ligne .hc-text-body {
-  flex: 1;
-}
-
-.legende-occupation__pastille {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--hc-radius-pill);
-  flex-shrink: 0;
-}
-
-@media (max-width: 640px) {
-  .carte-occupation {
-    flex-direction: column;
-  }
-  .legende-occupation {
-    grid-template-columns: 1fr;
-    width: 100%;
-  }
-}
-
-/* ---------- Deux colonnes (stock bas / activité récente) ---------- */
-
-.grille-deux-colonnes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: var(--hc-space-5);
   align-items: start;
-}
-
-@media (max-width: 900px) {
-  .grille-deux-colonnes {
-    grid-template-columns: 1fr;
-  }
 }
 
 .carte-simple {
@@ -330,6 +255,104 @@ p {
   display: flex;
   flex-direction: column;
   gap: var(--hc-space-3);
+}
+
+.carte-simple__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hc-space-3);
+}
+
+/* ---------- Occupation compacte (donut + légende, une colonne) ---------- */
+
+.occupation-compacte {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-4);
+}
+
+.legende-occupation {
+  flex: 1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-1);
+  min-width: 0;
+}
+
+.legende-occupation__ligne {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  width: 100%;
+  padding: var(--hc-space-1) var(--hc-space-2);
+  border: none;
+  border-radius: var(--hc-radius-sm);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.legende-occupation__ligne:hover {
+  background-color: var(--hc-surface-300);
+}
+
+.legende-occupation__ligne .hc-text-caption {
+  flex: 1;
+  color: var(--hc-ink-muted);
+}
+
+.legende-occupation__pastille {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--hc-radius-pill);
+  flex-shrink: 0;
+}
+
+/* ---------- Répartition des chambres (grille d'icônes 2x2) ---------- */
+
+.repartition-grille {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--hc-space-3);
+}
+
+.repartition-case {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  padding: var(--hc-space-2);
+  border: none;
+  border-radius: var(--hc-radius-sm);
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.repartition-case:hover {
+  background-color: var(--hc-surface-300);
+}
+
+.repartition-case__icone {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--hc-radius-sm);
+}
+.repartition-case__icone--success { background-color: var(--hc-success-light); color: var(--hc-success); }
+.repartition-case__icone--danger { background-color: var(--hc-danger-light); color: var(--hc-danger); }
+.repartition-case__icone--warning { background-color: var(--hc-warning-light); color: var(--hc-warning); }
+.repartition-case__icone--purple { background-color: var(--hc-purple-light); color: var(--hc-purple); }
+
+.repartition-case__texte {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .carte-simple__vide {

@@ -14,12 +14,15 @@ import { DashboardStat, Donut, formatMontant } from "@hotel-chicago/ui";
 import {
   Banknote,
   BedDouble,
-  Building2,
+  Calendar,
   CircleCheck,
+  Clock,
   Coffee,
   CreditCard,
   Package,
   ReceiptText,
+  Sparkles,
+  UserRound,
   Wallet,
 } from "lucide-react";
 import type { IdPage } from "../navigation";
@@ -45,10 +48,6 @@ function useDonnee<T>(charger: (() => Promise<T>) | null, deps: unknown[]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return etat;
-}
-
-function salutation(): string {
-  return new Date().getHours() < 18 ? "Bonjour" : "Bonsoir";
 }
 
 function dateDuJourLongue(): string {
@@ -81,7 +80,7 @@ type EvenementActivite = {
   cle: number;
 };
 
-function fusionnerActivite(donnees: VentesRecentes | null): EvenementActivite[] {
+function fusionnerActivite(donnees: VentesRecentes | null, limite: number): EvenementActivite[] {
   if (!donnees) return [];
   const factures: EvenementActivite[] = donnees.factures.map((f) => ({
     id: f.id,
@@ -99,99 +98,92 @@ function fusionnerActivite(donnees: VentesRecentes | null): EvenementActivite[] 
     annule: v.annuleLe !== null,
     cle: new Date(v.createdAt).getTime(),
   }));
-  return [...factures, ...ventes].sort((a, b) => b.cle - a.cle).slice(0, 6);
+  return [...factures, ...ventes].sort((a, b) => b.cle - a.cle).slice(0, limite);
 }
+
+const REPARTITION_LIMITE_INITIALE = 6;
+const REPARTITION_LIMITE_ETENDUE = 20;
 
 export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTableauDeBordProps) {
   const voitChambres = utilisateur.role !== Role.CAFETARIA;
   const voitStock = utilisateur.role !== Role.RECEPTIONNISTE;
+  const [limiteActivite, setLimiteActivite] = useState(REPARTITION_LIMITE_INITIALE);
 
   const recette = useDonnee<RecetteDuJour>(() => client.recetteDuJour(), [client]);
   const occupation = useDonnee<Occupation>(voitChambres ? () => client.occupation() : null, [client, voitChambres]);
   const stockBas = useDonnee<Produit[]>(voitStock ? () => client.stockBas() : null, [client, voitStock]);
-  const activite = useDonnee<VentesRecentes>(() => client.ventesRecentes(), [client]);
+  const activite = useDonnee<VentesRecentes>(() => client.ventesRecentes(limiteActivite), [client, limiteActivite]);
 
   const r = recette.donnee;
   const o = occupation.donnee;
-  const evenements = fusionnerActivite(activite.donnee);
+  const evenements = fusionnerActivite(activite.donnee, limiteActivite);
 
   return (
     <div className="page">
-      <header className="page__entete">
-        <div>
-          <h1 className="hc-text-display-md page__titre">Tableau de bord</h1>
-          <p className="hc-text-body page__sous-titre">
-            {salutation()}, {utilisateur.nom}. Voici la situation d'aujourd'hui.
-          </p>
-        </div>
-      </header>
-
       <section className="hero" aria-label="Bienvenue">
-        <div className="hero__motif" aria-hidden="true">
-          <Building2 size={180} strokeWidth={1} />
-        </div>
         <div className="hero__contenu">
           <p className="hero__salutation">Bienvenue 👋</p>
-          <h2 className="hero__titre">Hôtel Chicago</h2>
+          <h1 className="hero__titre">Hôtel Chicago</h1>
           <p className="hero__soustitre">Gestion simple. Séjour exceptionnel.</p>
         </div>
         <div className="hero__horloge">
-          <span className="hc-text-body-strong">{dateDuJourLongue()}</span>
-          <span className="hc-text-display-md hero__heure">{heureCourante()}</span>
+          <span className="hero__horloge-ligne">
+            <Calendar size={15} aria-hidden="true" />
+            {dateDuJourLongue()}
+          </span>
+          <span className="hero__horloge-ligne hero__heure">
+            <Clock size={18} aria-hidden="true" />
+            {heureCourante()}
+          </span>
         </div>
       </section>
 
-      <section className="page__bloc" aria-labelledby="titre-recette">
-        <h2 id="titre-recette" className="hc-text-subheading">
-          Recette du jour
-        </h2>
-        {recette.erreur && <p role="alert" className="hc-text-body texte-erreur">{recette.erreur}</p>}
-        <div className="grille-stats">
-          {/* USD et CDF jamais additionnés (section 9.4) : deux cartes distinctes. */}
+      {recette.erreur && <p role="alert" className="hc-text-body texte-erreur">{recette.erreur}</p>}
+      <div className="grille-stats">
+        {/* USD et CDF jamais additionnés (section 9.4) : deux cartes distinctes. */}
+        <DashboardStat
+          icone={<Wallet size={20} aria-hidden="true" />}
+          tone="info"
+          libelle="En dollars"
+          valeur={r ? formatMontant(r.total.montantUSD, Devise.USD) : "…"}
+          precision={utilisateur.role === Role.PATRON ? "Chambres et cafétaria" : "Vos encaissements"}
+        />
+        <DashboardStat
+          icone={<Banknote size={20} aria-hidden="true" />}
+          tone="success"
+          libelle="En francs"
+          valeur={r ? formatMontant(r.total.montantCDF, Devise.CDF) : "…"}
+          precision={utilisateur.role === Role.PATRON ? "Chambres et cafétaria" : "Vos encaissements"}
+        />
+        {r?.chambres && (
           <DashboardStat
-            icone={<Wallet size={20} aria-hidden="true" />}
+            icone={<BedDouble size={20} aria-hidden="true" />}
             tone="info"
-            libelle="En dollars"
-            valeur={r ? formatMontant(r.total.montantUSD, Devise.USD) : "…"}
-            precision={utilisateur.role === Role.PATRON ? "Chambres et cafétaria" : "Vos encaissements"}
+            libelle="Dont chambres"
+            valeur={formatMontant(r.chambres.montantUSD, Devise.USD)}
+            precision={formatMontant(r.chambres.montantCDF, Devise.CDF)}
           />
+        )}
+        {r?.cafeteria && (
           <DashboardStat
-            icone={<Banknote size={20} aria-hidden="true" />}
-            tone="success"
-            libelle="En francs"
-            valeur={r ? formatMontant(r.total.montantCDF, Devise.CDF) : "…"}
-            precision={utilisateur.role === Role.PATRON ? "Chambres et cafétaria" : "Vos encaissements"}
+            icone={<Coffee size={20} aria-hidden="true" />}
+            tone="purple"
+            libelle="Dont cafétaria"
+            valeur={formatMontant(r.cafeteria.montantUSD, Devise.USD)}
+            precision={formatMontant(r.cafeteria.montantCDF, Devise.CDF)}
           />
-          {r?.chambres && (
-            <DashboardStat
-              icone={<BedDouble size={20} aria-hidden="true" />}
-              tone="info"
-              libelle="Dont chambres"
-              valeur={formatMontant(r.chambres.montantUSD, Devise.USD)}
-              precision={formatMontant(r.chambres.montantCDF, Devise.CDF)}
-            />
-          )}
-          {r?.cafeteria && (
-            <DashboardStat
-              icone={<Coffee size={20} aria-hidden="true" />}
-              tone="purple"
-              libelle="Dont cafétaria"
-              valeur={formatMontant(r.cafeteria.montantUSD, Devise.USD)}
-              precision={formatMontant(r.cafeteria.montantCDF, Devise.CDF)}
-            />
-          )}
-        </div>
-      </section>
+        )}
+      </div>
 
-      {voitChambres && (
-        <section className="page__bloc" aria-labelledby="titre-occupation">
-          <h2 id="titre-occupation" className="hc-text-subheading">
-            Occupation des chambres
-          </h2>
-          {occupation.erreur && <p role="alert" className="hc-text-body texte-erreur">{occupation.erreur}</p>}
-          <div className="carte-occupation">
-            <div className="carte-occupation__donut">
+      <div className="grille-trois-colonnes">
+        {voitChambres && (
+          <div className="carte-simple carte-simple--occupation">
+            <h2 className="hc-text-subheading">Taux d'occupation</h2>
+            {occupation.erreur && <p role="alert" className="hc-text-body texte-erreur">{occupation.erreur}</p>}
+            <div className="occupation-compacte">
               <Donut
+                taille={104}
+                epaisseur={12}
                 segments={[
                   { valeur: o?.occupees ?? 0, couleur: "var(--hc-danger)" },
                   { valeur: o?.libres ?? 0, couleur: "var(--hc-success)" },
@@ -199,126 +191,152 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
                   { valeur: o?.enNettoyage ?? 0, couleur: "var(--hc-purple)" },
                 ]}
               >
-                <span className="hc-text-display-md">{o ? `${o.tauxOccupationPourcent}%` : "…"}</span>
-                <span className="hc-text-caption texte-discret">
-                  {o ? `${o.occupees} sur ${o.total}` : "chargement…"}
-                </span>
+                <span className="hc-text-heading">{o ? `${o.tauxOccupationPourcent}%` : "…"}</span>
               </Donut>
-              <p className="hc-text-label texte-discret">Taux d'occupation</p>
+              <ul className="legende-occupation legende-occupation--verticale">
+                <li>
+                  <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
+                    <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-danger)" }} />
+                    <span className="hc-text-caption">Occupées</span>
+                    <span className="hc-text-body-strong">{o?.occupees ?? "…"}</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
+                    <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-success)" }} />
+                    <span className="hc-text-caption">Libres</span>
+                    <span className="hc-text-body-strong">{o?.libres ?? "…"}</span>
+                  </button>
+                </li>
+                <li>
+                  <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
+                    <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-warning)" }} />
+                    <span className="hc-text-caption">Réservées</span>
+                    <span className="hc-text-body-strong">{o?.reservees ?? "…"}</span>
+                  </button>
+                </li>
+              </ul>
             </div>
-            <ul className="legende-occupation">
-              <li>
-                <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
-                  <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-danger)" }} />
-                  <span className="hc-text-body">Occupées</span>
-                  <span className="hc-text-body-strong">{o?.occupees ?? "…"}</span>
-                </button>
-              </li>
-              <li>
-                <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
-                  <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-success)" }} />
-                  <span className="hc-text-body">Libres</span>
-                  <span className="hc-text-body-strong">{o?.libres ?? "…"}</span>
-                </button>
-              </li>
-              <li>
-                <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
-                  <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-warning)" }} />
-                  <span className="hc-text-body">Réservées</span>
-                  <span className="hc-text-body-strong">{o?.reservees ?? "…"}</span>
-                </button>
-              </li>
-              <li>
-                <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
-                  <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-purple)" }} />
-                  <span className="hc-text-body">Nettoyage</span>
-                  <span className="hc-text-body-strong">{o?.enNettoyage ?? "…"}</span>
-                </button>
-              </li>
-            </ul>
+            <p className="hc-text-caption texte-discret">{o ? `${o.occupees} sur ${o.total} chambre` : "chargement…"}</p>
           </div>
-        </section>
-      )}
-
-      <div className="grille-deux-colonnes">
-        {voitStock && (
-          <section className="page__bloc" aria-labelledby="titre-stock">
-            <h2 id="titre-stock" className="hc-text-subheading">
-              Stock bas
-            </h2>
-            <div className="carte-simple">
-              {stockBas.erreur && <p role="alert" className="hc-text-body texte-erreur">{stockBas.erreur}</p>}
-              {!stockBas.donnee && !stockBas.erreur && (
-                <p className="hc-text-body texte-discret">Chargement du stock…</p>
-              )}
-              {stockBas.donnee?.length === 0 && (
-                <div className="carte-simple__vide">
-                  <Package size={28} strokeWidth={1.5} aria-hidden="true" className="texte-discret" />
-                  <p className="hc-text-body texte-discret">Aucun produit sous son seuil d'alerte.</p>
-                </div>
-              )}
-              {stockBas.donnee && stockBas.donnee.length > 0 && (
-                <ul className="liste-simple">
-                  {stockBas.donnee.map((produit) => (
-                    <li key={produit.id} className="liste-simple__ligne">
-                      <span className="hc-text-body-strong">{produit.nom}</span>
-                      <span className="hc-text-price">
-                        {Number(produit.stockActuel)} restant{Number(produit.stockActuel) > 1 ? "s" : ""} · seuil{" "}
-                        {Number(produit.seuilAlerte)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <button type="button" className="lien-voir-plus" onClick={() => onNaviguer("stock")}>
-                Voir le stock →
-              </button>
-            </div>
-          </section>
         )}
 
-        <section className="page__bloc" aria-labelledby="titre-activite">
-          <h2 id="titre-activite" className="hc-text-subheading">
-            Activité récente
-          </h2>
+        {voitChambres && (
           <div className="carte-simple">
-            {activite.erreur && <p role="alert" className="hc-text-body texte-erreur">{activite.erreur}</p>}
-            {!activite.donnee && !activite.erreur && (
-              <p className="hc-text-body texte-discret">Chargement de l'activité…</p>
+            <h2 className="hc-text-subheading">Répartition des chambres</h2>
+            <div className="repartition-grille">
+              <button type="button" className="repartition-case" onClick={() => onNaviguer("chambres")}>
+                <span className="repartition-case__icone repartition-case__icone--success">
+                  <BedDouble size={16} aria-hidden="true" />
+                </span>
+                <span className="repartition-case__texte">
+                  <span className="hc-text-caption texte-discret">Libres</span>
+                  <span className="hc-text-body-strong">{o?.libres ?? "…"}</span>
+                </span>
+              </button>
+              <button type="button" className="repartition-case" onClick={() => onNaviguer("chambres")}>
+                <span className="repartition-case__icone repartition-case__icone--danger">
+                  <UserRound size={16} aria-hidden="true" />
+                </span>
+                <span className="repartition-case__texte">
+                  <span className="hc-text-caption texte-discret">Occupées</span>
+                  <span className="hc-text-body-strong">{o?.occupees ?? "…"}</span>
+                </span>
+              </button>
+              <button type="button" className="repartition-case" onClick={() => onNaviguer("chambres")}>
+                <span className="repartition-case__icone repartition-case__icone--warning">
+                  <Calendar size={16} aria-hidden="true" />
+                </span>
+                <span className="repartition-case__texte">
+                  <span className="hc-text-caption texte-discret">Réservées</span>
+                  <span className="hc-text-body-strong">{o?.reservees ?? "…"}</span>
+                </span>
+              </button>
+              <button type="button" className="repartition-case" onClick={() => onNaviguer("chambres")}>
+                <span className="repartition-case__icone repartition-case__icone--purple">
+                  <Sparkles size={16} aria-hidden="true" />
+                </span>
+                <span className="repartition-case__texte">
+                  <span className="hc-text-caption texte-discret">Nettoyage</span>
+                  <span className="hc-text-body-strong">{o?.enNettoyage ?? "…"}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {voitStock && (
+          <div className="carte-simple">
+            <h2 className="hc-text-subheading">Stock bas</h2>
+            {stockBas.erreur && <p role="alert" className="hc-text-body texte-erreur">{stockBas.erreur}</p>}
+            {!stockBas.donnee && !stockBas.erreur && (
+              <p className="hc-text-body texte-discret">Chargement du stock…</p>
             )}
-            {activite.donnee && evenements.length === 0 && (
+            {stockBas.donnee?.length === 0 && (
               <div className="carte-simple__vide">
-                <ReceiptText size={28} strokeWidth={1.5} aria-hidden="true" className="texte-discret" />
-                <p className="hc-text-body texte-discret">Aucune activité aujourd'hui.</p>
+                <Package size={26} strokeWidth={1.5} aria-hidden="true" className="texte-discret" />
+                <p className="hc-text-body texte-discret">Aucun produit sous son seuil d'alerte.</p>
               </div>
             )}
-            {evenements.length > 0 && (
-              <ul className="activite-liste">
-                {evenements.map((evenement) => (
-                  <li key={evenement.id} className="activite-item">
-                    <span className={`activite-item__icone${evenement.annule ? " activite-item__icone--annule" : ""}`}>
-                      <CreditCard size={17} aria-hidden="true" />
-                    </span>
-                    <span className="activite-item__texte">
-                      <span className="hc-text-body-strong">{evenement.titre}</span>
-                      <span className="hc-text-caption texte-discret">{evenement.description}</span>
-                    </span>
-                    <span className="activite-item__droite">
-                      <span className="hc-text-caption texte-discret">{heureRelative(evenement.quand)}</span>
-                      <span
-                        className={`badge-etat ${evenement.annule ? "badge-etat--danger" : "badge-etat--success"}`}
-                      >
-                        <CircleCheck size={12} aria-hidden="true" />
-                        {evenement.annule ? "Annulée" : "Confirmée"}
-                      </span>
-                    </span>
+            {stockBas.donnee && stockBas.donnee.length > 0 && (
+              <ul className="liste-simple">
+                {stockBas.donnee.slice(0, 3).map((produit) => (
+                  <li key={produit.id} className="liste-simple__ligne">
+                    <span className="hc-text-body-strong">{produit.nom}</span>
+                    <span className="hc-text-price">{Number(produit.stockActuel)} restant</span>
                   </li>
                 ))}
               </ul>
             )}
+            <button type="button" className="lien-voir-plus" onClick={() => onNaviguer("stock")}>
+              Voir le stock →
+            </button>
           </div>
-        </section>
+        )}
       </div>
+
+      <section className="carte-simple" aria-labelledby="titre-activite">
+        <div className="carte-simple__entete">
+          <p id="titre-activite" className="hc-text-subheading">
+            Activité récente
+          </p>
+          {evenements.length >= limiteActivite && limiteActivite === REPARTITION_LIMITE_INITIALE && (
+            <button type="button" className="lien-voir-plus" onClick={() => setLimiteActivite(REPARTITION_LIMITE_ETENDUE)}>
+              Voir tout →
+            </button>
+          )}
+        </div>
+        {activite.erreur && <p role="alert" className="hc-text-body texte-erreur">{activite.erreur}</p>}
+        {!activite.donnee && !activite.erreur && <p className="hc-text-body texte-discret">Chargement de l'activité…</p>}
+        {activite.donnee && evenements.length === 0 && (
+          <div className="carte-simple__vide">
+            <ReceiptText size={28} strokeWidth={1.5} aria-hidden="true" className="texte-discret" />
+            <p className="hc-text-body texte-discret">Aucune activité aujourd'hui.</p>
+          </div>
+        )}
+        {evenements.length > 0 && (
+          <ul className="activite-liste">
+            {evenements.map((evenement) => (
+              <li key={evenement.id} className="activite-item">
+                <span className={`activite-item__icone${evenement.annule ? " activite-item__icone--annule" : ""}`}>
+                  <CreditCard size={17} aria-hidden="true" />
+                </span>
+                <span className="activite-item__texte">
+                  <span className="hc-text-body-strong">{evenement.titre}</span>
+                  <span className="hc-text-caption texte-discret">{evenement.description}</span>
+                </span>
+                <span className="activite-item__droite">
+                  <span className="hc-text-caption texte-discret">{heureRelative(evenement.quand)}</span>
+                  <span className={`badge-etat ${evenement.annule ? "badge-etat--danger" : "badge-etat--success"}`}>
+                    <CircleCheck size={12} aria-hidden="true" />
+                    {evenement.annule ? "Annulée" : "Confirmée"}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

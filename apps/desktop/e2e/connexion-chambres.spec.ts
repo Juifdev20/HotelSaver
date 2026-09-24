@@ -83,8 +83,10 @@ test("connexion réelle → tableau de bord puis Chambres avec les vraies donné
   await fenetre.getByLabel("Mot de passe").fill(MOT_DE_PASSE!);
   await fenetre.getByRole("button", { name: "Se connecter" }).click();
 
-  // Coquille : tableau de bord par défaut, utilisateur affiché.
-  await expect(fenetre.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
+  // Coquille : tableau de bord par défaut (la grande carte d'accueil, pas de
+  // titre de page redondant au-dessus — cf. maquette du client), utilisateur affiché.
+  await expect(fenetre.getByRole("heading", { name: "Hôtel Chicago" })).toBeVisible();
+  await expect(fenetre.getByText("Gestion simple. Séjour exceptionnel.")).toBeVisible();
   await expect(fenetre.getByTestId("utilisateur-connecte")).toContainText(/Patron|Réceptionniste|Cafétaria/);
   await expect(fenetre.getByText("En dollars", { exact: true })).toBeVisible();
 
@@ -126,7 +128,7 @@ test("connexion réelle → tableau de bord puis Chambres avec les vraies donné
   // l'application, sans repasser par l'écran de connexion.
   app = await lancerApp();
   fenetre = await app.firstWindow();
-  await expect(fenetre.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
+  await expect(fenetre.getByRole("heading", { name: "Hôtel Chicago" })).toBeVisible();
   await expect(fenetre.getByLabel("Mot de passe")).toHaveCount(0);
   await expect(fenetre.locator("html")).toHaveAttribute("data-theme", "dark");
 
