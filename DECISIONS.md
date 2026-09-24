@@ -28,14 +28,22 @@ disent explicitement pour éviter toute confusion dans une session future.
 
 ## Ressources graphiques (section 5.1, section 12.6)
 
-Le patron a indiqué disposer des fichiers de logo réels et les fournira
-séparément. Comme la Phase 1 ne construit aucune interface (pas encore
-d'écran de connexion, pas de site public), le dossier `assets/` n'a pas été
-rempli avec des ressources placeholder à ce stade — il reste vide, prêt à
-recevoir les vrais fichiers listés section 5.1 dès que la première interface
-(probablement l'écran de connexion desktop, Phase 2) sera construite. Ne
-jamais fabriquer ou redessiner le logo par approximation (interdit
-explicitement section 5.1).
+Le patron a fourni `assets/logo/logo-couleur.png` (monogramme doré-roux sur
+fond blanc plein). C'est exactement le cas anticipé section 12.6 (« le logo
+a un fond blanc intégré au fichier fourni ») : il ne doit être posé que sur
+un fond clair, jamais retravaillé ou redessiné en version transparente par
+approximation. Les autres fichiers listés section 5.1 (versions SVG,
+monochromes, favicon, icônes desktop/mobile, photos du hero du site public)
+restent manquants — voir `assets/README.md` pour le détail exact de ce qui
+est fourni vs manquant. À redemander au patron le moment venu (Phase 2 pour
+l'écran de connexion, Phase 7 pour le site public), pas fabriqués par
+approximation.
+
+Un lien d'artefact claude.ai partagé par le patron
+(`https://claude.ai/artifact/SG8P9xkiixTuVB5rRVsFbw`) a été consulté : il ne
+contient qu'un titre « Design System » sans contenu exploitable (aucun asset
+téléchargeable, aucun jeton de couleur). À reconfirmer avec le patron si ce
+lien devait pointer vers autre chose.
 
 ## Outillage (section 4)
 
