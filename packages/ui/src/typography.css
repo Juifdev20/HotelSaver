@@ -1,9 +1,9 @@
 /*
- * Typographie — section 12.3. Charger la feuille Google Fonts indiquée par
- * le prompt une seule fois, au niveau de l'app (pas ici, pour éviter de la
- * charger plusieurs fois si plusieurs composants de ce paquet sont utilisés) :
- *
- *   https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Public+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap
+ * Typographie — section 12.3. Les fichiers de police ne sont PAS chargés
+ * ici : chaque app les fournit une seule fois. L'app Electron les embarque
+ * via @fontsource (doit marcher hors ligne) ; le futur site public pourra
+ * utiliser la feuille Google Fonts du prompt. Sans polices chargées, tout
+ * retombe silencieusement sur Times New Roman / Arial.
  *
  * - Fraunces : titres pleine page uniquement (écran de connexion, accueil
  *   site public, titre du tableau de bord).

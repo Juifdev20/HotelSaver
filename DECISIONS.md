@@ -466,6 +466,17 @@ espacements, polices) par rapport à la charte — contrôle humain requis.
 Ajout côté API : `GET /auth/me` (nom et rôle de l'utilisateur connecté),
 nécessaire à tout client pour savoir quoi afficher après connexion.
 
+**Polices embarquées, pas Google Fonts (écart assumé avec la section 12.3).**
+La section 12.3 dit de charger les polices via Google Fonts, ce qui échoue
+dès que l'internet de l'hôtel coupe — or l'app desktop doit fonctionner hors
+ligne (section 2, non négociable). L'app Electron embarque donc Fraunces,
+Public Sans et IBM Plex Mono via `@fontsource` (mêmes familles, mêmes
+graisses). Découvert grâce à la première capture d'écran fournie par
+l'utilisateur : aucune police n'était chargée du tout, le titre s'affichait
+en Times New Roman. Un test E2E vérifie maintenant les polices réellement
+chargées dans le DOM (il échouait sur l'ancien build, il passe sur le
+nouveau).
+
 **Pas encore fait** : aucun écran de gestion des comptes n'existe. Aucun
 utilisateur ne peut se connecter tant qu'un compte Supabase Auth ET une
 ligne `Utilisateur` liée n'ont pas été créés (voir le README racine).

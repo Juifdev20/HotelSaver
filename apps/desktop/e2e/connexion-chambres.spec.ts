@@ -43,6 +43,23 @@ test.afterEach(() => {
   rmSync(dossierDonnees, { recursive: true, force: true });
 });
 
+test("les polices de la charte (Fraunces, Public Sans) sont réellement chargées", async () => {
+  const app = await lancerApp();
+  const fenetre = await app.firstWindow();
+  await expect(fenetre.getByRole("heading", { name: "Hôtel Chicago" })).toBeVisible();
+
+  // document.fonts.check() renvoie true même quand AUCUNE @font-face ne
+  // correspond (repli système) : on liste donc les polices effectivement
+  // chargées. Sans ce test, un repli sur Times/Arial passait inaperçu.
+  const polices = await fenetre.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family.replace(/["']/g, ""));
+  });
+  expect(polices).toEqual(expect.arrayContaining(["Fraunces", "Public Sans"]));
+
+  await app.close();
+});
+
 test("un mauvais mot de passe affiche une erreur claire, sans quitter l'écran de connexion", async () => {
   const app = await lancerApp();
   const fenetre = await app.firstWindow();
