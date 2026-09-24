@@ -4,6 +4,7 @@ import request from "supertest";
 import * as jwt from "jsonwebtoken";
 import { AppModule } from "../src/app.module";
 import { PRISMA } from "../src/prisma/prisma.module";
+import { VERIFICATEUR_JWT, VerificateurJwtHs256 } from "../src/common/auth/verificateur-jwt";
 
 /**
  * Vérifie la matrice de permissions de la section 9.3 : chaque rôle reçoit
@@ -78,13 +79,16 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    process.env.JWT_SECRET = JWT_SECRET;
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
       .overrideProvider(PRISMA)
       .useValue(prismaMock)
+      // Production vérifie via le JWKS Supabase (ES256) ; ici on signe nos
+      // propres jetons HS256 pour tester la matrice de rôles sans réseau.
+      .overrideProvider(VERIFICATEUR_JWT)
+      .useValue(new VerificateurJwtHs256(JWT_SECRET))
       .compile();
 
     app = moduleRef.createNestApplication();

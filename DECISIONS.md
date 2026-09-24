@@ -189,21 +189,32 @@ et dans le README racine.
 
 ## Authentification Supabase (section 14)
 
-Le prompt liste une variable générique `JWT_SECRET` dans `apps/api/.env.example`
-(section 6) sans préciser explicitement le mécanisme de vérification. Décision
-prise : `JWT_SECRET` = le *JWT Secret* (legacy, HS256) du projet Supabase,
-disponible dans Dashboard → Project Settings → API. `SupabaseAuthGuard`
-(`apps/api/src/common/guards/supabase-auth.guard.ts`) vérifie la signature du
-jeton avec ce secret, extrait le `sub` (id Supabase Auth de l'utilisateur),
-puis va chercher le rôle réel dans la table `Utilisateur` (jamais dans le
-jeton lui-même — le rôle métier vit dans notre base, pas dans Supabase Auth).
+`SupabaseAuthGuard` (`apps/api/src/common/guards/supabase-auth.guard.ts`)
+vérifie la signature du jeton, extrait le `sub` (id Supabase Auth de
+l'utilisateur), puis va chercher le rôle réel dans la table `Utilisateur`
+(jamais dans le jeton lui-même — le rôle métier vit dans notre base).
 
-**Point d'attention explicite** : si le projet Supabase du patron utilise les
-nouvelles clés de signature asymétriques (JWKS, RS256/ES256) plutôt que le
-secret JWT partagé legacy, `SupabaseAuthGuard` devra être adapté pour
-vérifier via le point de terminaison JWKS de Supabase au lieu d'un secret
-partagé. À vérifier dès que les vraies informations d'identification
-Supabase seront fournies, avant le premier déploiement réel.
+**Vérification via JWKS (ES256), pas via un secret partagé — hypothèse de
+Phase 1 corrigée.** La Phase 1 supposait que `JWT_SECRET` (le secret legacy
+HS256) signait les jetons, et le signalait déjà comme point à vérifier. Le
+premier vrai login testé (en construisant l'app Electron) a montré l'inverse :
+ce projet Supabase signe en **ES256** avec des clés asymétriques
+(`"alg":"ES256","kid":...` dans l'en-tête), publiées sur
+`${SUPABASE_URL}/auth/v1/.well-known/jwks.json`. Tous les tests passaient
+jusque-là uniquement parce qu'ils signaient eux-mêmes des jetons HS256 avec
+le même secret — un vrai utilisateur n'aurait jamais pu se connecter.
+
+Corrigé : la vérification est derrière une interface injectable
+(`VERIFICATEUR_JWT`, `apps/api/src/common/auth/verificateur-jwt.ts`).
+En production, `VerificateurJwtSupabase` (`jsonwebtoken` + `jwks-rsa`, choisis
+plutôt que `jose` car `jose` v5 est ESM-only alors que `apps/api` est en
+CommonJS) récupère et met en cache la clé publique par `kid`. Les tests
+remplacent ce fournisseur par `VerificateurJwtHs256` pour continuer à signer
+leurs propres jetons sans dépendre du réseau. `JWT_SECRET` n'est plus utilisé
+nulle part en production et a été retiré de `.env.example`. Vérifié contre la
+vraie instance : un jeton ES256 émis par un vrai login Supabase est accepté
+(`/auth/me` → 200 avec le bon rôle) ; un jeton HS256 forgé avec l'ancien
+secret est désormais refusé (401).
 
 ## RLS Supabase vs Guards NestJS (section 7, section 9.3)
 

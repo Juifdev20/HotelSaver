@@ -1,7 +1,5 @@
-// Garantit que PrismaClient peut être instancié pendant les tests même sans
-// .env réel : DATABASE_URL doit juste être syntaxiquement valide, la
-// connexion réelle n'est jamais utilisée puisque le provider PRISMA est
-// remplacé par un mock dans roles.e2e-spec.ts.
-process.env.DATABASE_URL ??=
-  "postgresql://user:password@localhost:5432/placeholder_non_utilise";
-process.env.JWT_SECRET ??= "test-secret-ne-pas-utiliser-en-production";
+// Garantit que les modules peuvent s'initialiser pendant les tests même sans
+// .env réel : DATABASE_URL/SUPABASE_URL doivent juste être syntaxiquement
+// valides — PRISMA et VERIFICATEUR_JWT sont remplacés dans roles.e2e-spec.ts.
+process.env.DATABASE_URL ??= "postgresql://user:password@localhost:5432/placeholder_non_utilise";
+process.env.SUPABASE_URL ??= "https://placeholder-non-utilise.supabase.co";
