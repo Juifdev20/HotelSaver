@@ -1,0 +1,234 @@
+// Schéma Prisma — Hôtel Chicago
+// Transcrit depuis la section 7 de hotel-chicago-prompt-claude-code.md.
+// Voir DECISIONS.md pour les ajustements mécaniques nécessaires à la
+// compilation du schéma (relations inverses manquantes dans le prompt
+// d'origine, index explicites sur les clés étrangères).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  RECEPTIONNISTE
+  CAFETARIA
+  PATRON
+}
+
+enum StatutChambre {
+  LIBRE
+  OCCUPEE
+  RESERVEE
+  NETTOYAGE
+}
+
+enum StatutCompte {
+  OUVERT
+  FERME
+}
+
+enum ModePaiement {
+  CASH
+  MOBILE_MONEY
+  FACTURE_CHAMBRE
+}
+
+enum Devise {
+  USD
+  CDF
+}
+
+model Utilisateur {
+  id             String   @id @default(uuid())
+  nom            String
+  role           Role
+  actif          Boolean  @default(true)
+  supabaseAuthId String   @unique
+  createdAt      DateTime @default(now())
+}
+
+model Chambre {
+  id           String         @id @default(uuid())
+  numero       String         @unique
+  type         String
+  prixParNuit  Decimal
+  devise       Devise // USD ou CDF, propre à chaque chambre
+  statut       StatutChambre  @default(LIBRE)
+  photos       String[] // URLs Supabase Storage (bucket chambres-photos), ajoutées depuis l'app — voir section 5.1
+  reservations Reservation[]
+  updatedAt    DateTime       @updatedAt
+  syncVersion  Int            @default(1)
+
+  @@index([statut])
+}
+
+model Client {
+  id           String        @id @default(uuid())
+  nom          String
+  telephone    String?
+  email        String?
+  createdAt    DateTime      @default(now())
+  reservations Reservation[]
+}
+
+model Reservation {
+  id          String   @id @default(uuid())
+  chambre     Chambre  @relation(fields: [chambreId], references: [id])
+  chambreId   String
+  client      Client   @relation(fields: [clientId], references: [id])
+  clientId    String
+  dateArrivee DateTime
+  dateDepart  DateTime
+  acompte     Decimal  @default(0)
+  statut      String // EN_ATTENTE, CONFIRMEE, EN_COURS, TERMINEE, ANNULEE
+  origine     String // RECEPTION, SITE_PUBLIC
+  createdBy   String // Utilisateur.id
+  facture     Facture?
+  updatedAt   DateTime @updatedAt
+  syncVersion Int      @default(1)
+
+  @@index([chambreId])
+  @@index([clientId])
+  @@index([dateArrivee, dateDepart])
+}
+
+model Facture {
+  id            String      @id @default(uuid())
+  reservation   Reservation @relation(fields: [reservationId], references: [id])
+  reservationId String      @unique
+  // Montant du séjour lui-même, dans la devise propre à la chambre (Chambre.devise) :
+  montantChambre Decimal
+  deviseChambre  Devise
+  // Totaux incluant les ventes cafétaria liées à ce séjour (VenteCafeteria.reservationLieeId),
+  // jamais convertis ni fusionnés entre devises (voir section 9.4) :
+  montantTotalUSD Decimal @default(0)
+  montantTotalCDF Decimal @default(0)
+  modePaiement    ModePaiement
+  // Ce que le client a réellement remis, si différent de la devise due (paiement croisé) :
+  deviseRegleeParClient Devise?
+  montantRegleParClient Decimal?
+  tauxChangeApplique    Decimal? // copie du taux du jour utilisé pour le paiement croisé, jamais recalculé après coup
+  numeroRecu            String    @unique
+  imprimeLe             DateTime?
+  annuleLe              DateTime?
+  motifAnnulation       String?
+  createdAt             DateTime  @default(now())
+  updatedAt              DateTime @updatedAt
+  syncVersion            Int      @default(1)
+}
+
+model Produit {
+  id              String           @id @default(uuid())
+  nom             String
+  categorie       String
+  prix            Decimal
+  devise          Devise // USD ou CDF, propre à chaque produit
+  photo           String? // URL Supabase Storage (bucket menu-photos), ajoutée depuis l'app — voir section 5.1
+  stockActuel     Decimal          @default(0)
+  seuilAlerte     Decimal          @default(5)
+  actif           Boolean          @default(true)
+  mouvementsStock MouvementStock[]
+  lignesCommande  LigneCommande[]
+  updatedAt       DateTime         @updatedAt
+  syncVersion     Int              @default(1)
+}
+
+// Taux de change de référence, saisi manuellement par le PATRON, utilisé UNIQUEMENT
+// à titre informatif (dashboard, paiement croisé) — jamais pour fusionner deux totaux
+// légaux de devises différentes en un seul montant comptable.
+model TauxChange {
+  id         String   @id @default(uuid())
+  cdfParUsd  Decimal // ex: 2800 (1 USD = 2800 CDF)
+  definiPar  String // Utilisateur.id (PATRON)
+  createdAt  DateTime @default(now())
+}
+
+model MouvementStock {
+  id          String   @id @default(uuid())
+  produit     Produit  @relation(fields: [produitId], references: [id])
+  produitId   String
+  quantite    Decimal
+  type        String // ENTREE, SORTIE_VENTE, PERTE, AJUSTEMENT
+  motif       String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncVersion Int      @default(1)
+
+  @@index([produitId])
+}
+
+model CompteCafeteria {
+  id          String        @id @default(uuid())
+  tableOuNom  String
+  statut      StatutCompte  @default(OUVERT)
+  ouvertPar   String // Utilisateur.id
+  ouvertLe    DateTime      @default(now())
+  fermeLe     DateTime?
+  sousComptes SousCompte[]
+  ventes      VenteCafeteria[]
+  updatedAt   DateTime      @updatedAt
+  syncVersion Int           @default(1)
+
+  @@index([statut])
+}
+
+model SousCompte {
+  id          String          @id @default(uuid())
+  compte      CompteCafeteria @relation(fields: [compteId], references: [id])
+  compteId    String
+  nom         String // "Personne 1", ou un nom donné par le serveur
+  lignes      LigneCommande[]
+  updatedAt   DateTime        @updatedAt
+  syncVersion Int             @default(1)
+
+  @@index([compteId])
+}
+
+model LigneCommande {
+  id           String     @id @default(uuid())
+  sousCompte   SousCompte @relation(fields: [sousCompteId], references: [id])
+  sousCompteId String
+  produit      Produit    @relation(fields: [produitId], references: [id])
+  produitId    String
+  quantite     Decimal
+  // Copie du prix ET de la devise du produit au moment de la commande (jamais recalculés
+  // si le prix ou la devise du produit change ensuite) :
+  prixUnitaire Decimal
+  devise       Devise
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  syncVersion  Int        @default(1)
+
+  @@index([sousCompteId])
+  @@index([produitId])
+}
+
+model VenteCafeteria {
+  id      String          @id @default(uuid())
+  compte  CompteCafeteria @relation(fields: [compteId], references: [id])
+  compteId String
+  // Un même compte peut mélanger des articles en USD et en CDF : deux totaux séparés,
+  // jamais additionnés entre eux (voir section 9.4) :
+  montantTotalUSD       Decimal      @default(0)
+  montantTotalCDF       Decimal      @default(0)
+  modePaiement          ModePaiement
+  deviseRegleeParClient Devise?
+  montantRegleParClient Decimal?
+  tauxChangeApplique    Decimal?
+  reservationLieeId     String? // si facturé sur le séjour d'une chambre (Reservation.id)
+  numeroRecu            String       @unique
+  imprimeLe             DateTime?
+  annuleLe              DateTime?
+  motifAnnulation       String?
+  createdBy             String
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  syncVersion           Int          @default(1)
+
+  @@index([compteId])
+}

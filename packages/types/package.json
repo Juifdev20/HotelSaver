@@ -1,0 +1,14 @@
+{
+  "name": "@hotel-chicago/types",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Types TypeScript partagés (DTO, entités, enums) — minimal en Phase 1 (Auth/RBAC uniquement)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
