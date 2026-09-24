@@ -1,5 +1,5 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaClient } from "@hotel-chicago/database";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Devise, PrismaClient } from "@hotel-chicago/database";
 import { PRISMA } from "../prisma/prisma.module";
 import { CreateFactureDto } from "./dto/create-facture.dto";
 import { AnnulerFactureDto } from "./dto/annuler-facture.dto";
@@ -52,13 +52,34 @@ export class FacturesService {
     );
     const montantChambre = Number(reservation.chambre.prixParNuit) * nuits;
     const deviseChambre = reservation.chambre.devise;
-    const montantDu = Math.max(0, montantChambre - Number(reservation.acompte));
+    const montantDuChambre = Math.max(0, montantChambre - Number(reservation.acompte));
 
+    // Consommations cafétaria facturées sur la chambre (VenteCafeteria.reservationLieeId,
+    // section 9.2) : additionnées par devise, jamais fusionnées entre elles (section 9.4).
+    const ventesLiees = await this.prisma.venteCafeteria.findMany({
+      where: { reservationLieeId: dto.reservationId, annuleLe: null },
+    });
+    const cafeteriaUSD = ventesLiees.reduce((somme, v) => somme + Number(v.montantTotalUSD), 0);
+    const cafeteriaCDF = ventesLiees.reduce((somme, v) => somme + Number(v.montantTotalCDF), 0);
+
+    const montantTotalUSD = (deviseChambre === Devise.USD ? montantDuChambre : 0) + cafeteriaUSD;
+    const montantTotalCDF = (deviseChambre === Devise.CDF ? montantDuChambre : 0) + cafeteriaCDF;
+
+    const paiementCroiseDemande = dto.deviseRegleeParClient !== undefined || dto.montantRegleParClient !== undefined;
+    if (paiementCroiseDemande && montantTotalUSD > 0 && montantTotalCDF > 0) {
+      throw new BadRequestException(
+        "Cette facture mélange un montant dû en USD et en CDF (chambre + consommations cafétaria) : " +
+          "le paiement croisé automatique n'est pas supporté pour un total mixte (section 9.4). " +
+          "Réglez chaque devise séparément."
+      );
+    }
+
+    const deviseDue: Devise = montantTotalUSD > 0 ? Devise.USD : Devise.CDF;
     const dernierTaux = await this.prisma.tauxChange.findFirst({ orderBy: { createdAt: "desc" } });
 
     const encaissement = calculerEncaissement({
-      montantDu,
-      deviseDue: deviseChambre,
+      montantDu: montantTotalUSD > 0 ? montantTotalUSD : montantTotalCDF,
+      deviseDue,
       deviseRegleeParClient: dto.deviseRegleeParClient,
       montantRegleParClient: dto.montantRegleParClient,
       deviseRenduChoisie: dto.deviseRenduChoisie,
@@ -72,8 +93,8 @@ export class FacturesService {
         reservationId: dto.reservationId,
         montantChambre,
         deviseChambre,
-        montantTotalUSD: deviseChambre === "USD" ? montantDu : 0,
-        montantTotalCDF: deviseChambre === "CDF" ? montantDu : 0,
+        montantTotalUSD,
+        montantTotalCDF,
         modePaiement: dto.modePaiement,
         deviseRegleeParClient: dto.deviseRegleeParClient,
         montantRegleParClient: dto.montantRegleParClient,
@@ -97,19 +118,25 @@ export class FacturesService {
     });
   }
 
-  /** REC-YYYYMMDD-#### (section 11.3). Compte les factures du jour ; pas de
-   * gestion du préfixe TEMP- ici, réservée au mode hors ligne (Phase 4). */
+  /**
+   * REC-YYYYMMDD-#### (section 11.3). Basé sur le PLUS GRAND numéro déjà
+   * utilisé aujourd'hui, jamais sur un COUNT() de lignes — un count() suppose
+   * une séquence sans trou, ce qui s'est révélé faux en pratique (voir le même
+   * bug corrigé dans CafeteriaService.genererNumeroRecu, trouvé en testant
+   * PARTAGE_EGAL contre la vraie base). Pas de gestion du préfixe TEMP- ici,
+   * réservée au mode hors ligne (Phase 4).
+   */
   private async genererNumeroRecu(): Promise<string> {
-    const debutJournee = new Date();
-    debutJournee.setHours(0, 0, 0, 0);
+    const aaaammjj = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const prefixe = `REC-${aaaammjj}-`;
 
-    const compte = await this.prisma.facture.count({ where: { createdAt: { gte: debutJournee } } });
+    const derniere = await this.prisma.facture.findFirst({
+      where: { numeroRecu: { startsWith: prefixe } },
+      orderBy: { numeroRecu: "desc" },
+      select: { numeroRecu: true },
+    });
+    const dernierNumero = derniere ? parseInt(derniere.numeroRecu.slice(prefixe.length), 10) : 0;
 
-    const aaaammjj = new Date()
-      .toISOString()
-      .slice(0, 10)
-      .replace(/-/g, "");
-
-    return `REC-${aaaammjj}-${String(compte + 1).padStart(4, "0")}`;
+    return `${prefixe}${String(dernierNumero + 1).padStart(4, "0")}`;
   }
 }
