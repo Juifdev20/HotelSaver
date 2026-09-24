@@ -1,7 +1,9 @@
 import * as React from "react";
 import { useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
+import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button } from "@hotel-chicago/ui";
+import { Coins, Users } from "lucide-react";
 import type { ConfigurationApp } from "../../../main/config-store";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 
@@ -12,6 +14,8 @@ export interface EcranParametresProps {
   onRetour?: () => void;
   /** Présent seulement une fois connecté : l'écran de connexion n'a pas encore de jeton pour appeler l'API. */
   client?: ClientApi;
+  /** Présent seulement une fois connecté — conditionne le bloc Administration (PATRON uniquement). */
+  utilisateur?: UtilisateurAuthentifie;
 }
 
 /**
@@ -19,7 +23,7 @@ export interface EcranParametresProps {
  * configuration modifiable depuis un écran Paramètres, pas un .env, pour
  * pouvoir être reconfigurées sans recompiler."
  */
-export function EcranParametres({ configuration, onEnregistrer, onRetour, client }: EcranParametresProps) {
+export function EcranParametres({ configuration, onEnregistrer, onRetour, client, utilisateur }: EcranParametresProps) {
   const [apiUrl, setApiUrl] = useState(configuration.apiUrl);
   const [enregistre, setEnregistre] = useState(false);
 
@@ -78,6 +82,29 @@ export function EcranParametres({ configuration, onEnregistrer, onRetour, client
           )}
         </div>
       </div>
+
+      {/* Utilisateurs et Taux de change vivent ici plutôt que dans la barre
+          latérale, pour la garder courte (demande du client du 25/09/2026) —
+          PATRON uniquement, comme dans la matrice 9.3. */}
+      {utilisateur?.role === Role.PATRON && (
+        <div className="carte-formulaire">
+          <p className="hc-text-label texte-discret">Administration</p>
+          <div className="parametres-ligne">
+            <span className="parametres-ligne__icone">
+              <Users size={18} aria-hidden="true" />
+            </span>
+            <span className="hc-text-body">Utilisateurs</span>
+            <span className="badge-bientot">Bientôt</span>
+          </div>
+          <div className="parametres-ligne">
+            <span className="parametres-ligne__icone">
+              <Coins size={18} aria-hidden="true" />
+            </span>
+            <span className="hc-text-body">Taux de change</span>
+            <span className="badge-bientot">Bientôt</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

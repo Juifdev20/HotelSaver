@@ -9,7 +9,6 @@ import {
   CalendarDays,
   ChevronDown,
   ClipboardList,
-  Coins,
   LayoutDashboard,
   LogOut,
   LucideIcon,
@@ -21,7 +20,6 @@ import {
   Settings,
   ShoppingCart,
   Sun,
-  Users,
   UtensilsCrossed,
   X,
 } from "lucide-react";
@@ -38,8 +36,6 @@ const ICONES: Record<IdPage, LucideIcon> = {
   "comptes-ouverts": ClipboardList,
   menu: UtensilsCrossed,
   stock: Package,
-  utilisateurs: Users,
-  "taux-de-change": Coins,
   parametres: Settings,
 };
 

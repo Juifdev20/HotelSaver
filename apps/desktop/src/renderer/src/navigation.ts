@@ -10,8 +10,6 @@ export type IdPage =
   | "comptes-ouverts"
   | "menu"
   | "stock"
-  | "utilisateurs"
-  | "taux-de-change"
   | "parametres";
 
 export interface EntreeNavigation {
@@ -32,7 +30,6 @@ export interface SectionNavigation {
 const TOUS = [Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON];
 const RECEPTION = [Role.RECEPTIONNISTE, Role.PATRON];
 const CAFETARIA = [Role.CAFETARIA, Role.PATRON];
-const PATRON = [Role.PATRON];
 
 /** Sections et droits calqués sur la matrice 9.3 (qui voit quoi). */
 export const SECTIONS: SectionNavigation[] = [
@@ -58,13 +55,9 @@ export const SECTIONS: SectionNavigation[] = [
       { id: "stock", libelle: "Stock", libelleCourt: "Stock", roles: CAFETARIA, disponible: false },
     ],
   },
-  {
-    titre: "Administration",
-    entrees: [
-      { id: "utilisateurs", libelle: "Utilisateurs", libelleCourt: "Comptes", roles: PATRON, disponible: false },
-      { id: "taux-de-change", libelle: "Taux de change", libelleCourt: "Taux", roles: PATRON, disponible: false },
-    ],
-  },
+  // Pas de section "Administration" séparée : Utilisateurs et Taux de change
+  // (PATRON uniquement) vivent dans l'écran Paramètres pour garder la barre
+  // latérale courte (demande du client du 25/09/2026).
 ];
 
 export function sectionsPourRole(role: Role): SectionNavigation[] {

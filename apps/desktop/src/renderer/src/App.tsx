@@ -153,7 +153,14 @@ export function App() {
     } else if (page === "chambres") {
       contenu = <EcranChambres client={client} rechercheInitiale={rechercheChambres} onNaviguer={setPage} />;
     } else if (page === "parametres") {
-      contenu = <EcranParametres configuration={configuration} onEnregistrer={enregistrerParametres} client={client} />;
+      contenu = (
+        <EcranParametres
+          configuration={configuration}
+          onEnregistrer={enregistrerParametres}
+          client={client}
+          utilisateur={utilisateur}
+        />
+      );
     } else {
       contenu = <EcranBientot titre={libellePage(page)} />;
     }

@@ -564,6 +564,44 @@ p {
   gap: var(--hc-space-3);
 }
 
+/* ---------- Lignes « Bientôt » (Paramètres > Administration) ---------- */
+
+.parametres-ligne {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-2) 0;
+}
+.parametres-ligne + .parametres-ligne {
+  border-top: 1px solid var(--hc-border);
+}
+
+.parametres-ligne__icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--hc-radius-sm);
+  background-color: var(--hc-blue-light);
+  color: var(--hc-blue);
+  flex-shrink: 0;
+}
+
+.parametres-ligne .hc-text-body {
+  flex: 1;
+}
+
+.badge-bientot {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px var(--hc-space-2);
+  border-radius: var(--hc-radius-pill);
+  border: 1px solid var(--hc-border);
+  color: var(--hc-ink-muted);
+  white-space: nowrap;
+}
+
 /* ---------- Tableau (page Chambres, desktop) ---------- */
 
 .carte-tableau {
