@@ -1,9 +1,11 @@
 import { join } from "path";
-import { Module } from "@nestjs/common";
+import { Module, ValidationPipe } from "@nestjs/common";
+import { APP_PIPE } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
 import { HealthModule } from "./health/health.module";
 import { ChambresModule } from "./chambres/chambres.module";
 import { ReservationsModule } from "./reservations/reservations.module";
+import { FacturesModule } from "./factures/factures.module";
 import { ProduitsModule } from "./produits/produits.module";
 import { StockModule } from "./stock/stock.module";
 import { CafeteriaModule } from "./cafeteria/cafeteria.module";
@@ -18,9 +20,23 @@ import { CafeteriaModule } from "./cafeteria/cafeteria.module";
     HealthModule,
     ChambresModule,
     ReservationsModule,
+    FacturesModule,
     ProduitsModule,
     StockModule,
     CafeteriaModule,
+  ],
+  providers: [
+    {
+      // Enregistré ici (plutôt que via app.useGlobalPipes dans main.ts) pour que
+      // les tests Nest (TestingModule.createNestApplication()) bénéficient aussi
+      // de la validation — main.ts n'est jamais exécuté pendant les tests.
+      provide: APP_PIPE,
+      useValue: new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    },
   ],
 })
 export class AppModule {}
