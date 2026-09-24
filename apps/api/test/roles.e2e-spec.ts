@@ -66,6 +66,8 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
     produit: { findMany: jest.fn().mockResolvedValue([]) },
     mouvementStock: { findMany: jest.fn().mockResolvedValue([]) },
     compteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
+    sousCompte: { findMany: jest.fn().mockResolvedValue([]) },
+    ligneCommande: { findMany: jest.fn().mockResolvedValue([]) },
     facture: { findMany: jest.fn().mockResolvedValue([]) },
     venteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
   };
@@ -204,5 +206,30 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
         await request(app.getHttpServer()).get(route).expect(200);
       }
     );
+  });
+
+  describe("Sync — section 10.3, tous les rôles avec compte peuvent pousser/tirer", () => {
+    it("refuse GET /sync/pull sans authentification", async () => {
+      await request(app.getHttpServer()).get("/sync/pull?depuis=2026-01-01T00:00:00.000Z").expect(401);
+    });
+
+    it.each(["auth-receptionniste", "auth-cafeteria", "auth-patron"])(
+      "%s → 200 sur GET /sync/pull",
+      async (auth) => {
+        await request(app.getHttpServer())
+          .get("/sync/pull?depuis=2026-01-01T00:00:00.000Z")
+          .set("Authorization", bearer(auth))
+          .expect(200);
+      }
+    );
+
+    it("un CAFETARIA reçoit une erreur d'opération (pas un 500) pour un CREATE Chambre non autorisé", async () => {
+      const reponse = await request(app.getHttpServer())
+        .post("/sync/push")
+        .set("Authorization", bearer("auth-cafeteria"))
+        .send({ operations: [{ entiteType: "Chambre", localId: "l1", operation: "CREATE", payload: {} }] })
+        .expect(201);
+      expect(reponse.body.resultats[0].statut).toBe("ERROR");
+    });
   });
 });

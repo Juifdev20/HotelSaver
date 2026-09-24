@@ -11,6 +11,7 @@ import { StockModule } from "./stock/stock.module";
 import { CafeteriaModule } from "./cafeteria/cafeteria.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { PublicModule } from "./public/public.module";
+import { SyncModule } from "./sync/sync.module";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PublicModule } from "./public/public.module";
     CafeteriaModule,
     DashboardModule,
     PublicModule,
+    SyncModule,
   ],
   providers: [
     {

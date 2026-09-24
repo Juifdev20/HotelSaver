@@ -8,5 +8,6 @@ import { CafeteriaService } from "./cafeteria.service";
   imports: [PrismaModule, StockModule],
   controllers: [CafeteriaController],
   providers: [CafeteriaService],
+  exports: [CafeteriaService],
 })
 export class CafeteriaModule {}

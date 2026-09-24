@@ -13,8 +13,9 @@ import { UpdateChambreDto } from "./dto/update-chambre.dto";
 import { FindChambresQueryDto } from "./dto/find-chambres.query.dto";
 
 /** Champs qu'un RECEPTIONNISTE n'a pas le droit de modifier (section 9.3 : "Chambres
- * (types, prix)" est réservé à PATRON, seul "Statut chambre" est ouvert aux deux). */
-const CHAMPS_RESERVES_PATRON: (keyof UpdateChambreDto)[] = ["numero", "type", "prixParNuit", "devise"];
+ * (types, prix)" est réservé à PATRON, seul "Statut chambre" est ouvert aux deux).
+ * Exporté pour être réutilisé tel quel par SyncModule (même règle, un seul endroit). */
+export const CHAMPS_RESERVES_PATRON: (keyof UpdateChambreDto)[] = ["numero", "type", "prixParNuit", "devise"];
 
 @Injectable()
 export class ChambresService {
