@@ -5,10 +5,12 @@ Monorepo pnpm/Turborepo pour l'application de gestion de l'Hôtel Chicago
 racine pour la spécification complète du produit, et `DECISIONS.md` pour les
 hypothèses prises pendant la réalisation.
 
-**État actuel : Phase 1 uniquement** (monorepo, schéma de base de données,
-authentification, matrice de permissions). Les applications Réception,
-Cafétaria, mobile, desktop et le site public ne sont pas encore construites —
-voir le README de chaque paquet dans `apps/` pour le détail.
+**État actuel : Phase 1 terminée et vérifiée en conditions réelles**
+(monorepo, schéma de base de données appliqué à Supabase de production,
+policies RLS appliquées, authentification, matrice de permissions testée de
+bout en bout contre la vraie base). Les applications Réception, Cafétaria,
+mobile, desktop et le site public ne sont pas encore construites — voir le
+README de chaque paquet dans `apps/` pour le détail.
 
 ## Structure
 
@@ -57,7 +59,10 @@ commités) :
 
 1. `apps/api/.env` — informations Supabase + secret JWT. Voir
    `apps/api/.env.example` pour la liste complète des variables et
-   `DECISIONS.md` pour le détail de la vérification du jeton Supabase Auth.
+   `DECISIONS.md` pour le détail de la vérification du jeton Supabase Auth
+   **et pour `DATABASE_URL` : utiliser le pooler Supabase en mode session
+   (port 5432), pas la connexion directe** (`db.<ref>.supabase.co` est
+   IPv6-only sur les projets récents et souvent injoignable).
 2. `packages/database/.env` — doit contenir la **même** `DATABASE_URL` que
    `apps/api/.env` (la CLI Prisma cherche son `.env` dans le répertoire du
    paquet `database`, pas dans `apps/api`). Voir
@@ -74,8 +79,7 @@ pnpm --filter database generate
 pnpm --filter database migrate:dev
 
 # Applique ensuite les policies RLS (pas gérées par Prisma) :
-# via le SQL Editor de Supabase, ou :
-psql "$DATABASE_URL" -f packages/database/prisma/rls-policies.sql
+pnpm --filter database apply-rls
 ```
 
 ## Compiler les paquets partagés

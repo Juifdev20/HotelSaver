@@ -79,6 +79,28 @@ Supabase unique ») et comme il s'agit du tout premier déploiement du projet
 (base vide), l'isolation par schéma n'apporte rien de plus qu'un schéma
 `public` propre.
 
+**Connexion Postgres : pooler (session mode), pas connexion directe.** Le
+projet Supabase du patron a été créé récemment et son hôte de connexion
+directe (`db.krvhnsyvlkgvcxncvwkx.supabase.co`) ne résout qu'en IPv6 — sans
+route IPv6 utilisable sur ce réseau de développement (confirmé avec
+`nslookup`/`Test-NetConnection`, échec `P1001` de Prisma). `DATABASE_URL`
+utilise donc le pooler Supavisor fourni par le patron, en **mode session**
+(port `5432`, pas `6543`) :
+
+```
+postgresql://postgres.krvhnsyvlkgvcxncvwkx:<password>@aws-1-eu-west-1.pooler.supabase.com:5432/postgres
+```
+
+Le mode session a été choisi plutôt que le mode transaction (port `6543`)
+parce que `prisma migrate` a besoin de verrous consultatifs (`advisory
+locks`) et de requêtes préparées que le pooler en mode transaction ne
+supporte pas de façon fiable. Comme le backend est un unique processus
+Node long-lived (pas de fonctions serverless/edge à forte concurrence), le
+mode session convient aussi très bien pour le trafic applicatif normal — pas
+besoin de deux `DATABASE_URL` différentes pour l'instant. À reconsidérer si
+Render se révèle avoir un accès IPv6 fonctionnel vers Supabase (auquel cas la
+connexion directe redeviendrait possible et légèrement plus simple).
+
 **`packages/database/.env`** : en plus de `apps/api/.env` (section 6), un
 second `.env` (même valeur `DATABASE_URL`) est nécessaire dans
 `packages/database/`, car la CLI Prisma est invoquée avec
