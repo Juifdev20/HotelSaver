@@ -230,6 +230,11 @@ model VenteCafeteria {
   deviseRegleeParClient Devise?
   montantRegleParClient Decimal?
   tauxChangeApplique    Decimal?
+  // Ajoutés en Phase 3, symétriques aux mêmes champs sur Facture (Phase 2) —
+  // voir DECISIONS.md, même raisonnement (le choix de devise du rendu de
+  // monnaie n'est pas dérivable des autres champs) :
+  deviseMonnaieRendue   Devise?
+  montantMonnaieRendue  Decimal?
   reservationLieeId     String? // si facturé sur le séjour d'une chambre (Reservation.id)
   numeroRecu            String       @unique
   imprimeLe             DateTime?
