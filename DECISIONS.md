@@ -26,6 +26,85 @@ ne contiennent qu'un `package.json` + `README.md` d'espace réservé — ce ne
 sont pas des applications fonctionnelles pour l'instant, et leurs README le
 disent explicitement pour éviter toute confusion dans une session future.
 
+### Phase 2 — sous-découpage : backend d'abord, Electron/impression plus tard
+
+La section 16 définit la Phase 2 comme « Module Réception complet (chambres,
+réservations, check-in/out, facturation) **sur desktop, avec impression** » —
+un seul bloc mêlant logique métier, UI Electron et intégration matérielle
+d'imprimantes thermiques. Comme pour la Phase 1, ce bloc a été sous-découpé :
+cette passe construit la logique métier réelle côté `apps/api` (Chambres,
+Réservations, Factures — CRUD complet, règles métier, tests), **sans**
+l'application Electron ni l'impression thermique, qui nécessitent un travail
+UI/matériel substantiel et distinct. `apps/desktop` reste un espace réservé
+(voir son README) jusqu'à une passe dédiée « Phase 2b ».
+
+### Interprétation de la matrice de permissions face à « PATRON : accès total »
+
+La matrice de la section 9.3 ne liste littéralement pas « Créer » dans les
+cellules PATRON pour les lignes Réservations, Check-in/Check-out et Facture
+séjour (seul RECEPTIONNISTE a « Créer »). Question posée explicitement à
+l'utilisateur, car l'impact produit est réel (le patron pourrait sinon être
+incapable de faire lui-même un check-in ou une facture) : **décision =
+PATRON a accès à toutes les actions de ces trois modules**, conformément à
+l'énoncé général de la section 9.1 (« PATRON : accès total »). Les cellules
+de la matrice qui omettent « Créer » pour PATRON sont donc lues comme un
+raccourci décrivant l'usage quotidien typique, pas comme une exclusion
+stricte. Implémenté dans `ChambresController`/`ReservationsController`/
+`FacturesController` : `@Roles(Role.RECEPTIONNISTE, Role.PATRON)` sur toutes
+les routes de ces trois modules, sauf les actions strictement administratives
+sur les chambres (créer/modifier prix-type/supprimer une chambre), qui
+restent PATRON seul, conformément à la ligne « Chambres (types, prix) ».
+
+### Champs ajoutés au schéma (incohérence entre sections 7 et 8/17)
+
+Le schéma Prisma de la section 7 n'inclut pas de champs `annuleLe`/
+`motifAnnulation` sur `Reservation`, ni de champ pour la devise/le montant de
+la monnaie rendue sur `Facture` — alors que la section 8 exige un endpoint
+`POST /:id/annuler` traçant un motif pour **toutes** les données non
+supprimables, et que la section 9.4 exige d'afficher la monnaie rendue et sa
+devise. Ajoutés en Phase 2 (migration
+`20260924112641_phase2_reservation_facture_fields`, appliquée en production) :
+- `Reservation.annuleLe: DateTime?`, `Reservation.motifAnnulation: String?`
+- `Facture.deviseMonnaieRendue: Devise?`, `Facture.montantMonnaieRendue: Decimal?`
+
+### Calcul du montant dû et du paiement croisé (non spécifié précisément)
+
+La section 7 décrit les champs de `Facture` mais pas la formule de calcul.
+Implémenté dans `FacturesService.create()` :
+`montantChambre = prixParNuit × nombre de nuits` (arrondi à l'entier
+supérieur en jours) ; `montantDu = max(0, montantChambre − acompte)`, placé
+dans le panier de devise correspondant à `Chambre.devise` (l'autre panier
+reste à 0 tant que la cafétaria — Phase 3 — n'alimente pas la facture). Le
+paiement croisé (`apps/api/src/factures/encaissement.util.ts`, testé
+isolément) suppose un dû dans une seule devise (le cas mixte, qui n'existera
+qu'avec les ventes cafétaria liées, est explicitement hors scope Phase 2 —
+`FacturesService` ne gère pas encore `reservationLieeId`). Une facture ne
+peut être créée que pour une réservation `EN_COURS` ou `TERMINEE` (le client
+doit avoir fait son check-in).
+
+### Bug RLS trouvé et corrigé en testant le vrai endpoint DELETE
+
+Le trigger `controle_ecriture_chambre` (Phase 1) faisait `return NEW;`
+inconditionnellement en fin de fonction. Sur un trigger `BEFORE DELETE`,
+`NEW` est toujours `NULL` en PL/pgSQL (seul `OLD` existe) — et renvoyer
+`NULL` depuis un trigger `BEFORE DELETE` annule silencieusement la
+suppression pour Postgres, **quel que soit le rôle**. Résultat concret :
+`DELETE /chambres/:id` échouait toujours avec une erreur Prisma P2025
+(« Record to delete does not exist »), y compris pour PATRON, alors que
+`ChambresService.remove()` avait pourtant bien vérifié que la ligne existait
+juste avant. Trouvé en testant l'endpoint réel contre la vraie base (pas
+seulement via les tests unitaires, qui mockent Prisma et ne peuvent pas
+détecter un trigger SQL cassé) : suppression testée manuellement, échec
+inattendu, cause isolée en une itération de debug SQL direct. Corrigé dans
+`packages/database/prisma/rls-policies.sql` (`return OLD` sur `TG_OP =
+'DELETE'`) et appliqué directement en production. En profite pour ajouter la
+policy RLS `chambre_delete_patron` qui manquait (la section 9.3 autorise
+explicitement PATRON à supprimer une chambre ; l'absence de policy DELETE
+aurait de toute façon tout refusé par défaut au niveau RLS, cohérent avec
+l'ancien commentaire erroné du fichier qui disait « jamais de suppression
+physique d'une chambre » — une confusion avec la règle qui s'applique aux
+données *financières*, pas aux chambres elles-mêmes).
+
 ## Ressources graphiques (section 5.1, section 12.6)
 
 Le patron a fourni `assets/logo/logo-couleur.png` (monogramme doré-roux sur

@@ -5,21 +5,25 @@ Monorepo pnpm/Turborepo pour l'application de gestion de l'Hôtel Chicago
 racine pour la spécification complète du produit, et `DECISIONS.md` pour les
 hypothèses prises pendant la réalisation.
 
-**État actuel : Phase 1 terminée et vérifiée en conditions réelles**
-(monorepo, schéma de base de données appliqué à Supabase de production,
-policies RLS appliquées, authentification, matrice de permissions testée de
-bout en bout contre la vraie base). Les applications Réception, Cafétaria,
-mobile, desktop et le site public ne sont pas encore construites — voir le
-README de chaque paquet dans `apps/` pour le détail.
+**État actuel : Phase 1 et le backend de la Phase 2 terminés et vérifiés en
+conditions réelles** (monorepo, schéma de base de données appliqué à
+Supabase de production, policies RLS appliquées, authentification, matrice
+de permissions testée de bout en bout, modules Chambres/Réservations/
+Factures avec logique métier réelle — disponibilité, check-in/out, calcul
+multi-devises et paiement croisé). L'application Electron (UI + impression
+thermique), le module Cafétaria, le mode hors ligne, le mobile, le tableau
+de bord patron et le site public ne sont pas encore construits — voir le
+README de chaque paquet dans `apps/` pour le détail, et `DECISIONS.md` pour
+le découpage en phases.
 
 ## Structure
 
 ```
 apps/
-  api/       Backend NestJS — construit (Phase 1)
+  api/       Backend NestJS — construit (Phase 1 : Auth/RBAC ; Phase 2 : Chambres/Réservations/Factures)
   web/       Site public Next.js — pas encore construit (Phase 7)
   mobile/    App React Native — pas encore construite (Phase 5)
-  desktop/   App Electron — pas encore construite (Phases 2-3)
+  desktop/   App Electron — pas encore construite (Phase 2b : UI + impression)
 packages/
   database/      Schéma Prisma + client, connecté à Supabase Postgres
   types/         Types partagés (minimal pour l'instant : Auth/RBAC)
@@ -103,10 +107,17 @@ pnpm --filter api start:dev
 ```
 
 - `GET /health` → vérifie que l'API répond (pas d'authentification requise).
-- Toutes les autres routes (`/chambres`, `/reservations`, `/produits`,
-  `/stock`, `/cafeteria/comptes`) sont des **stubs de Phase 1** : elles ne
-  font que prouver le contrôle d'accès par rôle (section 9.3) et renvoient un
-  message indiquant la phase où la logique métier réelle sera implémentée.
+- `/chambres`, `/reservations`, `/factures` (Phase 2) : logique métier réelle
+  — CRUD, disponibilité (pas de double réservation sur une même période),
+  check-in/check-out, facturation multi-devises avec paiement croisé
+  (section 9.4). Accès RECEPTIONNISTE + PATRON, sauf création/modification
+  du prix ou du type d'une chambre et suppression d'une chambre (PATRON
+  seul). Voir `DECISIONS.md` pour les hypothèses de calcul (montant dû,
+  paiement croisé, formule du prix de séjour).
+- `/produits`, `/stock`, `/cafeteria/comptes` restent des **stubs de
+  Phase 1** : ils ne font que prouver le contrôle d'accès par rôle et
+  renvoient un message indiquant la phase (3) où la logique métier réelle
+  sera implémentée.
 
 ## Tests
 
