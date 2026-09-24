@@ -66,6 +66,8 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
     produit: { findMany: jest.fn().mockResolvedValue([]) },
     mouvementStock: { findMany: jest.fn().mockResolvedValue([]) },
     compteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
+    facture: { findMany: jest.fn().mockResolvedValue([]) },
+    venteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
   };
 
   const tokenPour = (supabaseAuthId: string) => jwt.sign({ sub: supabaseAuthId }, JWT_SECRET);
@@ -152,5 +154,55 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
 
   it("/health répond 200 sans authentification", async () => {
     await request(app.getHttpServer()).get("/health").expect(200);
+  });
+
+  describe("Dashboard — section 9.3 'Rapports/recettes' + permissions des modules sous-jacents", () => {
+    it.each(["/dashboard/recette-du-jour", "/dashboard/ventes-recentes"])(
+      "RECEPTIONNISTE, CAFETARIA et PATRON → 200 sur %s (chacun voit ses propres opérations)",
+      async (route) => {
+        for (const auth of ["auth-receptionniste", "auth-cafeteria", "auth-patron"]) {
+          await request(app.getHttpServer()).get(route).set("Authorization", bearer(auth)).expect(200);
+        }
+      }
+    );
+
+    it("RECEPTIONNISTE et PATRON → 200 sur /dashboard/occupation, CAFETARIA → 403", async () => {
+      await request(app.getHttpServer())
+        .get("/dashboard/occupation")
+        .set("Authorization", bearer("auth-receptionniste"))
+        .expect(200);
+      await request(app.getHttpServer())
+        .get("/dashboard/occupation")
+        .set("Authorization", bearer("auth-patron"))
+        .expect(200);
+      await request(app.getHttpServer())
+        .get("/dashboard/occupation")
+        .set("Authorization", bearer("auth-cafeteria"))
+        .expect(403);
+    });
+
+    it("CAFETARIA et PATRON → 200 sur /dashboard/stock-bas, RECEPTIONNISTE → 403", async () => {
+      await request(app.getHttpServer())
+        .get("/dashboard/stock-bas")
+        .set("Authorization", bearer("auth-cafeteria"))
+        .expect(200);
+      await request(app.getHttpServer())
+        .get("/dashboard/stock-bas")
+        .set("Authorization", bearer("auth-patron"))
+        .expect(200);
+      await request(app.getHttpServer())
+        .get("/dashboard/stock-bas")
+        .set("Authorization", bearer("auth-receptionniste"))
+        .expect(403);
+    });
+  });
+
+  describe("Public — section 9.1 : le rôle CLIENT n'a pas de compte", () => {
+    it.each(["/public/chambres-disponibles", "/public/menu"])(
+      "%s répond 200 SANS aucun jeton d'authentification",
+      async (route) => {
+        await request(app.getHttpServer()).get(route).expect(200);
+      }
+    );
   });
 });

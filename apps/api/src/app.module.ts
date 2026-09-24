@@ -9,6 +9,8 @@ import { FacturesModule } from "./factures/factures.module";
 import { ProduitsModule } from "./produits/produits.module";
 import { StockModule } from "./stock/stock.module";
 import { CafeteriaModule } from "./cafeteria/cafeteria.module";
+import { DashboardModule } from "./dashboard/dashboard.module";
+import { PublicModule } from "./public/public.module";
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { CafeteriaModule } from "./cafeteria/cafeteria.module";
     ProduitsModule,
     StockModule,
     CafeteriaModule,
+    DashboardModule,
+    PublicModule,
   ],
   providers: [
     {

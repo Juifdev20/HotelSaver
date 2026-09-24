@@ -1,0 +1,44 @@
+import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
+import { RolesGuard } from "../common/guards/roles.guard";
+import { Roles } from "../common/decorators/roles.decorator";
+import { CurrentUser } from "../common/decorators/current-user.decorator";
+import { DashboardService } from "./dashboard.service";
+
+/**
+ * Section 9.3 "Rapports/recettes" : RECEPTIONNISTE et CAFETARIA voient leurs
+ * propres opérations (filtré dans le service selon le rôle), PATRON voit
+ * tout. `occupation` et `stock-bas` suivent les permissions des modules
+ * Chambres et Stock respectivement (pas de notion de "ses opérations" pour
+ * des compteurs globaux à l'hôtel).
+ */
+@Controller("dashboard")
+@UseGuards(SupabaseAuthGuard, RolesGuard)
+export class DashboardController {
+  constructor(private readonly dashboardService: DashboardService) {}
+
+  @Get("recette-du-jour")
+  @Roles(Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON)
+  recetteDuJour(@CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.dashboardService.recetteDuJour(currentUser);
+  }
+
+  @Get("occupation")
+  @Roles(Role.RECEPTIONNISTE, Role.PATRON)
+  occupation() {
+    return this.dashboardService.occupation();
+  }
+
+  @Get("ventes-recentes")
+  @Roles(Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON)
+  ventesRecentes(@CurrentUser() currentUser: UtilisateurAuthentifie, @Query("limite") limite?: string) {
+    return this.dashboardService.ventesRecentes(currentUser, limite ? Number(limite) : undefined);
+  }
+
+  @Get("stock-bas")
+  @Roles(Role.CAFETARIA, Role.PATRON)
+  stockBas() {
+    return this.dashboardService.stockBas();
+  }
+}
