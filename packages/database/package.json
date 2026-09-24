@@ -11,13 +11,16 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:status": "prisma migrate status",
-    "studio": "prisma studio"
+    "studio": "prisma studio",
+    "apply-rls": "node scripts/apply-rls.js"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.10",
+    "dotenv": "^16.4.5",
+    "pg": "^8.13.1",
     "prisma": "^5.20.0",
     "typescript": "^5.6.3"
   }
