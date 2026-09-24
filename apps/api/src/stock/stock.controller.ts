@@ -1,21 +1,31 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
-import { Role } from "@hotel-chicago/types";
+import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
+import { CurrentUser } from "../common/decorators/current-user.decorator";
+import { StockService } from "./stock.service";
+import { CreateMouvementDto } from "./dto/create-mouvement.dto";
+import { FindMouvementsQueryDto } from "./dto/find-mouvements.query.dto";
 
 /**
- * Stub Phase 1 : prouve le contrôle d'accès par rôle (section 9.3).
- * La gestion réelle du stock arrive en Phase 3 (section 16).
+ * Permissions (section 9.3 "Stock") : RECEPTIONNISTE aucun accès ;
+ * CAFETARIA crée des mouvements + lecture ; PATRON lecture + ajustements
+ * (via un mouvement de type AJUSTEMENT, pas d'endpoint séparé).
  */
 @Controller("stock")
 @UseGuards(SupabaseAuthGuard, RolesGuard)
+@Roles(Role.CAFETARIA, Role.PATRON)
 export class StockController {
+  constructor(private readonly stockService: StockService) {}
+
   @Get()
-  @Roles(Role.CAFETARIA, Role.PATRON)
-  findAll() {
-    return {
-      message: "Module Stock non implémenté (Phase 3). Route stub protégée par rôle.",
-    };
+  findAll(@Query() query: FindMouvementsQueryDto) {
+    return this.stockService.findAll(query);
+  }
+
+  @Post()
+  create(@Body() dto: CreateMouvementDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.stockService.create(dto, currentUser.userId);
   }
 }
