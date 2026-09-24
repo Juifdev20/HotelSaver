@@ -57,6 +57,11 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
         Promise.resolve(utilisateurs[supabaseAuthId] ?? null)
       ),
     },
+    // Ce test ne vérifie que la matrice de rôles (guards), pas la logique métier
+    // réelle de Chambres/Réservations (Phase 2) — celle-ci a ses propres tests.
+    // Juste assez de surface ici pour que les routes GET ne plantent pas en 500.
+    chambre: { findMany: jest.fn().mockResolvedValue([]) },
+    reservation: { findMany: jest.fn().mockResolvedValue([]) },
   };
 
   const tokenPour = (supabaseAuthId: string) => jwt.sign({ sub: supabaseAuthId }, JWT_SECRET);

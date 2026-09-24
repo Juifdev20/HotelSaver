@@ -2,7 +2,7 @@
   "name": "@hotel-chicago/api",
   "private": true,
   "version": "0.1.0",
-  "description": "API backend NestJS — Hôtel Chicago (Phase 1 : Auth/RBAC + stubs de modules)",
+  "description": "API backend NestJS — Hôtel Chicago (Phase 1 Auth/RBAC + Phase 2 Réception)",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
@@ -17,6 +17,8 @@
     "@nestjs/config": "^3.2.3",
     "@nestjs/core": "^10.4.4",
     "@nestjs/platform-express": "^10.4.4",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
     "jsonwebtoken": "^9.0.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
