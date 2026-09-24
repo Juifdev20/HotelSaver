@@ -3,29 +3,45 @@
 .hc-status-badge {
   display: inline-flex;
   align-items: center;
-  padding: var(--hc-space-1) var(--hc-space-3);
+  gap: var(--hc-space-1);
+  padding: 3px var(--hc-space-3);
   border-radius: var(--hc-radius-pill);
   font-family: var(--hc-font-body);
   font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--hc-on-status);
   white-space: nowrap;
 }
 
+.hc-status-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--hc-radius-pill);
+  background-color: currentColor;
+  flex-shrink: 0;
+}
+
 .hc-status-badge--success {
-  background-color: var(--hc-success);
+  background-color: var(--hc-success-light);
+  color: var(--hc-success);
 }
 .hc-status-badge--warning {
-  background-color: var(--hc-warning);
+  background-color: var(--hc-warning-light);
+  color: var(--hc-warning);
 }
 .hc-status-badge--danger {
-  background-color: var(--hc-danger);
+  background-color: var(--hc-danger-light);
+  color: var(--hc-danger);
 }
 .hc-status-badge--info {
-  background-color: var(--hc-info);
+  background-color: var(--hc-info-light);
+  color: var(--hc-info);
+}
+.hc-status-badge--purple {
+  background-color: var(--hc-purple-light);
+  color: var(--hc-purple);
 }
 .hc-status-badge--neutral {
-  background-color: var(--hc-neutral);
+  background-color: var(--hc-border);
+  color: var(--hc-ink-muted);
 }

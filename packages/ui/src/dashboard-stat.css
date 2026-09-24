@@ -5,24 +5,27 @@
   padding: var(--hc-space-4);
   background-color: var(--hc-surface-200);
   border: 1px solid var(--hc-border);
-  border-radius: var(--hc-radius-md);
+  border-radius: var(--hc-radius-lg);
+  box-shadow: var(--hc-shadow-card);
   color: var(--hc-ink);
   text-align: left;
   font-family: var(--hc-font-body);
   min-width: 0;
+  transition:
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
 }
 
 button.hc-stat {
   cursor: pointer;
 }
 button.hc-stat:hover {
-  background-color: var(--hc-surface-300);
+  box-shadow: var(--hc-shadow-hover);
 }
 
-/* Filtre actif : contour renforcé, sans nouvelle couleur vive (section 12, préambule). */
 .hc-stat--selectionne {
-  background-color: var(--hc-surface-300);
-  border-color: var(--hc-ink-muted);
+  border-color: var(--hc-blue);
+  box-shadow: 0 0 0 1px var(--hc-blue);
 }
 
 .hc-stat__libelle {
@@ -42,8 +45,27 @@ button.hc-stat:hover {
 .hc-stat__pastille--warning { background-color: var(--hc-warning); }
 .hc-stat__pastille--danger { background-color: var(--hc-danger); }
 .hc-stat__pastille--info { background-color: var(--hc-info); }
+.hc-stat__pastille--purple { background-color: var(--hc-purple); }
 .hc-stat__pastille--neutral { background-color: var(--hc-neutral); }
 
 .hc-stat__precision {
   color: var(--hc-ink-muted);
 }
+
+/* Icône en cercle devant le libellé (section 8) — optionnelle, ajoutée par
+ * l'appelant via `icone`. */
+.hc-stat__icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--hc-radius-md);
+  margin-bottom: var(--hc-space-1);
+}
+.hc-stat__icone--success { background-color: var(--hc-success-light); color: var(--hc-success); }
+.hc-stat__icone--warning { background-color: var(--hc-warning-light); color: var(--hc-warning); }
+.hc-stat__icone--danger { background-color: var(--hc-danger-light); color: var(--hc-danger); }
+.hc-stat__icone--info { background-color: var(--hc-info-light); color: var(--hc-info); }
+.hc-stat__icone--purple { background-color: var(--hc-purple-light); color: var(--hc-purple); }
+.hc-stat__icone--neutral { background-color: var(--hc-blue-light); color: var(--hc-blue); }

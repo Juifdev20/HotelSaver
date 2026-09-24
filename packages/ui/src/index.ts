@@ -7,6 +7,8 @@ export { RoomCard } from "./RoomCard";
 export type { RoomCardProps } from "./RoomCard";
 export { DashboardStat } from "./DashboardStat";
 export type { DashboardStatProps } from "./DashboardStat";
+export { Donut } from "./Donut";
+export type { DonutProps, DonutSegment } from "./Donut";
 
 // Feuilles CSS à importer une fois au niveau de l'app (voir apps/desktop) :
 //   import "@hotel-chicago/ui/dist/tokens.css";

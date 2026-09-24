@@ -1,35 +1,49 @@
 /*
- * Jetons de la charte graphique — section 12 du prompt d'origine.
- * Valeurs littérales, ne pas improviser de couleur en dehors de cette liste
- * (section 12, préambule). Thème clair par défaut sur :root ; thème sombre
- * activé en posant data-theme="dark" sur un ancêtre (généralement <html>).
- * Jamais de blanc pur ni de noir pur pour un fond de page (section 12.2).
+ * Jetons de la charte graphique — palette bleu nuit / bleu professionnel
+ * (refonte demandée par le client le 24/09/2026, voir DECISIONS.md).
+ * Cette palette REMPLACE l'ancienne palette terracotta/beige.
+ * Thème clair par défaut sur :root ; thème sombre activé en posant
+ * data-theme="dark" sur un ancêtre (généralement <html>).
  */
 
 :root {
-  /* Couleurs — thème clair (section 12.1) */
-  --hc-surface-100: #fbf5ec;
-  --hc-surface-200: #f3e7d3;
-  --hc-surface-300: #ecd9ba;
-  --hc-border: #ddc9a8;
-  --hc-ink: #2a1f15;
-  --hc-ink-muted: #6e5d49;
-  --hc-accent: #c98a2e;
-  --hc-accent-strong: #a86f1f;
-  --hc-rust: #9a3d1e;
-  --hc-rust-strong: #7a2e15;
-  --hc-on-accent: #241a12;
-  --hc-success: #2f6b41;
-  --hc-warning: #9c6a1e;
-  --hc-danger: #9e3226;
-  --hc-info: #2e5c79;
-  --hc-neutral: #4f4959;
-  /* Texte sur un badge de statut coloré (section 12.1 : "texte blanc") —
-     jeton à part de la règle "jamais de blanc pur" qui ne vise que les FONDS
-     DE PAGE, pas une petite touche de texte sur badge. */
-  --hc-on-status: #ffffff;
+  /* Couleur principale (navy) et couleur d'action (bleu) */
+  --hc-navy: #0f2742;
+  --hc-navy-strong: #0a1a2e;
+  --hc-blue: #1769e0;
+  --hc-blue-hover: #1258c0;
+  --hc-blue-light: #eaf3ff;
+  --hc-blue-very-light: #f5f9ff;
 
-  /* Espacements (section 12.4) */
+  /* Fond et surfaces */
+  --hc-surface-100: #f6f8fc; /* fond de page */
+  --hc-surface-200: #ffffff; /* cartes */
+  --hc-surface-300: #f9fbfe; /* surface secondaire, hover léger */
+  --hc-border: #e4eaf2;
+
+  /* Textes */
+  --hc-ink: #142033;
+  --hc-ink-muted: #667085;
+  --hc-ink-faint: #98a2b3;
+
+  --hc-on-accent: #ffffff;
+
+  /* États */
+  --hc-success: #12b76a;
+  --hc-success-light: #ecfdf3;
+  --hc-warning: #f79009;
+  --hc-warning-light: #fffaeb;
+  --hc-danger: #f04438;
+  --hc-danger-light: #fef3f2;
+  --hc-info: #2e90fa;
+  --hc-info-light: #eff8ff;
+  --hc-purple: #7f56d9;
+  --hc-purple-light: #f4f3ff;
+  --hc-neutral: #667085;
+  --hc-on-status: #ffffff;
+  --hc-icone-sombre: #344054;
+
+  /* Espacements — base 4px (section 27) */
   --hc-space-1: 4px;
   --hc-space-2: 8px;
   --hc-space-3: 12px;
@@ -38,27 +52,38 @@
   --hc-space-6: 32px;
   --hc-space-7: 48px;
 
-  /* Rayons (section 12.4) */
-  --hc-radius-sm: 6px;
+  /* Rayons */
+  --hc-radius-sm: 8px;
   --hc-radius-md: 10px;
   --hc-radius-lg: 16px;
   --hc-radius-pill: 999px;
+
+  /* Ombre de carte : très légère, jamais marquée (section 4) */
+  --hc-shadow-card: 0 4px 18px rgba(15, 39, 66, 0.06);
+  --hc-shadow-hover: 0 8px 24px rgba(15, 39, 66, 0.1);
 }
 
 :root[data-theme="dark"] {
-  /* Couleurs — thème sombre (section 12.2) */
-  --hc-surface-100: #1b140d;
-  --hc-surface-200: #241b12;
-  --hc-surface-300: #2f2419;
-  --hc-border: #3c2e1f;
-  --hc-ink: #f2e7d8;
-  --hc-ink-muted: #c2af97;
-  --hc-accent: #d79a44;
-  --hc-accent-strong: #e6ac5c;
-  /* rust : texte/icônes uniquement en mode sombre, jamais en grand aplat (section 12.2) */
-  --hc-rust: #e2825a;
-  --hc-rust-strong: #ef9b74;
-  --hc-on-accent: #241a12;
-  /* success/warning/danger/info/neutral : identiques au clair, déjà assez
-     sombres pour porter du texte blanc dans les deux thèmes (section 12.2). */
+  /* Mode sombre — section 32 */
+  --hc-surface-100: #0b1220;
+  --hc-surface-200: #162337;
+  --hc-surface-300: #111c2e;
+  --hc-border: #1f2c42;
+  --hc-ink: #f8fafc;
+  --hc-ink-muted: #98a2b3;
+  --hc-ink-faint: #7b8794;
+
+  --hc-blue: #3b82f6;
+  --hc-blue-hover: #5b93f5;
+  --hc-blue-light: #16233f;
+  --hc-blue-very-light: #111c2e;
+
+  --hc-success-light: #0c2a1e;
+  --hc-warning-light: #2e2410;
+  --hc-danger-light: #2e1615;
+  --hc-info-light: #0d2338;
+  --hc-purple-light: #221a3a;
+
+  --hc-shadow-card: 0 4px 18px rgba(0, 0, 0, 0.28);
+  --hc-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.34);
 }

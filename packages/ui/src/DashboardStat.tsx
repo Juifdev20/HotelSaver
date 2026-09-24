@@ -9,19 +9,22 @@ export interface DashboardStatProps {
   precision?: string;
   /** Pastille de couleur devant le libellé : toujours accompagnée du mot (section 12.5). */
   tone?: StatusTone;
+  /** Icône dans un cercle coloré au-dessus du libellé (section 8 de la charte). */
+  icone?: React.ReactNode;
   /** Si fourni, la carte devient un bouton (ex. filtre). */
   onClick?: () => void;
   selectionne?: boolean;
 }
 
-/** Section 12.5 : libellé, grand chiffre, précision. */
-export function DashboardStat({ libelle, valeur, precision, tone, onClick, selectionne }: DashboardStatProps) {
+/** Carte KPI : icône, libellé, grand chiffre, précision (section 8/12.5). */
+export function DashboardStat({ libelle, valeur, precision, tone, icone, onClick, selectionne }: DashboardStatProps) {
   const classes = ["hc-stat", selectionne ? "hc-stat--selectionne" : ""].filter(Boolean).join(" ");
 
   const contenu = (
     <>
+      {icone && <span className={`hc-stat__icone hc-stat__icone--${tone ?? "neutral"}`}>{icone}</span>}
       <span className="hc-text-label hc-stat__libelle">
-        {tone && <span className={`hc-stat__pastille hc-stat__pastille--${tone}`} aria-hidden="true" />}
+        {tone && !icone && <span className={`hc-stat__pastille hc-stat__pastille--${tone}`} aria-hidden="true" />}
         {libelle}
       </span>
       <span className="hc-text-price-lg">{valeur}</span>

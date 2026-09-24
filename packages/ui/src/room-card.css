@@ -6,6 +6,7 @@
   background-color: var(--hc-surface-200);
   border: 1px solid var(--hc-border);
   border-radius: var(--hc-radius-lg);
+  box-shadow: var(--hc-shadow-card);
   text-align: left;
   font-family: var(--hc-font-body);
   color: var(--hc-ink);
@@ -13,9 +14,13 @@
 
 .hc-room-card--cliquable {
   cursor: pointer;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 .hc-room-card--cliquable:hover {
-  background-color: var(--hc-surface-300);
+  box-shadow: var(--hc-shadow-hover);
+  transform: translateY(-1px);
 }
 
 .hc-room-card__entete {

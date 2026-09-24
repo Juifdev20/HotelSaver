@@ -1,20 +1,15 @@
 /*
- * Typographie — section 12.3. Les fichiers de police ne sont PAS chargés
- * ici : chaque app les fournit une seule fois. L'app Electron les embarque
- * via @fontsource (doit marcher hors ligne) ; le futur site public pourra
- * utiliser la feuille Google Fonts du prompt. Sans polices chargées, tout
- * retombe silencieusement sur Times New Roman / Arial.
- *
- * - Fraunces : titres pleine page uniquement (écran de connexion, accueil
- *   site public, titre du tableau de bord).
- * - Public Sans : tout le reste de l'interface.
- * - IBM Plex Mono : uniquement les nombres alignés (prix, totaux, numéros).
+ * Typographie — refonte navy/bleu (section 3 du cahier des charges du
+ * 24/09/2026, voir DECISIONS.md). Une seule police dans toute l'app : Inter.
+ * Les fichiers de police ne sont PAS chargés ici : chaque app les fournit une
+ * seule fois (l'app Electron les embarque via @fontsource pour marcher hors
+ * ligne ; le futur site public peut utiliser Google Fonts).
  */
 
 :root {
-  --hc-font-display: "Fraunces", serif;
-  --hc-font-body: "Public Sans", sans-serif;
-  --hc-font-mono: "IBM Plex Mono", monospace;
+  --hc-font-display: "Inter", system-ui, sans-serif;
+  --hc-font-body: "Inter", system-ui, sans-serif;
+  --hc-font-mono: "Inter", system-ui, sans-serif;
 }
 
 body {
@@ -23,21 +18,32 @@ body {
   background: var(--hc-surface-100);
 }
 
+/* Titre principal de page : 32px desktop / 24px mobile (section 3) */
 .hc-text-display-lg {
   font-family: var(--hc-font-display);
-  font-size: 34px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .hc-text-display-md {
   font-family: var(--hc-font-display);
-  font-size: 26px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
+@media (max-width: 767px) {
+  .hc-text-display-lg,
+  .hc-text-display-md {
+    font-size: 24px;
+  }
+}
+
+/* Titre de section : 18px / 600 */
 .hc-text-heading {
   font-family: var(--hc-font-body);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
 }
 
@@ -49,13 +55,13 @@ body {
 
 .hc-text-body {
   font-family: var(--hc-font-body);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 400;
 }
 
 .hc-text-body-strong {
   font-family: var(--hc-font-body);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -73,16 +79,18 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* Valeur importante (chiffre-clé d'une carte) : 24-30px / 700 */
 .hc-text-price {
-  font-family: var(--hc-font-mono);
-  font-size: 15px;
-  font-weight: 500;
+  font-family: var(--hc-font-body);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .hc-text-price-lg {
-  font-family: var(--hc-font-mono);
-  font-size: 22px;
-  font-weight: 600;
+  font-family: var(--hc-font-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .hc-text-code {

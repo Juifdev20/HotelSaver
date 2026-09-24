@@ -1,4 +1,4 @@
-import { Chambre, Occupation, Produit, RecetteDuJour, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Chambre, Occupation, Produit, RecetteDuJour, UtilisateurAuthentifie, VentesRecentes } from "@hotel-chicago/types";
 
 export class ErreurApi extends Error {
   constructor(
@@ -66,6 +66,10 @@ export class ClientApi {
 
   async stockBas(): Promise<Produit[]> {
     return this.requete<Produit[]>("/dashboard/stock-bas");
+  }
+
+  async ventesRecentes(limite = 6): Promise<VentesRecentes> {
+    return this.requete<VentesRecentes>(`/dashboard/ventes-recentes?limite=${limite}`);
   }
 
   private async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {

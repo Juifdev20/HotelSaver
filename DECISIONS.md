@@ -508,6 +508,65 @@ par le client. Choix validés avec lui :
   n'est pas notre serveur (cas réel : un autre projet sur le port 3000) : le
   message le dit en français au lieu de « Cannot GET /auth/me ».
 
+## Phase 2b, tranche 3 — Refonte complète UI/UX (navy/bleu, 24/09/2026)
+
+Le client a rejeté la charte terracotta/beige initiale (section 12 du prompt
+d'origine) après avoir vu l'app tourner, et fourni un second cahier des
+charges détaillé (42 sections) avec une maquette de référence : palette
+bleu nuit (#0F2742) + bleu (#1769E0), police Inter, sidebar/topbar/dashboard
+denses à l'américaine. Ce cahier des charges **remplace** la section 12 pour
+tout ce qui touche à la couleur et à la typographie ; le reste du prompt
+d'origine (règles métier, multi-devises, RBAC...) est inchangé.
+
+**Jetons** (`packages/ui/src/tokens.css`, `typography.css`) : toute la
+palette terracotta a été supprimée et remplacée (navy/bleu/succès/alerte/
+info/violet + mode sombre #0B1220/#162337 par section 32 du cahier). Une
+seule police, Inter, remplace Fraunces/Public Sans/IBM Plex Mono partout
+(desktop : `@fontsource/inter`, plus de police d'affichage séparée). Comme
+tous les composants du design system lisent des variables CSS et jamais une
+couleur en dur, le changement de palette a suffi à retoucher Button,
+StatusBadge, RoomCard, DashboardStat sans changer leur API (sauf l'ajout
+d'un tone `"purple"` pour le statut Nettoyage, et d'une prop `icone` sur
+DashboardStat pour les pastilles-icônes des cartes KPI).
+
+**Nouveau composant partagé** : `Donut` (`packages/ui/src/Donut.tsx`), un
+anneau SVG pur (pas de dépendance de graphique) pour la répartition des
+chambres — générique, ne connaît pas `StatutChambre`, l'appelant lui passe
+des segments `{valeur, couleur}`.
+
+**Coquille** (`layout/Coquille.tsx`) refaite : sidebar bleu nuit fixe (ne
+change pas avec le thème clair/sombre, comme dans la maquette), topbar
+blanche avec recherche, notifications (panneau honnête « Aucune notification
+pour le moment » — pas de faux badge, cohérent avec le choix déjà pris pour
+« Serveur connecté »), bascule de thème, menu utilisateur déroulant (Paramètres
++ Déconnexion — pas de « Mon profil »/« Changer mot de passe » puisque ces
+écrans n'existent pas, pour ne pas proposer un menu qui mène nulle part).
+
+**Recherche globale** : la barre de recherche de la topbar applique son terme
+à l'écran Chambres (numéro/type) et y navigue — fonctionnelle, pas
+décorative.
+
+**Activité récente** (nouveau bloc du tableau de bord) : consomme le vrai
+`GET /dashboard/ventes-recentes` (déjà présent côté API), fusionne factures
+et ventes cafétaria triées par date. Pas de données inventées : si l'API
+renvoie deux listes vides, l'état vide honnête « Aucune activité aujourd'hui »
+s'affiche plutôt qu'un faux exemple.
+
+**Hero du tableau de bord** : dégradé CSS bleu nuit plutôt qu'une photo de
+chambre d'hôtel — aucun asset photo réel n'a été fourni, et utiliser une
+image de stock non vérifiée aurait été une donnée fabriquée au même titre
+qu'une fausse activité récente.
+
+**Page Chambres** : vraie table desktop (N°, Type, Statut, Prix/nuit,
+Client, Actions) + cartes sur fenêtre étroite (< 860px, jamais les deux à la
+fois dans le DOM — sinon les textes seraient dupliqués et casseraient les
+sélecteurs de test). Colonne Client affichée à `—` : sans écran Réservations,
+il n'existe aucun moyen honnête de savoir qui occupe une chambre. Le bouton
+« ... » de chaque ligne ouvre un vrai menu de changement de statut (utilise
+`ClientApi.modifierStatutChambre`, déjà existant) — plus utile qu'un menu
+d'actions qui ne mènerait nulle part. Le bouton « + Nouvelle réservation »
+navigue vers l'écran Réservations (« Bientôt »), honnête car rien n'est créé.
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase

@@ -87,3 +87,34 @@ export interface Occupation {
   enNettoyage: number;
   tauxOccupationPourcent: number;
 }
+
+/** Une ligne de GET /dashboard/ventes-recentes, côté chambres (encaissement d'un séjour). */
+export interface FactureRecente {
+  id: string;
+  numeroRecu: string;
+  createdAt: string;
+  annuleLe: string | null;
+  montantTotalUSD: string;
+  montantTotalCDF: string;
+  reservation: {
+    chambre: { numero: string };
+    client: { nom: string };
+  };
+}
+
+/** Une ligne de GET /dashboard/ventes-recentes, côté cafétaria. */
+export interface VenteCafeteriaRecente {
+  id: string;
+  numeroRecu: string;
+  createdAt: string;
+  annuleLe: string | null;
+  montantTotalUSD: string;
+  montantTotalCDF: string;
+}
+
+/** GET /dashboard/ventes-recentes — les deux listes triées par date décroissante,
+ * `factures`/`ventesCafeteria` vides (jamais absentes) selon le rôle. */
+export interface VentesRecentes {
+  factures: FactureRecente[];
+  ventesCafeteria: VenteCafeteriaRecente[];
+}

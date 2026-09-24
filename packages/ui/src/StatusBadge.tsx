@@ -1,8 +1,8 @@
 import * as React from "react";
 import "./status-badge.css";
 
-/** Les 5 couleurs de statut de la section 12.1 — jamais une autre couleur pour un badge. */
-export type StatusTone = "success" | "warning" | "danger" | "info" | "neutral";
+/** Couleurs de statut de la charte — jamais une autre couleur pour un badge. */
+export type StatusTone = "success" | "warning" | "danger" | "info" | "purple" | "neutral";
 
 export interface StatusBadgeProps {
   tone: StatusTone;

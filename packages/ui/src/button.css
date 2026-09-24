@@ -1,7 +1,7 @@
 .hc-button {
   font-family: var(--hc-font-body);
   font-weight: 600;
-  border-radius: var(--hc-radius-md);
+  border-radius: var(--hc-radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
   display: inline-flex;
@@ -11,7 +11,13 @@
   transition:
     background-color 0.15s ease,
     border-color 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.hc-button:focus-visible {
+  outline: 2px solid var(--hc-blue);
+  outline-offset: 2px;
 }
 
 .hc-button:disabled {
@@ -19,38 +25,50 @@
   cursor: not-allowed;
 }
 
+/* Hauteurs desktop 40-44px / tactile mobile 44-48px (section 24) */
 .hc-button--sm {
-  padding: var(--hc-space-2) var(--hc-space-3);
+  min-height: 36px;
+  padding: 0 var(--hc-space-3);
   font-size: 13px;
 }
 
 .hc-button--md {
-  padding: var(--hc-space-3) var(--hc-space-4);
-  font-size: 15px;
+  min-height: 42px;
+  padding: 0 var(--hc-space-4);
+  font-size: 14px;
 }
 
 .hc-button--lg {
-  padding: var(--hc-space-4) var(--hc-space-5);
-  font-size: 16px;
+  min-height: 48px;
+  padding: 0 var(--hc-space-5);
+  font-size: 15px;
 }
 
-/* primary : unique bouton d'action principal d'un écran (section 12, préambule) */
+@media (max-width: 767px) {
+  .hc-button--md {
+    min-height: 44px;
+  }
+  .hc-button--lg {
+    min-height: 48px;
+  }
+}
+
 .hc-button--primary {
-  background-color: var(--hc-accent);
-  color: var(--hc-on-accent);
+  background-color: var(--hc-blue);
+  color: #ffffff;
 }
 .hc-button--primary:hover:not(:disabled) {
-  background-color: var(--hc-accent-strong);
+  background-color: var(--hc-blue-hover);
 }
 
 .hc-button--secondary {
-  background-color: transparent;
-  border-color: var(--hc-rust);
-  color: var(--hc-rust);
+  background-color: var(--hc-surface-200);
+  border-color: var(--hc-border);
+  color: var(--hc-icone-sombre);
 }
 .hc-button--secondary:hover:not(:disabled) {
-  border-color: var(--hc-rust-strong);
-  color: var(--hc-rust-strong);
+  background-color: var(--hc-surface-300);
+  border-color: var(--hc-ink-faint);
 }
 
 .hc-button--danger {
@@ -58,5 +76,5 @@
   color: var(--hc-on-status);
 }
 .hc-button--danger:hover:not(:disabled) {
-  filter: brightness(0.9);
+  filter: brightness(0.92);
 }

@@ -1,0 +1,14 @@
+.hc-donut {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.hc-donut__centre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
