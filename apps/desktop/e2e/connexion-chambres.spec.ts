@@ -83,14 +83,18 @@ test("connexion réelle → tableau de bord puis Chambres avec les vraies donné
   await fenetre.getByLabel("Mot de passe").fill(MOT_DE_PASSE!);
   await fenetre.getByRole("button", { name: "Se connecter" }).click();
 
-  // Coquille : tableau de bord par défaut, utilisateur affiché, état RÉEL du serveur.
+  // Coquille : tableau de bord par défaut, utilisateur affiché.
   await expect(fenetre.getByRole("heading", { name: "Tableau de bord" })).toBeVisible();
   await expect(fenetre.getByTestId("utilisateur-connecte")).toContainText(/Patron|Réceptionniste|Cafétaria/);
-  await expect(fenetre.getByTestId("indicateur-connexion")).toHaveText("Serveur connecté");
   await expect(fenetre.getByText("En dollars", { exact: true })).toBeVisible();
 
   const navigation = fenetre.getByRole("complementary", { name: "Navigation principale" });
   await expect(navigation).toBeVisible();
+
+  // L'état RÉEL du serveur (déplacé de la barre du haut vers Paramètres, cf. maquette du client) reste vérifiable.
+  await navigation.getByRole("button", { name: "Paramètres" }).click();
+  await expect(fenetre.getByTestId("indicateur-connexion")).toHaveText("Serveur connecté");
+  await navigation.getByRole("button", { name: "Tableau de bord" }).click();
 
   // Un écran pas encore construit est affiché « Bientôt », jamais une page vide.
   await navigation.getByRole("button", { name: /Réservations/ }).click();

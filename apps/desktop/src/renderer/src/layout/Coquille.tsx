@@ -1,6 +1,5 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
-import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import {
   ArrowLeftRight,
@@ -27,7 +26,6 @@ import {
   X,
 } from "lucide-react";
 import { EntreeNavigation, IdPage, entreesBarreDuBas, sectionsPourRole } from "../navigation";
-import { IndicateurConnexion } from "./IndicateurConnexion";
 import "./coquille.css";
 
 const ICONES: Record<IdPage, LucideIcon> = {
@@ -50,13 +48,6 @@ const LIBELLE_ROLE: Record<Role, string> = {
   [Role.RECEPTIONNISTE]: "Réceptionniste",
   [Role.CAFETARIA]: "Cafétaria",
 };
-
-function dateDuJour(): string {
-  const texte = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(
-    new Date()
-  );
-  return texte.charAt(0).toUpperCase() + texte.slice(1);
-}
 
 function initiales(nom: string): string {
   return nom
@@ -90,7 +81,6 @@ export function useFermetureExterne(ouvert: boolean, fermer: () => void) {
 }
 
 export interface CoquilleProps {
-  client: ClientApi;
   utilisateur: UtilisateurAuthentifie;
   pageActive: IdPage;
   onNaviguer: (page: IdPage) => void;
@@ -129,7 +119,6 @@ function LienNavigation({
 }
 
 export function Coquille({
-  client,
   utilisateur,
   pageActive,
   onNaviguer,
@@ -229,11 +218,7 @@ export function Coquille({
             />
           </label>
 
-          <span className="hc-text-body coquille__date coquille__masque-etroit">{dateDuJour()}</span>
-
           <div className="coquille__actions-haut">
-            <IndicateurConnexion client={client} />
-
             <div className="coquille__menu-conteneur" ref={refNotifications}>
               <button
                 type="button"

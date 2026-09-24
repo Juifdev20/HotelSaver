@@ -196,13 +196,6 @@
   outline: none;
 }
 
-.coquille__date {
-  color: var(--hc-ink-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .coquille__actions-haut {
   margin-left: auto;
   display: flex;

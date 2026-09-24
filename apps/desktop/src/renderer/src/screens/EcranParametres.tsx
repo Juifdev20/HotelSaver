@@ -1,13 +1,17 @@
 import * as React from "react";
 import { useState } from "react";
+import type { ClientApi } from "@hotel-chicago/api-client";
 import { Button } from "@hotel-chicago/ui";
 import type { ConfigurationApp } from "../../../main/config-store";
+import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 
 export interface EcranParametresProps {
   configuration: ConfigurationApp;
   onEnregistrer: (partielle: Partial<ConfigurationApp>) => void;
   /** Absent quand l'écran est affiché dans la coquille (la navigation latérale sert de retour). */
   onRetour?: () => void;
+  /** Présent seulement une fois connecté : l'écran de connexion n'a pas encore de jeton pour appeler l'API. */
+  client?: ClientApi;
 }
 
 /**
@@ -15,7 +19,7 @@ export interface EcranParametresProps {
  * configuration modifiable depuis un écran Paramètres, pas un .env, pour
  * pouvoir être reconfigurées sans recompiler."
  */
-export function EcranParametres({ configuration, onEnregistrer, onRetour }: EcranParametresProps) {
+export function EcranParametres({ configuration, onEnregistrer, onRetour, client }: EcranParametresProps) {
   const [apiUrl, setApiUrl] = useState(configuration.apiUrl);
   const [enregistre, setEnregistre] = useState(false);
 
@@ -42,6 +46,13 @@ export function EcranParametres({ configuration, onEnregistrer, onRetour }: Ecra
           }}
         />
         <p className="hc-text-caption texte-discret">Adresse du serveur de l'hôtel, par exemple http://localhost:3001.</p>
+
+        {client && (
+          <div>
+            <p className="hc-text-label texte-discret">État du serveur</p>
+            <IndicateurConnexion client={client} />
+          </div>
+        )}
 
         {enregistre && (
           <p className="hc-text-body" role="status">
