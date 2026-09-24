@@ -145,7 +145,9 @@ p {
   }
 }
 
-@media (max-width: 420px) {
+/* Toujours 2 colonnes sur mobile, même sur un petit téléphone (maquette
+ * Android du 25/09/2026) : les cartes KPI restent lisibles à cette taille. */
+@media (max-width: 280px) {
   .grille-stats {
     grid-template-columns: 1fr;
   }
@@ -162,15 +164,23 @@ p {
 .hero {
   position: relative;
   overflow: hidden;
+  border-radius: var(--hc-radius-lg);
+  /* Image posée en style inline (voir EcranTableauDeBord.tsx) : dégradé
+     sombre superposé pour la lisibilité du texte (section 26), avec un
+     repli uni si l'image ne charge pas. */
+  background-color: var(--hc-navy);
+  background-size: cover;
+  background-position: center;
+  color: #ffffff;
+}
+
+.hero__desktop {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--hc-space-5);
   min-height: 150px;
   padding: var(--hc-space-5) var(--hc-space-6);
-  border-radius: var(--hc-radius-lg);
-  background: linear-gradient(120deg, var(--hc-navy) 0%, var(--hc-navy-strong) 60%, #0b3a73 100%);
-  color: #ffffff;
 }
 
 .hero__contenu {
@@ -222,18 +232,74 @@ p {
   font-weight: 700;
 }
 
-@media (max-width: 767px) {
-  .hero {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--hc-space-3);
-    min-height: 0;
+/* Fenêtre étroite : remplace hero__desktop par une version compacte qui
+ * reprend la marque (icône + nom + slogan) puisque la barre latérale qui la
+ * porte habituellement est masquée — cf. maquette mobile du 25/09/2026. */
+.hero__mobile {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .hero__desktop {
+    display: none;
   }
-  .hero__horloge {
-    align-self: stretch;
-    flex-direction: row;
+
+  .hero__mobile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--hc-space-3);
+    padding: var(--hc-space-4);
+  }
+
+  .hero__marque-mobile {
+    display: flex;
+    align-items: center;
+    gap: var(--hc-space-3);
+  }
+
+  .hero__logo-mobile {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--hc-radius-sm);
+    background-color: #ffffff;
+    color: var(--hc-navy);
+  }
+
+  .hero__marque-mobile-textes {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .hero__nom-mobile {
+    font-family: var(--hc-font-display);
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+
+  .hero__slogan-mobile {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .hero__horloge-mobile {
+    display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--hc-space-3);
+    padding: var(--hc-space-2) var(--hc-space-3);
+    background-color: rgba(0, 0, 0, 0.25);
+    border-radius: var(--hc-radius-md);
+  }
+
+  .hero__horloge-mobile .hero__horloge-ligne {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
   }
 }
 

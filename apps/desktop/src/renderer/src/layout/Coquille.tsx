@@ -134,6 +134,17 @@ export function Coquille({
   const refProfil = useFermetureExterne(menuProfilOuvert, () => setMenuProfilOuvert(false));
   const refNotifications = useFermetureExterne(notificationsOuvertes, () => setNotificationsOuvertes(false));
 
+  // Le tiroir mobile est en plein écran (pas de zone "en dehors" à cliquer) :
+  // seule la touche Échap le ferme, comme les autres menus déroulants.
+  useEffect(() => {
+    if (!menuMobileOuvert) return;
+    const surEchap = (evenement: KeyboardEvent) => {
+      if (evenement.key === "Escape") setMenuMobileOuvert(false);
+    };
+    document.addEventListener("keydown", surEchap);
+    return () => document.removeEventListener("keydown", surEchap);
+  }, [menuMobileOuvert]);
+
   const naviguer = (page: IdPage) => {
     setMenuMobileOuvert(false);
     onNaviguer(page);
@@ -198,7 +209,10 @@ export function Coquille({
             <Menu size={22} aria-hidden="true" />
           </button>
 
-          <span className="coquille__marque-etroit coquille__seulement-etroit">Hôtel Chicago</span>
+          <span className="coquille__marque-etroit coquille__seulement-etroit">
+            <Building2 size={16} strokeWidth={2} aria-hidden="true" />
+            Hôtel Chicago
+          </span>
 
           <label className="coquille__recherche coquille__masque-etroit">
             <Search size={18} aria-hidden="true" />
@@ -235,7 +249,7 @@ export function Coquille({
 
             <button
               type="button"
-              className="coquille__bouton-icone-rond"
+              className="coquille__bouton-icone-rond coquille__masque-etroit"
               onClick={onBasculerTheme}
               aria-label={themeSombre ? "Mode clair" : "Mode sombre"}
               title={themeSombre ? "Mode clair" : "Mode sombre"}
@@ -243,7 +257,7 @@ export function Coquille({
               {themeSombre ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
             </button>
 
-            <div className="coquille__menu-conteneur" ref={refProfil}>
+            <div className="coquille__menu-conteneur coquille__masque-etroit" ref={refProfil}>
               <button
                 type="button"
                 className="coquille__utilisateur"
@@ -294,6 +308,19 @@ export function Coquille({
           </div>
         </header>
 
+        {/* Fenêtre étroite : l'avatar/nom/rôle de la barre du haut est masqué
+            (faute de place) ; cette ligne le remplace, purement informative
+            (Paramètres/Déconnexion restent dans le tiroir « Plus »). */}
+        <div className="coquille__accueil-etroit coquille__seulement-etroit" data-testid="accueil-mobile">
+          <span className="coquille__avatar" aria-hidden="true">
+            {initiales(utilisateur.nom)}
+          </span>
+          <span className="coquille__identite">
+            <span className="hc-text-body-strong">Bonjour, {utilisateur.nom}</span>
+            <span className="hc-text-caption coquille__role">{LIBELLE_ROLE[utilisateur.role]}</span>
+          </span>
+        </div>
+
         <main className="coquille__contenu">{children}</main>
       </div>
 
@@ -341,6 +368,12 @@ export function Coquille({
               variante="laterale"
             />
           </nav>
+          <div className="coquille__pied-tiroir">
+            <button type="button" className="lien-nav lien-nav--laterale lien-nav--danger" onClick={onDeconnexion}>
+              <LogOut size={19} strokeWidth={1.9} aria-hidden="true" />
+              <span className="lien-nav__libelle">Déconnexion</span>
+            </button>
+          </div>
         </div>
       )}
     </div>

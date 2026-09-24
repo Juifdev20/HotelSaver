@@ -40,7 +40,18 @@ test.beforeEach(() => {
 });
 
 test.afterEach(() => {
-  rmSync(dossierDonnees, { recursive: true, force: true });
+  // Sous Windows, le dossier reste parfois verrouillé une fraction de
+  // seconde après la fermeture d'Electron (antivirus, handle pas encore
+  // relâché) : quelques tentatives évitent un échec sporadique du nettoyage.
+  for (let tentative = 0; tentative < 5; tentative++) {
+    try {
+      rmSync(dossierDonnees, { recursive: true, force: true });
+      return;
+    } catch (erreur) {
+      if (tentative === 4) throw erreur;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+    }
+  }
 });
 
 test("la police de la charte (Inter) est réellement chargée", async () => {
@@ -133,10 +144,28 @@ test("connexion réelle → tableau de bord puis Chambres avec les vraies donné
   await expect(fenetre.locator("html")).toHaveAttribute("data-theme", "dark");
 
   // Fenêtre étroite (format tablette/mobile) : barre latérale masquée, barre du bas visible.
-  await fenetre.setViewportSize({ width: 600, height: 800 });
+  await fenetre.setViewportSize({ width: 390, height: 844 });
   await expect(fenetre.getByRole("complementary", { name: "Navigation principale" })).toBeHidden();
+
+  // La marque (icône + nom + slogan) reparaît dans la carte d'accueil, puisque
+  // la barre latérale qui la porte d'habitude est masquée (cf. maquette mobile).
+  await expect(fenetre.getByTestId("hero-slogan-mobile")).toBeVisible();
+  // L'avatar/nom/rôle de la barre du haut est remplacé par cette ligne dédiée.
+  await expect(fenetre.getByTestId("accueil-mobile")).toContainText(/Bonjour, /);
+  await expect(fenetre.getByTestId("accueil-mobile")).toContainText(/Patron|Réceptionniste|Cafétaria/);
+
   const barreDuBas = fenetre.getByRole("navigation", { name: "Navigation rapide" });
   await expect(barreDuBas).toBeVisible();
+  // 3 raccourcis + « Plus » = 4 icônes, comme la maquette.
+  await expect(barreDuBas.getByRole("button")).toHaveCount(4);
+
+  // Le tiroir « Plus » reste le seul chemin pour se déconnecter en mobile.
+  await barreDuBas.getByRole("button", { name: "Plus" }).click();
+  const tiroir = fenetre.getByRole("dialog", { name: "Menu" });
+  await expect(tiroir.getByRole("button", { name: "Déconnexion" })).toBeVisible();
+  await tiroir.getByRole("button", { name: "Fermer le menu" }).click();
+  await expect(tiroir).toBeHidden();
+
   await barreDuBas.getByRole("button", { name: "Chambres" }).click();
   await expect(fenetre.getByRole("heading", { name: "Chambres" })).toBeVisible();
 

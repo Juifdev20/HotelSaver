@@ -14,6 +14,7 @@ import { DashboardStat, Donut, formatMontant } from "@hotel-chicago/ui";
 import {
   Banknote,
   BedDouble,
+  Building2,
   Calendar,
   CircleCheck,
   Clock,
@@ -26,6 +27,10 @@ import {
   Wallet,
 } from "lucide-react";
 import type { IdPage } from "../navigation";
+// Photo temporaire (libre de droits, Unsplash) en attendant une vraie photo de
+// l'hôtel fournie par le client — voir DECISIONS.md. À remplacer telle quelle
+// (même chemin) une fois la photo réelle disponible.
+import heroChambre from "../assets/hero-chambre.jpg";
 
 export interface EcranTableauDeBordProps {
   client: ClientApi;
@@ -120,21 +125,56 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
 
   return (
     <div className="page">
-      <section className="hero" aria-label="Bienvenue">
-        <div className="hero__contenu">
-          <p className="hero__salutation">Bienvenue 👋</p>
-          <h1 className="hero__titre">Hôtel Chicago</h1>
-          <p className="hero__soustitre">Gestion simple. Séjour exceptionnel.</p>
+      <section
+        className="hero"
+        aria-label="Bienvenue"
+        style={{
+          backgroundImage: `linear-gradient(120deg, rgba(15, 39, 66, 0.88) 0%, rgba(10, 26, 46, 0.82) 55%, rgba(11, 58, 115, 0.75) 100%), url(${heroChambre})`,
+        }}
+      >
+        {/* Desktop : message de bienvenue + horloge empilée à droite. */}
+        <div className="hero__desktop">
+          <div className="hero__contenu">
+            <p className="hero__salutation">Bienvenue 👋</p>
+            <h1 className="hero__titre">Hôtel Chicago</h1>
+            <p className="hero__soustitre">Gestion simple. Séjour exceptionnel.</p>
+          </div>
+          <div className="hero__horloge">
+            <span className="hero__horloge-ligne">
+              <Calendar size={15} aria-hidden="true" />
+              {dateDuJourLongue()}
+            </span>
+            <span className="hero__horloge-ligne hero__heure">
+              <Clock size={18} aria-hidden="true" />
+              {heureCourante()}
+            </span>
+          </div>
         </div>
-        <div className="hero__horloge">
-          <span className="hero__horloge-ligne">
-            <Calendar size={15} aria-hidden="true" />
-            {dateDuJourLongue()}
-          </span>
-          <span className="hero__horloge-ligne hero__heure">
-            <Clock size={18} aria-hidden="true" />
-            {heureCourante()}
-          </span>
+
+        {/* Fenêtre étroite : la barre latérale (qui porte la marque) est
+            masquée, donc la marque reparaît ici — cf. maquette mobile. */}
+        <div className="hero__mobile">
+          <div className="hero__marque-mobile">
+            <span className="hero__logo-mobile" aria-hidden="true">
+              <Building2 size={20} strokeWidth={2} />
+            </span>
+            <span className="hero__marque-mobile-textes">
+              <h1 className="hero__nom-mobile">Hôtel Chicago</h1>
+              <span className="hero__slogan-mobile" data-testid="hero-slogan-mobile">
+                Confort · Élégance · Service
+              </span>
+            </span>
+          </div>
+          <div className="hero__horloge-mobile">
+            <span className="hero__horloge-ligne">
+              <Calendar size={14} aria-hidden="true" />
+              {dateDuJourLongue()}
+            </span>
+            <span className="hero__horloge-ligne">
+              <Clock size={14} aria-hidden="true" />
+              {heureCourante()}
+            </span>
+          </div>
         </div>
       </section>
 

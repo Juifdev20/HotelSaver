@@ -67,10 +67,11 @@ export function sectionsPourRole(role: Role): SectionNavigation[] {
   })).filter((section) => section.entrees.length > 0);
 }
 
-/** Barre du bas : les 4 premières entrées du rôle, les disponibles d'abord ; le reste va dans « Plus ». */
+/** Barre du bas : les 3 premières entrées du rôle (disponibles d'abord) + « Plus »
+ * (ajouté par l'appelant) = 4 icônes au total, comme la maquette mobile. */
 export function entreesBarreDuBas(role: Role): EntreeNavigation[] {
   const toutes = sectionsPourRole(role).flatMap((section) => section.entrees);
-  return [...toutes.filter((e) => e.disponible), ...toutes.filter((e) => !e.disponible)].slice(0, 4);
+  return [...toutes.filter((e) => e.disponible), ...toutes.filter((e) => !e.disponible)].slice(0, 3);
 }
 
 export function libellePage(id: IdPage): string {

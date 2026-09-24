@@ -144,6 +144,14 @@
   flex-shrink: 0;
 }
 
+.lien-nav--danger {
+  color: var(--hc-danger);
+}
+.lien-nav--danger:hover {
+  background-color: rgba(240, 68, 56, 0.14);
+  color: var(--hc-danger);
+}
+
 /* ---------- Colonne principale ---------- */
 
 .coquille__principale {
@@ -422,6 +430,21 @@
   color: #ffffff;
 }
 
+.coquille__pied-tiroir {
+  padding: var(--hc-space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Ligne « Bonjour, {nom} » affichée sous la barre du haut en fenêtre étroite,
+ * à la place de l'avatar/nom/rôle masqués faute de place (voir maquette mobile). */
+.coquille__accueil-etroit {
+  align-items: center;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-3) var(--hc-space-4);
+  background-color: var(--hc-surface-200);
+  border-bottom: 1px solid var(--hc-border);
+}
+
 @media (max-width: 900px) {
   .coquille__laterale,
   .coquille__masque-etroit {
@@ -443,11 +466,18 @@
 
   .coquille__marque-etroit {
     flex: 1;
-    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--hc-space-2);
     font-family: var(--hc-font-display);
     font-weight: 700;
     font-size: 16px;
     color: var(--hc-navy);
+  }
+
+  .coquille__accueil-etroit {
+    display: flex;
   }
 
   .coquille__contenu {

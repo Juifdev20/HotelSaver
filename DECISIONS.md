@@ -567,6 +567,25 @@ il n'existe aucun moyen honnête de savoir qui occupe une chambre. Le bouton
 d'actions qui ne mènerait nulle part. Le bouton « + Nouvelle réservation »
 navigue vers l'écran Réservations (« Bientôt »), honnête car rien n'est créé.
 
+## Photo du hero (placeholder, 25/09/2026)
+
+Le hero du tableau de bord utilisait un dégradé uni (aucune photo réelle
+fournie au moment de la refonte navy/bleu). Le client a explicitement demandé
+une photo temporaire piochée sur internet, à remplacer plus tard par une
+vraie photo de l'hôtel. Choix faits pour rester cohérent avec les règles déjà
+en place :
+- Image téléchargée UNE FOIS et commitée en asset local
+  (`apps/desktop/src/renderer/src/assets/hero-chambre.jpg`) plutôt que liée en
+  URL distante — l'app doit fonctionner hors ligne (section 2), comme pour les
+  polices bundlées.
+- Photo Unsplash (licence Unsplash : libre d'usage, y compris commercial,
+  sans attribution obligatoire).
+- Remplacement futur : écraser ce même fichier avec la vraie photo, aucun
+  autre changement de code nécessaire.
+- Superposition sombre appliquée en CSS (dégradé semi-transparent) pour
+  garder le texte blanc lisible par-dessus, avec repli sur l'ancien bleu nuit
+  uni si l'image ne charge pas.
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase

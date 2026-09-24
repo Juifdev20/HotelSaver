@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button } from "@hotel-chicago/ui";
-import { Coins, Users } from "lucide-react";
+import { Coins, Moon, Sun, Users } from "lucide-react";
 import type { ConfigurationApp } from "../../../main/config-store";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 
@@ -16,6 +16,10 @@ export interface EcranParametresProps {
   client?: ClientApi;
   /** Présent seulement une fois connecté — conditionne le bloc Administration (PATRON uniquement). */
   utilisateur?: UtilisateurAuthentifie;
+  /** Mode sombre : plus de bouton dédié dans la barre du haut en fenêtre étroite
+   * (maquette mobile du 25/09/2026), donc toujours accessible ici. */
+  themeSombre: boolean;
+  onBasculerTheme: () => void;
 }
 
 /**
@@ -23,7 +27,15 @@ export interface EcranParametresProps {
  * configuration modifiable depuis un écran Paramètres, pas un .env, pour
  * pouvoir être reconfigurées sans recompiler."
  */
-export function EcranParametres({ configuration, onEnregistrer, onRetour, client, utilisateur }: EcranParametresProps) {
+export function EcranParametres({
+  configuration,
+  onEnregistrer,
+  onRetour,
+  client,
+  utilisateur,
+  themeSombre,
+  onBasculerTheme,
+}: EcranParametresProps) {
   const [apiUrl, setApiUrl] = useState(configuration.apiUrl);
   const [enregistre, setEnregistre] = useState(false);
 
@@ -80,6 +92,19 @@ export function EcranParametres({ configuration, onEnregistrer, onRetour, client
               Retour
             </Button>
           )}
+        </div>
+      </div>
+
+      <div className="carte-formulaire">
+        <p className="hc-text-label texte-discret">Apparence</p>
+        <div className="parametres-ligne">
+          <span className="parametres-ligne__icone">
+            {themeSombre ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+          </span>
+          <span className="hc-text-body">{themeSombre ? "Mode sombre" : "Mode clair"}</span>
+          <Button type="button" variant="secondary" size="sm" onClick={onBasculerTheme}>
+            Basculer
+          </Button>
         </div>
       </div>
 

@@ -141,6 +141,8 @@ export function App() {
           configuration={configuration}
           onEnregistrer={enregistrerParametres}
           onRetour={() => setEcran("connexion")}
+          themeSombre={themeSombre}
+          onBasculerTheme={() => setThemeSombre((v) => !v)}
         />
       </div>
     );
@@ -159,6 +161,8 @@ export function App() {
           onEnregistrer={enregistrerParametres}
           client={client}
           utilisateur={utilisateur}
+          themeSombre={themeSombre}
+          onBasculerTheme={() => setThemeSombre((v) => !v)}
         />
       );
     } else {
