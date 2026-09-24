@@ -312,6 +312,48 @@ sans ambiguïté cette fois, contrairement à Réservations/Factures).
    (quelqu'un d'autre a fermé le compte entre-temps), l'appel échoue
    proprement avec un `409 Conflict` au lieu de générer des ventes en double.
 
+## Dashboard et Public (section 8) — complète la surface API sans toucher à l'UI
+
+Après les Phases 2-3 (Réception + Cafétaria), les deux derniers modules
+purement backend listés section 8 ont été construits — `DashboardModule` et
+`PublicModule` — plutôt que de passer directement à l'Electron/impression
+différé depuis deux passes (Phase 2b/3b, toujours non traité). Aucune
+décision de framework UI n'est nécessaire pour ces deux modules, donc pas de
+risque de mal cadrer une grosse pièce sans confirmation.
+
+- **`DashboardModule`** applique littéralement la ligne « Rapports/recettes »
+  de la section 9.3 : RECEPTIONNISTE et CAFETARIA ne voient que « leurs »
+  opérations, PATRON voit tout, sans jamais fusionner USD/CDF (section 9.4)
+  ni chambres/cafétaria pour un rôle non-PATRON. Comme `Facture` n'a pas de
+  colonne `createdBy` (absent du schéma section 7, contrairement à
+  `Reservation`), le filtrage RECEPTIONNISTE passe par
+  `reservation: { createdBy: userId }` plutôt que d'ajouter encore une
+  colonne — cette fois la donnée existe déjà ailleurs dans le graphe, pas
+  besoin de migration. `occupation` et `stock-bas` n'ont pas de notion
+  « ses opérations » (ce sont des compteurs globaux à l'hôtel) : ils suivent
+  simplement les permissions déjà établies pour Chambres et Stock.
+- **`PublicModule`** n'a **aucun** guard (`SupabaseAuthGuard`/`RolesGuard`) —
+  le rôle CLIENT de la section 9.1 n'a explicitement pas de compte. Testé
+  explicitement (`roles.e2e-spec.ts`) que ces routes répondent 200 sans le
+  moindre jeton, pour figer cet invariant avant qu'une Phase future n'ajoute
+  par erreur un guard global qui casserait le site public.
+  `POST /public/reservations` crée toujours une `Reservation` `EN_ATTENTE`
+  (jamais confirmée directement), avec `createdBy = "SITE_PUBLIC"` — une
+  valeur sentinelle plutôt qu'un `Utilisateur.id`, possible uniquement parce
+  que `Reservation.createdBy` est un simple champ `String` en base, pas une
+  relation Prisma vers `Utilisateur` (donc pas de contrainte de clé
+  étrangère à satisfaire). Une demande `EN_ATTENTE` n'entre pas dans
+  `STATUTS_OCCUPANTS` : elle n'empêche jamais un autre client (ou la
+  réception) de réserver la même période — vérifié contre la vraie base.
+  Le client est retrouvé par téléphone s'il existe déjà, sinon créé.
+
+Vérifié de bout en bout contre la vraie base : `recette-du-jour` isole
+correctement deux réceptionnistes différents l'un de l'autre (0 $ pour celui
+qui n'a rien facturé, le montant exact pour celui qui a facturé), le patron
+voit le total complet ; `/public/*` répond sans authentification ; une
+demande publique n'empêche pas la disponibilité de la chambre pour les mêmes
+dates.
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase

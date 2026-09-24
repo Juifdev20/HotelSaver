@@ -5,15 +5,16 @@ Monorepo pnpm/Turborepo pour l'application de gestion de l'Hôtel Chicago
 racine pour la spécification complète du produit, et `DECISIONS.md` pour les
 hypothèses prises pendant la réalisation.
 
-**État actuel : Phase 1 et le backend des Phases 2-3 terminés et vérifiés en
+**État actuel : le backend est fonctionnellement complet et vérifié en
 conditions réelles** (monorepo, schéma de base de données appliqué à
 Supabase de production, policies RLS appliquées, authentification, matrice
 de permissions testée de bout en bout, modules Chambres/Réservations/
 Factures/Produits/Stock/Cafétaria avec logique métier réelle — disponibilité,
 check-in/out, gestion de stock, comptes ouverts et sous-comptes, calcul
 multi-devises et paiement croisé, intégration ventes cafétaria → facture de
-chambre). L'application Electron (UI + impression thermique), le mode hors
-ligne, le mobile, le tableau de bord patron et le site public ne sont pas
+chambre — plus Dashboard patron scopé par rôle et les endpoints publics du
+site vitrine). L'application Electron (UI + impression thermique), le mode
+hors ligne, le mobile et le site public lui-même (Next.js) ne sont pas
 encore construits — voir le README de chaque paquet dans `apps/` pour le
 détail, et `DECISIONS.md` pour le découpage en phases.
 
@@ -123,6 +124,15 @@ pnpm --filter api start:dev
   répartition exacte sans perte d'arrondi). Un règlement `FACTURE_CHAMBRE`
   remonte automatiquement dans le total de la `Facture` de la chambre liée
   à la création de celle-ci. RECEPTIONNISTE n'a aucun accès à ce module.
+- `/dashboard/*` : recette du jour, occupation, ventes récentes, stock bas.
+  RECEPTIONNISTE et CAFETARIA ne voient que leurs propres opérations ; PATRON
+  voit tout, jamais fusionné entre USD/CDF ni entre chambres/cafétaria.
+- `/public/*` : **aucune authentification** — chambres disponibles (avec
+  vérification réelle de chevauchement si `dateArrivee`/`dateDepart` sont
+  fournis), menu actif, création d'une demande de réservation `EN_ATTENTE`
+  (jamais confirmée automatiquement). Ne jamais ajouter de guard global qui
+  s'appliquerait à ce contrôleur — le site public n'a pas de compte
+  (section 9.1).
 
 ## Tests
 
