@@ -238,6 +238,80 @@ avant `pnpm --filter api build`/`start`. `turbo.json` gère déjà cet ordre via
 `dependsOn: ["^build"]` pour la cible `build` ; à la main, respecter cet
 ordre (types → database → api).
 
+## Phase 3 — Cafétaria (Produits, Stock, Comptes/Ventes)
+
+Même sous-découpage que les Phases 1-2 : cette passe construit la logique
+métier réelle côté `apps/api` (Produits, Stock, Comptes cafétaria/
+sous-comptes/lignes/encaissement), sans Electron ni impression thermique
+(Phase 2b/3b, non traitée). `ProduitsModule`/`StockModule` suivent
+strictement la matrice 9.3 (RECEPTIONNISTE exclu partout) ; `CafeteriaModule`
+donne à CAFETARIA et PATRON un accès identique à tout le cycle de vie normal
+(ouverture, sous-comptes, lignes, encaissement), cohérent avec l'interprétation
+« PATRON : accès total » déjà actée en Phase 2 — seule l'annulation d'une
+vente reste PATRON seul (la matrice ne donne « Annuler avec motif » qu'à lui,
+sans ambiguïté cette fois, contrairement à Réservations/Factures).
+
+**Hypothèses de modélisation** (non spécifiées littéralement section 7/8) :
+- Un `CompteCafeteria` reçoit automatiquement un premier `SousCompte` nommé
+  « Personne 1 » à l'ouverture, pour éviter une étape manuelle au cas courant
+  (une seule personne) — section 9.2 ne le précise pas explicitement.
+- `AJUSTEMENT` (mouvement de stock) prend un delta signé (positif ou négatif)
+  directement dans `quantite` ; `ENTREE`/`SORTIE_VENTE`/`PERTE` prennent une
+  quantité positive, le sens étant déjà porté par `type`.
+- Chaque `LigneCommande` ajoutée à un compte déclenche automatiquement un
+  `MouvementStock` de type `SORTIE_VENTE` (transaction unique) — la vente
+  cafétaria consomme réellement du stock, même si section 8 range Stock et
+  Cafétaria dans des endpoints séparés.
+- `POST /cafeteria/comptes/:id/encaisser` en mode `PAR_SOUS_COMPTE` crée une
+  `VenteCafeteria` par sous-compte ayant au moins une ligne, sans lien persisté
+  vers ce sous-compte (le schéma section 7 n'a pas de `sousCompteId` sur
+  `VenteCafeteria`) — acceptable car le reçu s'imprime au moment même de
+  l'encaissement (Phase 2b), pas rétroactivement.
+- Le **paiement croisé** (section 9.4) n'est calculé que pour le mode
+  `GROUPE` : `PAR_SOUS_COMPTE`/`PARTAGE_EGAL` génèrent plusieurs ventes, et le
+  schéma ne permet pas d'associer un règlement différent à chacune dans un
+  seul appel. `PARTAGE_EGAL` répartit le total en parts égales via
+  `apps/api/src/cafeteria/partage.util.ts`, qui travaille en plus petite unité
+  de la devise (centimes USD / francs CDF entiers) pour que la somme des
+  parts reconstitue exactement le total, sans perte d'arrondi.
+- `FacturesService.create()` (Phase 2) additionne désormais les
+  `VenteCafeteria` liées via `reservationLieeId` (non annulées) dans le total
+  de la chambre, par devise, jamais fusionnées — c'est le mécanisme concret
+  qui réalise « le montant remonte automatiquement sur la Facture de la
+  chambre » (section 9.2). Vérifié de bout en bout contre la vraie base :
+  chambre à 40 $ + 12 $ de consommations cafétaria FACTURE_CHAMBRE = 52 $
+  exactement sur la facture finale.
+- `VenteCafeteria` a reçu les mêmes colonnes `deviseMonnaieRendue`/
+  `montantMonnaieRendue` que `Facture` (Phase 2), pour la même raison
+  (traçabilité du choix du caissier) — migration `phase3_ventecafeteria_change_fields`.
+
+### Deux bugs réels trouvés en testant contre la vraie base (pas par les tests unitaires mockés)
+
+1. **Numérotation des reçus basée sur `COUNT()`, pas sur le dernier numéro.**
+   `genererNumeroRecu()` (Cafétaria et Factures) comptait les lignes du jour et
+   ajoutait 1, en supposant une séquence sans trou. Un bug antérieur (voir
+   point 2) avait laissé des trous (0001, 0002, 0003, 0005, 0007) ; le
+   `COUNT()` valait 5, produisait ensuite un numéro déjà pris ailleurs dans la
+   boucle → violation de contrainte unique Postgres, remontée comme une
+   `500 Internal server error` brute côté API. Corrigé dans les deux services :
+   chercher le **plus grand numéro déjà utilisé aujourd'hui**
+   (`findFirst` + `orderBy: numeroRecu desc` + `startsWith` le préfixe du
+   jour) plutôt qu'un compte de lignes — robuste même en présence de trous.
+   Un test de non-régression reproduit exactement ce scénario dans les deux
+   suites de tests (`factures.service.spec.ts`, `cafeteria.service.spec.ts`).
+2. **Double-encaissement possible sur le même compte (course critique).**
+   `encaisser()` vérifiait `compte.statut === 'OUVERT'` sur une lecture faite
+   *avant* d'ouvrir la transaction Prisma. Deux appels concurrents (ou une
+   requête HTTP interrompue côté client mais toujours en cours d'exécution
+   côté serveur, suivie d'une nouvelle tentative manuelle — exactement ce qui
+   s'est produit pendant les tests) passent alors tous les deux cette
+   vérification et tentent chacun de créer des ventes, provoquant la collision
+   du point 1. Corrigé par un compare-and-swap atomique en tout début de
+   transaction : `tx.compteCafeteria.updateMany({ where: { id, statut:
+   'OUVERT' }, data: { statut: 'FERME', ... } })`, et si `count === 0`
+   (quelqu'un d'autre a fermé le compte entre-temps), l'appel échoue
+   proprement avec un `409 Conflict` au lieu de générer des ventes en double.
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase

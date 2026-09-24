@@ -5,25 +5,26 @@ Monorepo pnpm/Turborepo pour l'application de gestion de l'Hôtel Chicago
 racine pour la spécification complète du produit, et `DECISIONS.md` pour les
 hypothèses prises pendant la réalisation.
 
-**État actuel : Phase 1 et le backend de la Phase 2 terminés et vérifiés en
+**État actuel : Phase 1 et le backend des Phases 2-3 terminés et vérifiés en
 conditions réelles** (monorepo, schéma de base de données appliqué à
 Supabase de production, policies RLS appliquées, authentification, matrice
 de permissions testée de bout en bout, modules Chambres/Réservations/
-Factures avec logique métier réelle — disponibilité, check-in/out, calcul
-multi-devises et paiement croisé). L'application Electron (UI + impression
-thermique), le module Cafétaria, le mode hors ligne, le mobile, le tableau
-de bord patron et le site public ne sont pas encore construits — voir le
-README de chaque paquet dans `apps/` pour le détail, et `DECISIONS.md` pour
-le découpage en phases.
+Factures/Produits/Stock/Cafétaria avec logique métier réelle — disponibilité,
+check-in/out, gestion de stock, comptes ouverts et sous-comptes, calcul
+multi-devises et paiement croisé, intégration ventes cafétaria → facture de
+chambre). L'application Electron (UI + impression thermique), le mode hors
+ligne, le mobile, le tableau de bord patron et le site public ne sont pas
+encore construits — voir le README de chaque paquet dans `apps/` pour le
+détail, et `DECISIONS.md` pour le découpage en phases.
 
 ## Structure
 
 ```
 apps/
-  api/       Backend NestJS — construit (Phase 1 : Auth/RBAC ; Phase 2 : Chambres/Réservations/Factures)
+  api/       Backend NestJS — construit (Phase 1 : Auth/RBAC ; Phases 2-3 : Réception + Cafétaria)
   web/       Site public Next.js — pas encore construit (Phase 7)
   mobile/    App React Native — pas encore construite (Phase 5)
-  desktop/   App Electron — pas encore construite (Phase 2b : UI + impression)
+  desktop/   App Electron — pas encore construite (Phase 2b/3b : UI + impression)
 packages/
   database/      Schéma Prisma + client, connecté à Supabase Postgres
   types/         Types partagés (minimal pour l'instant : Auth/RBAC)
@@ -114,10 +115,14 @@ pnpm --filter api start:dev
   du prix ou du type d'une chambre et suppression d'une chambre (PATRON
   seul). Voir `DECISIONS.md` pour les hypothèses de calcul (montant dû,
   paiement croisé, formule du prix de séjour).
-- `/produits`, `/stock`, `/cafeteria/comptes` restent des **stubs de
-  Phase 1** : ils ne font que prouver le contrôle d'accès par rôle et
-  renvoient un message indiquant la phase (3) où la logique métier réelle
-  sera implémentée.
+- `/produits`, `/stock`, `/cafeteria` (Phase 3) : logique métier réelle —
+  menu (PATRON gère, CAFETARIA lit), mouvements de stock avec entrée/sortie/
+  perte/ajustement et refus si stock insuffisant, comptes ouverts avec
+  sous-comptes, lignes de commande (décrémente le stock automatiquement),
+  encaissement en 3 modes (GROUPE / PAR_SOUS_COMPTE / PARTAGE_EGAL avec
+  répartition exacte sans perte d'arrondi). Un règlement `FACTURE_CHAMBRE`
+  remonte automatiquement dans le total de la `Facture` de la chambre liée
+  à la création de celle-ci. RECEPTIONNISTE n'a aucun accès à ce module.
 
 ## Tests
 
