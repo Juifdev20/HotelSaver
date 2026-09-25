@@ -47,15 +47,25 @@ function useDonnee<T>(charger: (() => Promise<T>) | null, cle: unknown) {
   return { ...etat, recharger };
 }
 
-function dateDuJour(): string {
-  const texte = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(
-    new Date()
-  );
+function dateDuJour(date: Date): string {
+  const texte = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(date);
   return texte.charAt(0).toUpperCase() + texte.slice(1);
 }
 
-function heureCourante(): string {
-  return new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+function heureCourante(date: Date): string {
+  return new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(date);
+}
+
+/** Horloge vivante (secondes comprises) isolée dans ce hook : seul le petit
+ * sous-arbre qui l'utilise se re-rend chaque seconde, pas tout le tableau
+ * de bord. */
+function useHorlogeVivante(): Date {
+  const [maintenant, setMaintenant] = useState(() => new Date());
+  useEffect(() => {
+    const identifiant = setInterval(() => setMaintenant(new Date()), 1000);
+    return () => clearInterval(identifiant);
+  }, []);
+  return maintenant;
 }
 
 function Carte({ icone, tone, toneClaire, libelle, valeur, precision }: {
@@ -246,6 +256,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
 /** Photo temporaire (voir DECISIONS.md, même fichier que le desktop) en
  * attendant une vraie photo de l'hôtel fournie par le client. */
 function ImageBackgroundHero() {
+  const maintenant = useHorlogeVivante();
   return (
     <View style={styles.hero}>
       {/* Deux bugs Android empilés, trouvés en isolant chacun sur l'appareil
@@ -278,12 +289,12 @@ function ImageBackgroundHero() {
         </View>
         <View style={styles.heroHorloge}>
           <View style={styles.heroHorlogeLigne}>
-            <Calendar size={13} color="#fff" />
-            <Text style={styles.heroHorlogeTexte}>{dateDuJour()}</Text>
+            <Calendar size={12} color="rgba(255,255,255,0.85)" />
+            <Text style={styles.heroHorlogeTexte}>{dateDuJour(maintenant)}</Text>
           </View>
           <View style={styles.heroHorlogeLigne}>
-            <Clock size={13} color="#fff" />
-            <Text style={styles.heroHorlogeTexte}>{heureCourante()}</Text>
+            <Clock size={20} color="#fff" />
+            <Text style={styles.heroHeureTexte}>{heureCourante(maintenant)}</Text>
           </View>
         </View>
       </View>
@@ -315,9 +326,14 @@ const styles = StyleSheet.create({
   heroSalutation: { color: "#fff", fontSize: 13 },
   heroTitre: { color: "#fff", fontSize: 22, fontWeight: "700" },
   heroSousTitre: { color: "rgba(255,255,255,0.8)", fontSize: 12 },
-  heroHorloge: { alignSelf: "flex-start", flexDirection: "row", gap: espacements.s3 },
+  heroHorloge: { alignSelf: "flex-start", gap: 2 },
   heroHorlogeLigne: { flexDirection: "row", alignItems: "center", gap: 4 },
-  heroHorlogeTexte: { color: "#fff", fontSize: 11 },
+  heroHorlogeTexte: { color: "rgba(255,255,255,0.85)", fontSize: 11 },
+  // « Agrandir la taille de l'heure, tellement grande en bold » (demande du
+  // 25/09/2026) — même esprit que `.hero__heure` sur desktop (22px/700),
+  // avec les secondes en plus pour que l'agrandissement se justifie (une
+  // horloge figée à cette taille aurait l'air cassée).
+  heroHeureTexte: { color: "#fff", fontSize: 26, fontWeight: "800", letterSpacing: 0.5 },
 
   grilleKpi: { flexDirection: "row", flexWrap: "wrap", gap: espacements.s3 },
   carte: {
