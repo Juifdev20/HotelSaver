@@ -2,7 +2,8 @@ import * as React from "react";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { CompteCafeteria, Devise, ModePaiement, Produit, StatutCompte, SousCompte } from "@hotel-chicago/types";
+import { CompteCafeteria, Devise, ModePaiement, Produit, StatutCompte, SousCompte, VenteCafeteria } from "@hotel-chicago/types";
+import { construireRecuVente } from "@hotel-chicago/receipts";
 import { Plus, UserPlus } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -11,6 +12,8 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { SelecteurProduit } from "../composants/SelecteurProduit";
 import { useDonnee } from "../hooks/useDonnee";
+import { useSession } from "../contexteSession";
+import { imprimerLignes } from "../impression/imprimante";
 
 export interface EcranCompteCafeteriaProps {
   client: ClientApi;
@@ -40,6 +43,7 @@ function totalCompte(compte: CompteCafeteria): { usd: number; cdf: number } {
 }
 
 export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompteCafeteriaProps) {
+  const { utilisateur } = useSession();
   const { donnee: compte, erreur, enCours, recharger } = useDonnee(() => client.obtenirCompteCafeteria(compteId), compteId);
   const { donnee: produits } = useDonnee(() => client.listerProduits({ actif: true }), client);
 
@@ -54,6 +58,9 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
 
   const [modaleEncaissement, setModaleEncaissement] = useState(false);
   const [modePaiement, setModePaiement] = useState<ModePaiement>(ModePaiement.CASH);
+  const [venteEncaissee, setVenteEncaissee] = useState<VenteCafeteria | null>(null);
+  const [enImpression, setEnImpression] = useState(false);
+  const [messageImpression, setMessageImpression] = useState<string | null>(null);
 
   const [enEnvoi, setEnEnvoi] = useState(false);
   const [erreurAction, setErreurAction] = useState<string | null>(null);
@@ -115,6 +122,8 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
 
   function ouvrirModaleEncaissement() {
     setModePaiement(ModePaiement.CASH);
+    setVenteEncaissee(null);
+    setMessageImpression(null);
     setErreurAction(null);
     setModaleEncaissement(true);
   }
@@ -123,14 +132,32 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
     setEnEnvoi(true);
     setErreurAction(null);
     try {
-      await client.encaisserCompte(compteId, { mode: "GROUPE", modePaiement });
-      setModaleEncaissement(false);
-      onRetour();
+      const ventes = await client.encaisserCompte(compteId, { mode: "GROUPE", modePaiement });
+      setVenteEncaissee(ventes[0]);
     } catch (e) {
       setErreurAction(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
       setEnEnvoi(false);
     }
+  }
+
+  async function imprimerRecuVente() {
+    if (!venteEncaissee || !compte) return;
+    setEnImpression(true);
+    setMessageImpression(null);
+    try {
+      await imprimerLignes(construireRecuVente(venteEncaissee, compte, utilisateur.nom));
+      setMessageImpression("Reçu envoyé à l'imprimante.");
+    } catch (e) {
+      setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
+    } finally {
+      setEnImpression(false);
+    }
+  }
+
+  function terminerEncaissement() {
+    setModaleEncaissement(false);
+    onRetour();
   }
 
   const total = compte ? totalCompte(compte) : { usd: 0, cdf: 0 };
@@ -292,40 +319,63 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
       />
 
       {/* Encaisser */}
-      <FeuilleModale visible={modaleEncaissement} onFermer={() => setModaleEncaissement(false)} titre="Encaisser">
-        <Text style={styles.label}>Mode de paiement</Text>
-        <View style={styles.selecteurPersonne}>
-          {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
-            <Pressable
-              key={m}
-              style={[styles.optionPersonne, modePaiement === m && styles.optionPersonneActive]}
-              onPress={() => setModePaiement(m)}
-            >
-              <Text style={[styles.optionPersonneTexte, modePaiement === m && styles.optionPersonneTexteActif]}>
-                {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
-              </Text>
+      <FeuilleModale visible={modaleEncaissement} onFermer={terminerEncaissement} titre="Encaisser">
+        {venteEncaissee ? (
+          <>
+            <View style={styles.carteTotal}>
+              <Text style={styles.labelTotal}>Reçu {venteEncaissee.numeroRecu}</Text>
+              {Number(venteEncaissee.montantTotalUSD) > 0 && (
+                <Text style={styles.montantTotal}>{formatMontant(venteEncaissee.montantTotalUSD, Devise.USD)}</Text>
+              )}
+              {Number(venteEncaissee.montantTotalCDF) > 0 && (
+                <Text style={styles.montantTotal}>{formatMontant(venteEncaissee.montantTotalCDF, Devise.CDF)}</Text>
+              )}
+            </View>
+            {messageImpression && <Text style={styles.confirmation}>{messageImpression}</Text>}
+            <Pressable style={styles.boutonSecondaire} onPress={imprimerRecuVente} disabled={enImpression}>
+              <Text style={styles.boutonSecondaireTexte}>{enImpression ? "…" : "Imprimer le reçu"}</Text>
             </Pressable>
-          ))}
-        </View>
+            <Pressable style={styles.bouton} onPress={terminerEncaissement}>
+              <Text style={styles.boutonTexte}>Terminer</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Text style={styles.label}>Mode de paiement</Text>
+            <View style={styles.selecteurPersonne}>
+              {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
+                <Pressable
+                  key={m}
+                  style={[styles.optionPersonne, modePaiement === m && styles.optionPersonneActive]}
+                  onPress={() => setModePaiement(m)}
+                >
+                  <Text style={[styles.optionPersonneTexte, modePaiement === m && styles.optionPersonneTexteActif]}>
+                    {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
-        <View style={styles.ligneBientot}>
-          <Text style={styles.ligneBientotTexte}>Répartition par personne / part égale</Text>
-          <View style={styles.badgeBientot}>
-            <Text style={styles.badgeBientotTexte}>Bientôt</Text>
-          </View>
-        </View>
+            <View style={styles.ligneBientot}>
+              <Text style={styles.ligneBientotTexte}>Répartition par personne / part égale</Text>
+              <View style={styles.badgeBientot}>
+                <Text style={styles.badgeBientotTexte}>Bientôt</Text>
+              </View>
+            </View>
 
-        <View style={styles.carteTotal}>
-          <Text style={styles.labelTotal}>À encaisser</Text>
-          {total.usd > 0 && <Text style={styles.montantTotal}>{formatMontant(total.usd, Devise.USD)}</Text>}
-          {total.cdf > 0 && <Text style={styles.montantTotal}>{formatMontant(total.cdf, Devise.CDF)}</Text>}
-        </View>
+            <View style={styles.carteTotal}>
+              <Text style={styles.labelTotal}>À encaisser</Text>
+              {total.usd > 0 && <Text style={styles.montantTotal}>{formatMontant(total.usd, Devise.USD)}</Text>}
+              {total.cdf > 0 && <Text style={styles.montantTotal}>{formatMontant(total.cdf, Devise.CDF)}</Text>}
+            </View>
 
-        {erreurAction && <Text style={styles.erreurFormulaire}>{erreurAction}</Text>}
+            {erreurAction && <Text style={styles.erreurFormulaire}>{erreurAction}</Text>}
 
-        <Pressable style={styles.bouton} onPress={encaisser} disabled={enEnvoi}>
-          <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Confirmer l'encaissement"}</Text>
-        </Pressable>
+            <Pressable style={styles.bouton} onPress={encaisser} disabled={enEnvoi}>
+              <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Confirmer l'encaissement"}</Text>
+            </Pressable>
+          </>
+        )}
       </FeuilleModale>
     </View>
   );
@@ -436,6 +486,7 @@ const styles = StyleSheet.create({
   badgeBientot: { borderWidth: 1, borderColor: couleurs.bordure, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
   badgeBientotTexte: { fontSize: 10, fontWeight: "700", color: couleurs.encreAttenuee },
   erreurFormulaire: { color: couleurs.danger, fontSize: 13 },
+  confirmation: { color: couleurs.succes, fontSize: 13, textAlign: "center" },
   bouton: { height: 44, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center", marginTop: espacements.s2 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });

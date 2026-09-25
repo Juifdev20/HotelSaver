@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { RefreshCw, Settings, UserRound } from "lucide-react-native";
+import { Printer, RefreshCw, Settings, UserRound } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
 import { useSession } from "../contexteSession";
@@ -14,6 +14,7 @@ import { EcranComptesOuverts } from "./EcranComptesOuverts";
 import { EcranCaisse } from "./EcranCaisse";
 import { EcranCompteCafeteria } from "./EcranCompteCafeteria";
 import { EcranSynchronisation } from "./EcranSynchronisation";
+import { EcranImprimante } from "./EcranImprimante";
 
 function initiales(nom: string): string {
   return nom
@@ -28,6 +29,7 @@ type VuePlus =
   | { id: "liste" }
   | { id: "parametres" }
   | { id: "synchronisation" }
+  | { id: "imprimante" }
   | { id: "menu" }
   | { id: "stock" }
   | { id: "comptes-ouverts" }
@@ -54,6 +56,9 @@ export function EcranPlus() {
   }
   if (vue.id === "synchronisation") {
     return <EcranSynchronisation onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "imprimante") {
+    return <EcranImprimante onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "menu") {
     return <EcranMenu client={client} utilisateur={utilisateur} onRetour={() => setVue(VUE_LISTE)} />;
@@ -115,6 +120,11 @@ export function EcranPlus() {
               <Text style={styles.badgeCompteurTexte}>{etatSync.enAttente + etatSync.conflits}</Text>
             </View>
           )}
+        </Pressable>
+
+        <Pressable style={styles.ligne} onPress={() => setVue({ id: "imprimante" })}>
+          <Printer size={18} color={couleurs.encre} />
+          <Text style={styles.ligneTexte}>Imprimante</Text>
         </Pressable>
 
         {/* Modules qui n'ont pas leur propre onglet en bas (Réception au-delà

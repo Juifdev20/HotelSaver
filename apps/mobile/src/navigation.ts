@@ -19,7 +19,7 @@ const RECEPTION = [Role.RECEPTIONNISTE, Role.PATRON];
 export const ONGLETS: OngletNavigation[] = [
   { id: "tableau-de-bord", libelle: "Accueil", roles: TOUS, disponible: true },
   { id: "chambres", libelle: "Chambres", roles: RECEPTION, disponible: true },
-  { id: "reservations", libelle: "Réserv.", roles: RECEPTION, disponible: false },
+  { id: "reservations", libelle: "Réserv.", roles: RECEPTION, disponible: true },
   { id: "plus", libelle: "Plus", roles: TOUS, disponible: true },
 ];
 
@@ -61,11 +61,12 @@ const CAFETARIA_ROLES = [Role.CAFETARIA, Role.PATRON];
 
 export const SECTIONS_PLUS: SectionMenuPlus[] = [
   {
+    // "Facturation" retirée d'ici : son contenu (facturer et check-out une
+    // réservation) vit maintenant dans l'onglet "Réserv." — un deuxième
+    // chemin vers le même endroit n'apporterait rien (même retour du
+    // patron que pour le menu hamburger de EnteteMobile, 25/09/2026).
     titre: "Réception",
-    entrees: [
-      { id: "arrivees-departs", libelle: "Arrivées et départs", roles: RECEPTION, disponible: false },
-      { id: "facturation", libelle: "Facturation", roles: RECEPTION, disponible: false },
-    ],
+    entrees: [{ id: "arrivees-departs", libelle: "Arrivées et départs", roles: RECEPTION, disponible: false }],
   },
   {
     titre: "Cafétaria",
