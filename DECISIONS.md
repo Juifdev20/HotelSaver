@@ -667,6 +667,87 @@ Décisions structurantes :
   `tcp:3001 tcp:3001` (API) suffisent, cohérent avec la préoccupation du
   patron sur la consommation de son forfait internet.
 
+## Phase 5 (suite) — Paramètres/Caisse/Menu/Stock, puis moteur de synchronisation, 25/09/2026
+
+Deux passes supplémentaires sur le mobile après la tranche initiale.
+
+**Paramètres + Cafétaria (Caisse, Comptes ouverts, Menu, Stock)** : les cinq
+entrées de l'onglet "Plus" encore en "Bientôt" sont devenues réelles.
+Paramètres reprend juste l'URL de l'API + un test de connexion (pas de bascule
+de thème ni de bloc Administration, déjà ailleurs sur mobile). Caisse/Comptes
+ouverts/Menu/Stock consomment les routes `CafeteriaController`/
+`ProduitsController`/`StockController`, déjà construites et testées côté API
+mais jamais câblées côté client (`packages/api-client` n'avait aucune méthode
+pour elles). Portée volontairement réduite et affichée dans l'UI, pas cachée :
+encaissement en mode `GROUPE` uniquement (`PAR_SOUS_COMPTE`/`PARTAGE_EGAL`
+existent côté API mais demandent une UI de répartition non triviale, marqués
+"Bientôt" dans le formulaire), paiement `CASH`/`MOBILE_MONEY` seulement
+(`FACTURE_CHAMBRE` demande un sélecteur de réservation, pas encore de méthode
+`api-client` pour lister les réservations). Vérifié en conditions réelles :
+créer un produit, enregistrer un mouvement de stock, ouvrir un compte,
+ajouter une ligne, encaisser — le compte se ferme bien et disparaît de
+"Comptes ouverts".
+
+Bug trouvé en testant les formulaires (Menu notamment, 4 champs) sur
+l'appareil réel : la feuille modale partagée (`FeuilleModale.tsx`) ne prenait
+pas le clavier en compte, rendant les derniers champs inatteignables une fois
+le clavier ouvert. Corrigé en enveloppant son contenu dans un `ScrollView`
+par défaut (avec un `avecDefilement={false}` pour les cas qui apportent déjà
+leur propre liste virtualisée, comme le sélecteur de produit — imbriquer une
+`FlatList` dans un `ScrollView` casse le défilement).
+
+**Moteur de synchronisation hors ligne** (section 10) : construit comme
+infrastructure réutilisable dans `packages/sync-engine` (jusque-là une
+coquille vide), capable de gérer n'importe laquelle des 7 entités poussables,
+mais un seul écran câblé dans cette passe — **Chambres**, la plus simple
+(entité plate, sans relations imbriquées, contrairement à `CompteCafeteria` →
+`SousCompte` → `LigneCommande` que `GET /sync/pull` ne renvoie que sous forme
+de lignes plates par table, sans `include`). Mobile n'avait d'ailleurs aucune
+interaction pour changer le statut d'une chambre (contrairement au desktop) —
+ajoutée ici (appui sur une chambre → feuille modale des 4 statuts) pour avoir
+un vrai chemin d'écriture à faire passer par le moteur.
+
+Architecture : `StockageLocal` (interface agnostique du stockage réel) +
+`MoteurSync` (ping de connectivité ~20s, backoff exponentiel 5s/15s/30s/1min/
+2min sur échec réseau réinitialisé à la reconnexion, verrou empêchant deux
+cycles de tourner en même temps, anti-écrasement — un pull ignore toute ligne
+dont l'id a une entrée en attente dans la file, réconciliée par la réponse du
+push plutôt que par un pull concurrent qui renverrait l'ancien état) dans
+`packages/sync-engine`, testé unitairement sans appareil (logique pure).
+Côté mobile : SQLite (`expo-sqlite`, installé depuis le début mais jamais
+utilisé jusqu'ici) pour le miroir `chambres` + `sync_queue` + `sync_conflicts`
++ `sync_meta`. Un point coloré discret dans `EnteteMobile.tsx` (vert/orange
+avec compteur/rouge/gris) donne l'état en un coup d'œil sur chaque écran ;
+l'écran détaillé ("Synchronisation", toujours accessible depuis "Plus") liste
+les conflits avec les deux valeurs (jamais silencieusement perdu, section
+10.4) et un bouton "Garder la version du serveur" qui écrit vraiment
+`donneesServeur` dans le miroir local — sans ça, la modification suivante
+réutiliserait un `syncVersion` déjà périmé et re-conflicterait aussitôt.
+
+Vérifié en conditions réelles sur l'appareil : changement de statut hors
+ligne mis en file puis synchronisé au retour de connexion, et un vrai
+conflit provoqué délibérément (modification directe en base pendant qu'une
+feuille de choix de statut était ouverte côté mobile avec un `syncVersion`
+déjà périmé) — capturé proprement, affiché avec les deux valeurs, résolu sans
+perte de données.
+
+Effet de bord technique : `packages/sync-engine` importe
+`@hotel-chicago/api-client`, et ses tests tournent sous Jest/ts-jest
+(CommonJS). Le build de `api-client` n'était qu'en ESM (`"type": "module"` à
+la racine) — Node refusait de le `require()`, echouant sur `export` (syntaxe
+non reconnue en CommonJS). Corrigé en donnant à `api-client` le même double
+build CJS/ESM que `packages/types` (`dist/cjs` + `dist/esm`, `exports` map) ;
+les deux paquets ont maintenant le même patron, à réutiliser pour tout futur
+paquet partagé consommé à la fois par un bundler (Vite/Metro) et par Jest.
+
+**Incident sans rapport, trouvé en préparant le commit** : `apps/api/.env`
+avait `PORT=3000` (au lieu de `3001`) — collision avec le port du projet
+LinkPay du patron, et contradiction avec ce même fichier DECISIONS.md. Des
+fichiers mobile (`configuration.ts`, `README.md`) avaient été modifiés pour
+suivre ce mauvais port plutôt que de corriger `.env`. Origine exacte inconnue
+(pas dans cette session). `apps/api/.env` remis à `3001`, les fichiers mobile
+restaurés à leur version commitée.
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase
