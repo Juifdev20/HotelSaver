@@ -265,19 +265,26 @@ function ImageBackgroundHero() {
         resizeMode="cover"
       />
       <View style={[styles.heroSurcouche, styles.heroRadius]} />
-      <View style={styles.heroContenu}>
-        <Text style={styles.heroSalutation}>Bienvenue 👋</Text>
-        <Text style={styles.heroTitre}>Hôtel Chicago</Text>
-        <Text style={styles.heroSousTitre}>Gestion simple. Séjour exceptionnel.</Text>
-      </View>
-      <View style={styles.heroHorloge}>
-        <View style={styles.heroHorlogeLigne}>
-          <Calendar size={13} color="#fff" />
-          <Text style={styles.heroHorlogeTexte}>{dateDuJour()}</Text>
+      {/* Le padding vit ici plutôt que sur `hero` : pour un enfant en
+       * position absolute, width/height "100%" se calcule par rapport à la
+       * boîte de padding du parent, pas à ses bords réels — avec le padding
+       * sur `hero`, l'image et la surcouche se retrouvaient rétrécies d'un
+       * `espacements.s4` de chaque côté au lieu de couvrir toute la carte. */}
+      <View style={styles.heroTexteZone}>
+        <View style={styles.heroContenu}>
+          <Text style={styles.heroSalutation}>Bienvenue 👋</Text>
+          <Text style={styles.heroTitre}>Hôtel Chicago</Text>
+          <Text style={styles.heroSousTitre}>Gestion simple. Séjour exceptionnel.</Text>
         </View>
-        <View style={styles.heroHorlogeLigne}>
-          <Clock size={13} color="#fff" />
-          <Text style={styles.heroHorlogeTexte}>{heureCourante()}</Text>
+        <View style={styles.heroHorloge}>
+          <View style={styles.heroHorlogeLigne}>
+            <Calendar size={13} color="#fff" />
+            <Text style={styles.heroHorlogeTexte}>{dateDuJour()}</Text>
+          </View>
+          <View style={styles.heroHorlogeLigne}>
+            <Clock size={13} color="#fff" />
+            <Text style={styles.heroHorlogeTexte}>{heureCourante()}</Text>
+          </View>
         </View>
       </View>
     </View>
@@ -292,11 +299,14 @@ const styles = StyleSheet.create({
   hero: {
     height: 130,
     borderRadius: rayons.lg,
-    justifyContent: "space-between",
-    padding: espacements.s4,
   },
   heroImage: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
   heroRadius: { borderRadius: rayons.lg },
+  heroTexteZone: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: "space-between",
+    padding: espacements.s4,
+  },
   // 0.72 rendait la photo quasi invisible (juste un aplat marine) — même
   // esprit que le dégradé desktop (assombrir pour la lisibilité du texte
   // blanc) mais assez léger pour que la photo reste visible en dessous.
