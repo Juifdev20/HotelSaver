@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Bell, Building2, Menu, UserRound } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
@@ -23,20 +24,29 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
   const { utilisateur, changerDeProfil } = useSession();
   const [menuOuvert, setMenuOuvert] = useState(false);
   const [notifOuvertes, setNotifOuvertes] = useState(false);
+  const insets = useSafeAreaInsets();
 
   return (
     <>
-      <View style={styles.barre}>
-        <Pressable style={styles.boutonIcone} onPress={() => setMenuOuvert(true)} hitSlop={8}>
-          <Menu size={22} color={couleurs.encre} />
-        </Pressable>
-        <View style={styles.marque}>
-          <Building2 size={16} color={couleurs.navy} />
-          <Text style={styles.marqueTexte}>Hôtel Chicago</Text>
+      {/* La couleur remonte jusqu'en haut de l'écran (paddingTop = zone de la
+       * barre de statut) au lieu de s'arrêter dessous : sur Android récent
+       * (edge-to-edge), le contenu dessine déjà sous l'horloge/batterie, donc
+       * sans ça leur fond dépend du téléphone et la barre paraît collée tout
+       * en haut. Un peu d'air en plus (espacements.s2) évite l'effet
+       * « écrasé » contre les icônes système. */}
+      <View style={[styles.barreConteneur, { paddingTop: insets.top + espacements.s2 }]}>
+        <View style={styles.barre}>
+          <Pressable style={styles.boutonIcone} onPress={() => setMenuOuvert(true)} hitSlop={8}>
+            <Menu size={22} color={couleurs.encre} />
+          </Pressable>
+          <View style={styles.marque}>
+            <Building2 size={16} color={couleurs.navy} />
+            <Text style={styles.marqueTexte}>Hôtel Chicago</Text>
+          </View>
+          <Pressable style={styles.boutonIcone} onPress={() => setNotifOuvertes(true)} hitSlop={8}>
+            <Bell size={20} color={couleurs.encre} />
+          </Pressable>
         </View>
-        <Pressable style={styles.boutonIcone} onPress={() => setNotifOuvertes(true)} hitSlop={8}>
-          <Bell size={20} color={couleurs.encre} />
-        </Pressable>
       </View>
 
       {afficherAccueil && (
@@ -92,15 +102,17 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
 }
 
 const styles = StyleSheet.create({
+  barreConteneur: {
+    backgroundColor: couleurs.surface200,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
+  },
   barre: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     height: 52,
     paddingHorizontal: espacements.s3,
-    backgroundColor: couleurs.surface200,
-    borderBottomWidth: 1,
-    borderBottomColor: couleurs.bordure,
   },
   boutonIcone: { padding: espacements.s2 },
   marque: { flexDirection: "row", alignItems: "center", gap: espacements.s1 },

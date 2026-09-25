@@ -281,7 +281,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: espacements.s4,
   },
-  heroSurcouche: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(15,39,66,0.72)" },
+  // 0.72 rendait la photo quasi invisible (juste un aplat marine) — même
+  // esprit que le dégradé desktop (assombrir pour la lisibilité du texte
+  // blanc) mais assez léger pour que la photo reste visible en dessous.
+  heroSurcouche: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(15,39,66,0.45)" },
   heroContenu: { gap: 2 },
   heroSalutation: { color: "#fff", fontSize: 13 },
   heroTitre: { color: "#fff", fontSize: 22, fontWeight: "700" },
