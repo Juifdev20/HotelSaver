@@ -2,7 +2,7 @@ import * as React from "react";
 import { useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell, Building2, Menu, UserRound } from "lucide-react-native";
+import { Bell, Building2 } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { LIBELLE_ROLE } from "../navigation";
@@ -16,13 +16,14 @@ function initiales(nom: string): string {
     .join("");
 }
 
-/** Barre du haut + ligne d'accueil — même répartition que la maquette
- * mobile (image du 25/09/2026) et que la barre du haut du desktop en
- * fenêtre étroite : hamburger/logo/cloche, puis « Bonjour, {nom} » en
- * dessous puisqu'il n'y a pas de place pour l'avatar/nom dans la barre. */
+/** Barre du haut + ligne d'accueil — même répartition que la barre du haut
+ * du desktop en fenêtre étroite : logo/nom à gauche, cloche à droite, puis
+ * « Bonjour, {nom} » en dessous puisqu'il n'y a pas de place pour
+ * l'avatar/nom dans la barre. Pas de menu hamburger ici : « Changer de
+ * profil » et les infos du compte vivent déjà dans l'onglet "Plus" — un
+ * deuxième accès au même endroit n'apportait rien (retour du 25/09/2026). */
 export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: boolean }) {
-  const { utilisateur, changerDeProfil } = useSession();
-  const [menuOuvert, setMenuOuvert] = useState(false);
+  const { utilisateur } = useSession();
   const [notifOuvertes, setNotifOuvertes] = useState(false);
   const insets = useSafeAreaInsets();
 
@@ -36,9 +37,6 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
        * « écrasé » contre les icônes système. */}
       <View style={[styles.barreConteneur, { paddingTop: insets.top + espacements.s2 }]}>
         <View style={styles.barre}>
-          <Pressable style={styles.boutonIcone} onPress={() => setMenuOuvert(true)} hitSlop={8}>
-            <Menu size={22} color={couleurs.encre} />
-          </Pressable>
           <View style={styles.marque}>
             <Building2 size={16} color={couleurs.navy} />
             <Text style={styles.marqueTexte}>Hôtel Chicago</Text>
@@ -60,33 +58,6 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
           </View>
         </View>
       )}
-
-      <Modal visible={menuOuvert} transparent animationType="fade" onRequestClose={() => setMenuOuvert(false)}>
-        <Pressable style={styles.fond} onPress={() => setMenuOuvert(false)}>
-          <View style={styles.feuille}>
-            <View style={styles.feuillePoignee} />
-            <View style={styles.feuilleEntete}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarTexte}>{initiales(utilisateur.nom)}</Text>
-              </View>
-              <View>
-                <Text style={styles.bonjour}>{utilisateur.nom}</Text>
-                <Text style={styles.role}>{LIBELLE_ROLE[utilisateur.role]}</Text>
-              </View>
-            </View>
-            <Pressable
-              style={styles.itemMenu}
-              onPress={() => {
-                setMenuOuvert(false);
-                changerDeProfil();
-              }}
-            >
-              <UserRound size={18} color={couleurs.encre} />
-              <Text style={styles.itemMenuTexte}>Changer de profil</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
 
       <Modal visible={notifOuvertes} transparent animationType="fade" onRequestClose={() => setNotifOuvertes(false)}>
         <Pressable style={styles.fond} onPress={() => setNotifOuvertes(false)}>
@@ -154,7 +125,4 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: espacements.s2,
   },
-  feuilleEntete: { flexDirection: "row", alignItems: "center", gap: espacements.s3, marginBottom: espacements.s2 },
-  itemMenu: { flexDirection: "row", alignItems: "center", gap: espacements.s3, paddingVertical: espacements.s3 },
-  itemMenuTexte: { fontSize: 15, color: couleurs.encre, fontWeight: "600" },
 });
