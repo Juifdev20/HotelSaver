@@ -1,10 +1,36 @@
 {
   "name": "@hotel-chicago/mobile",
-  "private": true,
   "version": "0.1.0",
-  "description": "Application mobile Hôtel Chicago (React Native / Expo) — non implémentée, voir README.md",
+  "private": true,
+  "main": "index.ts",
   "scripts": {
-    "build": "echo \"apps/mobile n'est pas encore implémenté (Phase 5)\" && exit 0",
-    "dev": "echo \"apps/mobile n'est pas encore implémenté (Phase 5)\" && exit 0"
+    "dev": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hotel-chicago/api-client": "workspace:*",
+    "@hotel-chicago/types": "workspace:*",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.4.0",
+    "@react-navigation/native": "^7.1.8",
+    "@react-navigation/native-stack": "^7.3.14",
+    "buffer": "^6.0.3",
+    "expo": "~57.0.25",
+    "expo-secure-store": "~57.0.4",
+    "expo-sqlite": "~57.0.3",
+    "expo-status-bar": "~57.0.1",
+    "lucide-react-native": "^0.475.0",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.2",
+    "react-native-svg": "15.15.4"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
   }
 }

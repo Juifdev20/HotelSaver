@@ -11,7 +11,10 @@ import "@fontsource/inter/700.css";
 import "@hotel-chicago/ui/dist/tokens.css";
 import "@hotel-chicago/ui/dist/typography.css";
 import "./styles.css";
+import { installerFilSecoursNavigateur } from "./navigateur-secours";
 import { App } from "./App";
+
+installerFilSecoursNavigateur();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

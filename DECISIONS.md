@@ -625,6 +625,48 @@ le pooler en mode session est de nouveau opérationnel (revérifier avant, ne
 pas juste supposer que c'est réparé) : le mode transaction reste moins fiable
 pour `prisma migrate` (verrous consultatifs, requêtes préparées).
 
+## Phase 5 — Application mobile (React Native / Expo), 25/09/2026
+
+Le patron a choisi de démarrer la Phase 5 complète (hors-ligne SQLite,
+synchronisation, impression thermique Bluetooth) plutôt qu'une version
+allégée, en connaissance du temps que ça demande. Première tranche livrée
+cette session : sélection de profil, connexion, tableau de bord, Chambres —
+voir `apps/mobile/README.md` pour le détail et ce qui reste à faire.
+
+Décisions structurantes :
+- **Workflow bare/prebuild dès le départ**, pas Expo Go : le Bluetooth
+  (section 11) en a besoin, et migrer un projet managé vers bare plus tard
+  aurait été plus coûteux que de partir bare directement. Le SDK Android
+  complet étant déjà installé sur la machine (build-tools, NDK, licences
+  acceptées), le premier build natif ne demandait pas d'installation lourde
+  supplémentaire — seul Gradle lui-même (téléchargé une fois par le wrapper,
+  avec la connexion de l'ordinateur, jamais le forfait du téléphone).
+- **`.npmrc` racine : `node-linker=hoisted`** — recommandation officielle
+  d'Expo pour les monorepos pnpm (Metro ne résout pas fiablement les
+  symlinks stricts par défaut de pnpm, notamment pour l'autolinking natif).
+  Changement rétrocompatible : toute la suite de tests existante (api, ui,
+  api-client, build desktop) a été revérifiée après coup, tout passe encore.
+- **`packages/ui` non utilisé côté mobile** : ce paquet charge des fichiers
+  `.css` en effet de bord (imports comme `import "./button.css"`), que
+  Metro ne sait pas interpréter. Seuls `@hotel-chicago/types` et
+  `@hotel-chicago/api-client` (logique pure, sans CSS ni DOM) sont
+  partagés ; `formatMontant` a été dupliqué à l'identique
+  (`apps/mobile/src/formatMontant.ts`) plutôt que d'essayer de faire
+  cohabiter deux bundlers sur un même paquet. Les couleurs/espacements de la
+  charte sont portés en constantes RN (`apps/mobile/src/tokens.ts`), à tenir
+  synchronisées à la main avec `packages/ui/src/tokens.css` si la charte
+  change.
+- **Sélection de profil** implémentée comme une liste de comptes déjà connus
+  sur l'appareil (nom/rôle/email en `AsyncStorage`, jeton de rafraîchissement
+  chiffré en `expo-secure-store`, jamais le mot de passe) plutôt qu'un
+  système de PIN — aucune infrastructure de PIN n'existe côté backend, et en
+  inventer une n'était pas demandé. "Changer de profil" garde le compte
+  enregistré ; l'appui long sur un profil le retire de l'appareil.
+- **Prévisualisation en développement via `adb reverse`** (câble USB), pas
+  Wi-Fi ni IP réseau à exposer : `adb reverse tcp:8081 tcp:8081` (Metro) et
+  `tcp:3001 tcp:3001` (API) suffisent, cohérent avec la préoccupation du
+  patron sur la consommation de son forfait internet.
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase

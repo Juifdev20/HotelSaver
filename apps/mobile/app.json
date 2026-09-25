@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Hôtel Chicago",
+    "slug": "hotel-chicago",
+    "scheme": "hotelchicago",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#F6F8FC",
+    "ios": {
+      "bundleIdentifier": "com.hotelchicago.app",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.hotelchicago.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0F2742",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-secure-store", "expo-sqlite"]
+  }
+}

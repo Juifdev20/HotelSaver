@@ -1,0 +1,335 @@
+import * as React from "react";
+import { useEffect, useState } from "react";
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { ClientApi } from "@hotel-chicago/api-client";
+import {
+  Devise,
+  Occupation,
+  Produit,
+  RecetteDuJour,
+  Role,
+  UtilisateurAuthentifie,
+  VentesRecentes,
+} from "@hotel-chicago/types";
+import { Banknote, BedDouble, Calendar, Clock, Coffee, CreditCard, Package, ReceiptText, Wallet } from "lucide-react-native";
+import { couleurs, espacements, rayons } from "../tokens";
+import { formatMontant } from "../formatMontant";
+import { Donut } from "../composants/Donut";
+import { EnteteMobile } from "../composants/EnteteMobile";
+
+export interface EcranTableauDeBordProps {
+  client: ClientApi;
+  utilisateur: UtilisateurAuthentifie;
+  onAllerAuxChambres: () => void;
+}
+
+function useDonnee<T>(charger: (() => Promise<T>) | null, cle: unknown) {
+  const [etat, setEtat] = useState<{ donnee: T | null; erreur: string | null; enCours: boolean }>({
+    donnee: null,
+    erreur: null,
+    enCours: true,
+  });
+  const chargerRef = React.useRef(charger);
+  chargerRef.current = charger;
+  
+  const recharger = React.useCallback(() => {
+    const currentCharger = chargerRef.current;
+    if (!currentCharger) return;
+    setEtat((e) => ({ ...e, enCours: true }));
+    currentCharger()
+      .then((donnee) => setEtat({ donnee, erreur: null, enCours: false }))
+      .catch((erreur: Error) => setEtat({ donnee: null, erreur: erreur.message, enCours: false }));
+  }, []);
+  
+  useEffect(() => {
+    recharger();
+  }, [cle]);
+  return { ...etat, recharger };
+}
+
+function dateDuJour(): string {
+  const texte = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(
+    new Date()
+  );
+  return texte.charAt(0).toUpperCase() + texte.slice(1);
+}
+
+function heureCourante(): string {
+  return new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+}
+
+function Carte({ icone, tone, toneClaire, libelle, valeur, precision }: {
+  icone: React.ReactNode;
+  tone: string;
+  toneClaire: string;
+  libelle: string;
+  valeur: string;
+  precision?: string;
+}) {
+  return (
+    <View style={styles.carte}>
+      <View style={[styles.carteIcone, { backgroundColor: toneClaire }]}>{icone}</View>
+      <Text style={styles.carteLibelle}>{libelle}</Text>
+      <Text style={styles.carteValeur}>{valeur}</Text>
+      {precision && <Text style={styles.cartePrecision}>{precision}</Text>}
+    </View>
+  );
+}
+
+export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: EcranTableauDeBordProps) {
+  const voitChambres = utilisateur.role !== Role.CAFETARIA;
+  const voitStock = utilisateur.role !== Role.RECEPTIONNISTE;
+
+  const recette = useDonnee<RecetteDuJour>(() => client.recetteDuJour(), "recette");
+  const occupation = useDonnee<Occupation>(voitChambres ? () => client.occupation() : null, "occupation");
+  const stockBas = useDonnee<Produit[]>(voitStock ? () => client.stockBas() : null, "stock");
+  const activite = useDonnee<VentesRecentes>(() => client.ventesRecentes(), "activite");
+
+  const r = recette.donnee;
+  const o = occupation.donnee;
+  const evenements = React.useMemo(() => {
+    if (!activite.donnee) return [];
+    const factures = activite.donnee.factures.map((f) => ({
+      id: f.id,
+      titre: "Paiement enregistré",
+      description: `Chambre ${f.reservation.chambre.numero} · ${f.reservation.client.nom}`,
+      cle: new Date(f.createdAt).getTime(),
+    }));
+    const ventes = activite.donnee.ventesCafeteria.map((v) => ({
+      id: v.id,
+      titre: "Vente cafétaria",
+      description: `Reçu ${v.numeroRecu}`,
+      cle: new Date(v.createdAt).getTime(),
+    }));
+    return [...factures, ...ventes].sort((a, b) => b.cle - a.cle).slice(0, 5);
+  }, [activite.donnee]);
+
+  return (
+    <View style={styles.page}>
+      <EnteteMobile afficherAccueil />
+      <ScrollView
+        contentContainerStyle={styles.contenu}
+        refreshControl={
+          <RefreshControl
+            refreshing={recette.enCours}
+            onRefresh={() => {
+              recette.recharger();
+              occupation.recharger();
+              stockBas.recharger();
+              activite.recharger();
+            }}
+          />
+        }
+      >
+        <ImageBackgroundHero />
+
+        {recette.erreur && <Text style={styles.erreur}>{recette.erreur}</Text>}
+        <View style={styles.grilleKpi}>
+          <Carte
+            icone={<Wallet size={18} color={couleurs.bleu} />}
+            tone={couleurs.bleu}
+            toneClaire={couleurs.bleuClair}
+            libelle="En dollars"
+            valeur={r ? formatMontant(r.total.montantUSD, Devise.USD) : "…"}
+            precision="Chambres et cafétaria"
+          />
+          <Carte
+            icone={<Banknote size={18} color={couleurs.succes} />}
+            tone={couleurs.succes}
+            toneClaire={couleurs.succesClair}
+            libelle="En francs"
+            valeur={r ? formatMontant(r.total.montantCDF, Devise.CDF) : "…"}
+            precision="Chambres et cafétaria"
+          />
+          {r?.chambres && (
+            <Carte
+              icone={<BedDouble size={18} color={couleurs.bleu} />}
+              tone={couleurs.bleu}
+              toneClaire={couleurs.bleuClair}
+              libelle="Dont chambres"
+              valeur={formatMontant(r.chambres.montantUSD, Devise.USD)}
+              precision={formatMontant(r.chambres.montantCDF, Devise.CDF)}
+            />
+          )}
+          {r?.cafeteria && (
+            <Carte
+              icone={<Coffee size={18} color={couleurs.violet} />}
+              tone={couleurs.violet}
+              toneClaire={couleurs.violetClair}
+              libelle="Dont cafétaria"
+              valeur={formatMontant(r.cafeteria.montantUSD, Devise.USD)}
+              precision={formatMontant(r.cafeteria.montantCDF, Devise.CDF)}
+            />
+          )}
+        </View>
+
+        {voitChambres && (
+          <View style={styles.bloc}>
+            <Text style={styles.blocTitre}>Taux d'occupation</Text>
+            {occupation.erreur && <Text style={styles.erreur}>{occupation.erreur}</Text>}
+            <View style={styles.ligneOccupation}>
+              <Donut
+                segments={[
+                  { valeur: o?.occupees ?? 0, couleur: couleurs.danger },
+                  { valeur: o?.libres ?? 0, couleur: couleurs.succes },
+                  { valeur: o?.reservees ?? 0, couleur: couleurs.alerte },
+                  { valeur: o?.enNettoyage ?? 0, couleur: couleurs.violet },
+                ]}
+                enfant={<Text style={styles.donutTexte}>{o ? `${o.tauxOccupationPourcent}%` : "…"}</Text>}
+              />
+              <View style={styles.legende}>
+                {[
+                  { libelle: "Occupées", valeur: o?.occupees, couleur: couleurs.danger },
+                  { libelle: "Libres", valeur: o?.libres, couleur: couleurs.succes },
+                  { libelle: "Réservées", valeur: o?.reservees, couleur: couleurs.alerte },
+                ].map((ligne) => (
+                  <Pressable key={ligne.libelle} style={styles.ligneLegende} onPress={onAllerAuxChambres}>
+                    <View style={[styles.pastille, { backgroundColor: ligne.couleur }]} />
+                    <Text style={styles.legendeTexte}>{ligne.libelle}</Text>
+                    <Text style={styles.legendeValeur}>{ligne.valeur ?? "…"}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+
+        {voitStock && (
+          <View style={styles.bloc}>
+            <Text style={styles.blocTitre}>Stock bas</Text>
+            {stockBas.erreur && <Text style={styles.erreur}>{stockBas.erreur}</Text>}
+            {stockBas.donnee?.length === 0 && (
+              <View style={styles.videConteneur}>
+                <Package size={26} color={couleurs.encreFaible} />
+                <Text style={styles.videTexte}>Aucun produit sous son seuil d'alerte.</Text>
+              </View>
+            )}
+            {stockBas.donnee && stockBas.donnee.length > 0 && (
+              <View>
+                {stockBas.donnee.slice(0, 3).map((p) => (
+                  <View key={p.id} style={styles.ligneListe}>
+                    <Text style={styles.ligneListeNom}>{p.nom}</Text>
+                    <Text style={styles.ligneListeValeur}>{Number(p.stockActuel)} restant</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        <View style={styles.bloc}>
+          <Text style={styles.blocTitre}>Activité récente</Text>
+          {activite.erreur && <Text style={styles.erreur}>{activite.erreur}</Text>}
+          {activite.donnee && evenements.length === 0 && (
+            <View style={styles.videConteneur}>
+              <ReceiptText size={26} color={couleurs.encreFaible} />
+              <Text style={styles.videTexte}>Aucune activité aujourd'hui.</Text>
+            </View>
+          )}
+          {evenements.map((ev) => (
+            <View key={ev.id} style={styles.ligneActivite}>
+              <View style={styles.activiteIcone}>
+                <CreditCard size={15} color={couleurs.succes} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ligneListeNom}>{ev.titre}</Text>
+                <Text style={styles.activiteDescription}>{ev.description}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/** Photo temporaire (voir DECISIONS.md, même fichier que le desktop) en
+ * attendant une vraie photo de l'hôtel fournie par le client. */
+function ImageBackgroundHero() {
+  return (
+    <View style={styles.hero}>
+      <Image source={require("../../assets/hero-chambre.jpg")} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      <View style={styles.heroSurcouche} />
+      <View style={styles.heroContenu}>
+        <Text style={styles.heroSalutation}>Bienvenue 👋</Text>
+        <Text style={styles.heroTitre}>Hôtel Chicago</Text>
+        <Text style={styles.heroSousTitre}>Gestion simple. Séjour exceptionnel.</Text>
+      </View>
+      <View style={styles.heroHorloge}>
+        <View style={styles.heroHorlogeLigne}>
+          <Calendar size={13} color="#fff" />
+          <Text style={styles.heroHorlogeTexte}>{dateDuJour()}</Text>
+        </View>
+        <View style={styles.heroHorlogeLigne}>
+          <Clock size={13} color="#fff" />
+          <Text style={styles.heroHorlogeTexte}>{heureCourante()}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  page: { flex: 1, backgroundColor: couleurs.surface100 },
+  contenu: { padding: espacements.s4, gap: espacements.s4 },
+  erreur: { color: couleurs.danger, fontSize: 13 },
+
+  hero: {
+    height: 130,
+    borderRadius: rayons.lg,
+    overflow: "hidden",
+    justifyContent: "space-between",
+    padding: espacements.s4,
+  },
+  heroSurcouche: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(15,39,66,0.72)" },
+  heroContenu: { gap: 2 },
+  heroSalutation: { color: "#fff", fontSize: 13 },
+  heroTitre: { color: "#fff", fontSize: 22, fontWeight: "700" },
+  heroSousTitre: { color: "rgba(255,255,255,0.8)", fontSize: 12 },
+  heroHorloge: { alignSelf: "flex-start", flexDirection: "row", gap: espacements.s3 },
+  heroHorlogeLigne: { flexDirection: "row", alignItems: "center", gap: 4 },
+  heroHorlogeTexte: { color: "#fff", fontSize: 11 },
+
+  grilleKpi: { flexDirection: "row", flexWrap: "wrap", gap: espacements.s3 },
+  carte: {
+    flexBasis: "47%",
+    flexGrow: 1,
+    backgroundColor: couleurs.surface200,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    padding: espacements.s3,
+    gap: 2,
+  },
+  carteIcone: { width: 30, height: 30, borderRadius: rayons.sm, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  carteLibelle: { fontSize: 10, fontWeight: "700", color: couleurs.encreAttenuee, textTransform: "uppercase" },
+  carteValeur: { fontSize: 16, fontWeight: "700", color: couleurs.encre },
+  cartePrecision: { fontSize: 11, color: couleurs.encreAttenuee },
+
+  bloc: {
+    backgroundColor: couleurs.surface200,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    padding: espacements.s4,
+    gap: espacements.s3,
+  },
+  blocTitre: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
+  ligneOccupation: { flexDirection: "row", alignItems: "center", gap: espacements.s4 },
+  donutTexte: { fontWeight: "700", fontSize: 16, color: couleurs.encre },
+  legende: { flex: 1, gap: espacements.s1 },
+  ligneLegende: { flexDirection: "row", alignItems: "center", gap: espacements.s2, paddingVertical: 4 },
+  pastille: { width: 8, height: 8, borderRadius: rayons.pill },
+  legendeTexte: { flex: 1, fontSize: 13, color: couleurs.encre },
+  legendeValeur: { fontSize: 13, fontWeight: "700", color: couleurs.encre },
+
+  videConteneur: { alignItems: "center", gap: espacements.s2, paddingVertical: espacements.s3 },
+  videTexte: { fontSize: 13, color: couleurs.encreAttenuee, textAlign: "center" },
+  ligneListe: { flexDirection: "row", justifyContent: "space-between", paddingVertical: espacements.s2, borderTopWidth: 1, borderTopColor: couleurs.bordure },
+  ligneListeNom: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
+  ligneListeValeur: { fontSize: 13, color: couleurs.encreAttenuee },
+
+  ligneActivite: { flexDirection: "row", alignItems: "center", gap: espacements.s3, paddingVertical: espacements.s2, borderTopWidth: 1, borderTopColor: couleurs.bordure },
+  activiteIcone: { width: 30, height: 30, borderRadius: rayons.pill, backgroundColor: couleurs.succesClair, alignItems: "center", justifyContent: "center" },
+  activiteDescription: { fontSize: 12, color: couleurs.encreAttenuee },
+});
