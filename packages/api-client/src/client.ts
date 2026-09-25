@@ -85,6 +85,54 @@ export interface DonneesEncaissement {
   modePaiement: ModePaiement;
 }
 
+// ---------------------------------------------------------------------
+// Synchronisation hors-ligne (apps/api/src/sync/)
+// ---------------------------------------------------------------------
+
+/** Miroir exact de apps/api/src/sync/entites-synchronisables.ts. */
+export const ENTITES_PUSH = [
+  "Chambre",
+  "Reservation",
+  "Produit",
+  "MouvementStock",
+  "CompteCafeteria",
+  "SousCompte",
+  "LigneCommande",
+] as const;
+export type EntitePush = (typeof ENTITES_PUSH)[number];
+
+export const ENTITES_PULL = [...ENTITES_PUSH, "Facture", "VenteCafeteria"] as const;
+export type EntitePull = (typeof ENTITES_PULL)[number];
+
+/** Un élément de `SyncPushDto.operations` (apps/api/src/sync/dto). */
+export interface OperationPush {
+  entiteType: EntitePush;
+  localId: string;
+  remoteId?: string;
+  operation: "CREATE" | "UPDATE";
+  payload: Record<string, unknown>;
+  /** Requis pour UPDATE — la valeur de `syncVersion` lue localement avant la
+   * modification, comparée à celle du serveur pour détecter un conflit. */
+  baseSyncVersion?: number;
+}
+
+/** Un élément de la réponse de POST /sync/push, un par opération envoyée,
+ * dans le même ordre. Sur CONFLICT, `donneesServeur` est la ligne complète
+ * telle qu'elle est actuellement en base — le serveur n'a rien appliqué. */
+export interface ResultatOperation {
+  localId: string;
+  remoteId?: string;
+  syncVersion?: number;
+  statut: "SYNCED" | "CONFLICT" | "ERROR";
+  message?: string;
+  donneesServeur?: unknown;
+}
+
+/** GET /sync/pull — une entrée par type d'entité demandé (ou tous ceux
+ * autorisés pour le rôle si `entites` est omis), lignes brutes (pas
+ * d'`include` : pas de sous-comptes/lignes imbriqués pour CompteCafeteria). */
+export type ReponsePull = Partial<Record<EntitePull, unknown[]>>;
+
 /**
  * Client HTTP typé pour l'API NestJS (jamais pour Supabase Auth lui-même —
  * voir supabase-auth.ts). `getAccessToken` est une fonction, pas une valeur
@@ -224,6 +272,30 @@ export class ClientApi {
 
   async creerMouvementStock(donnees: DonneesMouvementStock): Promise<MouvementStock> {
     return this.requete<MouvementStock>("/stock", { method: "POST", body: JSON.stringify(donnees) });
+  }
+
+  // ---------------------------------------------------------------------
+  // Synchronisation hors-ligne
+  // ---------------------------------------------------------------------
+
+  /** Un seul appel peut mélanger plusieurs types d'entités, traités dans
+   * l'ordre du tableau. Ne rejette jamais sur un `ERROR`/`CONFLICT`
+   * individuel — seule une vraie erreur réseau/HTTP lève. */
+  async syncPush(operations: OperationPush[]): Promise<ResultatOperation[]> {
+    const reponse = await this.requete<{ resultats: ResultatOperation[] }>("/sync/push", {
+      method: "POST",
+      body: JSON.stringify({ operations }),
+    });
+    return reponse.resultats;
+  }
+
+  /** `depuis` : horodatage ISO du dernier pull réussi (capturé côté client
+   * avant l'appel précédent, pas dérivé des lignes reçues — voir MoteurSync).
+   * `entites` omis = tous les types autorisés pour le rôle courant. */
+  async syncPull(depuis: string, entites?: EntitePull[]): Promise<ReponsePull> {
+    const params = new URLSearchParams({ depuis });
+    if (entites && entites.length > 0) params.set("entites", entites.join(","));
+    return this.requete<ReponsePull>(`/sync/pull?${params.toString()}`);
   }
 
   private async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {
