@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell, Building2 } from "lucide-react-native";
+import { Bell } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { LIBELLE_ROLE } from "../navigation";
@@ -38,7 +38,7 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
       <View style={[styles.barreConteneur, { paddingTop: insets.top + espacements.s2 }]}>
         <View style={styles.barre}>
           <View style={styles.marque}>
-            <Building2 size={16} color={couleurs.navy} />
+            <Image source={require("../../assets/logo-couleur.png")} style={styles.logo} resizeMode="contain" />
             <Text style={styles.marqueTexte}>Hôtel Chicago</Text>
           </View>
           <Pressable style={styles.boutonIcone} onPress={() => setNotifOuvertes(true)} hitSlop={8}>
@@ -87,6 +87,7 @@ const styles = StyleSheet.create({
   },
   boutonIcone: { padding: espacements.s2 },
   marque: { flexDirection: "row", alignItems: "center", gap: espacements.s1 },
+  logo: { width: 22, height: 22 },
   marqueTexte: { fontWeight: "700", fontSize: 15, color: couleurs.encre },
   ligneAccueil: {
     flexDirection: "row",
