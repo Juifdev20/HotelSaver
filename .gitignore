@@ -16,6 +16,10 @@ out/
 .env
 .env.local
 .env.*.local
+# Sauvegardes ponctuelles de .env (ex. avant de changer DATABASE_URL) — même
+# contenu sensible que .env lui-même, voir DECISIONS.md (panne du pooler
+# Supabase du 25/09/2026).
+.env.bak-*
 
 # Bases SQLite locales (mode hors ligne, section 10)
 *.sqlite

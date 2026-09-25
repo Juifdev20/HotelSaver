@@ -1,6 +1,12 @@
 packages:
   - "apps/*"
   - "packages/*"
+# Store virtuel raccourci : nécessaire sous Windows pour que les chemins de
+# fichiers objets C++ compilés par CMake/Ninja (React Native natif, section
+# 11) restent sous la limite de 250 caractères. Voir .npmrc et DECISIONS.md
+# — ce réglage ne fonctionne pas de façon fiable posé dans .npmrc seul dans
+# cette version de pnpm, il doit vivre ici.
+virtualStoreDir: C:/.pnpm-hc
 allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true
@@ -8,3 +14,10 @@ allowBuilds:
   electron: true
   esbuild: true
   prisma: true
+minimumReleaseAgeExclude:
+  - '@expo/cli@57.0.27'
+  - '@expo/router-server@57.0.11'
+  - babel-preset-expo@57.0.13
+  - expo-modules-core@57.0.19
+  - expo-modules-jsi@57.1.1
+  - expo@57.0.25
