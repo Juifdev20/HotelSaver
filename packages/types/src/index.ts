@@ -118,3 +118,81 @@ export interface VentesRecentes {
   factures: FactureRecente[];
   ventesCafeteria: VenteCafeteriaRecente[];
 }
+
+/** Doit rester synchronisé avec l'enum `StatutCompte` du schéma Prisma. */
+export enum StatutCompte {
+  OUVERT = "OUVERT",
+  FERME = "FERME",
+}
+
+/** Doit rester synchronisé avec l'enum `ModePaiement` du schéma Prisma. */
+export enum ModePaiement {
+  CASH = "CASH",
+  MOBILE_MONEY = "MOBILE_MONEY",
+  FACTURE_CHAMBRE = "FACTURE_CHAMBRE",
+}
+
+/** Doit rester synchronisé avec apps/api/src/cafeteria/dto/encaisser-compte.dto.ts
+ * (pas un enum Prisma — un champ libre côté service). */
+export const MODES_ENCAISSEMENT = ["GROUPE", "PAR_SOUS_COMPTE", "PARTAGE_EGAL"] as const;
+export type ModeEncaissement = (typeof MODES_ENCAISSEMENT)[number];
+
+/** Forme JSON d'une LigneCommande (Decimal → string, voir Chambre), avec le
+ * produit inclus (voir INCLUDE_COMPTE_COMPLET côté API). */
+export interface LigneCommande {
+  id: string;
+  sousCompteId: string;
+  produitId: string;
+  quantite: string;
+  prixUnitaire: string;
+  devise: Devise;
+  produit: Produit;
+}
+
+export interface SousCompte {
+  id: string;
+  compteId: string;
+  nom: string;
+  lignes: LigneCommande[];
+}
+
+/** Forme JSON d'une VenteCafeteria (Decimal → string, voir Chambre). */
+export interface VenteCafeteria {
+  id: string;
+  compteId: string;
+  montantTotalUSD: string;
+  montantTotalCDF: string;
+  modePaiement: ModePaiement;
+  reservationLieeId: string | null;
+  numeroRecu: string;
+  annuleLe: string | null;
+  motifAnnulation: string | null;
+  createdAt: string;
+}
+
+/** Forme JSON d'un CompteCafeteria, avec sous-comptes/lignes/ventes inclus
+ * (voir INCLUDE_COMPTE_COMPLET dans apps/api/src/cafeteria/cafeteria.service.ts). */
+export interface CompteCafeteria {
+  id: string;
+  tableOuNom: string;
+  statut: StatutCompte;
+  ouvertPar: string;
+  ouvertLe: string;
+  fermeLe: string | null;
+  syncVersion: number;
+  sousComptes: SousCompte[];
+  ventes: VenteCafeteria[];
+}
+
+/** Forme JSON d'un MouvementStock (Decimal → string, voir Chambre), avec le
+ * produit inclus. */
+export interface MouvementStock {
+  id: string;
+  produitId: string;
+  quantite: string;
+  type: string;
+  motif: string | null;
+  createdBy: string;
+  createdAt: string;
+  produit: Produit;
+}
