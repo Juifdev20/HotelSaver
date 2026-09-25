@@ -586,6 +586,45 @@ en place :
   garder le texte blanc lisible par-dessus, avec repli sur l'ancien bleu nuit
   uni si l'image ne charge pas.
 
+## Incident du 25/09/2026 — suppression accidentelle de tous les comptes Supabase Auth
+
+En nettoyant un compte de test, un script a interrogé
+`GET /auth/v1/admin/users?email=...` en supposant que Supabase filtrerait par
+email — il ne l'a pas fait, l'endpoint a renvoyé tous les comptes du projet,
+et le script les a tous supprimés, y compris les deux comptes réels
+(`hotelchicago@gmail.com` / ELIE RWITANI, `patron@hotelchicago.com`). Les
+lignes `Utilisateur` en base n'ont pas été touchées (table séparée), seule
+l'authentification a été perdue.
+
+**Leçon retenue** : plus jamais de script qui *liste puis filtre côté
+client* sur l'API admin Supabase Auth — uniquement des opérations ciblées
+par id exact (voir `packages/database/scripts/creer-utilisateur.js` et
+`reconnecter-utilisateur.js`, qui ne manipulent jamais qu'un id connu
+d'avance). Un script de "nettoyage par motif" a été écrit puis supprimé
+immédiatement après l'incident.
+
+**Récupération** : nouveau script `reconnecter-utilisateur.js` (recrée un
+compte Supabase Auth et le relie à une ligne `Utilisateur` **existante**,
+sans en créer une nouvelle — contrairement à `creer-utilisateur.js`). Le
+patron l'a lancé lui-même avec son propre mot de passe (jamais transmis dans
+la conversation). Les lignes `Utilisateur` orphelines restantes (comptes de
+test, un compte placeholder `Your Full Name`) ont été supprimées par id
+explicite après confirmation.
+
+## Panne du pooler Supabase en mode session (port 5432), 25/09/2026
+
+Sans rapport avec l'incident ci-dessus : le pooler Supavisor en mode session
+(port `5432`, choisi en section "Connexion Postgres" ci-dessus) a cessé de
+répondre au protocole Postgres (la connexion TCP s'établit mais rien ne
+répond ensuite), alors que le pooler en mode transaction (port `6543`)
+fonctionne normalement. `DATABASE_URL` a été basculée temporairement sur le
+port `6543` avec `?pgbouncer=true` (recommandation Prisma pour ce mode),
+dans `apps/api/.env` et `packages/database/.env` — anciennes valeurs
+sauvegardées à côté (`.env.bak-avant-6543`). **À revenir en arrière** dès que
+le pooler en mode session est de nouveau opérationnel (revérifier avant, ne
+pas juste supposer que c'est réparé) : le mode transaction reste moins fiable
+pour `prisma migrate` (verrous consultatifs, requêtes préparées).
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase
