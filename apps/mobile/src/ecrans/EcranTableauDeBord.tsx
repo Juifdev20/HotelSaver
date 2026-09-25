@@ -248,8 +248,23 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
 function ImageBackgroundHero() {
   return (
     <View style={styles.hero}>
-      <Image source={require("../../assets/hero-chambre.jpg")} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      <View style={styles.heroSurcouche} />
+      {/* Deux bugs Android empilés, trouvés en isolant chacun sur l'appareil
+       * réel (l'un masquait l'autre) :
+       * 1. Un <Image> absolument positionné devient invisible dès qu'un
+       *    ancêtre a `overflow: hidden` (même un conteneur dédié, isolé du
+       *    texte) — pas juste des coins carrés, l'image entière disparaît.
+       *    Pas d'overflow:hidden ici : les coins arrondis viennent du
+       *    borderRadius posé directement sur l'Image et la surcouche.
+       * 2. Avec StyleSheet.absoluteFill (top/right/bottom/left: 0),
+       *    resizeMode="cover" n'était pas respecté : l'image se dessinait à
+       *    sa taille intrinsèque et débordait sur les cartes en dessous.
+       *    Un width/height "100%" explicite (heroImage) force le bon calcul. */}
+      <Image
+        source={require("../../assets/hero-chambre.jpg")}
+        style={[styles.heroImage, styles.heroRadius]}
+        resizeMode="cover"
+      />
+      <View style={[styles.heroSurcouche, styles.heroRadius]} />
       <View style={styles.heroContenu}>
         <Text style={styles.heroSalutation}>Bienvenue 👋</Text>
         <Text style={styles.heroTitre}>Hôtel Chicago</Text>
@@ -277,10 +292,11 @@ const styles = StyleSheet.create({
   hero: {
     height: 130,
     borderRadius: rayons.lg,
-    overflow: "hidden",
     justifyContent: "space-between",
     padding: espacements.s4,
   },
+  heroImage: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
+  heroRadius: { borderRadius: rayons.lg },
   // 0.72 rendait la photo quasi invisible (juste un aplat marine) — même
   // esprit que le dégradé desktop (assombrir pour la lisibilité du texte
   // blanc) mais assez léger pour que la photo reste visible en dessous.
