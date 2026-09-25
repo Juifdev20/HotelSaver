@@ -307,15 +307,21 @@ const styles = StyleSheet.create({
   contenu: { padding: espacements.s4, gap: espacements.s4 },
   erreur: { color: couleurs.danger, fontSize: 13 },
 
+  // 150 comme le minimum du hero desktop : à 130, l'horloge agrandie
+  // n'avait plus la place et débordait de la carte.
   hero: {
-    height: 130,
+    height: 150,
     borderRadius: rayons.lg,
   },
   heroImage: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
   heroRadius: { borderRadius: rayons.lg },
+  // `justifyContent: "space-between"` collait l'horloge tout en bas de la
+  // carte (trop bas une fois l'heure agrandie) — un simple `gap` la
+  // rapproche du bloc de titre à la place.
   heroTexteZone: {
     ...StyleSheet.absoluteFill,
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: espacements.s2,
     padding: espacements.s4,
   },
   // 0.72 rendait la photo quasi invisible (juste un aplat marine) — même
