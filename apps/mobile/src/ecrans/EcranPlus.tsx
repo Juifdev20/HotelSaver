@@ -1,10 +1,17 @@
 import * as React from "react";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Settings, UserRound } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
 import { useSession } from "../contexteSession";
 import { EnteteMobile } from "../composants/EnteteMobile";
+import { EcranParametresMobile } from "./EcranParametresMobile";
+import { EcranMenu } from "./EcranMenu";
+import { EcranStock } from "./EcranStock";
+import { EcranComptesOuverts } from "./EcranComptesOuverts";
+import { EcranCaisse } from "./EcranCaisse";
+import { EcranCompteCafeteria } from "./EcranCompteCafeteria";
 
 function initiales(nom: string): string {
   return nom
@@ -15,14 +22,61 @@ function initiales(nom: string): string {
     .join("");
 }
 
-/** Onglet "Plus" — profil courant, actions rattachées à l'appareil (pas
- * d'écran Paramètres mobile pour l'instant : l'URL de l'API se configure
- * encore uniquement via `stockage/configuration.ts`), et les modules du
- * rôle qui n'ont pas leur propre onglet en bas (Réception au-delà de
- * Chambres, Cafétaria, Administration — voir `sectionsPlusPourRole`). */
+type VuePlus =
+  | { id: "liste" }
+  | { id: "parametres" }
+  | { id: "menu" }
+  | { id: "stock" }
+  | { id: "comptes-ouverts" }
+  | { id: "caisse" }
+  | { id: "compte"; compteId: string };
+
+const VUE_LISTE: VuePlus = { id: "liste" };
+
+/** Onglet "Plus" — profil courant, actions rattachées à l'appareil, et les
+ * modules du rôle qui n'ont pas leur propre onglet en bas (Réception
+ * au-delà de Chambres, Cafétaria, Administration — voir
+ * `sectionsPlusPourRole`). CoquilleOnglets.tsx est un Tab.Navigator plat
+ * sans stack imbriqué : le passage à un écran (Paramètres, Menu, Stock...)
+ * et son retour à cette liste sont gérés par un état local ici, même
+ * principe que le swap d'écrans déjà utilisé au niveau de App.tsx. */
 export function EcranPlus() {
-  const { utilisateur, changerDeProfil } = useSession();
+  const { client, utilisateur, changerDeProfil } = useSession();
   const sections = sectionsPlusPourRole(utilisateur.role);
+  const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
+
+  if (vue.id === "parametres") {
+    return <EcranParametresMobile client={client} onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "menu") {
+    return <EcranMenu client={client} utilisateur={utilisateur} onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "stock") {
+    return <EcranStock client={client} onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "comptes-ouverts") {
+    return (
+      <EcranComptesOuverts
+        client={client}
+        onRetour={() => setVue(VUE_LISTE)}
+        onOuvrirCompte={(compteId) => setVue({ id: "compte", compteId })}
+      />
+    );
+  }
+  if (vue.id === "caisse") {
+    return (
+      <EcranCaisse
+        client={client}
+        onRetour={() => setVue(VUE_LISTE)}
+        onCompteOuvert={(compteId) => setVue({ id: "compte", compteId })}
+      />
+    );
+  }
+  if (vue.id === "compte") {
+    return (
+      <EcranCompteCafeteria client={client} compteId={vue.compteId} onRetour={() => setVue({ id: "comptes-ouverts" })} />
+    );
+  }
 
   return (
     <View style={styles.page}>
@@ -41,13 +95,10 @@ export function EcranPlus() {
           <Text style={styles.ligneTexte}>Changer de profil</Text>
         </Pressable>
 
-        <View style={[styles.ligne, styles.ligneDesactivee]}>
-          <Settings size={18} color={couleurs.encreFaible} />
-          <Text style={[styles.ligneTexte, styles.ligneTexteDesactive]}>Paramètres</Text>
-          <View style={styles.badgeBientot}>
-            <Text style={styles.badgeBientotTexte}>Bientôt</Text>
-          </View>
-        </View>
+        <Pressable style={styles.ligne} onPress={() => setVue({ id: "parametres" })}>
+          <Settings size={18} color={couleurs.encre} />
+          <Text style={styles.ligneTexte}>Paramètres</Text>
+        </Pressable>
 
         {/* Modules qui n'ont pas leur propre onglet en bas (Réception au-delà
             de Chambres, Cafétaria, Administration) — même contenu que la
@@ -56,14 +107,27 @@ export function EcranPlus() {
         {sections.map((section) => (
           <View key={section.titre} style={styles.section}>
             <Text style={styles.titreSection}>{section.titre}</Text>
-            {section.entrees.map((entree) => (
-              <View key={entree.id} style={[styles.ligne, styles.ligneDesactivee]}>
-                <Text style={[styles.ligneTexte, styles.ligneTexteDesactive]}>{entree.libelle}</Text>
-                <View style={styles.badgeBientot}>
-                  <Text style={styles.badgeBientotTexte}>Bientôt</Text>
-                </View>
-              </View>
-            ))}
+            {section.entrees.map((entree) => {
+              if (!entree.disponible) {
+                return (
+                  <View key={entree.id} style={[styles.ligne, styles.ligneDesactivee]}>
+                    <Text style={[styles.ligneTexte, styles.ligneTexteDesactive]}>{entree.libelle}</Text>
+                    <View style={styles.badgeBientot}>
+                      <Text style={styles.badgeBientotTexte}>Bientôt</Text>
+                    </View>
+                  </View>
+                );
+              }
+              return (
+                <Pressable
+                  key={entree.id}
+                  style={styles.ligne}
+                  onPress={() => setVue({ id: entree.id as "caisse" | "comptes-ouverts" | "menu" | "stock" })}
+                >
+                  <Text style={styles.ligneTexte}>{entree.libelle}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         ))}
       </ScrollView>

@@ -48,6 +48,8 @@ export interface EntreeMenuPlus {
   id: string;
   libelle: string;
   roles: Role[];
+  /** false = affiché « Bientôt », comme `OngletNavigation.disponible`. */
+  disponible: boolean;
 }
 
 export interface SectionMenuPlus {
@@ -61,17 +63,17 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
   {
     titre: "Réception",
     entrees: [
-      { id: "arrivees-departs", libelle: "Arrivées et départs", roles: RECEPTION },
-      { id: "facturation", libelle: "Facturation", roles: RECEPTION },
+      { id: "arrivees-departs", libelle: "Arrivées et départs", roles: RECEPTION, disponible: false },
+      { id: "facturation", libelle: "Facturation", roles: RECEPTION, disponible: false },
     ],
   },
   {
     titre: "Cafétaria",
     entrees: [
-      { id: "caisse", libelle: "Caisse", roles: CAFETARIA_ROLES },
-      { id: "comptes-ouverts", libelle: "Comptes ouverts", roles: CAFETARIA_ROLES },
-      { id: "menu", libelle: "Menu", roles: CAFETARIA_ROLES },
-      { id: "stock", libelle: "Stock", roles: CAFETARIA_ROLES },
+      { id: "caisse", libelle: "Caisse", roles: CAFETARIA_ROLES, disponible: true },
+      { id: "comptes-ouverts", libelle: "Comptes ouverts", roles: CAFETARIA_ROLES, disponible: true },
+      { id: "menu", libelle: "Menu", roles: CAFETARIA_ROLES, disponible: true },
+      { id: "stock", libelle: "Stock", roles: CAFETARIA_ROLES, disponible: true },
     ],
   },
   {
@@ -79,8 +81,8 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
     // PATRON uniquement, matrice 9.3.
     titre: "Administration",
     entrees: [
-      { id: "utilisateurs", libelle: "Utilisateurs", roles: [Role.PATRON] },
-      { id: "taux-de-change", libelle: "Taux de change", roles: [Role.PATRON] },
+      { id: "utilisateurs", libelle: "Utilisateurs", roles: [Role.PATRON], disponible: false },
+      { id: "taux-de-change", libelle: "Taux de change", roles: [Role.PATRON], disponible: false },
     ],
   },
 ];

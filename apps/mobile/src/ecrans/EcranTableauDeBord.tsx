@@ -16,35 +16,12 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { Donut } from "../composants/Donut";
 import { EnteteMobile } from "../composants/EnteteMobile";
+import { useDonnee } from "../hooks/useDonnee";
 
 export interface EcranTableauDeBordProps {
   client: ClientApi;
   utilisateur: UtilisateurAuthentifie;
   onAllerAuxChambres: () => void;
-}
-
-function useDonnee<T>(charger: (() => Promise<T>) | null, cle: unknown) {
-  const [etat, setEtat] = useState<{ donnee: T | null; erreur: string | null; enCours: boolean }>({
-    donnee: null,
-    erreur: null,
-    enCours: true,
-  });
-  const chargerRef = React.useRef(charger);
-  chargerRef.current = charger;
-  
-  const recharger = React.useCallback(() => {
-    const currentCharger = chargerRef.current;
-    if (!currentCharger) return;
-    setEtat((e) => ({ ...e, enCours: true }));
-    currentCharger()
-      .then((donnee) => setEtat({ donnee, erreur: null, enCours: false }))
-      .catch((erreur: Error) => setEtat({ donnee: null, erreur: erreur.message, enCours: false }));
-  }, []);
-  
-  useEffect(() => {
-    recharger();
-  }, [cle]);
-  return { ...etat, recharger };
 }
 
 function dateDuJour(date: Date): string {
