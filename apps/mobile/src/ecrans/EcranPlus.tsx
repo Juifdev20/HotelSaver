@@ -1,8 +1,8 @@
 import * as React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Settings, UserRound } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
-import { LIBELLE_ROLE } from "../navigation";
+import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
 import { useSession } from "../contexteSession";
 import { EnteteMobile } from "../composants/EnteteMobile";
 
@@ -15,16 +15,19 @@ function initiales(nom: string): string {
     .join("");
 }
 
-/** Onglet "Plus" — profil courant et actions rattachées à l'appareil, pas à
- * un module métier (pas d'écran Paramètres mobile pour l'instant : l'URL de
- * l'API se configure encore uniquement via `stockage/configuration.ts`). */
+/** Onglet "Plus" — profil courant, actions rattachées à l'appareil (pas
+ * d'écran Paramètres mobile pour l'instant : l'URL de l'API se configure
+ * encore uniquement via `stockage/configuration.ts`), et les modules du
+ * rôle qui n'ont pas leur propre onglet en bas (Réception au-delà de
+ * Chambres, Cafétaria, Administration — voir `sectionsPlusPourRole`). */
 export function EcranPlus() {
   const { utilisateur, changerDeProfil } = useSession();
+  const sections = sectionsPlusPourRole(utilisateur.role);
 
   return (
     <View style={styles.page}>
       <EnteteMobile />
-      <View style={styles.contenu}>
+      <ScrollView contentContainerStyle={styles.contenu}>
         <View style={styles.carteProfil}>
           <View style={styles.avatar}>
             <Text style={styles.avatarTexte}>{initiales(utilisateur.nom)}</Text>
@@ -45,7 +48,25 @@ export function EcranPlus() {
             <Text style={styles.badgeBientotTexte}>Bientôt</Text>
           </View>
         </View>
-      </View>
+
+        {/* Modules qui n'ont pas leur propre onglet en bas (Réception au-delà
+            de Chambres, Cafétaria, Administration) — même contenu que la
+            barre latérale desktop, voir navigation.ts. Sans ça, un compte
+            CAFETARIA ne voit nulle part que son module existe. */}
+        {sections.map((section) => (
+          <View key={section.titre} style={styles.section}>
+            <Text style={styles.titreSection}>{section.titre}</Text>
+            {section.entrees.map((entree) => (
+              <View key={entree.id} style={[styles.ligne, styles.ligneDesactivee]}>
+                <Text style={[styles.ligneTexte, styles.ligneTexteDesactive]}>{entree.libelle}</Text>
+                <View style={styles.badgeBientot}>
+                  <Text style={styles.badgeBientotTexte}>Bientôt</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -75,6 +96,14 @@ const styles = StyleSheet.create({
   avatarTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 18 },
   nom: { fontSize: 17, fontWeight: "700", color: couleurs.encre },
   role: { fontSize: 13, color: couleurs.encreAttenuee },
+  section: { gap: espacements.s2, marginTop: espacements.s2 },
+  titreSection: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: couleurs.encreAttenuee,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   ligne: {
     flexDirection: "row",
     alignItems: "center",
