@@ -163,8 +163,14 @@ export interface VenteCafeteria {
   montantTotalUSD: string;
   montantTotalCDF: string;
   modePaiement: ModePaiement;
+  deviseRegleeParClient: Devise | null;
+  montantRegleParClient: string | null;
+  tauxChangeApplique: string | null;
+  deviseMonnaieRendue: Devise | null;
+  montantMonnaieRendue: string | null;
   reservationLieeId: string | null;
   numeroRecu: string;
+  imprimeLe: string | null;
   annuleLe: string | null;
   motifAnnulation: string | null;
   createdAt: string;
@@ -195,4 +201,55 @@ export interface MouvementStock {
   createdBy: string;
   createdAt: string;
   produit: Produit;
+}
+
+export const STATUTS_RESERVATION = ["EN_ATTENTE", "CONFIRMEE", "EN_COURS", "TERMINEE", "ANNULEE"] as const;
+export type StatutReservation = (typeof STATUTS_RESERVATION)[number];
+
+export interface Client {
+  id: string;
+  nom: string;
+  telephone: string | null;
+  email: string | null;
+}
+
+/** Forme JSON d'une Facture (Decimal → string, voir Chambre). */
+export interface Facture {
+  id: string;
+  reservationId: string;
+  montantChambre: string;
+  deviseChambre: Devise;
+  montantTotalUSD: string;
+  montantTotalCDF: string;
+  modePaiement: ModePaiement;
+  deviseRegleeParClient: Devise | null;
+  montantRegleParClient: string | null;
+  tauxChangeApplique: string | null;
+  deviseMonnaieRendue: Devise | null;
+  montantMonnaieRendue: string | null;
+  numeroRecu: string;
+  imprimeLe: string | null;
+  annuleLe: string | null;
+  motifAnnulation: string | null;
+  createdAt: string;
+}
+
+/** Forme JSON d'une Reservation, avec chambre/client/facture inclus (voir
+ * `include` de ReservationsController — findAll/findOne les incluent
+ * toujours). `facture` est `null` tant que le séjour n'est pas facturé. */
+export interface Reservation {
+  id: string;
+  chambreId: string;
+  chambre: Chambre;
+  clientId: string;
+  client: Client;
+  dateArrivee: string;
+  dateDepart: string;
+  acompte: string;
+  statut: StatutReservation;
+  origine: string;
+  annuleLe: string | null;
+  motifAnnulation: string | null;
+  facture: Facture | null;
+  syncVersion: number;
 }

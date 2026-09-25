@@ -2,14 +2,17 @@ import {
   Chambre,
   CompteCafeteria,
   Devise,
+  Facture,
   LigneCommande,
   ModePaiement,
   MouvementStock,
   Occupation,
   Produit,
   RecetteDuJour,
+  Reservation,
   SousCompte,
   StatutCompte,
+  StatutReservation,
   UtilisateurAuthentifie,
   VenteCafeteria,
   VentesRecentes,
@@ -83,6 +86,28 @@ export interface DonneesAjouterLigne {
 export interface DonneesEncaissement {
   mode: "GROUPE";
   modePaiement: ModePaiement;
+}
+
+export interface FiltresReservations {
+  statut?: StatutReservation;
+  chambreId?: string;
+}
+
+/** Champs de apps/api/src/factures/dto/create-facture.dto.ts. */
+export interface DonneesFacture {
+  reservationId: string;
+  modePaiement: ModePaiement;
+  deviseRegleeParClient?: Devise;
+  montantRegleParClient?: number;
+  deviseRenduChoisie?: Devise;
+}
+
+/** Réponse de POST /reservations/:id/check-in et .../check-out — pas un
+ * objet Reservation complet, voir reservations.service.ts. */
+export interface ResultatCheckInOut {
+  reservationId: string;
+  statutReservation: StatutReservation;
+  chambre: Chambre;
 }
 
 // ---------------------------------------------------------------------
@@ -272,6 +297,45 @@ export class ClientApi {
 
   async creerMouvementStock(donnees: DonneesMouvementStock): Promise<MouvementStock> {
     return this.requete<MouvementStock>("/stock", { method: "POST", body: JSON.stringify(donnees) });
+  }
+
+  // ---------------------------------------------------------------------
+  // Réservations et facturation (RECEPTIONNISTE + PATRON uniquement)
+  // ---------------------------------------------------------------------
+
+  async listerReservations(filtres: FiltresReservations = {}): Promise<Reservation[]> {
+    const params = new URLSearchParams(
+      Object.fromEntries(Object.entries(filtres).filter(([, v]) => v !== undefined)) as Record<string, string>
+    ).toString();
+    return this.requete<Reservation[]>(`/reservations${params ? `?${params}` : ""}`);
+  }
+
+  async obtenirReservation(id: string): Promise<Reservation> {
+    return this.requete<Reservation>(`/reservations/${id}`);
+  }
+
+  async checkIn(reservationId: string): Promise<ResultatCheckInOut> {
+    return this.requete<ResultatCheckInOut>(`/reservations/${reservationId}/check-in`, { method: "POST" });
+  }
+
+  async checkOut(reservationId: string): Promise<ResultatCheckInOut> {
+    return this.requete<ResultatCheckInOut>(`/reservations/${reservationId}/check-out`, { method: "POST" });
+  }
+
+  async creerFacture(donnees: DonneesFacture): Promise<Facture> {
+    return this.requete<Facture>("/factures", { method: "POST", body: JSON.stringify(donnees) });
+  }
+
+  async obtenirFacture(id: string): Promise<Facture> {
+    return this.requete<Facture>(`/factures/${id}`);
+  }
+
+  /** Consommations cafétaria facturées sur le séjour (paiement
+   * FACTURE_CHAMBRE) — utilisé pour les lister sur le reçu chambre. */
+  async listerVentesCafeteria(reservationLieeId?: string): Promise<VenteCafeteria[]> {
+    return this.requete<VenteCafeteria[]>(
+      `/cafeteria/ventes${reservationLieeId ? `?reservationLieeId=${reservationLieeId}` : ""}`
+    );
   }
 
   // ---------------------------------------------------------------------

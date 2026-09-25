@@ -1,0 +1,29 @@
+{
+  "name": "@hotel-chicago/receipts",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Construction des reçus (chambre, cafétaria) et encodage ESC/POS — partagé mobile/desktop",
+  "main": "dist/cjs/index.js",
+  "types": "dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/cjs/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json && node scripts/finaliser-build.cjs",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@hotel-chicago/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.13",
+    "@types/node": "^20.16.10",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.3"
+  }
+}
