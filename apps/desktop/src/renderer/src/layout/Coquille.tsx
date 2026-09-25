@@ -15,6 +15,7 @@ import {
   Menu,
   Moon,
   Package,
+  Printer,
   Receipt,
   Search,
   Settings,
@@ -37,6 +38,7 @@ const ICONES: Record<IdPage, LucideIcon> = {
   menu: UtensilsCrossed,
   stock: Package,
   parametres: Settings,
+  imprimante: Printer,
 };
 
 const LIBELLE_ROLE: Record<Role, string> = {

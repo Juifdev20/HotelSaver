@@ -7,6 +7,7 @@ import { IdPage, libellePage } from "./navigation";
 import { Coquille } from "./layout/Coquille";
 import { EcranConnexion } from "./screens/EcranConnexion";
 import { EcranChambres } from "./screens/EcranChambres";
+import { EcranFacturation } from "./screens/EcranFacturation";
 import { EcranParametres } from "./screens/EcranParametres";
 import { EcranTableauDeBord } from "./screens/EcranTableauDeBord";
 import { EcranBientot } from "./screens/EcranBientot";
@@ -154,6 +155,8 @@ export function App() {
       contenu = <EcranTableauDeBord client={client} utilisateur={utilisateur} onNaviguer={setPage} />;
     } else if (page === "chambres") {
       contenu = <EcranChambres client={client} rechercheInitiale={rechercheChambres} onNaviguer={setPage} />;
+    } else if (page === "facturation") {
+      contenu = <EcranFacturation client={client} />;
     } else if (page === "parametres") {
       contenu = (
         <EcranParametres

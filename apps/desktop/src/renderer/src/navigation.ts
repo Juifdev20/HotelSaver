@@ -10,7 +10,8 @@ export type IdPage =
   | "comptes-ouverts"
   | "menu"
   | "stock"
-  | "parametres";
+  | "parametres"
+  | "imprimante";
 
 export interface EntreeNavigation {
   id: IdPage;
@@ -43,7 +44,7 @@ export const SECTIONS: SectionNavigation[] = [
       { id: "chambres", libelle: "Chambres", libelleCourt: "Chambres", roles: RECEPTION, disponible: true },
       { id: "reservations", libelle: "Réservations", libelleCourt: "Réserv.", roles: RECEPTION, disponible: false },
       { id: "arrivees-departs", libelle: "Arrivées et départs", libelleCourt: "Arrivées", roles: RECEPTION, disponible: false },
-      { id: "facturation", libelle: "Facturation", libelleCourt: "Factures", roles: RECEPTION, disponible: false },
+      { id: "facturation", libelle: "Facturation", libelleCourt: "Factures", roles: RECEPTION, disponible: true },
     ],
   },
   {
@@ -76,5 +77,6 @@ export function entreesBarreDuBas(role: Role): EntreeNavigation[] {
 
 export function libellePage(id: IdPage): string {
   if (id === "parametres") return "Paramètres";
+  if (id === "imprimante") return "Imprimante";
   return SECTIONS.flatMap((s) => s.entrees).find((e) => e.id === id)?.libelle ?? "";
 }

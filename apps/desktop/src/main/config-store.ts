@@ -11,6 +11,10 @@ export interface ConfigurationApp {
   /** Jeton de rafraîchissement Supabase, pour rester connecté entre deux
    * lancements de l'app (section 14 : "reste connecté en permanence"). */
   refreshToken: string | null;
+  /** Connexion imprimante ESC/POS (section 11) — `tcp://ip:port` ou un
+   * chemin de périphérique brut (`\\.\COM5`, `/dev/usb/lp0`), voir
+   * `main/imprimante.ts`. `null` tant qu'aucune imprimante n'est configurée. */
+  imprimanteInterface: string | null;
 }
 
 const VALEURS_PAR_DEFAUT: ConfigurationApp = {
@@ -19,6 +23,7 @@ const VALEURS_PAR_DEFAUT: ConfigurationApp = {
   supabaseAnonKey:
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtydmhuc3l2bGtndmN4bmN2d2t4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNDI1NjYsImV4cCI6MjEwNTgxODU2Nn0.7hIYhQG8M1qEDIJZENRgR9gxAyUW1q9DmuSRqiYX__Y",
   refreshToken: null,
+  imprimanteInterface: null,
 };
 
 function cheminFichierConfiguration(): string {

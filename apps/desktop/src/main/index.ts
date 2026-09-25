@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { join } from "path";
 import { ecrireConfiguration, lireConfiguration } from "./config-store";
+import { imprimerLignes, imprimerTicketDeTest } from "./imprimante";
 
 // Permet de lancer une instance isolée (tests E2E, ou deux postes de test sur
 // la même machine) sans toucher à la configuration/session de l'instance
@@ -39,6 +40,8 @@ function creerFenetrePrincipale(): BrowserWindow {
 app.whenReady().then(() => {
   ipcMain.handle("configuration:lire", () => lireConfiguration());
   ipcMain.handle("configuration:ecrire", (_evenement, partielle) => ecrireConfiguration(partielle));
+  ipcMain.handle("impression:imprimer", (_evenement, interfaceImprimante, lignes) => imprimerLignes(interfaceImprimante, lignes));
+  ipcMain.handle("impression:test", (_evenement, interfaceImprimante) => imprimerTicketDeTest(interfaceImprimante));
 
   creerFenetrePrincipale();
 
