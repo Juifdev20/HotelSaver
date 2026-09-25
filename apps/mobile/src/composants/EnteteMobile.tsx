@@ -6,6 +6,18 @@ import { Bell } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { LIBELLE_ROLE } from "../navigation";
+import { useSyncEtat } from "../hooks/useSyncEtat";
+
+/** Vert = à jour, orange = des changements attendent d'être envoyés, rouge =
+ * un conflit à vérifier, gris = hors ligne sans rien en attente. Un point
+ * discret plutôt qu'un second bouton/menu (voir le commentaire sur
+ * EnteteMobile plus bas) — l'écran détaillé vit dans l'onglet Plus. */
+function couleurPointSync(etat: ReturnType<typeof useSyncEtat>): string {
+  if (etat.conflits > 0) return couleurs.danger;
+  if (etat.enAttente > 0) return couleurs.alerte;
+  if (etat.enLigne) return couleurs.succes;
+  return couleurs.encreFaible;
+}
 
 function initiales(nom: string): string {
   return nom
@@ -26,6 +38,7 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
   const { utilisateur } = useSession();
   const [notifOuvertes, setNotifOuvertes] = useState(false);
   const insets = useSafeAreaInsets();
+  const etatSync = useSyncEtat();
 
   return (
     <>
@@ -43,6 +56,7 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
           </View>
           <Pressable style={styles.boutonIcone} onPress={() => setNotifOuvertes(true)} hitSlop={8}>
             <Bell size={20} color={couleurs.encre} />
+            <View style={[styles.pointSync, { backgroundColor: couleurPointSync(etatSync) }]} />
           </Pressable>
         </View>
       </View>
@@ -86,6 +100,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: espacements.s3,
   },
   boutonIcone: { padding: espacements.s2 },
+  pointSync: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: rayons.pill,
+    borderWidth: 1,
+    borderColor: couleurs.surface200,
+  },
   marque: { flexDirection: "row", alignItems: "center", gap: espacements.s1 },
   logo: { width: 22, height: 22 },
   marqueTexte: { fontWeight: "700", fontSize: 15, color: couleurs.encre },

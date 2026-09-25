@@ -63,7 +63,13 @@ et son URL doit correspondre à celle des Paramètres de l'app (par défaut
 
 ## Pas encore fait
 
-Stockage hors ligne SQLite + file de synchronisation (section 10), écran
-Paramètres (URL de l'API modifiable sans recompiler, comme le desktop),
-impression thermique Bluetooth (section 11), écrans Cafétaria, sélecteur
-d'imprimante. Voir `DECISIONS.md` pour le découpage complet des phases.
+Impression thermique Bluetooth (section 11) et son sélecteur d'imprimante —
+seule pièce encore manquante de la Phase 5. Voir `DECISIONS.md` pour le
+découpage complet des phases.
+
+Le stockage hors ligne SQLite + file de synchronisation (section 10) existe
+mais reste câblé uniquement sur l'écran Chambres (entité plate — les autres
+entités poussables, Cafétaria en tête, ont des relations imbriquées que
+`GET /sync/pull` ne renvoie qu'en lignes plates par table, donc plus de
+travail pour les mettre en miroir localement) ; Caisse/Comptes ouverts/Menu/
+Stock restent en ligne directe.

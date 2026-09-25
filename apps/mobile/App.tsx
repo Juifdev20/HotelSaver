@@ -5,8 +5,10 @@ import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { ClientApi, ErreurApi, connecterAvecMotDePasse, rafraichirSession } from "@hotel-chicago/api-client";
+import { MoteurSync } from "@hotel-chicago/sync-engine";
 import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
+import { creerStockageLocalMobile } from "./src/stockage/stockageLocalMobile";
 import {
   ProfilEnregistre,
   ecrireDernierUtilisateur,
@@ -48,6 +50,32 @@ export default function App() {
     () => (configuration && accessToken ? new ClientApi(configuration.apiUrl, () => accessToken) : null),
     [configuration, accessToken]
   );
+
+  const [moteurSync, setMoteurSync] = useState<MoteurSync | null>(null);
+
+  // Démarre le moteur de synchronisation dès qu'un client est disponible
+  // (connexion réussie), l'arrête si le client disparaît (changerDeProfil).
+  // La base SQLite sous-jacente est partagée par l'appareil (pas par
+  // profil — voir sqlite.ts) : seul le minuteur du moteur démarre/s'arrête ici.
+  useEffect(() => {
+    if (!client) {
+      setMoteurSync(null);
+      return;
+    }
+    let annule = false;
+    let moteurCree: MoteurSync | null = null;
+    (async () => {
+      const stockage = await creerStockageLocalMobile();
+      if (annule) return;
+      moteurCree = new MoteurSync(client, stockage, ["Chambre"]);
+      moteurCree.demarrer();
+      setMoteurSync(moteurCree);
+    })();
+    return () => {
+      annule = true;
+      moteurCree?.arreter();
+    };
+  }, [client]);
 
   // Démarrage : charge la config puis la liste des profils déjà connectés
   // sur cet appareil (section 5, "sélection de profil au démarrage").
@@ -160,7 +188,10 @@ export default function App() {
     retourSelectionProfil();
   }
 
-  if (ecran === "chargement" || !configuration) {
+  // Le second cas couvre le bref instant entre la connexion réussie et
+  // l'ouverture de la base SQLite locale (asynchrone, voir useEffect
+  // ci-dessus) — sans lui, un écran vide apparaîtrait entre les deux.
+  if (ecran === "chargement" || !configuration || (ecran === "application" && !moteurSync)) {
     return (
       <View style={styles.chargement}>
         <ActivityIndicator color={couleurs.bleu} size="large" />
@@ -199,10 +230,10 @@ export default function App() {
     );
   }
 
-  if (ecran === "application" && client && utilisateur) {
+  if (ecran === "application" && client && utilisateur && moteurSync) {
     return (
       <SafeAreaProvider>
-        <FournisseurSession session={{ client, utilisateur, changerDeProfil }}>
+        <FournisseurSession session={{ client, utilisateur, changerDeProfil, moteurSync }}>
           <NavigationContainer>
             <CoquilleOnglets />
           </NavigationContainer>

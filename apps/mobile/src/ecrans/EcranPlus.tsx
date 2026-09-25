@@ -1,10 +1,11 @@
 import * as React from "react";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Settings, UserRound } from "lucide-react-native";
+import { RefreshCw, Settings, UserRound } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
 import { useSession } from "../contexteSession";
+import { useSyncEtat } from "../hooks/useSyncEtat";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EcranParametresMobile } from "./EcranParametresMobile";
 import { EcranMenu } from "./EcranMenu";
@@ -12,6 +13,7 @@ import { EcranStock } from "./EcranStock";
 import { EcranComptesOuverts } from "./EcranComptesOuverts";
 import { EcranCaisse } from "./EcranCaisse";
 import { EcranCompteCafeteria } from "./EcranCompteCafeteria";
+import { EcranSynchronisation } from "./EcranSynchronisation";
 
 function initiales(nom: string): string {
   return nom
@@ -25,6 +27,7 @@ function initiales(nom: string): string {
 type VuePlus =
   | { id: "liste" }
   | { id: "parametres" }
+  | { id: "synchronisation" }
   | { id: "menu" }
   | { id: "stock" }
   | { id: "comptes-ouverts" }
@@ -44,9 +47,13 @@ export function EcranPlus() {
   const { client, utilisateur, changerDeProfil } = useSession();
   const sections = sectionsPlusPourRole(utilisateur.role);
   const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
+  const etatSync = useSyncEtat();
 
   if (vue.id === "parametres") {
     return <EcranParametresMobile client={client} onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "synchronisation") {
+    return <EcranSynchronisation onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "menu") {
     return <EcranMenu client={client} utilisateur={utilisateur} onRetour={() => setVue(VUE_LISTE)} />;
@@ -98,6 +105,16 @@ export function EcranPlus() {
         <Pressable style={styles.ligne} onPress={() => setVue({ id: "parametres" })}>
           <Settings size={18} color={couleurs.encre} />
           <Text style={styles.ligneTexte}>Paramètres</Text>
+        </Pressable>
+
+        <Pressable style={styles.ligne} onPress={() => setVue({ id: "synchronisation" })}>
+          <RefreshCw size={18} color={couleurs.encre} />
+          <Text style={styles.ligneTexte}>Synchronisation</Text>
+          {(etatSync.enAttente > 0 || etatSync.conflits > 0) && (
+            <View style={styles.badgeCompteur}>
+              <Text style={styles.badgeCompteurTexte}>{etatSync.enAttente + etatSync.conflits}</Text>
+            </View>
+          )}
         </Pressable>
 
         {/* Modules qui n'ont pas leur propre onglet en bas (Réception au-delà
@@ -183,4 +200,14 @@ const styles = StyleSheet.create({
   ligneTexteDesactive: { color: couleurs.encreFaible },
   badgeBientot: { borderWidth: 1, borderColor: couleurs.bordure, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
   badgeBientotTexte: { fontSize: 10, fontWeight: "700", color: couleurs.encreAttenuee },
+  badgeCompteur: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: rayons.pill,
+    backgroundColor: couleurs.alerte,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
+  badgeCompteurTexte: { fontSize: 11, fontWeight: "700", color: "#fff" },
 });

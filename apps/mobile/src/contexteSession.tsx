@@ -1,6 +1,7 @@
 import * as React from "react";
 import { createContext, useContext } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
+import type { MoteurSync } from "@hotel-chicago/sync-engine";
 import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
 
 /** Évite de faire passer `client`/`utilisateur` en props à travers chaque
@@ -11,6 +12,8 @@ export interface Session {
   utilisateur: UtilisateurAuthentifie;
   /** Retour à l'écran de sélection de profil (garde le profil enregistré, juste la session en cours). */
   changerDeProfil: () => void;
+  /** Démarré après connexion, arrêté dans changerDeProfil() — voir App.tsx. */
+  moteurSync: MoteurSync;
 }
 
 const ContexteSession = createContext<Session | null>(null);

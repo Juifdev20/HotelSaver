@@ -23,11 +23,6 @@ function EcranAccueilConnecte({ navigation }: { navigation: BottomTabNavigationP
   );
 }
 
-function EcranChambresConnecte() {
-  const { client } = useSession();
-  return <EcranChambres client={client} />;
-}
-
 const ICONES: Record<IdOnglet, typeof LayoutDashboard> = {
   "tableau-de-bord": LayoutDashboard,
   chambres: BedDouble,
@@ -63,7 +58,7 @@ export function CoquilleOnglets() {
           >
             {(props) => {
               if (onglet.id === "tableau-de-bord") return <EcranAccueilConnecte {...props} />;
-              if (onglet.id === "chambres") return <EcranChambresConnecte />;
+              if (onglet.id === "chambres") return <EcranChambres />;
               if (onglet.id === "plus") return <EcranPlus />;
               return <EcranBientot titre={libelleOnglet(onglet.id)} />;
             }}
