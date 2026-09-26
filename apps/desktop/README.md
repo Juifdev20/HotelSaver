@@ -1,9 +1,10 @@
 # apps/desktop — Application Electron (Réception)
 
-Première tranche verticale de la Phase 2b : **connexion + écran Chambres**,
-de bout en bout contre la vraie API et la vraie base Supabase. Le reste de
-l'app (réservations, check-in/out, facturation, cafétaria, impression
-thermique) n'est pas encore construit — voir `DECISIONS.md`.
+Connexion, écran Chambres, et depuis la Phase 6 : facturation de séjour et
+impression thermique du reçu chambre, de bout en bout contre la vraie API et
+la vraie base Supabase. La Cafétaria desktop (Caisse/Menu/Stock) et les
+Réservations (nouvelle réservation, arrivées/départs) ne sont pas encore
+construites — voir `DECISIONS.md`.
 
 ## Fait
 
@@ -17,6 +18,12 @@ thermique) n'est pas encore construit — voir `DECISIONS.md`.
 - **Écran Chambres** : grille de `RoomCard` (`@hotel-chicago/ui`) alimentée
   par `GET /chambres`, prix formatés dans leur propre devise (`45.00 $`,
   `20 000 FC`), statut en couleur + mot.
+- **Facturation** (section 11.2) : liste des séjours `EN_COURS` sans
+  facture, détail avec récapitulatif/consommations cafétaria liées/mode de
+  paiement, "Facturer et check-out". Impression du reçu via
+  `node-thermal-printer` (connexion réseau ou port série/USB à régler dans
+  Paramètres > Imprimante) — voir `DECISIONS.md`, Phase 6, pour ce qui est
+  volontairement hors scope (file d'impression Windows, cafétaria desktop).
 - **Mode sombre** (section 2), mémorisé entre les lancements.
 - **Paramètres** : URL de l'API modifiable sans recompiler (section 6),
   stockée dans `configuration.json` du dossier de données de l'app.

@@ -63,9 +63,10 @@ et son URL doit correspondre à celle des Paramètres de l'app (par défaut
 
 ## Pas encore fait
 
-Impression thermique Bluetooth (section 11) et son sélecteur d'imprimante —
-seule pièce encore manquante de la Phase 5. Voir `DECISIONS.md` pour le
-découpage complet des phases.
+Impression thermique Bluetooth (section 11) construite et câblée (Facturation
+et Compte cafétaria) mais **jamais testée sur une vraie imprimante** — voir
+`DECISIONS.md`, Phase 6. À vérifier avec le matériel du patron avant de
+considérer la fonctionnalité terminée.
 
 Le stockage hors ligne SQLite + file de synchronisation (section 10) existe
 mais reste câblé uniquement sur l'écran Chambres (entité plate — les autres

@@ -748,6 +748,80 @@ suivre ce mauvais port plutôt que de corriger `.env`. Origine exacte inconnue
 (pas dans cette session). `apps/api/.env` remis à `3001`, les fichiers mobile
 restaurés à leur version commitée.
 
+## Phase 6 — Impression thermique ESC/POS + facturation de séjour (mobile + desktop), 26/09/2026
+
+Section 11 demandait l'impression ESC/POS (reçus chambre + cafétaria) sur les
+deux apps. Deux prérequis manquaient et ont été construits dans cette même
+passe (décision du patron, cadrage élargi deux fois par rapport à la
+proposition initiale) :
+
+- **Aucun flux de facturation/check-out n'existait** — ni mobile ni desktop.
+  Ajouté : `packages/types` (`Reservation`, `Client`, `Facture`),
+  `api-client` (`listerReservations`, `obtenirReservation`, `checkIn`,
+  `checkOut`, `creerFacture`, `obtenirFacture`, `listerVentesCafeteria` — ce
+  dernier existait déjà côté API, jamais exposé côté client). Mobile :
+  onglet "Réserv." (`disponible: false` → `true`) devient la liste des
+  séjours `EN_COURS` sans facture, tap → `EcranFacturation.tsx` (récap,
+  consommations cafétaria liées, mode de paiement, "Facturer et check-out").
+  Desktop : `reservations` reste "Bientôt" dans la barre latérale (pas de
+  liste séparée) — `EcranFacturation.tsx` desktop combine liste et détail en
+  un seul écran avec un état local, pour ne pas dupliquer un deuxième chemin
+  de navigation vers la même chose.
+- **La bibliothèque nommée dans le spec (`react-native-esc-pos-printer`) est
+  en fait liée au SDK propriétaire Epson** — vérifié avant d'écrire le
+  moindre code. Le patron utilisera une imprimante Bluetooth générique.
+
+Architecture retenue : un modèle de reçu partagé (`LigneRecu`, union
+discriminée titre/sous-titre/séparateur/champ/montant) dans un nouveau
+paquet `packages/receipts` (même double build CJS/ESM que `api-client`),
+construit une seule fois par `construireRecuFacture`/`construireRecuVente`
+(gabarits section 11.2/11.3 : jamais de ligne de total à 0, devises jamais
+fusionnées) et traduit différemment par plateforme :
+- **Mobile** : `react-native-bluetooth-classic` (transport SPP brut,
+  appareils **déjà appairés** au niveau système uniquement — aucun
+  appairage depuis l'app) + un générateur ESC/POS écrit à la main
+  (`genererCommandesEscPos`, table CP850 pour les accents français), pour ne
+  pas dépendre d'une bibliothèque tout-en-un tierce pour le formatage. Le
+  risque a été vérifié tôt (`expo prebuild` + `./gradlew assembleDebug` en
+  tout premier, avant d'investir dans le reste) : build natif réussi.
+  Réglage dans "Plus" > "Imprimante" (liste des appareils appairés,
+  sélection, ticket de test), bouton "Imprimer le reçu" dans
+  `EcranFacturation.tsx` et dans `EcranCompteCafeteria.tsx` (après
+  encaissement).
+- **Desktop** : `node-thermal-printer` dans le process principal Electron
+  (IPC `impression:imprimer`/`impression:test`), consomme `LigneRecu[]`
+  directement via sa propre API (`leftRight`, `drawLine`, `bold`...) — pas
+  besoin du générateur ESC/POS manuel ici. **Décision de cadrage** : pas de
+  liste des imprimantes système Windows — `node-thermal-printer` ne peut
+  leur envoyer des octets bruts que via le paquet natif `printer` (bindings
+  natifs à compiler), un risque de build supplémentaire volontairement évité
+  après en avoir déjà rencontré deux sur ce projet (SDK Epson, build natif
+  Bluetooth). Le patron renseigne donc directement une connexion réseau
+  (`tcp://ip:9100`, quasi standard sur les imprimantes ESC/POS bon marché)
+  ou un chemin de périphérique (`\\.\COM5`, `/dev/usb/lp0`) depuis
+  Paramètres > Imprimante. Impression desktop limitée au reçu chambre : la
+  Cafétaria desktop (Caisse/Menu/Stock) reste "Bientôt", donc rien à quoi
+  accrocher un bouton d'impression cafétaria côté desktop.
+
+Numérotation des reçus : déjà générée côté serveur à la création
+(`REC-`/`CAF-YYYYMMDD-####`, code existant) — les deux flux qui impriment
+appellent l'API en direct et ne passent jamais par la file hors ligne
+(`Facture`/`VenteCafeteria` exclus de `POST /sync/push`), donc pas de
+préfixe `TEMP-` à gérer.
+
+Hors scope, documenté : impression cafétaria desktop (UI Caisse desktop
+inexistante), répartition `PAR_SOUS_COMPTE`/`PARTAGE_EGAL` à l'impression,
+paiement croisé/monnaie rendue sur la facturation mobile/desktop (même
+simplification que l'encaissement Caisse mobile).
+
+Vérifié dans cette passe : `pnpm --filter receipts test` (8 tests, logique
+pure), `tsc --noEmit` propre dans `packages/types`, `api-client`, `receipts`,
+`apps/mobile`, `apps/desktop` (main + renderer), `pnpm run build` propre sur
+`apps/desktop`, build Android natif réussi après ajout de
+`react-native-bluetooth-classic`. **Non vérifié** : impression réelle sur une
+imprimante Bluetooth/réseau physique — nécessite le matériel du patron, à
+faire à la prochaine session avec l'appareil en main.
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase

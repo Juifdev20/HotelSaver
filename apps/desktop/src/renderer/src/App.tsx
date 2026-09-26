@@ -8,6 +8,7 @@ import { Coquille } from "./layout/Coquille";
 import { EcranConnexion } from "./screens/EcranConnexion";
 import { EcranChambres } from "./screens/EcranChambres";
 import { EcranFacturation } from "./screens/EcranFacturation";
+import { EcranImprimante } from "./screens/EcranImprimante";
 import { EcranParametres } from "./screens/EcranParametres";
 import { EcranTableauDeBord } from "./screens/EcranTableauDeBord";
 import { EcranBientot } from "./screens/EcranBientot";
@@ -156,7 +157,15 @@ export function App() {
     } else if (page === "chambres") {
       contenu = <EcranChambres client={client} rechercheInitiale={rechercheChambres} onNaviguer={setPage} />;
     } else if (page === "facturation") {
-      contenu = <EcranFacturation client={client} />;
+      contenu = <EcranFacturation client={client} utilisateur={utilisateur} interfaceImprimante={configuration.imprimanteInterface} />;
+    } else if (page === "imprimante") {
+      contenu = (
+        <EcranImprimante
+          interfaceImprimante={configuration.imprimanteInterface}
+          onEnregistrer={enregistrerParametres}
+          onRetour={() => setPage("parametres")}
+        />
+      );
     } else if (page === "parametres") {
       contenu = (
         <EcranParametres
@@ -164,6 +173,7 @@ export function App() {
           onEnregistrer={enregistrerParametres}
           client={client}
           utilisateur={utilisateur}
+          onNaviguer={setPage}
           themeSombre={themeSombre}
           onBasculerTheme={() => setThemeSombre((v) => !v)}
         />

@@ -3,8 +3,9 @@ import { useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button } from "@hotel-chicago/ui";
-import { Coins, Moon, Sun, Users } from "lucide-react";
+import { Coins, Moon, Printer, Sun, Users } from "lucide-react";
 import type { ConfigurationApp } from "../../../main/config-store";
+import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 
 export interface EcranParametresProps {
@@ -16,6 +17,8 @@ export interface EcranParametresProps {
   client?: ClientApi;
   /** Présent seulement une fois connecté — conditionne le bloc Administration (PATRON uniquement). */
   utilisateur?: UtilisateurAuthentifie;
+  /** Présent seulement une fois connecté — conditionne le bloc Impression (rien à imprimer avant l'écran de connexion). */
+  onNaviguer?: (page: IdPage) => void;
   /** Mode sombre : plus de bouton dédié dans la barre du haut en fenêtre étroite
    * (maquette mobile du 25/09/2026), donc toujours accessible ici. */
   themeSombre: boolean;
@@ -33,6 +36,7 @@ export function EcranParametres({
   onRetour,
   client,
   utilisateur,
+  onNaviguer,
   themeSombre,
   onBasculerTheme,
 }: EcranParametresProps) {
@@ -107,6 +111,21 @@ export function EcranParametres({
           </Button>
         </div>
       </div>
+
+      {onNaviguer && (
+        <div className="carte-formulaire">
+          <p className="hc-text-label texte-discret">Impression</p>
+          <div className="parametres-ligne">
+            <span className="parametres-ligne__icone">
+              <Printer size={18} aria-hidden="true" />
+            </span>
+            <span className="hc-text-body">Imprimante (reçu chambre)</span>
+            <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("imprimante")}>
+              Configurer
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Utilisateurs et Taux de change vivent ici plutôt que dans la barre
           latérale, pour la garder courte (demande du client du 25/09/2026) —

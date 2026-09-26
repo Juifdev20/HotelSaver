@@ -1,12 +1,17 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Devise, Facture, ModePaiement, Reservation, VenteCafeteria } from "@hotel-chicago/types";
+import { Devise, Facture, ModePaiement, Reservation, UtilisateurAuthentifie, VenteCafeteria } from "@hotel-chicago/types";
+import { construireRecuFacture } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { CalendarCheck } from "lucide-react";
 
 export interface EcranFacturationProps {
   client: ClientApi;
+  utilisateur: UtilisateurAuthentifie;
+  /** Connexion imprimante configurée (Paramètres > Imprimante) — null tant
+   * qu'aucune n'est réglée, le bouton d'impression le signale alors. */
+  interfaceImprimante: string | null;
 }
 
 type Vue = { id: "liste" } | { id: "detail"; reservationId: string };
@@ -43,10 +48,14 @@ function calculerApercu(reservation: Reservation, ventesLiees: VenteCafeteria[])
  */
 function DetailFacturation({
   client,
+  utilisateur,
+  interfaceImprimante,
   reservationId,
   onRetour,
 }: {
   client: ClientApi;
+  utilisateur: UtilisateurAuthentifie;
+  interfaceImprimante: string | null;
   reservationId: string;
   onRetour: () => void;
 }) {
@@ -57,6 +66,8 @@ function DetailFacturation({
   const [enCours, setEnCours] = useState(false);
   const [factureCreee, setFactureCreee] = useState<Facture | null>(null);
   const [avertissementCheckOut, setAvertissementCheckOut] = useState<string | null>(null);
+  const [enImpression, setEnImpression] = useState(false);
+  const [messageImpression, setMessageImpression] = useState<string | null>(null);
 
   useEffect(() => {
     let annule = false;
@@ -98,6 +109,27 @@ function DetailFacturation({
     }
   }
 
+  async function imprimerRecu() {
+    if (!factureCreee || !reservation) return;
+    if (!interfaceImprimante) {
+      setMessageImpression("Aucune imprimante configurée — réglez-la depuis Paramètres > Imprimante.");
+      return;
+    }
+    setEnImpression(true);
+    setMessageImpression(null);
+    try {
+      await window.hotelChicago.imprimer(
+        interfaceImprimante,
+        construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees)
+      );
+      setMessageImpression("Reçu envoyé à l'imprimante.");
+    } catch (e) {
+      setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
+    } finally {
+      setEnImpression(false);
+    }
+  }
+
   if (factureCreee) {
     return (
       <div className="page">
@@ -119,9 +151,19 @@ function DetailFacturation({
               {avertissementCheckOut}
             </p>
           )}
-          <Button type="button" onClick={onRetour}>
-            Retour aux séjours à facturer
-          </Button>
+          {messageImpression && (
+            <p className="hc-text-body" role="status">
+              {messageImpression}
+            </p>
+          )}
+          <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
+            <Button type="button" variant="secondary" onClick={imprimerRecu} disabled={enImpression}>
+              {enImpression ? "…" : "Imprimer le reçu"}
+            </Button>
+            <Button type="button" onClick={onRetour}>
+              Retour aux séjours à facturer
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -219,7 +261,7 @@ function DetailFacturation({
   );
 }
 
-export function EcranFacturation({ client }: EcranFacturationProps) {
+export function EcranFacturation({ client, utilisateur, interfaceImprimante }: EcranFacturationProps) {
   const [vue, setVue] = useState<Vue>({ id: "liste" });
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -237,6 +279,8 @@ export function EcranFacturation({ client }: EcranFacturationProps) {
     return (
       <DetailFacturation
         client={client}
+        utilisateur={utilisateur}
+        interfaceImprimante={interfaceImprimante}
         reservationId={vue.reservationId}
         onRetour={() => {
           setVue({ id: "liste" });
