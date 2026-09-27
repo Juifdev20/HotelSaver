@@ -22,6 +22,16 @@ export interface UtilisateurAuthentifie {
   supabaseAuthId: string;
   role: Role;
   nom: string;
+  hotelId: string;
+}
+
+/** Super-admin authentifié attaché à la requête par SuperAdminAuthGuard
+ * (apps/api) — indépendant de tout hôtel, voir SuperAdmin dans le schéma
+ * Prisma et DECISIONS.md (Phase 3). */
+export interface SuperAdminAuthentifie {
+  id: string;
+  supabaseAuthId: string;
+  nom: string;
 }
 
 /** Doit rester synchronisé avec l'enum `StatutChambre` du schéma Prisma. */
@@ -257,4 +267,93 @@ export interface Reservation {
   motifAnnulation: string | null;
   facture: Facture | null;
   syncVersion: number;
+}
+
+/** Corps de POST /public/hotels/inscription (Phase 4) — inscription en
+ * libre-service, toujours statutLicence = ESSAI côté serveur. */
+export interface InscriptionHotelPayload {
+  nom: string;
+  sousDomaine: string;
+  nomProprietaire: string;
+  email: string;
+  motDePasse: string;
+  telephoneContact?: string;
+  adresse?: string;
+  logoUrl?: string;
+}
+
+/** Doit rester synchronisé avec l'enum `StatutLicence` du schéma Prisma. */
+export enum StatutLicence {
+  ESSAI = "ESSAI",
+  ACTIF = "ACTIF",
+  SUSPENDU = "SUSPENDU",
+  RESILIE = "RESILIE",
+}
+
+/** Réponse de POST /public/hotels/inscription — l'Hotel créé, avec sa charte
+ * graphique (générique ou dérivée d'un logo, voir Phase 5). */
+export interface HotelCree {
+  id: string;
+  nom: string;
+  sousDomaine: string;
+  statutLicence: StatutLicence;
+  emailContact: string | null;
+  telephoneContact: string | null;
+  adresse: string | null;
+  createdAt: string;
+  updatedAt: string;
+  branding: {
+    id: string;
+    hotelId: string;
+    logoUrl: string | null;
+    policeAffichage: string;
+    policeCorps: string;
+    policeMono: string;
+    palette: unknown;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+/** Corps de POST /public/reservations (Phase 9 : sousDomaine ajouté pour la
+ * résolution de tenant — voir DECISIONS.md). */
+export interface DemandeReservationPayload {
+  sousDomaine: string;
+  chambreId: string;
+  client: {
+    nom: string;
+    telephone?: string;
+    email?: string;
+  };
+  dateArrivee: string;
+  dateDepart: string;
+}
+
+/** Réponse de GET /public/hotel — charte graphique publique d'un hôtel
+ * (Phase 11), volontairement minimale (ni statutLicence, ni emailContact,
+ * etc., qui n'ont rien à faire côté public). */
+export interface InfoHotelPublique {
+  nom: string;
+  logoUrl: string | null;
+  policeAffichage: string;
+  policeCorps: string;
+  policeMono: string;
+  palette: unknown;
+}
+
+/** Doit rester synchronisé avec l'enum `MethodePaiementLicence` du schéma
+ * Prisma (Phase 12, suivi manuel des paiements). */
+export enum MethodePaiementLicence {
+  VIREMENT = "VIREMENT",
+  MOBILE_MONEY = "MOBILE_MONEY",
+  ESPECES = "ESPECES",
+  AUTRE = "AUTRE",
+}
+
+/** `HotelCree` + `valideJusquau` (Phase 12) — calculé côté serveur, jamais
+ * stocké (voir apps/api/src/super-admin/calculer-validite.ts). Réponse de
+ * GET /super-admin/hotels uniquement ; `HotelCree` seul reste la réponse des
+ * endpoints d'onboarding/inscription, qui n'ont pas cette notion. */
+export interface HotelAvecValidite extends HotelCree {
+  valideJusquau: string;
 }
