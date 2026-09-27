@@ -1124,3 +1124,669 @@ Validé sur appareil réel : compte « Table Test » + sous-compte « Testeur »
 créés hors ligne → push → `remoteId` renseigné sur les deux, pull sans
 doublon, carte visible après rechargement. Tests : 11/11 sync-engine dont 2
 nouveaux (mapping enfants, arrêt au seuil), 127/127 API.
+
+## HotelSaver — Phase 1 : fondations multi-tenant, 27/09/2026
+
+Début de la transformation d'Hôtel Chicago (mono-tenant) en HotelSaver, une
+plateforme multi-hôtels en libre-service (deux documents de référence
+fournis par le patron : le prompt maître d'architecture, et un document de
+séquencement pour l'inscription en libre-service). Vu l'ampleur (5
+applications, facturation/licences, domaines personnalisés, génération de
+palette — plusieurs semaines de travail), le travail est découpé en phases,
+chacune avec son propre plan. Cette entrée documente uniquement la Phase 1 :
+poser le schéma multi-tenant et migrer les données réelles existantes vers
+un unique `Hotel`.
+
+**Schéma** : nouvel enum `StatutLicence` (ESSAI/ACTIF/SUSPENDU/RESILIE),
+nouveau modèle `Hotel` (id, nom, `sousDomaine` unique, statutLicence,
+contacts — pas de champ de facturation, ça viendra avec le module
+Super-Admin) et `HotelBranding` (relation 1-1, `onDelete: Cascade` — seule
+exception à `Restrict`, supprimer un hôtel doit supprimer sa propre fiche de
+marque). La charte graphique est stockée comme un unique JSON (`palette`,
+claire + sombre) plutôt que des dizaines de colonnes scalaires : jamais
+interrogée colonne par colonne en SQL. Puis `hotelId` + relation `Restrict`
++ `@@index` ajoutés sur les 12 modèles existants.
+
+**Migration écrite à la main** (`20260927120000_multi_tenant_foundations`),
+pas via `prisma migrate dev` : ce dernier a besoin d'une connexion
+directe/shadow-db, toujours inaccessible depuis cette machine (pooler
+session 5432 sans route IPv6 — voir l'entrée Prisma 7 ci-dessus). Réutilise
+le mécanisme déjà en place (`appliquer-migrations.js`, `migrate:verifier`/
+`migrate:appliquer`) : SQL écrit main dans le style exact des 3 migrations
+existantes, appliqué en une transaction, checksum SHA-256 enregistré dans
+`_prisma_migrations`. Un seul `Hotel` créé (id fixe
+`d4b39c38-fc2c-45d5-9f57-c94d8357719d`, nom "Hôtel Chicago", `sousDomaine =
+"chicago"`, **statutLicence = ACTIF** — pas ESSAI, ce sont de vraies données
+de production), avec sa `HotelBranding` (police Fraunces/Public
+Sans/IBM Plex Mono, palette copiée telle quelle de `apps/mobile/src/tokens.ts`
+et `packages/ui/src/tokens.css`). Toutes les lignes existantes des 12 tables
+(1 Utilisateur, 3 Chambre, 1 Produit, + les comptes cafétaria de test du
+jour) rattachées à cet hôtel par un `UPDATE` inconditionnel.
+
+**Point technique important — `DEFAULT` temporaire sur `hotelId`** : aucun
+service NestJS actuel (`chambres`, `produits`, `reservations`, `public`,
+`factures`, `cafeteria`, ~9 sites de `.create()`) ne fournit `hotelId`
+aujourd'hui. Sans valeur par défaut au niveau colonne, la migration aurait
+cassé immédiatement toute création (y compris via `POST /sync/push`, qui
+délègue aux mêmes méthodes de service) dès son application. Chaque colonne
+`hotelId` a donc `DEFAULT 'd4b39c38-...'` en plus du `NOT NULL` — couvre le
+trou automatiquement, sans toucher au code applicatif, cohérent avec le
+principe de cette phase (schéma + donnée seulement, aucun changement de
+logique métier). **À faire en Phase 2**, au moment exact où chaque site de
+`.create()` sera modifié pour fournir un `hotelId` explicite issu du
+contexte d'authentification (JWT `hotel_id` + `HotelScopeGuard`) : retirer
+ce `DEFAULT` (`ALTER COLUMN "hotelId" DROP DEFAULT`) sur les 12 tables. Si
+oublié sur une seule table le jour où un deuxième hôtel existe, cette table
+assignerait silencieusement ses nouvelles lignes à Hôtel Chicago — un bug
+d'intégrité silencieux, pas un crash.
+
+**Décision laissée hors scope, à traiter en Phase 2** :
+`Chambre.numero`/`Facture.numeroRecu`/`VenteCafeteria.numeroRecu` restent
+`@unique` globalement (pas `@@unique([hotelId, ...])`). `genererNumeroRecu`
+(`factures.service.ts`/`cafeteria.service.ts`) fait un `orderBy: numeroRecu
+desc` global sans filtre — scoper la contrainte sans réécrire cette
+génération créerait une incohérence. Sans risque tant qu'un seul hôtel
+existe.
+
+**RLS** : aucun changement à `rls-policies.sql` (confirmé : aucune policy ne
+référence de colonne affectée). `Hotel`/`HotelBranding` sans RLS pour
+l'instant — impact nul, la connexion API utilise la clé `service_role`, qui
+contourne RLS. Découverte en marge (non liée à cette migration) :
+`apply-rls.js` n'est pas idempotent (`CREATE POLICY` sans `DROP POLICY IF
+EXISTS` au préalable) — le rejouer échoue sur la première policy déjà
+existante, sans rien altérer ; à corriger un jour, pas bloquant ici.
+
+**Vérifié** : `prisma validate` propre, `migrate:verifier` → 1 migration en
+attente puis 0, script ponctuel de contrôle (`hotelId` correct sur 100% des
+lignes des 12 tables + Hotel/HotelBranding bien créés, supprimé après
+usage), 127/127 tests API toujours passants (aucune régression — un flake
+transitoire du pooler au premier run, causé par le `SELECT 1` de
+préchauffage de `PrismaModule.onModuleInit`, pas par le schéma ; confirmé en
+relançant).
+
+**Hors scope de cette Phase 1** (chacun un plan séparé à venir) : claim JWT
+`hotel_id` (hook Supabase Auth), `HotelScopeGuard`, filtrage `hotelId` dans
+chaque service + retrait du `DEFAULT`, `@@unique([hotelId, ...])` sur les
+numéros, modèle `PaiementLicence`, module Super-Admin
+(`POST /super-admin/hotels`, onboarding manuel `ACTIF` direct), inscription
+en libre-service (`POST /public/hotels/inscription`, toujours `ESSAI`),
+génération automatique de palette, site public multi-hôtels (`apps/web`),
+domaines personnalisés (API Render), `Role.SUPER_ADMIN`.
+
+## HotelSaver — Phase 2 : filtrage par hôtel dans l'API, 27/09/2026
+
+Suite de la Phase 1 : chaque service NestJS lit/écrit désormais `hotelId`
+explicitement, au lieu de compter sur le `DEFAULT` posé en Phase 1.
+
+**Simplification trouvée en concevant cette phase** : pas besoin du claim JWT
+`hotel_id` ni d'un hook Supabase Auth. `SupabaseAuthGuard` charge déjà
+`Utilisateur` depuis la base à chaque requête (pour le rôle) — il attache
+maintenant `hotelId: utilisateur.hotelId` à `request.user` à partir de cette
+même ligne, sans dépendance externe. Pas de `HotelScopeGuard` distinct non
+plus : aucune route actuelle n'a de `hotelId` dans son URL, donc le filtrage
+au niveau de chaque requête Prisma **est** l'enforcement (une ressource d'un
+autre hôtel devient introuvable : 404, pas une fuite). Le claim JWT + hook +
+RLS scopée par hôtel restent utiles pour un accès direct PostgREST
+hypothétique (RLS est contournée par la clé `service_role` que l'API
+utilise) — repoussés à une phase séparée si ce besoin apparaît réellement.
+
+**Audit exhaustif** des ~9 fichiers de service (chambres, produits,
+réservations, factures, cafétaria, stock, dashboard, sync) : chaque
+`where`/`data` direct a gagné `hotelId`, chaque validation d'une clé
+étrangère fournie par l'appelant (chambreId, clientId, produitId,
+reservationId dans un DTO) a été revérifiée avec `hotelId` (sinon un
+utilisateur pouvait référencer une ressource d'un autre hôtel par son id).
+Deux points non triviaux trouvés à l'audit :
+- Les écritures Prisma imbriquées n'héritent PAS automatiquement du
+  `hotelId` du parent : `CafeteriaService.ouvrirCompte` crée un
+  `CompteCafeteria` + un `SousCompte` imbriqué, qui avait besoin de son
+  propre `hotelId` explicite.
+- `sync.service.ts` avait deux points à fuite réelle (pas juste un filtrage
+  manquant) : le `findUnique` générique du push/UPDATE renvoyait la ligne
+  complète d'un autre hôtel dans `donneesServeur` en cas de conflit de
+  version, **avant** même d'atteindre le contrôle de rôle du service métier
+  sous-jacent ; et le `findMany` générique du pull (un seul `where` partagé
+  par les 9 entités via `ACCESSEUR_PRISMA`) n'avait aucun filtre `hotelId` —
+  un seul ajout corrige les 9 d'un coup.
+- Deux requêtes `TauxChange` (`factures.service.ts`, `cafeteria.service.ts`)
+  n'avaient aucun `where` du tout (`orderBy` seul) — la fuite la plus facile
+  à manquer, puisqu'il n'y avait pas de `where` existant pour rappeler d'y
+  penser.
+
+**Numérotation des reçus** : `Facture.numeroRecu`/`VenteCafeteria.numeroRecu`
+passent de `@unique` global à `@@unique([hotelId, numeroRecu])` (décision
+explicitement repoussée en Phase 1), et `genererNumeroRecu` (les deux
+services) filtre désormais par `hotelId` — la numérotation redevient par
+hôtel plutôt que globale.
+
+**Découverte annexe, corrigée** : `public.service.ts` (routes anonymes, pas
+de JWT) ne compilait déjà plus depuis la Phase 1 sans que personne s'en
+aperçoive — `hotelId` étant un champ requis dans les types Prisma générés
+dès l'ajout du champ au schéma (indépendamment du `DEFAULT` côté base), mais
+`ts-jest` ne fait pas de vérification de type stricte par défaut, donc les
+127 tests passaient malgré l'erreur de compilation. Corrigé par un
+`hotelUnique()` (`this.prisma.hotel.findFirstOrThrow()`) : correct tant
+qu'un seul hôtel existe, explicitement documenté comme provisoire — la vraie
+résolution de tenant pour un visiteur anonyme (sous-domaine, slug) reste une
+décision du futur site public (`apps/web`), pas traitée ici.
+
+**Migration finale** (`20260927150000_hotel_scoping_enforcement`, même
+mécanisme manuel que la Phase 1) : `DROP DEFAULT` sur les 12 colonnes
+`hotelId`, et les deux nouvelles contraintes composées sur `numeroRecu`.
+Appliquée seulement après vérification complète du code (ordre inverse de la
+Phase 1, qui ajoutait un filet de sécurité — celle-ci le retire). Vérifié en
+direct après application : `column_default` à `null` sur les 12 colonnes,
+les deux nouveaux index uniques composés existent
+(`Facture_hotelId_numeroRecu_key`, `VenteCafeteria_hotelId_numeroRecu_key`).
+
+**Vérifié** : 127/127 tests API toujours passants après chaque étape
+(threading `hotelId`, puis retrait du `DEFAULT`).
+
+**Hors scope de cette Phase 2** (inchangé depuis la Phase 1, plus la
+résolution de tenant pour `public.service.ts`) : claim JWT `hotel_id`, hook
+Supabase Auth, RLS scopée par hôtel, `PaiementLicence`, module Super-Admin,
+inscription en libre-service, site public, domaines personnalisés,
+`Role.SUPER_ADMIN`.
+
+## HotelSaver — Phase 3 : module Super-Admin + onboarding manuel d'un hôtel, 27/09/2026
+
+Avant cette phase, un seul hôtel existait (créé directement par une
+migration en Phase 1) — aucun moyen de créer un deuxième tenant pour de vrai
+tester le travail des Phases 1/2. Ajout d'un module Super-Admin avec un
+endpoint d'onboarding manuel.
+
+**Bug découvert et corrigé en marge** : `scripts/creer-utilisateur.js` (seul
+endroit du repo qui crée une ligne `Utilisateur` en direct) ne renseignait
+jamais `hotelId` — cassé depuis que la Phase 2 a retiré le `DEFAULT` de
+cette colonne (violation NOT NULL systématique). Corrigé : `hotelId` est
+maintenant un 4e argument obligatoire
+(`creer-utilisateur <email> "<nom>" <ROLE> <hotelId>`).
+
+**Décision d'architecture — `SuperAdmin` comme modèle séparé, pas
+`Role.SUPER_ADMIN`** : les deux documents de référence HotelSaver proposaient
+d'ajouter `SUPER_ADMIN` à l'enum `Role` existant. Après la Phase 2 (chaque
+service filtre strictement par `hotelId`, FK obligatoire sur `Utilisateur`),
+mélanger un rôle "sans hôtel" dans ce même modèle aurait réintroduit un cas
+`hotelId` nullable dans tout le code qu'on venait de durcir. Choix retenu :
+nouveau modèle `SuperAdmin` (`id, nom, actif, supabaseAuthId, createdAt`,
+sans `hotelId`, sans champ `role` — un seul niveau de super-admin pour
+l'instant), avec son propre guard (`SuperAdminAuthGuard`, copie conforme de
+`SupabaseAuthGuard` mais contre la table `SuperAdmin`) et son propre type
+(`SuperAdminAuthentifie`). Un même membre de l'équipe peut avoir un compte
+ici ET un compte `Utilisateur` pour un hôtel test, sans lien entre les deux.
+Pas de RLS sur cette table (même raisonnement que `Hotel`/`HotelBranding` en
+Phase 1 : la clé `service_role` de l'API contourne RLS de toute façon).
+
+**Module** (`apps/api/src/super-admin/`, guardé par `SuperAdminAuthGuard`
+seul — pas de `RolesGuard`, rien à distinguer avec un seul niveau) :
+`POST /super-admin/hotels` (statutLicence **ACTIF direct**, jamais `ESSAI` —
+ce n'est pas le formulaire public, qui reste hors scope), `GET /super-admin/hotels`,
+`PATCH /super-admin/hotels/:id/statut`. La `HotelBranding` est créée dans la
+même transaction Prisma imbriquée (`branding: { create: {...} } }`), avec une
+**palette générique** (`palette-defaut.ts`, gris/bleu neutre) — jamais celle
+d'Hôtel Chicago, qui reste sa propre marque. La création du premier
+utilisateur PATRON d'un nouvel hôtel reste un geste séparé via
+`creer-utilisateur.js` (corrigé ci-dessus), cohérent avec la façon dont
+Hôtel Chicago lui-même a toujours été géré.
+
+**Amorçage** : `scripts/creer-super-admin.js` (copie conforme de
+`creer-utilisateur.js`, opération par id exact) crée le tout premier compte
+Super-Admin — nécessaire puisque rien n'existait encore pour s'authentifier
+contre ce nouveau module.
+
+**Vérifié** : `tsc --noEmit` propre, `pnpm --filter api build` propre,
+132/132 tests (127 existants + 5 nouveaux pour `SuperAdminService`).
+
+**Hors scope de cette Phase 3** : `PaiementLicence`/facturation, expiration
+des essais `ESSAI`, inscription en libre-service
+(`POST /public/hotels/inscription`), génération automatique de palette
+(`node-vibrant`), site public multi-hôtels (`apps/web`), domaines
+personnalisés (API Render), interface visuelle du panel Super-Admin
+(`apps/super-admin` — cette phase ne construit que l'API), claim JWT
+`hotel_id`, RLS scopée par hôtel.
+
+**Test réel effectué** (27/09/2026) : compte Super-Admin créé
+(`creer-super-admin.js`), connexion via Supabase Auth REST
+(`/auth/v1/token?grant_type=password`), `POST /super-admin/hotels` a créé un
+deuxième hôtel réel ("Hôtel Test", `hotel-test`) avec sa propre
+`HotelBranding` (palette générique, bien distincte de la navy d'Hôtel
+Chicago). Isolation vérifiée en base : Hôtel Chicago garde ses 3 chambres et
+1 produit, Hôtel Test en a 0 — preuve concrète que le filtrage de la Phase 2
+fonctionne avec un vrai deuxième tenant. Incident mineur corrigé en route :
+le caractère "ô" du nom du test a été corrompu par l'encodage de `curl` en
+Git Bash avant d'atteindre la base (`H�tel Test`, U+FFFD) — corrigé par une
+mise à jour directe en base (donnée de test uniquement, aucun impact sur
+Hôtel Chicago). À retenir : préférer un script Node pour toute donnée
+contenant des caractères accentués plutôt qu'un `curl -d` inline en Git Bash.
+
+## HotelSaver — Phase 4 : inscription en libre-service (backend), 27/09/2026
+
+Ajout de `POST /public/hotels/inscription` : contrairement à l'onboarding
+manuel du Super-Admin (Phase 3, `ACTIF` direct, deux étapes volontairement
+séparées), ce chemin est en libre-service — un propriétaire inconnu
+s'inscrit lui-même, toujours en `ESSAI`, et doit repartir avec un compte qui
+fonctionne sans intervention humaine. Un seul `prisma.hotel.create` imbriqué
+crée `Hotel` + `HotelBranding` (palette générique, déplacée vers
+`apps/api/src/common/palette-defaut.ts`, partagée avec le module
+Super-Admin) + le premier `Utilisateur` PATRON, atomique côté base.
+
+**Lacune corrigée** : `Hotel.statutLicence` n'était vérifié nulle part —
+`PATCH /super-admin/hotels/:id/statut` pouvait mettre un hôtel en `SUSPENDU`
+sans aucun effet réel. `SupabaseAuthGuard` charge désormais `hotel: true` et
+rejette (401) si `SUSPENDU`/`RESILIE`. `ESSAI`/`ACTIF` restent équivalents
+pour l'instant (pas de date d'expiration d'essai — `PaiementLicence`, hors
+scope, phase facturation).
+
+**Nouveau `SupabaseAdminService`** (`apps/api/src/common/supabase-admin/`) :
+reprend le helper `appelAdmin` déjà utilisé par les scripts CLI
+(`creer-utilisateur.js`, `creer-super-admin.js`), pour appeler l'API Admin
+Supabase Auth depuis une requête HTTP entrante plutôt qu'un script. Compte
+créé avec `email_confirm: false` (contrairement aux scripts CLI internes :
+un inscrit en libre-service est un inconnu, pas un compte déjà vérifié par
+un humain de confiance — Supabase envoie son e-mail de confirmation par
+défaut ; un lien universel personnalisé reste un chantier séparé).
+
+**Bug réel trouvé en testant en direct** (pas en écrivant les tests unitaires
+— seul un vrai rejeu avec le même email l'a révélé) : un email déjà
+enregistré renvoyait une erreur Supabase 422 remontée en 500 générique,
+au lieu d'un 409 propre — un cas très courant en libre-service (formulaire
+soumis deux fois). Corrigé dans `SupabaseAdminService` : un 422 Supabase Auth
+Admin devient systématiquement une `ConflictException`. Test de régression
+ajouté (`supabase-admin.service.spec.ts`, fetch mocké).
+
+**Vérifié en direct** (serveur local, vrai projet Supabase) :
+- Inscription avec un sous-domaine inédit → hôtel `ESSAI` créé avec sa
+  charte graphique générique et son premier PATRON, encodage UTF-8 correct
+  (piège du 27/09 sur `curl -d` évité en passant le corps par fichier,
+  `--data-binary @fichier.json`).
+- Rejeu avec le même email → `409` propre (plus de 500).
+- Sous-domaine déjà pris (email différent) → `409`, compte Supabase créé
+  puis supprimé (rollback confirmé : reprendre ce même email juste après
+  avec un sous-domaine libre a réussi sans conflit).
+- Le comportement `SUSPENDU`/`RESILIE` du guard est couvert par un test
+  unitaire dédié (`supabase-auth.guard.spec.ts`) plutôt que testé en direct
+  sur un vrai compte — éviter de suspendre, même brièvement, un hôtel réel
+  (Hôtel Chicago) ou un hôtel de test sans utilisateur à qui le faire
+  vérifier.
+- 141/141 tests, build et typecheck propres.
+
+**Hors scope de cette phase** : génération automatique de palette depuis un
+logo (`node-vibrant`), assistant d'inscription mobile, site public
+(`apps/web`), lien universel personnalisé de vérification d'email,
+`PaiementLicence`/expiration réelle d'un essai, domaines personnalisés.
+
+## HotelSaver — Phase 5 : génération automatique de palette depuis un logo, 27/09/2026
+
+Un logo fourni à l'inscription (libre-service ou onboarding manuel) permet
+désormais de dériver une vraie charte de marque au lieu de la palette
+générique fixe (Phase 3/4).
+
+**Écart assumé face au prompt d'origine** : celui-ci plaçait cette fonction
+dans `packages/ui/theme/generate-palette.ts`. Vérifié que `packages/ui` est
+un système de design **React pour le web** (`peerDependency react`, imports
+CSS, tests jsdom) — y importer une fonction pure depuis `apps/api` (backend
+Node sans React) risquait d'entraîner du code dépendant de React à
+l'exécution. La fonction vit donc dans `apps/api/src/common/palette/`, à
+côté de `palette-defaut.ts` (Phase 4).
+
+**Choix de dérivation partielle** : seuls les tokens d'identité de marque
+(`bleu`/`bleuHover`/`bleuClair`/`bleuTresClair`, `navy`/`navyForte`) sont
+dérivés du logo (`genererPalette`, fonction pure, testée isolément) ; tout
+le reste (surfaces, bordures, encre, `succes`/`danger`/`alerte`/`info`)
+reste figé sur `PALETTE_DEFAUT` — un logo saturé ne doit jamais rendre un
+état sémantique illisible. Le `bleu` dérivé est systématiquement assombri
+si besoin (conversion hex→HSL à la main, ~80 lignes, pas de dépendance
+supplémentaire) jusqu'à respecter un contraste WCAG AA (`>= 4.5`) contre
+blanc ; le thème sombre reçoit l'inverse (une version plus claire de la
+même teinte, lisible sur fond sombre).
+
+**Librairie vérifiée avant adoption** (risque réel dans ce projet :
+dépendances natives cassées sous Windows, cf. Prisma/pg) :
+`node-vibrant@4.0.4`, point d'entrée `node-vibrant/node`, dont la
+dépendance `@vibrant/image-node` utilise `@jimp/*` — décodage d'image en JS
+pur, aucune dépendance native (`canvas`, `node-gyp`), sûr sur Windows/Node 24.
+`extraireCouleursLogo` ne lève jamais (URL cassée, décodage impossible,
+timeout → `null`) : un logo mal formé ne doit jamais faire échouer une
+inscription.
+
+**Intégration** : `InscriptionHotelDto`/`CreerHotelDto` gagnent un champ
+optionnel `logoUrl` (même convention que `Chambre.photos`/`Produit.photo` —
+le client téléverse sur Supabase Storage, l'API ne reçoit qu'une URL,
+aucun endpoint d'upload n'existe dans ce backend). Sans `logoUrl` (ou si
+l'extraction échoue), comportement des Phases 3/4 strictement inchangé
+(`PALETTE_DEFAUT`).
+
+**Vérifié en direct, sans aucun mock** (pas seulement les tests unitaires) :
+un vrai serveur HTTP local servant un vrai PNG généré à la main (rouge puis
+vert, deux logos distincts) a été utilisé pour exercer le vrai pipeline
+`fetch → node-vibrant → genererPalette`, y compris via le vrai endpoint
+`POST /public/hotels/inscription` (pas seulement en isolation) :
+- Logo rouge → `light.bleu = #DC2424`, contraste contre blanc = 4.86
+  (≥ 4.5), tokens neutres inchangés.
+- Logo vert (via l'endpoint HTTP réel) → `light.bleu = #197F42`, différent
+  du rouge et de `PALETTE_DEFAUT`, `HotelBranding.logoUrl` bien enregistrée.
+- Logo cassé (404) → inscription réussit quand même, palette par défaut
+  (bug trouvé et corrigé dans le script de test lui-même en route : un
+  serveur de test mal écrit renvoyait 200 à toute URL — pas un bug du code
+  produit).
+- 154/154 tests, build et typecheck propres.
+
+**Hors scope de cette phase** : téléversement du logo (reste géré côté
+client), personnalisation manuelle de la palette après coup, assistant
+mobile, site public (`apps/web`).
+
+## HotelSaver — Phase 6 : assistant d'inscription côté mobile, 27/09/2026
+
+`POST /public/hotels/inscription` (Phase 4) n'était utilisable qu'en ligne
+de commande. Ajout de l'écran mobile correspondant.
+
+**Contrainte de conception respectée** : `apps/mobile` n'a aucun routeur au
+niveau racine — `App.tsx` aiguille par état (`Ecran`), `react-navigation`
+n'étant utilisé qu'à l'intérieur de l'onglet authentifié. Nouvel état
+`"inscription"`, `EcranInscription.tsx` purement présentationnel (même
+contrat que `EcranConnexion.tsx` : `erreur`/`enCours`/callbacks), 2 étapes
+gérées par un `useState` interne au composant, pas par un routeur.
+
+**Téléversement du logo repoussé une troisième fois** (Phases 4, 5, 6) :
+aucun code de téléversement vers Supabase Storage n'existe nulle part dans
+ce projet, et l'exposer à un visiteur non authentifié (l'inscription
+précède la création du compte) demanderait soit une politique Storage
+ouverte à `anon` en écriture (risque d'abus réel), soit un premier endpoint
+d'upload multipart côté API. Les deux sont des chantiers de sécurité/infra
+à part entière — l'assistant reste à 2 étapes, l'hôtel démarre avec la
+palette générique.
+
+**Nouveau `packages/api-client/src/public.ts`** : `inscrireHotel`, fonction
+autonome comme `connecterAvecMotDePasse` (pas une méthode de `ClientApi`,
+qui exige un jeton déjà présent à la construction — inadapté avant
+authentification). `packages/types` gagne `InscriptionHotelPayload`/
+`HotelCree`/`StatutLicence`, partagés entre l'API et le client.
+
+**Piège identifié et évité** : le compte Supabase créé par
+`PublicService.inscrireHotel` a `email_confirm: false` (choix volontaire de
+la Phase 4) — la première tentative de connexion juste après l'inscription
+peut donc échouer tant que l'email n'est pas confirmé. `sInscrire` (App.tsx)
+ne traite jamais ce cas comme un échec d'inscription (l'hôtel existe bel et
+bien) : si la connexion automatique échoue, retour à l'écran de connexion
+avec un message clair ("Compte créé ! Vérifiez votre boîte mail...") plutôt
+que de réafficher l'erreur brute de `connecterAvecMotDePasse`
+(`email_not_confirmed` → "Contactez le patron", un message qui n'aurait
+aucun sens pour quelqu'un qui vient de créer SON propre compte).
+
+**Vérifié** : `pnpm --filter @hotel-chicago/api-client test` (24/24, dont 4
+nouveaux pour `inscrireHotel` : succès, sous-domaine pris, email déjà
+enregistré, erreur réseau), `npx tsc --noEmit` dans `apps/mobile` propre.
+Test réel sur appareil laissé au patron (pas d'appareil connecté à cette
+session, comme pour chaque fonctionnalité mobile de ce projet).
+
+**Hors scope de cette phase** : téléversement de logo, lien universel
+personnalisé de vérification d'email, écran de personnalisation de la
+marque après coup, site public (`apps/web`), assistant équivalent côté
+desktop.
+
+## HotelSaver — Phase 7 : panel Super-Admin (apps/super-admin), 27/09/2026
+
+Le module Super-Admin (Phase 3) n'était utilisable qu'en ligne de commande.
+Nouvelle app web interne : lister les hôtels, en créer un (onboarding
+manuel, `ACTIF` direct), changer le statut d'un hôtel existant.
+
+**Outillage** : Vite + React + TypeScript, pas Next.js — confirmé qu'aucune
+trace de Next.js n'existe nulle part dans ce monorepo ; `apps/desktop`
+utilise déjà exactement cette pile pour son renderer Electron
+(`@vitejs/plugin-react`, React 18.3.1). `apps/super-admin` reprend la même
+chose en Vite pur. `pnpm-workspace.yaml` découvre `apps/*` automatiquement,
+`turbo.json` générique (pas d'entrée par paquet à ajouter).
+
+**Réutilisation confirmée avant d'écrire quoi que ce soit** :
+`packages/ui` (déjà consommé par `apps/desktop` de la même façon — imports
+CSS directs, zéro config Vite spéciale) et `packages/api-client`/
+`packages/types` (confirmés framework-agnostiques, déjà bâtis en CJS/ESM
+consommables par Vite comme mobile/desktop le font). Pas de nouvelle
+identité visuelle "HotelSaver plateforme" : reste celle de `packages/ui`,
+c'est un outil interne, pas la vitrine publique.
+
+**Nouveau `packages/api-client/src/super-admin.ts`** : `ClientSuperAdmin`,
+copie conforme de `ClientApi` mais pour `/super-admin/hotels` — gardé
+séparé de `ClientApi` (identité d'authentification différente,
+`SuperAdminAuthentifie` pas `UtilisateurAuthentifie`), même raisonnement
+que `SuperAdminAuthGuard` séparé de `SupabaseAuthGuard` côté API (Phase 3).
+
+**Téléversement de logo toujours hors scope** (4e fois, Phases 4/5/6/7) :
+le formulaire de création d'hôtel n'a pas de champ logo, cohérent avec
+l'absence de tout composant d'upload dans ce projet.
+
+**Vérifié** : `pnpm --filter @hotel-chicago/api-client test` (29/29, dont 5
+nouveaux pour `ClientSuperAdmin`), `apps/super-admin` compile sans erreur
+(`tsc --noEmit`), serveur de dev Vite démarré et chaque fichier source
+vérifié transformé sans erreur (`main.tsx`, `App.tsx`, écrans, CSS de
+`packages/ui` résolu correctement). **Vérification d'intégration réelle**
+sans navigateur (aucun outil de navigateur interactif dans cet
+environnement) : le `ClientSuperAdmin` compilé exact utilisé par l'app a
+été exécuté directement contre le vrai backend et le vrai projet Supabase —
+connexion, `listerHotels`, `creerHotel` (hôtel réellement créé), et
+`changerStatutHotel` (statut réellement passé à `SUSPENDU`) confirmés un
+par un. Reste au patron : cliquer réellement à travers les écrans dans un
+navigateur (même limite que le mobile sans appareil connecté).
+
+**Hors scope de cette phase** : détail d'un hôtel (consommation, factures),
+tableau de bord, recherche/filtres, identité visuelle propre à HotelSaver,
+déploiement réel (Render ou autre).
+
+## HotelSaver — Phase 8 : site public (apps/web), formulaire d'inscription web, 27/09/2026
+
+`POST /public/hotels/inscription` avait déjà un client mobile (Phase 6) et
+un panel interne (Phase 7), mais aucun accès depuis un navigateur ordinaire.
+Nouvelle app `apps/web` — uniquement le formulaire d'inscription pour
+l'instant, même scaffold Vite+React que `apps/super-admin` (Phase 7), zéro
+nouvel outil.
+
+**Différence clé avec l'assistant mobile** : pas de connexion automatique
+après inscription. Le mobile le fait parce qu'il EST l'app de gestion de
+l'hôtel ; `apps/web` n'en est pas une (le personnel utilise mobile/desktop,
+jamais un navigateur) — après inscription, un simple écran de confirmation
+("Vérifiez votre boîte mail, puis connectez-vous depuis mobile/desktop"),
+aucune session/jeton géré côté web du tout. `EcranInscription.tsx` reprend
+exactement la même structure/validation en 2 étapes que son équivalent
+mobile (Phase 6), portée en DOM au lieu de React Native — même
+`inscrireHotel`/`InscriptionHotelPayload`, aucune nouvelle logique métier.
+
+**Toujours hors scope** (5e fois) : téléversement de logo. Toujours pas de
+résolution de tenant par sous-domaine — pas nécessaire ici, créer un hôtel
+ne suppose pas d'en avoir déjà résolu un ; reste pour les futures pages
+publiques propres à chaque hôtel (réservation, menu).
+
+**Vérifié** : `apps/web` compile sans erreur, serveur de dev Vite démarré,
+chaque fichier source vérifié transformé sans erreur. **Vérification
+d'intégration réelle sans navigateur** (même méthode que la Phase 7) : le
+module `inscrireHotel` compilé exact utilisé par l'app exécuté directement
+contre le vrai backend — un hôtel réel créé en `ESSAI`. Un premier essai a
+échoué avec `Connection terminated unexpectedly` côté pooler Postgres (la
+fragilité déjà documentée à plusieurs reprises dans ce projet) ; un second
+essai immédiat a réussi sans changement de code, confirmant un aléa
+transitoire et non une régression.
+
+**Hors scope de cette phase** : résolution de tenant par sous-domaine, page
+d'accueil marketing (contenu/design), téléversement de logo, déploiement
+réel, domaines personnalisés.
+
+## HotelSaver — Phase 9 : résolution de tenant par sous-domaine + pages publiques, 27/09/2026
+
+Depuis la Phase 2, `PublicService.hotelUnique()` résolvait toujours sur
+l'unique hôtel existant — documenté à chaque phase comme provisoire, en
+attendant le site public. Cette phase termine ce qui manquait : un visiteur
+anonyme consulte désormais les chambres/le menu **du bon hôtel**, identifié
+par sous-domaine.
+
+**Résolution explicite, pas via l'en-tête Host** : `apps/web` détermine son
+propre sous-domaine (`window.location.hostname`) et le transmet
+explicitement à chaque appel (`resoudreSousDomaine.ts`) ; le backend
+(`PublicService.resoudreHotel`) filtre juste par ce qu'on lui donne, ne fait
+confiance à aucun en-tête. `*.localhost` résout nativement vers 127.0.0.1
+(RFC 6761) — pas besoin de configuration DNS pour tester de vrais
+sous-domaines en local ; `?hotel=` reste un secours explicite. 404 uniforme
+si le sous-domaine est inconnu OU si l'hôtel est `SUSPENDU`/`RESILIE` — même
+raisonnement que le contrôle ajouté à `SupabaseAuthGuard` en Phase 4 (ne
+jamais révéler qu'un sous-domaine existe mais est suspendu).
+
+**`react-router-dom` introduit dans `apps/web` uniquement** — écart assumé :
+mobile/desktop/super-admin évitent un routeur (flux d'authentification
+séquentiel, aiguillage par état suffisant) ; `apps/web` a plusieurs pages
+indépendantes et partageables par URL (`/`, `/chambres`, `/menu`), le cas
+d'usage exact d'un routeur, pas une incohérence gratuite.
+
+**Backend** : `hotelUnique()` → `resoudreHotel(sousDomaine)`
+(`findUnique` + vérification du statut). `findChambresDisponibles`,
+`findMenu` (nouveau `FindMenuQueryDto`, n'avait aucun DTO jusqu'ici),
+`creerDemandeReservation` prennent désormais `sousDomaine`.
+`packages/types` gagne `DemandeReservationPayload` ;
+`packages/api-client/src/public.ts` gagne `listerChambresDisponibles`,
+`listerMenu`, `creerDemandeReservationPublique` (même forme que
+`inscrireHotel`, factorisées via un helper `requetePublique` commun).
+
+**Vérifié** : 159/159 tests API (nouveaux cas 404 : sous-domaine inconnu,
+`SUSPENDU`, `RESILIE`), 34/34 tests `api-client`, `apps/web` compile sans
+erreur, serveur de dev Vite démarré et chaque fichier vérifié transformé
+sans erreur. **Vérification d'intégration réelle sans navigateur** (même
+méthode que les Phases 7/8) : les modules `listerChambresDisponibles`/
+`listerMenu` compilés exacts exécutés contre le vrai backend avec
+`sousDomaine=chicago` → vraies données d'Hôtel Chicago (1 chambre libre, le
+produit Coca-Cola) ; avec un sous-domaine inconnu → 404 confirmé.
+
+**Hors scope de cette phase** : réservation en ligne depuis `apps/web`
+(l'endpoint existe, pas d'écran), charte graphique dynamique par hôtel sur
+le site public, page d'accueil marketing, domaines personnalisés,
+déploiement réel.
+
+## HotelSaver — Phase 10 : réservation en ligne sur le site public, 27/09/2026
+
+`POST /public/reservations` et `creerDemandeReservationPublique`
+(`packages/api-client`) existaient depuis le début, ajoutés en Phase 9, mais
+sans aucun écran pour les utiliser. Fil fermé : un visiteur choisit des
+dates, voit les chambres réellement disponibles pour cette période
+(`listerChambresDisponibles` acceptait déjà `dateArrivee`/`dateDepart`,
+jamais utilisé jusqu'ici), clique une chambre, envoie une demande.
+
+**Aucun changement backend** : tout existait déjà et était déjà testé —
+phase purement UI (`EcranChambresPubliques.tsx` modifié pour ajouter un
+sélecteur de dates + rendre les `RoomCard` cliquables une fois des dates
+choisies ; nouveau `FormulaireDemandeReservation.tsx`, une modale simple).
+État de succès dédié ("L'hôtel vous contactera pour confirmer") — jamais de
+faux message de confirmation, cohérent avec `EN_ATTENTE` côté API (la
+réception arbitre, comportement déjà décidé avant cette phase).
+
+**Vérifié** : `apps/web` compile sans erreur, serveur de dev Vite démarré,
+nouveaux fichiers vérifiés transformés sans erreur. **Vérification
+d'intégration réelle sans navigateur** (même méthode que les Phases 7-9) :
+`creerDemandeReservationPublique` (module compilé exact) exécuté contre le
+vrai backend avec `sousDomaine=chicago` — une vraie `Reservation` créée en
+`EN_ATTENTE`/`SITE_PUBLIC` pour la chambre 102, confirmée. Cette réservation
+de test réelle (client "Test Réservation Web", 01-03/11/2026) reste en base
+— sans impact (`EN_ATTENTE`, la réception peut l'ignorer/annuler), mais à
+noter au patron.
+
+**Hors scope de cette phase** : paiement en ligne/acompte, calendrier de
+disponibilité visuel, modifier/annuler une demande depuis le site public,
+charte graphique dynamique, domaines personnalisés, déploiement réel.
+
+## HotelSaver — Phase 11 : charte graphique dynamique par hôtel, 27/09/2026
+
+Depuis la Phase 5, chaque hôtel a une vraie `HotelBranding.palette`, mais
+`apps/web` affichait toujours le thème fixe de `packages/ui` (celui d'Hôtel
+Chicago), peu importe l'hôtel résolu par sous-domaine. Nouvel endpoint
+minimal `GET /public/hotel` (réutilise le même 404 uniforme que
+`resoudreHotel`, Phase 9) renvoyant `nom`/`logoUrl`/3 polices/`palette` —
+volontairement sans `statutLicence`/`emailContact`, qui n'ont rien à faire
+côté public.
+
+**Table de correspondance nécessaire, pas un simple préfixage** : les clés
+de `palette.light` sont françaises courtes (`bleu`, `navy`, `succes`,
+`alerte`…) alors que les variables CSS de `packages/ui/src/tokens.css` sont
+anglaises (`--hc-blue`, `--hc-navy`, `--hc-success`, `--hc-warning`…) — les
+noms ne correspondent pas littéralement (`alerte` → `--hc-warning`, pas
+`--hc-alert`). `appliquerPalette.ts` porte cette table explicitement.
+
+**Seulement le thème clair appliqué** : `apps/web` n'a aucune bascule
+clair/sombre nulle part — appliquer un thème sombre dynamique sans moyen de
+le déclencher aurait été une fonctionnalité inventée. `espacements`/`rayons`
+jamais variés non plus : identiques pour tous les hôtels dans
+`PALETTE_DEFAUT`/`genererPalette` (Phase 5).
+
+**Repli silencieux** : `appliquerPalette`/l'appel réseau dans `App.tsx` ne
+lèvent jamais — une palette absente, mal formée, ou un appel échoué laissent
+simplement le thème générique de `packages/ui` en place, jamais un blocage
+de page pour un problème d'affichage.
+
+**Vérifié** : 162/162 tests API (3 nouveaux pour `obtenirInfoPublique`),
+36/36 tests `api-client`, `apps/web` compile sans erreur, serveur de dev
+Vite démarré et fichiers vérifiés transformés sans erreur. **Vérification
+d'intégration réelle sans navigateur** (même méthode que les Phases 7-10) :
+`obtenirInfoPublique` (module compilé exact) exécuté contre le vrai backend
+avec `sousDomaine=chicago` — `palette.light.bleu` renvoyé = `#1769E0`,
+confirmé identique à la vraie charte d'Hôtel Chicago (`apps/mobile/src/tokens.ts`) ;
+sous-domaine inconnu → 404 confirmé.
+
+**Hors scope de cette phase** : thème sombre dynamique, affichage du logo
+sur les pages, palette appliquée au formulaire d'inscription (`/`, pas
+d'hôtel résolu à ce stade), domaines personnalisés, déploiement réel,
+facturation/licences.
+
+## HotelSaver — Phase 12 : facturation/licences (paiement manuel + suspension automatique), 27/09/2026
+
+Dernière case "hors scope" répétée depuis la Phase 1 : suivi des paiements
+d'abonnement et expiration réelle d'un essai/d'une licence impayée.
+
+**Pas d'intégration de paiement en ligne** (décision du patron) : un
+Super-Admin enregistre manuellement un paiement reçu par un autre canal
+(virement, Mobile Money, espèces). `PaiementLicence` est un journal immuable
+(jamais de update/delete) — `hotelId`, `montant`/`devise`, `methode`,
+`periodeCouverteJusquau`, `note?`, `enregistreParSuperAdminId`.
+
+**Aucune date de validité stockée sur `Hotel`** : `calculerFinValidite`
+(fonction pure, `apps/api/src/super-admin/calculer-validite.ts`) dérive
+toujours la date depuis le dernier `PaiementLicence.periodeCouverteJusquau`
+(le plus récent par `periodeCouverteJusquau desc`), ou depuis
+`createdAt + DUREE_ESSAI_JOURS` (14 jours) si l'hôtel n'a jamais payé — une
+seule source de vérité, aucun champ dénormalisé à garder synchronisé.
+
+**`POST /super-admin/hotels/:id/paiements`** : crée le `PaiementLicence` et
+remet l'hôtel à `ACTIF` dans une seule `$transaction` — toujours, même pour
+un hôtel `RESILIE` (décision du patron : un client qui revient après
+résiliation doit pouvoir repartir en payant, sans intervention manuelle
+supplémentaire pour "dé-résilier").
+
+**Suspension automatique** : `LicenceSchedulerService` (`@nestjs/schedule`,
+nouvelle dépendance, `ScheduleModule.forRoot()` dans `AppModule`), cron
+quotidien à minuit, appelle `SuperAdminService.suspendreHotelsExpires()` —
+extraite en méthode ordinaire (pas seulement un handler `@Cron`) pour rester
+testable sans attendre un vrai déclenchement. Ne considère que
+`ESSAI`/`ACTIF` : un hôtel déjà `RESILIE` n'est jamais "re-suspendu" (ça
+n'a pas de sens), symétrique avec la réactivation ci-dessus. `SUSPENDU` (pas
+`RESILIE`) : la distinction entre les deux statuts reste une décision
+humaine du Super-Admin, jamais automatisée par le scheduler.
+
+**`GET /super-admin/hotels`** renvoie désormais `HotelAvecValidite`
+(`HotelCree` + `valideJusquau`, `packages/types`) au lieu de `HotelCree` —
+calculé à la volée pour chaque hôtel (`include: { paiementsLicence: { take: 1,
+orderBy: … desc } }`, pas de N+1 : un seul `findMany` avec la relation).
+
+**Panel Super-Admin** (`apps/super-admin`) : tableau existant augmenté d'une
+colonne "Valide jusqu'au" et d'un bouton "Enregistrer un paiement" par ligne
+(`FormulairePaiement.tsx`, modale). Interruption de session notée ici pour
+mémoire : `App.tsx` a été retrouvé non mis à jour après coup (toujours
+`HotelCree[]`/sans `onEnregistrerPaiement`, alors que `EcranHotels.tsx`,
+`FormulairePaiement.tsx`, `ClientSuperAdmin.enregistrerPaiement` et tout le
+backend l'attendaient déjà) — `tsc --noEmit` le révélait immédiatement,
+corrigé en rebranchant les 3 nouveaux états (`paiementEnCours`,
+`erreurPaiement`) et le handler manquant, aucune autre logique à changer.
+
+**Vérifié** : 171/171 tests API (dont les nouveaux `calculer-validite.spec.ts`
+et les cas `enregistrerPaiement`/`suspendreHotelsExpires` de
+`super-admin.service.spec.ts`), 37/37 `api-client`, build racine complet
+(10/10 paquets), `tsc --noEmit` propre sur `apps/super-admin` et
+`apps/mobile`.
+
+**Hors scope de cette phase** : rappel automatique avant expiration (email),
+période de grâce entre expiration et suspension effective, historique des
+paiements visible dans le panel (la table `PaiementLicence` existe et est
+interrogeable, aucun écran ne la liste encore), export comptable,
+déploiement réel (Render), domaines personnalisés.

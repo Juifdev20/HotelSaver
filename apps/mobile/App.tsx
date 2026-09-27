@@ -4,9 +4,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { ClientApi, ErreurApi, connecterAvecMotDePasse, rafraichirSession } from "@hotel-chicago/api-client";
+import { ClientApi, ErreurApi, connecterAvecMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
 import { MoteurSync } from "@hotel-chicago/sync-engine";
-import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
+import type { InscriptionHotelPayload, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
 import { creerStockageLocalMobile } from "./src/stockage/stockageLocalMobile";
 import {
@@ -21,11 +21,12 @@ import {
 } from "./src/stockage/profils";
 import { EcranSelectionProfil } from "./src/ecrans/EcranSelectionProfil";
 import { EcranConnexion } from "./src/ecrans/EcranConnexion";
+import { EcranInscription } from "./src/ecrans/EcranInscription";
 import { CoquilleOnglets } from "./src/CoquilleOnglets";
 import { FournisseurSession } from "./src/contexteSession";
 import { couleurs } from "./src/tokens";
 
-type Ecran = "chargement" | "selection-profil" | "connexion" | "application";
+type Ecran = "chargement" | "selection-profil" | "connexion" | "inscription" | "application";
 
 /** 404 sur /auth/me = l'adresse répond mais ce n'est pas le serveur de l'hôtel. */
 function messageErreurProfil(erreur: Error): string {
@@ -43,6 +44,8 @@ export default function App() {
   const [messageConnexion, setMessageConnexion] = useState<string | null>(null);
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
+  const [erreurInscription, setErreurInscription] = useState<string | null>(null);
+  const [inscriptionEnCours, setInscriptionEnCours] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [utilisateur, setUtilisateur] = useState<UtilisateurAuthentifie | null>(null);
 
@@ -171,6 +174,37 @@ export default function App() {
     }
   }
 
+  async function sInscrire(dto: InscriptionHotelPayload) {
+    if (!configuration) return;
+    setErreurInscription(null);
+    setInscriptionEnCours(true);
+    try {
+      await inscrireHotel({ url: configuration.apiUrl }, dto);
+      try {
+        // Le compte Supabase créé côté serveur a email_confirm: false (choix
+        // volontaire, voir DECISIONS.md Phase 4) : la première connexion peut
+        // échouer tant que l'email n'est pas confirmé. Ce n'est pas un échec
+        // d'inscription — l'hôtel existe bel et bien — donc on ne réaffiche
+        // jamais l'erreur brute de connexion ici (ex. "Contactez le patron"
+        // n'aurait aucun sens pour quelqu'un qui vient de créer SON compte).
+        const session = await connecterAvecMotDePasse(
+          { url: configuration.supabaseUrl, anonKey: configuration.supabaseAnonKey },
+          dto.email,
+          dto.motDePasse
+        );
+        await terminerConnexion(session, configuration, dto.email);
+      } catch {
+        setEmailPreRempli(dto.email);
+        setMessageConnexion("Compte créé ! Vérifiez votre boîte mail pour confirmer votre adresse avant de vous connecter.");
+        setEcran("connexion");
+      }
+    } catch (erreur) {
+      setErreurInscription(erreur instanceof Error ? erreur.message : "Erreur lors de l'inscription.");
+    } finally {
+      setInscriptionEnCours(false);
+    }
+  }
+
   async function retourSelectionProfil() {
     const liste = await listerProfils();
     setProfils(liste);
@@ -226,6 +260,24 @@ export default function App() {
         enCours={connexionEnCours}
         onConnexion={seConnecter}
         onRetour={profils.length > 0 ? retourSelectionProfil : undefined}
+        onCreerCompte={() => {
+          setErreurInscription(null);
+          setEcran("inscription");
+        }}
+      />
+    );
+  }
+
+  if (ecran === "inscription") {
+    return (
+      <EcranInscription
+        erreur={erreurInscription}
+        enCours={inscriptionEnCours}
+        onSoumettre={sInscrire}
+        onRetourConnexion={() => {
+          setErreurInscription(null);
+          setEcran("connexion");
+        }}
       />
     );
   }

@@ -10,9 +10,10 @@ export interface EcranConnexionProps {
   enCours: boolean;
   onConnexion: (email: string, motDePasse: string) => void;
   onRetour?: () => void;
+  onCreerCompte?: () => void;
 }
 
-export function EcranConnexion({ emailInitial, message, erreur, enCours, onConnexion, onRetour }: EcranConnexionProps) {
+export function EcranConnexion({ emailInitial, message, erreur, enCours, onConnexion, onRetour, onCreerCompte }: EcranConnexionProps) {
   const [email, setEmail] = useState(emailInitial ?? "");
   const [motDePasse, setMotDePasse] = useState("");
 
@@ -70,6 +71,12 @@ export function EcranConnexion({ emailInitial, message, erreur, enCours, onConne
         {onRetour && (
           <Pressable style={styles.boutonRetour} onPress={onRetour}>
             <Text style={styles.boutonRetourTexte}>Retour</Text>
+          </Pressable>
+        )}
+
+        {onCreerCompte && (
+          <Pressable style={styles.boutonRetour} onPress={onCreerCompte}>
+            <Text style={styles.boutonRetourTexte}>Créer un compte hôtel</Text>
           </Pressable>
         )}
       </View>
