@@ -22,6 +22,12 @@ export interface DonneesEnregistrementPaiement {
   note?: string;
 }
 
+/** Champ de apps/api/src/super-admin/dto/ajouter-domaine.dto.ts
+ * (Phase 13, domaines personnalisés — onboarding manuel uniquement). */
+export interface DonneesAjoutDomaine {
+  domaine: string;
+}
+
 /**
  * Copie conforme de ClientApi (client.ts), mais pour les routes
  * /super-admin/hotels — identité d'authentification différente
@@ -58,6 +64,21 @@ export class ClientSuperAdmin {
       method: "POST",
       body: JSON.stringify(dto),
     });
+  }
+
+  async ajouterDomaine(hotelId: string, dto: DonneesAjoutDomaine): Promise<HotelCree> {
+    return this.requete<HotelCree>(`/super-admin/hotels/${hotelId}/domaine`, {
+      method: "POST",
+      body: JSON.stringify(dto),
+    });
+  }
+
+  async verifierDomaine(hotelId: string): Promise<HotelCree> {
+    return this.requete<HotelCree>(`/super-admin/hotels/${hotelId}/domaine/verifier`, { method: "POST" });
+  }
+
+  async retirerDomaine(hotelId: string): Promise<HotelCree> {
+    return this.requete<HotelCree>(`/super-admin/hotels/${hotelId}/domaine`, { method: "DELETE" });
   }
 
   private async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {

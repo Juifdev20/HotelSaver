@@ -71,6 +71,21 @@ model Hotel {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
+  // Domaine personnalisé (Phase 13, onboarding manuel par le Super-Admin
+  // uniquement — voir DECISIONS.md) : attaché via l'API Render Custom
+  // Domains (apps/api/src/super-admin/render-domains.service.ts).
+  // `domainePersonnaliseId` est l'id renvoyé par Render, nécessaire pour le
+  // supprimer/consulter ensuite ; jamais renseigné sans que l'appel Render
+  // ait déjà réussi (pas d'état "en base mais pas chez Render").
+  // `domaineVerifie` reflète le dernier `verificationStatus` connu — Render
+  // vérifie lui-même la propagation DNS en arrière-plan, ce champ est
+  // rafraîchi à la demande (bouton "Vérifier"), jamais par un cron
+  // automatique dans cette phase.
+  domainePersonnalise   String?   @unique
+  domainePersonnaliseId String?
+  domaineVerifie        Boolean   @default(false)
+  domaineAjouteLe       DateTime?
+
   branding         HotelBranding?
 
   utilisateurs     Utilisateur[]

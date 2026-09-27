@@ -1790,3 +1790,78 @@ période de grâce entre expiration et suspension effective, historique des
 paiements visible dans le panel (la table `PaiementLicence` existe et est
 interrogeable, aucun écran ne la liste encore), export comptable,
 déploiement réel (Render), domaines personnalisés.
+
+## HotelSaver — Phase 13 : domaines personnalisés (plomberie, sans déploiement Render), 27/09/2026
+
+Dernière case "hors scope" restante avec la Phase 8 (déploiement réel). Le
+patron n'a pas encore de compte/service Render — décision explicite :
+construire toute la logique maintenant (schéma, appel Render, endpoints,
+UI), testée avec `fetch` moqué, la vérification live attendra le vrai
+déploiement. Flux choisi : onboarding manuel par le Super-Admin uniquement
+(comme la Phase 3), jamais en libre-service — l'hôtelier communique son
+domaine, le Super-Admin l'ajoute depuis le panel.
+
+**Contrat Render vérifié avant d'écrire quoi que ce soit** (pas improvisé) :
+`POST /v1/services/{serviceId}/custom-domains` (`{name}` → `id`/`name`/
+`domainType`/`verificationStatus`/`redirectForName`, un domaine apex
+renvoie un **tableau** incluant aussi son entrée `www.` associée), `GET`
+(liste, filtrable par `name`), `DELETE /{customDomainId}`. Aucun endpoint
+"vérifier maintenant" : Render vérifie lui-même la propagation DNS en
+arrière-plan — `RenderDomainsService.statutDomaine` relit juste l'état déjà
+calculé, ce que le bouton "Vérifier" du panel déclenche manuellement
+(aucun cron automatique dans cette phase, contrairement à la suspension de
+licence Phase 12).
+
+**Schéma** : `Hotel.domainePersonnalise` (`@unique`), `domainePersonnaliseId`
+(l'id Render, nécessaire pour supprimer/relire), `domaineVerifie`,
+`domaineAjouteLe` — jamais écrits en base sans que l'appel Render ait déjà
+réussi (pas d'état "en base mais pas chez Render"). Si l'écriture Prisma
+échoue après coup (ex. `P2002` — domaine déjà utilisé par un autre hôtel
+dans notre propre base), le domaine est retiré côté Render pour ne pas
+laisser d'orphelin attaché au service.
+
+**`RenderDomainsService`** (`apps/api/src/super-admin/`) : même patron que
+`SupabaseAdminService` (Phase 4) — `RENDER_API_KEY`/`RENDER_WEB_SERVICE_ID`
+absents → `InternalServerErrorException` avec message clair, jamais un
+appel silencieusement no-op. **Vérifié en conditions réelles** (pas
+seulement en test unitaire) : contre la vraie API via un vrai jeton
+Super-Admin, `POST /super-admin/hotels/:id/domaine` échoue proprement avec
+exactement ce message (aucune variable Render configurée dans ce projet
+actuellement) — le serveur ne plante pas, l'erreur remonte lisible.
+
+**Résolution de tenant étendue** (Phase 9) : `PublicService.resoudreHotel`
+passe de `findUnique({ sousDomaine })` à `findFirst({ OR: [...] })`
+essayant, dans l'ordre, le domaine personnalisé complet, le nom d'hôte
+complet comme sous-domaine, puis son premier label — couvre les trois
+formes (`chicago`, `chicago.hotelsaver.com`/`chicago.localhost`,
+`www.hotel-chicago.com`) sans que `apps/web` ait besoin de connaître le
+domaine de base final de la plateforme (toujours pas choisi). Côté client,
+`resoudreSousDomaine()` transmet désormais le nom d'hôte complet tel quel
+(plus seulement `labels[0]`) — le tri des trois cas se fait entièrement
+côté serveur. `obtenirInfoPublique` réutilise le même filtre (`construireFiltreHote`,
+factorisé) au lieu de dupliquer sa propre requête.
+
+**Panel Super-Admin** : nouvelle colonne "Domaine" (bouton "Configurer un
+domaine" ou nom du domaine + ✓/« en attente »), `FormulaireDomaine.tsx`
+(modale, même patron que `FormulairePaiement.tsx`) — bascule entre "ajouter"
+et "vérifier/retirer" selon que l'hôtel a déjà un domaine, sans se fermer
+entre les deux (l'hôtel affiché est recalculé par id depuis la liste à
+jour, pas figé au moment de l'ouverture). Aucune instruction DNS précise
+affichée : l'API publique Render ne les expose pas (seulement son
+dashboard) — le Super-Admin s'y réfère directement une fois le domaine
+ajouté.
+
+**Vérifié** : 190/190 tests API (8 nouveaux `render-domains.service.spec.ts`,
+12 nouveaux `super-admin.service.spec.ts`, cas `findFirst`/`OR` de
+`public.service.spec.ts` mis à jour), 40/40 `api-client`, build racine
+complet (10/10 paquets), `tsc --noEmit` propre sur `super-admin`/`mobile`.
+Migration `20260928090000_domaines_personnalises` appliquée en base réelle
+(`ALTER TABLE ADD COLUMN`, nullable, sans risque). Non-régression confirmée
+en direct : `GET /public/chambres-disponibles?sousDomaine=chicago` toujours
+200, `sousDomaine=inconnu` toujours 404.
+
+**Hors scope de cette phase** : déploiement réel Render (Phase 8, toujours
+pas fait — prérequis pour que `RENDER_WEB_SERVICE_ID` existe et que ce
+chantier devienne testable en live), choix du domaine de base final de la
+plateforme, instructions DNS affichées dans le panel, plusieurs domaines
+par hôtel, vérification automatique périodique (cron).

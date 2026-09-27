@@ -30,19 +30,38 @@ export class PublicService {
   ) {}
 
   /**
-   * Résolution de tenant par sous-domaine (Phase 9) — le visiteur anonyme
-   * n'a pas de JWT (voir public.controller.ts), donc pas de `hotelId` à en
-   * tirer comme partout ailleurs (Phase 2) : `apps/web` détermine son propre
-   * sous-domaine (`window.location.hostname`) et le transmet explicitement à
-   * chaque appel, jamais déduit d'un en-tête côté serveur. 404 uniforme si
-   * le sous-domaine est inconnu OU si l'hôtel est SUSPENDU/RESILIE (même
-   * raisonnement que SupabaseAuthGuard, Phase 4) : ne pas révéler qu'un
-   * sous-domaine existe mais est suspendu.
+   * `identifiant` couvre trois formes possibles envoyées par `apps/web`
+   * (Phase 9, étendu Phase 13) : un sous-domaine nu (`chicago`, via `?hotel=`
+   * ou déjà résolu), un nom d'hôte complet de sous-domaine HotelSaver
+   * (`chicago.hotelsaver.com`/`chicago.localhost` — premier label repris en
+   * secours) ou un domaine personnalisé complet (`www.hotel-chicago.com`,
+   * Phase 13). Un seul `OR` couvre les trois sans que le client ait besoin
+   * de connaître le domaine de base final de la plateforme (toujours pas
+   * choisi, voir DECISIONS.md Phase 9).
    */
-  private async resoudreHotel(sousDomaine: string) {
-    const hotel = await this.prisma.hotel.findUnique({ where: { sousDomaine } });
+  private construireFiltreHote(identifiant: string): Prisma.HotelWhereInput {
+    const premierLabel = identifiant.split(".")[0];
+    const conditions: Prisma.HotelWhereInput[] = [
+      { domainePersonnalise: identifiant },
+      { sousDomaine: identifiant },
+    ];
+    if (premierLabel !== identifiant) conditions.push({ sousDomaine: premierLabel });
+    return { OR: conditions };
+  }
+
+  /**
+   * Résolution de tenant (Phases 9 et 13) — le visiteur anonyme n'a pas de
+   * JWT (voir public.controller.ts), donc pas de `hotelId` à en tirer comme
+   * partout ailleurs (Phase 2) : `apps/web` détermine son propre nom d'hôte
+   * et le transmet explicitement à chaque appel, jamais déduit d'un en-tête
+   * côté serveur. 404 uniforme si l'hôte est inconnu OU si l'hôtel est
+   * SUSPENDU/RESILIE (même raisonnement que SupabaseAuthGuard, Phase 4) : ne
+   * pas révéler qu'un hôte existe mais est suspendu.
+   */
+  private async resoudreHotel(identifiant: string) {
+    const hotel = await this.prisma.hotel.findFirst({ where: this.construireFiltreHote(identifiant) });
     if (!hotel || hotel.statutLicence === "SUSPENDU" || hotel.statutLicence === "RESILIE") {
-      throw new NotFoundException(`Aucun hôtel disponible pour "${sousDomaine}".`);
+      throw new NotFoundException(`Aucun hôtel disponible pour "${identifiant}".`);
     }
     return hotel;
   }
@@ -53,8 +72,8 @@ export class PublicService {
    * faire côté public. Réutilise le même 404 uniforme que `resoudreHotel`.
    */
   async obtenirInfoPublique(query: FindHotelPublicQueryDto) {
-    const hotel = await this.prisma.hotel.findUnique({
-      where: { sousDomaine: query.sousDomaine },
+    const hotel = await this.prisma.hotel.findFirst({
+      where: this.construireFiltreHote(query.sousDomaine),
       include: { branding: true },
     });
     if (!hotel || hotel.statutLicence === "SUSPENDU" || hotel.statutLicence === "RESILIE") {

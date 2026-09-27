@@ -74,7 +74,10 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
     // réelle de Chambres/Réservations/Produits/Cafétaria (Phases 2-3) — chacune
     // a ses propres tests. Juste assez de surface ici pour que les routes GET
     // ne plantent pas en 500.
-    hotel: { findUnique: jest.fn().mockResolvedValue(HOTEL_ACTIF) },
+    hotel: {
+      findUnique: jest.fn().mockResolvedValue(HOTEL_ACTIF),
+      findFirst: jest.fn().mockResolvedValue(HOTEL_ACTIF),
+    },
     chambre: { findMany: jest.fn().mockResolvedValue([]) },
     reservation: { findMany: jest.fn().mockResolvedValue([]) },
     produit: { findMany: jest.fn().mockResolvedValue([]) },

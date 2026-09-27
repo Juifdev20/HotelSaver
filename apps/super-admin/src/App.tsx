@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import { ClientSuperAdmin, ErreurApi, connecterAvecMotDePasse, rafraichirSession } from "@hotel-chicago/api-client";
 import type { HotelAvecValidite, StatutLicence } from "@hotel-chicago/types";
-import type { DonneesCreationHotel, DonneesEnregistrementPaiement } from "@hotel-chicago/api-client";
+import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement } from "@hotel-chicago/api-client";
 import { configuration } from "./config";
 import { ecrireJetonRafraichissement, lireJetonRafraichissement, oublierJetonRafraichissement } from "./stockage";
 import { EcranConnexion } from "./EcranConnexion";
@@ -27,6 +27,8 @@ export default function App() {
   const [erreurCreation, setErreurCreation] = useState<string | null>(null);
   const [paiementEnCours, setPaiementEnCours] = useState(false);
   const [erreurPaiement, setErreurPaiement] = useState<string | null>(null);
+  const [domaineEnCours, setDomaineEnCours] = useState(false);
+  const [erreurDomaine, setErreurDomaine] = useState<string | null>(null);
 
   const client = accessToken ? new ClientSuperAdmin(configuration.apiUrl, () => accessToken) : null;
 
@@ -137,6 +139,53 @@ export default function App() {
     }
   }
 
+  /** Retourne `true` en cas de succès — FormulaireDomaine reste ouvert dans
+   * tous les cas (contrairement à FormulairePaiement) : après un ajout
+   * réussi, il continue d'afficher le domaine + les actions Vérifier/Retirer. */
+  async function ajouterDomaine(hotelId: string, dto: DonneesAjoutDomaine): Promise<boolean> {
+    if (!client) return false;
+    setErreurDomaine(null);
+    setDomaineEnCours(true);
+    try {
+      await client.ajouterDomaine(hotelId, dto);
+      await chargerHotels(client);
+      return true;
+    } catch (erreur) {
+      setErreurDomaine(erreur instanceof Error ? erreur.message : "Erreur lors de l'ajout du domaine.");
+      return false;
+    } finally {
+      setDomaineEnCours(false);
+    }
+  }
+
+  async function verifierDomaine(hotelId: string): Promise<void> {
+    if (!client) return;
+    setErreurDomaine(null);
+    setDomaineEnCours(true);
+    try {
+      await client.verifierDomaine(hotelId);
+      await chargerHotels(client);
+    } catch (erreur) {
+      setErreurDomaine(erreur instanceof Error ? erreur.message : "Erreur lors de la vérification du domaine.");
+    } finally {
+      setDomaineEnCours(false);
+    }
+  }
+
+  async function retirerDomaine(hotelId: string): Promise<void> {
+    if (!client) return;
+    setErreurDomaine(null);
+    setDomaineEnCours(true);
+    try {
+      await client.retirerDomaine(hotelId);
+      await chargerHotels(client);
+    } catch (erreur) {
+      setErreurDomaine(erreur instanceof Error ? erreur.message : "Erreur lors du retrait du domaine.");
+    } finally {
+      setDomaineEnCours(false);
+    }
+  }
+
   if (ecran === "chargement") return null;
 
   if (ecran === "connexion") {
@@ -155,6 +204,11 @@ export default function App() {
       onEnregistrerPaiement={enregistrerPaiement}
       paiementEnCours={paiementEnCours}
       erreurPaiement={erreurPaiement}
+      onAjouterDomaine={ajouterDomaine}
+      onVerifierDomaine={verifierDomaine}
+      onRetirerDomaine={retirerDomaine}
+      domaineEnCours={domaineEnCours}
+      erreurDomaine={erreurDomaine}
       onDeconnexion={seDeconnecter}
     />
   );

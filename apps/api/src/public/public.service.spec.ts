@@ -11,7 +11,7 @@ const HOTEL_ID = "hotel-1";
 function creerPrismaMock() {
   return {
     hotel: {
-      findUnique: jest.fn().mockResolvedValue({ id: HOTEL_ID, statutLicence: "ACTIF" }),
+      findFirst: jest.fn().mockResolvedValue({ id: HOTEL_ID, statutLicence: "ACTIF" }),
       create: jest.fn(),
     },
     chambre: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -44,10 +44,25 @@ describe("PublicService", () => {
   describe("findChambresDisponibles", () => {
     it("sans dates, retourne les chambres LIBRE uniquement", async () => {
       await service.findChambresDisponibles({ sousDomaine: "chicago" } as any);
-      expect(prisma.hotel.findUnique).toHaveBeenCalledWith({ where: { sousDomaine: "chicago" } });
+      expect(prisma.hotel.findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ domainePersonnalise: "chicago" }, { sousDomaine: "chicago" }] },
+      });
       expect(prisma.chambre.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { hotelId: HOTEL_ID, statut: "LIBRE" } })
       );
+    });
+
+    it("résout aussi bien un nom d'hôte complet (sous-domaine HotelSaver) qu'un domaine personnalisé", async () => {
+      await service.findChambresDisponibles({ sousDomaine: "chicago.localhost" } as any);
+      expect(prisma.hotel.findFirst).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { domainePersonnalise: "chicago.localhost" },
+            { sousDomaine: "chicago.localhost" },
+            { sousDomaine: "chicago" },
+          ],
+        },
+      });
     });
 
     it("avec des dates, exclut les chambres ayant une réservation active qui chevauche", async () => {
@@ -69,21 +84,21 @@ describe("PublicService", () => {
     });
 
     it("lève NotFoundException si le sous-domaine est inconnu", async () => {
-      prisma.hotel.findUnique.mockResolvedValue(null);
+      prisma.hotel.findFirst.mockResolvedValue(null);
       await expect(service.findChambresDisponibles({ sousDomaine: "inconnu" } as any)).rejects.toThrow(
         NotFoundException
       );
     });
 
     it("lève NotFoundException si l'hôtel est SUSPENDU (sans distinguer d'un sous-domaine inconnu)", async () => {
-      prisma.hotel.findUnique.mockResolvedValue({ id: HOTEL_ID, statutLicence: "SUSPENDU" });
+      prisma.hotel.findFirst.mockResolvedValue({ id: HOTEL_ID, statutLicence: "SUSPENDU" });
       await expect(service.findChambresDisponibles({ sousDomaine: "chicago" } as any)).rejects.toThrow(
         NotFoundException
       );
     });
 
     it("lève NotFoundException si l'hôtel est RESILIE", async () => {
-      prisma.hotel.findUnique.mockResolvedValue({ id: HOTEL_ID, statutLicence: "RESILIE" });
+      prisma.hotel.findFirst.mockResolvedValue({ id: HOTEL_ID, statutLicence: "RESILIE" });
       await expect(service.findChambresDisponibles({ sousDomaine: "chicago" } as any)).rejects.toThrow(
         NotFoundException
       );
@@ -93,14 +108,16 @@ describe("PublicService", () => {
   describe("findMenu", () => {
     it("retourne les produits actifs de l'hôtel résolu", async () => {
       await service.findMenu({ sousDomaine: "chicago" } as any);
-      expect(prisma.hotel.findUnique).toHaveBeenCalledWith({ where: { sousDomaine: "chicago" } });
+      expect(prisma.hotel.findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ domainePersonnalise: "chicago" }, { sousDomaine: "chicago" }] },
+      });
       expect(prisma.produit.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { hotelId: HOTEL_ID, actif: true } })
       );
     });
 
     it("lève NotFoundException si le sous-domaine est inconnu", async () => {
-      prisma.hotel.findUnique.mockResolvedValue(null);
+      prisma.hotel.findFirst.mockResolvedValue(null);
       await expect(service.findMenu({ sousDomaine: "inconnu" } as any)).rejects.toThrow(NotFoundException);
     });
   });
@@ -146,7 +163,7 @@ describe("PublicService", () => {
 
   describe("obtenirInfoPublique", () => {
     it("renvoie nom/polices/palette de la charte graphique de l'hôtel résolu", async () => {
-      prisma.hotel.findUnique.mockResolvedValue({
+      prisma.hotel.findFirst.mockResolvedValue({
         id: HOTEL_ID,
         nom: "Hôtel Chicago",
         statutLicence: "ACTIF",
@@ -161,8 +178,8 @@ describe("PublicService", () => {
 
       const resultat = await service.obtenirInfoPublique({ sousDomaine: "chicago" } as any);
 
-      expect(prisma.hotel.findUnique).toHaveBeenCalledWith({
-        where: { sousDomaine: "chicago" },
+      expect(prisma.hotel.findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ domainePersonnalise: "chicago" }, { sousDomaine: "chicago" }] },
         include: { branding: true },
       });
       expect(resultat).toEqual({
@@ -176,12 +193,12 @@ describe("PublicService", () => {
     });
 
     it("lève NotFoundException si le sous-domaine est inconnu", async () => {
-      prisma.hotel.findUnique.mockResolvedValue(null);
+      prisma.hotel.findFirst.mockResolvedValue(null);
       await expect(service.obtenirInfoPublique({ sousDomaine: "inconnu" } as any)).rejects.toThrow(NotFoundException);
     });
 
     it("lève NotFoundException si l'hôtel est SUSPENDU", async () => {
-      prisma.hotel.findUnique.mockResolvedValue({ id: HOTEL_ID, statutLicence: "SUSPENDU" });
+      prisma.hotel.findFirst.mockResolvedValue({ id: HOTEL_ID, statutLicence: "SUSPENDU" });
       await expect(service.obtenirInfoPublique({ sousDomaine: "chicago" } as any)).rejects.toThrow(NotFoundException);
     });
   });

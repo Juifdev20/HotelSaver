@@ -300,6 +300,9 @@ export interface HotelCree {
   emailContact: string | null;
   telephoneContact: string | null;
   adresse: string | null;
+  // Domaine personnalisé (Phase 13) — voir apps/api/src/super-admin/render-domains.service.ts.
+  domainePersonnalise: string | null;
+  domaineVerifie: boolean;
   createdAt: string;
   updatedAt: string;
   branding: {

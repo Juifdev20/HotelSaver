@@ -1,18 +1,23 @@
-import { ConflictException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
 import { PRISMA } from "../prisma/prisma.module";
 import { CreerHotelDto } from "./dto/creer-hotel.dto";
 import { ChangerStatutHotelDto } from "./dto/changer-statut-hotel.dto";
 import { EnregistrerPaiementDto } from "./dto/enregistrer-paiement.dto";
+import { AjouterDomaineDto } from "./dto/ajouter-domaine.dto";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 import { genererPalette } from "../common/palette/generer-palette";
 import { calculerFinValidite } from "./calculer-validite";
+import { RenderDomainsService } from "./render-domains.service";
 
 @Injectable()
 export class SuperAdminService {
   private readonly logger = new Logger(SuperAdminService.name);
 
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly renderDomains: RenderDomainsService
+  ) {}
 
   /** Chaque hôtel gagne `valideJusquau` (Phase 12), calculé à partir de son
    * dernier paiement — jamais stocké, voir calculer-validite.ts. */
@@ -123,5 +128,91 @@ export class SuperAdminService {
     }
 
     return aSuspendre.length;
+  }
+
+  /**
+   * Onboarding manuel du domaine personnalisé d'un hôtel (Phase 13, décision
+   * du patron : jamais en libre-service — voir DECISIONS.md). Écrit en base
+   * seulement après le succès de l'appel Render : jamais d'état "en base
+   * mais pas chez Render" en cas d'échec.
+   */
+  async ajouterDomainePersonnalise(hotelId: string, dto: AjouterDomaineDto) {
+    const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) {
+      throw new NotFoundException(`Aucun hôtel trouvé avec l'identifiant ${hotelId}.`);
+    }
+    if (hotel.domainePersonnalise) {
+      throw new ConflictException(
+        `L'hôtel a déjà le domaine "${hotel.domainePersonnalise}" — retirez-le avant d'en ajouter un autre.`
+      );
+    }
+
+    const resultat = await this.renderDomains.ajouterDomaine(dto.domaine);
+
+    try {
+      return await this.prisma.hotel.update({
+        where: { id: hotelId },
+        data: {
+          domainePersonnalise: resultat.name,
+          domainePersonnaliseId: resultat.id,
+          domaineVerifie: resultat.verifie,
+          domaineAjouteLe: new Date(),
+        },
+      });
+    } catch (error) {
+      // Écriture Prisma échouée (ex. domaine déjà utilisé par un autre hôtel
+      // dans notre propre base) après que Render l'a déjà accepté : on
+      // retire côté Render pour ne pas laisser un domaine orphelin attaché
+      // au service sans qu'aucun hôtel ne le référence chez nous.
+      await this.renderDomains.supprimerDomaine(resultat.id).catch(() => undefined);
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException(`Le domaine "${dto.domaine}" est déjà utilisé par un autre hôtel.`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Redemande à Render l'état de vérification DNS connu — jamais de cron
+   * automatique dans cette phase (voir RenderDomainsService), le
+   * Super-Admin déclenche lui-même la relecture avec un bouton "Vérifier".
+   */
+  async verifierDomainePersonnalise(hotelId: string) {
+    const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) {
+      throw new NotFoundException(`Aucun hôtel trouvé avec l'identifiant ${hotelId}.`);
+    }
+    if (!hotel.domainePersonnaliseId) {
+      throw new BadRequestException("Cet hôtel n'a aucun domaine personnalisé configuré.");
+    }
+
+    const statut = await this.renderDomains.statutDomaine(hotel.domainePersonnaliseId);
+    // Le domaine a disparu côté Render (ex. retiré depuis le dashboard) sans
+    // qu'on nous informe : on aligne notre base sur cette réalité plutôt que
+    // de continuer à afficher un domaine qui n'existe plus.
+    if (!statut) {
+      return this.prisma.hotel.update({
+        where: { id: hotelId },
+        data: { domainePersonnalise: null, domainePersonnaliseId: null, domaineVerifie: false, domaineAjouteLe: null },
+      });
+    }
+
+    return this.prisma.hotel.update({ where: { id: hotelId }, data: { domaineVerifie: statut.verifie } });
+  }
+
+  async retirerDomainePersonnalise(hotelId: string) {
+    const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) {
+      throw new NotFoundException(`Aucun hôtel trouvé avec l'identifiant ${hotelId}.`);
+    }
+    if (!hotel.domainePersonnaliseId) {
+      throw new BadRequestException("Cet hôtel n'a aucun domaine personnalisé configuré.");
+    }
+
+    await this.renderDomains.supprimerDomaine(hotel.domainePersonnaliseId);
+    return this.prisma.hotel.update({
+      where: { id: hotelId },
+      data: { domainePersonnalise: null, domainePersonnaliseId: null, domaineVerifie: false, domaineAjouteLe: null },
+    });
   }
 }

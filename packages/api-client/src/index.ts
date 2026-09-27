@@ -5,4 +5,4 @@ export type { ConfigSupabaseAuth, SessionSupabase } from "./supabase-auth";
 export { inscrireHotel, listerChambresDisponibles, listerMenu, creerDemandeReservationPublique, obtenirInfoPublique } from "./public";
 export type { ConfigApiPublique } from "./public";
 export { ClientSuperAdmin } from "./super-admin";
-export type { DonneesCreationHotel, DonneesEnregistrementPaiement } from "./super-admin";
+export type { DonneesCreationHotel, DonneesEnregistrementPaiement, DonneesAjoutDomaine } from "./super-admin";

@@ -1,14 +1,19 @@
 /**
- * Résolution de tenant côté client (Phase 9, voir DECISIONS.md) : ce site
- * détermine lui-même son sous-domaine et le transmet explicitement à
- * chaque appel — le backend ne fait confiance à aucun en-tête Host.
+ * Résolution de tenant côté client (Phase 9, étendu Phase 13) : ce site
+ * détermine lui-même son nom d'hôte et le transmet explicitement à chaque
+ * appel — le backend ne fait confiance à aucun en-tête Host.
  *
- * En production, un vrai sous-domaine (`hotel-chicago.hotelsaver.com` —
- * domaine final à définir, hors scope de cette phase) : premier label du
- * nom d'hôte. En développement, `n'importe-quoi.localhost` résout nativement
- * vers 127.0.0.1 (RFC 6761, aucune configuration DNS nécessaire) — même
- * logique. `?hotel=` reste un secours explicite (pratique pour re-tester
- * plusieurs hôtels sans changer d'URL).
+ * Le nom d'hôte complet est transmis tel quel (pas seulement le premier
+ * label) : `PublicService.resoudreHotel` (apps/api) essaie successivement un
+ * domaine personnalisé complet (`www.hotel-chicago.com`, Phase 13), le nom
+ * d'hôte complet comme sous-domaine HotelSaver, puis son premier label
+ * (`chicago.hotelsaver.com`/`chicago.localhost` → `chicago`) — ce fichier
+ * n'a donc pas besoin de connaître le domaine de base final de la
+ * plateforme (toujours pas choisi, voir DECISIONS.md Phase 9) pour
+ * distinguer les deux cas. En développement, `n'importe-quoi.localhost`
+ * résout nativement vers 127.0.0.1 (RFC 6761, aucune configuration DNS
+ * nécessaire). `?hotel=` reste un secours explicite (pratique pour
+ * re-tester plusieurs hôtels sans changer d'URL).
  */
 export function resoudreSousDomaine(): string | null {
   const parametres = new URLSearchParams(window.location.search);
@@ -23,5 +28,5 @@ export function resoudreSousDomaine(): string | null {
   const estAdresseIp = labels.every((label) => /^\d+$/.test(label));
   if (labels.length < 2 || estAdresseIp) return null;
 
-  return labels[0];
+  return hote;
 }

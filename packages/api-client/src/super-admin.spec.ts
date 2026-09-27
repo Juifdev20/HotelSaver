@@ -88,4 +88,40 @@ describe("ClientSuperAdmin", () => {
       expect.objectContaining({ method: "POST", body: JSON.stringify(dto) })
     );
   });
+
+  it("ajouterDomaine envoie un POST sur /:id/domaine avec le corps attendu", async () => {
+    mockFetchOnce(201, { id: "h1", domainePersonnalise: "www.hotel-chicago.com" });
+    const client = new ClientSuperAdmin("http://localhost:3001", () => "jeton");
+
+    await client.ajouterDomaine("h1", { domaine: "www.hotel-chicago.com" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:3001/super-admin/hotels/h1/domaine",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ domaine: "www.hotel-chicago.com" }) })
+    );
+  });
+
+  it("verifierDomaine envoie un POST sur /:id/domaine/verifier sans corps", async () => {
+    mockFetchOnce(200, { id: "h1", domaineVerifie: true });
+    const client = new ClientSuperAdmin("http://localhost:3001", () => "jeton");
+
+    await client.verifierDomaine("h1");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:3001/super-admin/hotels/h1/domaine/verifier",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("retirerDomaine envoie un DELETE sur /:id/domaine", async () => {
+    mockFetchOnce(200, { id: "h1", domainePersonnalise: null });
+    const client = new ClientSuperAdmin("http://localhost:3001", () => "jeton");
+
+    await client.retirerDomaine("h1");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:3001/super-admin/hotels/h1/domaine",
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
 });

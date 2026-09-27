@@ -1,6 +1,6 @@
 jest.mock("../common/palette/extraire-couleurs-logo");
 
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@hotel-chicago/database";
 import { SuperAdminService } from "./super-admin.service";
 import { PALETTE_DEFAUT } from "../common/palette-defaut";
@@ -22,14 +22,24 @@ function creerPrismaMock() {
   return prisma;
 }
 
+function creerRenderDomainsMock() {
+  return {
+    ajouterDomaine: jest.fn(),
+    supprimerDomaine: jest.fn().mockResolvedValue(undefined),
+    statutDomaine: jest.fn(),
+  } as any;
+}
+
 describe("SuperAdminService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
+  let renderDomains: ReturnType<typeof creerRenderDomainsMock>;
   let service: SuperAdminService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = creerPrismaMock();
-    service = new SuperAdminService(prisma);
+    renderDomains = creerRenderDomainsMock();
+    service = new SuperAdminService(prisma, renderDomains);
     (extraireCouleursLogo as jest.Mock).mockResolvedValue(null);
   });
 
@@ -213,6 +223,102 @@ describe("SuperAdminService", () => {
       expect(prisma.hotel.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { statutLicence: { in: ["ESSAI", "ACTIF"] } } })
       );
+    });
+  });
+
+  describe("ajouterDomainePersonnalise", () => {
+    const dto = { domaine: "www.hotel-chicago.com" };
+
+    it("lève NotFoundException si l'hôtel n'existe pas", async () => {
+      prisma.hotel.findUnique.mockResolvedValue(null);
+      await expect(service.ajouterDomainePersonnalise("inconnu", dto)).rejects.toThrow(NotFoundException);
+    });
+
+    it("lève ConflictException si l'hôtel a déjà un domaine personnalisé", async () => {
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1", domainePersonnalise: "deja-configure.com" });
+      await expect(service.ajouterDomainePersonnalise("h1", dto)).rejects.toThrow(ConflictException);
+      expect(renderDomains.ajouterDomaine).not.toHaveBeenCalled();
+    });
+
+    it("appelle Render puis enregistre le résultat sur l'hôtel", async () => {
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1", domainePersonnalise: null });
+      renderDomains.ajouterDomaine.mockResolvedValue({ id: "cd-1", name: "www.hotel-chicago.com", verifie: false });
+      prisma.hotel.update.mockResolvedValue({ id: "h1", domainePersonnalise: "www.hotel-chicago.com" });
+
+      await service.ajouterDomainePersonnalise("h1", dto);
+
+      expect(renderDomains.ajouterDomaine).toHaveBeenCalledWith("www.hotel-chicago.com");
+      expect(prisma.hotel.update).toHaveBeenCalledWith({
+        where: { id: "h1" },
+        data: expect.objectContaining({
+          domainePersonnalise: "www.hotel-chicago.com",
+          domainePersonnaliseId: "cd-1",
+          domaineVerifie: false,
+        }),
+      });
+    });
+
+    it("retire le domaine côté Render si l'écriture Prisma échoue (jamais orphelin)", async () => {
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1", domainePersonnalise: null });
+      renderDomains.ajouterDomaine.mockResolvedValue({ id: "cd-1", name: "www.hotel-chicago.com", verifie: false });
+      prisma.hotel.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("unique violation", { code: "P2002", clientVersion: "7.10.0" })
+      );
+
+      await expect(service.ajouterDomainePersonnalise("h1", dto)).rejects.toThrow(ConflictException);
+      expect(renderDomains.supprimerDomaine).toHaveBeenCalledWith("cd-1");
+    });
+  });
+
+  describe("verifierDomainePersonnalise", () => {
+    it("lève NotFoundException si l'hôtel n'existe pas", async () => {
+      prisma.hotel.findUnique.mockResolvedValue(null);
+      await expect(service.verifierDomainePersonnalise("inconnu")).rejects.toThrow(NotFoundException);
+    });
+
+    it("lève BadRequestException si l'hôtel n'a aucun domaine configuré", async () => {
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1", domainePersonnaliseId: null });
+      await expect(service.verifierDomainePersonnalise("h1")).rejects.toThrow(BadRequestException);
+    });
+
+    it("met à jour domaineVerifie d'après le statut renvoyé par Render", async () => {
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1", domainePersonnaliseId: "cd-1" });
+      renderDomains.statutDomaine.mockResolvedValue({ id: "cd-1", name: "www.hotel-chicago.com", verifie: true });
+
+      await service.verifierDomainePersonnalise("h1");
+
+      expect(prisma.hotel.update).toHaveBeenCalledWith({ where: { id: "h1" }, data: { domaineVerifie: true } });
+    });
+
+    it("efface le domaine s'il n'existe plus côté Render", async () => {
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1", domainePersonnaliseId: "cd-disparu" });
+      renderDomains.statutDomaine.mockResolvedValue(null);
+
+      await service.verifierDomainePersonnalise("h1");
+
+      expect(prisma.hotel.update).toHaveBeenCalledWith({
+        where: { id: "h1" },
+        data: { domainePersonnalise: null, domainePersonnaliseId: null, domaineVerifie: false, domaineAjouteLe: null },
+      });
+    });
+  });
+
+  describe("retirerDomainePersonnalise", () => {
+    it("lève BadRequestException si l'hôtel n'a aucun domaine configuré", async () => {
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1", domainePersonnaliseId: null });
+      await expect(service.retirerDomainePersonnalise("h1")).rejects.toThrow(BadRequestException);
+    });
+
+    it("supprime côté Render puis efface les champs sur l'hôtel", async () => {
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1", domainePersonnaliseId: "cd-1" });
+
+      await service.retirerDomainePersonnalise("h1");
+
+      expect(renderDomains.supprimerDomaine).toHaveBeenCalledWith("cd-1");
+      expect(prisma.hotel.update).toHaveBeenCalledWith({
+        where: { id: "h1" },
+        data: { domainePersonnalise: null, domainePersonnaliseId: null, domaineVerifie: false, domaineAjouteLe: null },
+      });
     });
   });
 });
