@@ -1,9 +1,10 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
+import * as SplashScreen from "expo-splash-screen";
+import { ActivityIndicator, Animated, Image, StyleSheet, View } from "react-native";
 import { ClientApi, ErreurApi, connecterAvecMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
 import { MoteurSync } from "@hotel-chicago/sync-engine";
 import type { InscriptionHotelPayload, UtilisateurAuthentifie } from "@hotel-chicago/types";
@@ -26,6 +27,66 @@ import { CoquilleOnglets } from "./src/CoquilleOnglets";
 import { FournisseurSession } from "./src/contexteSession";
 
 type Ecran = "chargement" | "selection-profil" | "connexion" | "inscription" | "application";
+
+/** Délai avant l'apparition du spinner sur l'écran de démarrage : le logo
+ * HotelSaver s'affiche seul d'abord, puis le widget de chargement rejoint —
+ * séquence visible à l'oeil même quand l'initialisation est instantanée. */
+const DELAI_APPARITION_SPINNER_MS = 1200;
+
+/** Durée minimale totale de l'écran de démarrage : garantit que la séquence
+ * logo → spinner est réellement vue, et que le démarrage ne donne pas
+ * l'impression d'un flash avant le tableau de bord ou la connexion. */
+const DUREE_MINIMALE_DEMARRAGE_MS = 2600;
+
+/** Écran de démarrage brandé : badge HotelSaver centré sur navy #053483
+ * (identique au splash natif → transition invisible), puis le spinner
+ * apparaît en fondu après DELAI_APPARITION_SPINNER_MS. */
+function EcranDemarrage() {
+  const fonduSpinner = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const minuteur = setTimeout(() => {
+      Animated.timing(fonduSpinner, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }).start();
+    }, DELAI_APPARITION_SPINNER_MS);
+    return () => clearTimeout(minuteur);
+  }, [fonduSpinner]);
+
+  return (
+    // Mesuré sur appareil (captures d'écran en rafale au démarrage) : même
+    // avec un double requestAnimationFrame, un écran noir franc apparaît
+    // AVANT que ce fond navy n'apparaisse — la surface Fabric reste noire
+    // par défaut pendant que React Native finit de démarrer, largement au-
+    // delà de deux frames. onLayout + rAF garantissent seulement qu'une
+    // image a été commise, pas que la surface est déjà prête à composer ;
+    // la marge fixe ci-dessous couvre l'écart réellement observé. Un
+    // splash natif affiché un peu plus longtemps est invisible pour
+    // l'utilisateur ; un écran noir au milieu ne l'est pas.
+    <View
+      style={styles.chargement}
+      onLayout={() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              void SplashScreen.hideAsync();
+            }, 400);
+          });
+        });
+      }}
+    >
+      <Image source={require("./assets/hotelsaver-logo.png")} style={styles.logoDemarrage} resizeMode="contain" />
+      {/* Hauteur fixe réservée : l'apparition du spinner ne déplace pas le logo. */}
+      <View style={styles.zoneSpinner}>
+        <Animated.View style={{ opacity: fonduSpinner }}>
+          <ActivityIndicator color="#FFFFFF" size="large" />
+        </Animated.View>
+      </View>
+    </View>
+  );
+}
 
 /** 404 sur /auth/me = l'adresse répond mais ce n'est pas le serveur de l'hôtel. */
 function messageErreurProfil(erreur: Error): string {
@@ -82,6 +143,15 @@ export default function App() {
   // Démarrage : charge la config puis la liste des profils déjà connectés
   // sur cet appareil (section 5, "sélection de profil au démarrage").
   useEffect(() => {
+    const debutDemarrage = Date.now();
+    // Garantit DUREE_MINIMALE_DEMARRAGE_MS d'affichage de l'écran de démarrage
+    // avant toute transition — la séquence logo → spinner reste visible même
+    // quand l'initialisation est instantanée (stockage local, session valide).
+    const attendreDureeMinimale = () =>
+      new Promise<void>((resolve) =>
+        setTimeout(resolve, Math.max(0, DUREE_MINIMALE_DEMARRAGE_MS - (Date.now() - debutDemarrage)))
+      );
+
     (async () => {
       const config = await lireConfiguration();
       setConfiguration(config);
@@ -90,6 +160,7 @@ export default function App() {
       
       // Si aucun profil, aller à l'écran de connexion
       if (liste.length === 0) {
+        await attendreDureeMinimale();
         setEcran("connexion");
         return;
       }
@@ -107,6 +178,7 @@ export default function App() {
               { url: config.supabaseUrl, anonKey: config.supabaseAnonKey },
               jeton
             );
+            await attendreDureeMinimale();
             await terminerConnexion(session, config, profil.email);
             return;
           } catch {
@@ -116,6 +188,7 @@ export default function App() {
       }
 
       // Sinon, afficher l'écran de sélection de profil
+      await attendreDureeMinimale();
       setEcran("selection-profil");
     })();
   }, []);
@@ -227,12 +300,7 @@ export default function App() {
   // Même logo et même fond que le splash natif (app.json) : la transition
   // natif → JS est invisible, à la manière des splash de Facebook.
   if (ecran === "chargement" || !configuration || (ecran === "application" && !moteurSync)) {
-    return (
-      <View style={styles.chargement}>
-        <Image source={require("./assets/hotelsaver-logo.png")} style={styles.logoDemarrage} resizeMode="contain" />
-        <ActivityIndicator color="#FFFFFF" size="large" style={styles.spinnerDemarrage} />
-      </View>
-    );
+    return <EcranDemarrage />;
   }
 
   if (ecran === "selection-profil") {
@@ -303,5 +371,7 @@ export default function App() {
 const styles = StyleSheet.create({
   chargement: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#053483" },
   logoDemarrage: { width: 180, height: 180 },
-  spinnerDemarrage: { marginTop: 32 },
+  // 32 de marge + ~40 pour le spinner : espace réservé avant son apparition
+  // pour que le logo ne bouge jamais.
+  zoneSpinner: { marginTop: 32, height: 40, justifyContent: "center" },
 });

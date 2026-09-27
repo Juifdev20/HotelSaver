@@ -1918,3 +1918,42 @@ rendre le titre du reçu dynamique par hôtel est un chantier à part.
 
 **Vérifié** : voir la vérification du commit — typecheck/build des quatre
 applis concernées.
+
+### 2026-09-27 — Élimination du flash noir au démarrage Android + écran de démarrage chorégraphié
+
+**Constat mesuré sur l'OUKITEL (captures en rafale)** : splash natif →
+~2-4 s de noir → écran JS. Diagnostic : `SplashScreenManager`
+(expo-splash-screen) bloque **tout draw** de la fenêtre via un
+`OnPreDrawListener` tant que `keepSplashScreenOnScreen` — pendant le
+chargement/évaluation du bundle, aucune frame n'est produite et
+SurfaceFlinger affiche une surface vide = noir. Ni `windowBackground` ni
+`preventAutoHideAsync` ne peuvent rien : rien n'est dessiné. (Sur un appareil
+Android < 12 l'effet est le même : la vue compat du splash ne peut pas se
+dessiner pendant le blocage.)
+
+**Solution** (`MainActivity.kt`, régénérée par le plugin
+`apps/mobile/plugins/withSurfaceTranslucide.js` — `android/` est gitignoré) :
+
+1. `SplashScreenManager.hide()` juste après `super.onCreate` → débloque le
+   premier draw immédiatement.
+2. Un **voile natif** (`ImageView` logo + fond navy `#053483`) est ajouté
+   au-dessus de la `decorView` — il dessine dès la première frame, couvre
+   toute l'attente (init ReactHost + téléchargement/évaluation du bundle,
+   qui peut durer > 60 s en dev sur cet appareil).
+3. Il est retiré en fondu quand `ReactMarkerConstants.CONTENT_APPEARED`
+   signale le premier rendu JS réel (+ 250 ms de marge) — le premier écran
+   JS (`EcranDemarrage`) est visuellement identique → transition invisible.
+
+**Séquence JS** (`App.tsx`) : `EcranDemarrage` = logo seul → spinner en
+fondu après 1,2 s → durée minimale 2,6 s avant toute transition
+(`attendreDureeMinimale`) → dashboard direct si la session se rafraîchit,
+sinon sélection de profil/connexion. `SplashScreen.preventAutoHideAsync()`
+dans `index.ts` reste en place (cohérence du mécanisme expo).
+
+**En mode release** le bundle est embarqué : le voile couvre ~1 s d'éval JS
+au lieu du téléchargement — même rendu sans noir.
+
+**Note Windows** : `gradlew assembleRelease` est bloqué sur ce poste par la
+limite MAX_PATH de ninja (chemins d'objets ~380 chars via le store pnpm +
+ninja sans manifest `longPathAware`). Utiliser un build cloud (EAS) ou une
+machine avec chemins longs pour l'APK de production.

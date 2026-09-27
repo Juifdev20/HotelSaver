@@ -25,8 +25,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withSurfaceTranslucide",
       "expo-secure-store",
       "expo-sqlite",
+      [
+        "expo-system-ui",
+        {
+          "backgroundColor": "#053483"
+        }
+      ],
       [
         "expo-splash-screen",
         {
