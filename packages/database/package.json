@@ -16,7 +16,8 @@
     "studio": "prisma studio",
     "apply-rls": "node scripts/apply-rls.js",
     "creer-utilisateur": "node scripts/creer-utilisateur.js",
-    "reconnecter-utilisateur": "node scripts/reconnecter-utilisateur.js"
+    "reconnecter-utilisateur": "node scripts/reconnecter-utilisateur.js",
+    "creer-super-admin": "node scripts/creer-super-admin.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
