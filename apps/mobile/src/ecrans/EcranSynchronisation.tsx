@@ -1,13 +1,15 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { ConflitSync } from "@hotel-chicago/sync-engine";
+import type { ConflitSync, LigneFileAttente } from "@hotel-chicago/sync-engine";
+import { SEUIL_ECHEC_DEFINITIF } from "@hotel-chicago/sync-engine";
 import { CloudOff, RefreshCw } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { supprimerEcritureCafeteriaLocale } from "../stockage/cafeteriaMirroir";
 
 export interface EcranSynchronisationProps {
   onRetour: () => void;
@@ -46,21 +48,41 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
   const { moteurSync } = useSession();
   const etat = useSyncEtat();
   const [conflits, setConflits] = useState<ConflitSync[]>([]);
+  const [actionsEchouees, setActionsEchouees] = useState<LigneFileAttente[]>([]);
   const [enResolution, setEnResolution] = useState<string | null>(null);
 
   async function rechargerConflits() {
     setConflits(await moteurSync.listerConflits());
   }
 
+  async function rechargerActionsEchouees() {
+    const file = await moteurSync.listerFileAttente();
+    setActionsEchouees(file.filter((l) => l.attempts >= SEUIL_ECHEC_DEFINITIF));
+  }
+
   useEffect(() => {
     rechargerConflits();
-  }, [etat.conflits]);
+    rechargerActionsEchouees();
+  }, [etat.conflits, etat.enAttente]);
 
   async function garderVersionServeur(conflit: ConflitSync) {
     setEnResolution(conflit.id);
     try {
       await moteurSync.resoudreConflitGarderServeur(conflit.id, conflit.entiteType, conflit.donneesServeur);
       await rechargerConflits();
+    } finally {
+      setEnResolution(null);
+    }
+  }
+
+  async function retirerActionEchouee(ligne: LigneFileAttente) {
+    setEnResolution(ligne.id);
+    try {
+      await moteurSync.annulerOperation(ligne.id);
+      if (ligne.operation === "CREATE") {
+        await supprimerEcritureCafeteriaLocale(ligne.entiteType, ligne.localId);
+      }
+      await rechargerActionsEchouees();
     } finally {
       setEnResolution(null);
     }
@@ -117,6 +139,34 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
             >
               <Text style={styles.boutonSecondaireTexte}>
                 {enResolution === conflit.id ? "…" : "Garder la version du serveur"}
+              </Text>
+            </Pressable>
+          </View>
+        ))}
+
+        <Text style={styles.titreSection}>Actions échouées</Text>
+
+        {actionsEchouees.length === 0 && (
+          <View style={styles.videConteneur}>
+            <CloudOff size={28} color={couleurs.encreFaible} />
+            <Text style={styles.videTexte}>Aucune action bloquée.</Text>
+          </View>
+        )}
+
+        {actionsEchouees.map((ligne) => (
+          <View key={ligne.id} style={styles.carteConflit}>
+            <Text style={styles.nomEntite}>{LIBELLE_ENTITE[ligne.entiteType] ?? ligne.entiteType}</Text>
+            <Text style={styles.ligneConflitLabel}>Vous avez essayé :</Text>
+            <Text style={styles.ligneConflitValeur}>{resumerChamps(ligne.payload)}</Text>
+            <Text style={styles.ligneConflitLabel}>Erreur du serveur ({ligne.attempts} essais) :</Text>
+            <Text style={styles.ligneConflitValeur}>{ligne.lastError ?? "Erreur inconnue."}</Text>
+            <Pressable
+              style={styles.boutonSecondaire}
+              onPress={() => retirerActionEchouee(ligne)}
+              disabled={enResolution === ligne.id}
+            >
+              <Text style={styles.boutonSecondaireTexte}>
+                {enResolution === ligne.id ? "…" : "Retirer cette action"}
               </Text>
             </Pressable>
           </View>

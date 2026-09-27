@@ -62,7 +62,13 @@ export class CafeteriaService {
   }
 
   async ajouterLigne(compteId: string, dto: AjouterLigneDto, currentUser: { userId: string }) {
-    const compte = await this.findOneCompte(compteId);
+    // Deux lectures indépendantes (aucune n'a besoin du résultat de l'autre) :
+    // en parallèle plutôt que l'une après l'autre — chaque aller-retour
+    // compte sur une connexion internet lente (voir DECISIONS.md, Phase 6).
+    const [compte, produit] = await Promise.all([
+      this.findOneCompte(compteId),
+      this.prisma.produit.findUnique({ where: { id: dto.produitId } }),
+    ]);
     this.verifierCompteOuvert(compte);
 
     const sousCompte = compte.sousComptes.find((sc) => sc.id === dto.sousCompteId);
@@ -70,7 +76,6 @@ export class CafeteriaService {
       throw new NotFoundException(`Le sous-compte ${dto.sousCompteId} n'appartient pas au compte ${compteId}.`);
     }
 
-    const produit = await this.prisma.produit.findUnique({ where: { id: dto.produitId } });
     if (!produit) {
       throw new NotFoundException(`Aucun produit trouvé avec l'identifiant ${dto.produitId}.`);
     }
@@ -78,8 +83,36 @@ export class CafeteriaService {
       throw new ConflictException(`Le produit "${produit.nom}" n'est plus disponible à la vente.`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const ligne = await tx.ligneCommande.create({
+    // Pas de `$transaction(async tx => ...)` ici (retiré le 26/09/2026) : le
+    // pooler Supabase est coincé en mode "transaction" depuis la panne du
+    // mode "session" du 25/09/2026 (voir DECISIONS.md), incompatible avec les
+    // transactions interactives Prisma. Le stock est vérifié/décrémenté AVANT
+    // toute création (ordre important) : si le stock est insuffisant, on lève
+    // avant de créer quoi que ce soit — jamais de ligne de commande orpheline
+    // sans mouvement de stock correspondant. `produit` est réutilisé (déjà
+    // chargé ci-dessus pour vérifier `actif`) pour épargner une deuxième
+    // lecture — chaque aller-retour compte sur une connexion internet lente
+    // (service jugé trop lent en conditions réelles, 26/09/2026).
+    await this.stockService.decrementerStock(
+      this.prisma,
+      { produitId: dto.produitId, type: "SORTIE_VENTE", quantite: dto.quantite },
+      produit
+    );
+
+    // Une fois le stock validé, le mouvement d'audit et la ligne de commande
+    // sont deux écritures indépendantes (aucune n'a besoin du résultat de
+    // l'autre) : envoyées en parallèle plutôt que l'une après l'autre.
+    const [, ligne] = await Promise.all([
+      this.prisma.mouvementStock.create({
+        data: {
+          produitId: dto.produitId,
+          quantite: dto.quantite,
+          type: "SORTIE_VENTE",
+          motif: `Vente cafétaria — compte "${compte.tableOuNom}"`,
+          createdBy: currentUser.userId,
+        },
+      }),
+      this.prisma.ligneCommande.create({
         data: {
           sousCompteId: dto.sousCompteId,
           produitId: dto.produitId,
@@ -88,18 +121,10 @@ export class CafeteriaService {
           devise: produit.devise,
         },
         include: { produit: true },
-      });
+      }),
+    ]);
 
-      await this.stockService.enregistrerMouvement(tx, {
-        produitId: dto.produitId,
-        type: "SORTIE_VENTE",
-        quantite: dto.quantite,
-        motif: `Vente cafétaria — compte "${compte.tableOuNom}"`,
-        createdBy: currentUser.userId,
-      });
-
-      return ligne;
-    });
+    return ligne;
   }
 
   async encaisser(compteId: string, dto: EncaisserCompteDto, currentUser: { userId: string }) {

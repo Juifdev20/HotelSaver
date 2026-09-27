@@ -67,7 +67,7 @@ export default function App() {
     (async () => {
       const stockage = await creerStockageLocalMobile();
       if (annule) return;
-      moteurCree = new MoteurSync(client, stockage, ["Chambre"]);
+      moteurCree = new MoteurSync(client, stockage, ["Chambre", "Produit", "CompteCafeteria", "SousCompte", "LigneCommande"]);
       moteurCree.demarrer();
       setMoteurSync(moteurCree);
     })();

@@ -151,6 +151,21 @@ export interface ResultatOperation {
   statut: "SYNCED" | "CONFLICT" | "ERROR";
   message?: string;
   donneesServeur?: unknown;
+  /** Entités enfants créées implicitement par un CREATE parent (ex. le
+   * premier sous-compte d'un CompteCafeteria) — le miroir local doit y
+   * chercher le remoteId à rattacher à ses propres lignes optimistes, sans
+   * attendre le prochain pull (sinon doublon + enfants fantômes, bug du
+   * 27/09/2026). */
+  enfants?: EnfantCree[];
+}
+
+/** Mapping localId→remoteId d'une entité enfant créée implicitement par un
+ * CREATE parent. */
+export interface EnfantCree {
+  entiteType: EntitePush;
+  localId: string;
+  remoteId: string;
+  syncVersion?: number;
 }
 
 /** GET /sync/pull — une entrée par type d'entité demandé (ou tous ceux

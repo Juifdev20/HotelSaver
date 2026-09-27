@@ -60,5 +60,58 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       cle TEXT PRIMARY KEY,
       valeur TEXT NOT NULL
     );
+
+    -- Tables miroir Cafétaria (Phase 6, 26/09/2026) : contrairement à
+    -- "chambres", ce sont des CREATE (compte/sous-compte/ligne n'existent pas
+    -- encore côté serveur au moment de l'écriture optimiste) — "id" est donc
+    -- l'id LOCAL stable, jamais renommé, et "remoteId" est rempli une fois la
+    -- création confirmée par le serveur. Voir cafeteriaMirroir.ts.
+    CREATE TABLE IF NOT EXISTS produits (
+      id TEXT PRIMARY KEY,
+      nom TEXT NOT NULL,
+      categorie TEXT NOT NULL,
+      prix TEXT NOT NULL,
+      devise TEXT NOT NULL,
+      photo TEXT,
+      stockActuel TEXT NOT NULL,
+      seuilAlerte TEXT NOT NULL,
+      actif INTEGER NOT NULL,
+      updatedAt TEXT NOT NULL,
+      syncVersion INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS comptes_cafeteria (
+      id TEXT PRIMARY KEY,
+      remoteId TEXT,
+      tableOuNom TEXT NOT NULL,
+      statut TEXT NOT NULL,
+      ouvertPar TEXT NOT NULL,
+      ouvertLe TEXT NOT NULL,
+      fermeLe TEXT,
+      updatedAt TEXT NOT NULL,
+      syncVersion INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS sous_comptes (
+      id TEXT PRIMARY KEY,
+      remoteId TEXT,
+      compteId TEXT NOT NULL,
+      nom TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      syncVersion INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS lignes_commande (
+      id TEXT PRIMARY KEY,
+      remoteId TEXT,
+      sousCompteId TEXT NOT NULL,
+      produitId TEXT NOT NULL,
+      quantite TEXT NOT NULL,
+      prixUnitaire TEXT NOT NULL,
+      devise TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      syncVersion INTEGER NOT NULL
+    );
   `);
 }

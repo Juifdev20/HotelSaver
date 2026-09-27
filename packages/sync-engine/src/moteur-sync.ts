@@ -1,5 +1,5 @@
 import { ENTITES_PUSH, type ClientApi, type EntitePull, type EntitePush } from "@hotel-chicago/api-client";
-import type { ConflitSync, EtatSync, StockageLocal } from "./types";
+import type { ConflitSync, EtatSync, LigneFileAttente, StockageLocal } from "./types";
 
 /** Section 10.2 : backoff exponentiel sur échec réseau (pas sur un simple
  * ERROR métier renvoyé dans un lot par ailleurs réussi — voir pousser()).
@@ -9,6 +9,15 @@ const PALIERS_BACKOFF_MS = [5_000, 15_000, 30_000, 60_000, 120_000];
 /** Section 10.2 : détection de connectivité par ping périodique, pas
  * seulement l'état réseau du système. */
 const INTERVALLE_PING_MS = 20_000;
+
+/** Rejets métier (statut ERROR renvoyé par le serveur — erreur
+ * déterministe, pas une panne réseau qui elle fait échouer le cycle entier)
+ * après lesquels une opération n'est plus re-poussée. Elle reste en file et
+ * visible dans « Actions échouées » pour une décision humaine (retirer) —
+ * sans ce seuil, une opération invalide était réémise à chaque poll : une
+ * ligne de commande refusée par le serveur a été re-tentée 52 fois en
+ * conditions réelles, un aller-retour réseau à chaque fois (27/09/2026). */
+export const SEUIL_ECHEC_DEFINITIF = 3;
 
 const ENSEMBLE_ENTITES_PUSH: ReadonlySet<string> = new Set(ENTITES_PUSH);
 
@@ -85,6 +94,34 @@ export class MoteurSync {
     return this.stockage.listerConflits();
   }
 
+  /** Expose la file d'attente pour l'affichage des actions échouées de façon
+   * permanente (ex. stock insuffisant côté serveur) — voir `annulerOperation`. */
+  async listerFileAttente(): Promise<LigneFileAttente[]> {
+    return this.stockage.listerFileAttente();
+  }
+
+  /** Retire une entrée de la file sans jamais la retenter — pour une erreur
+   * métier permanente (ex. "Transaction not found", stock insuffisant) que le
+   * réseau ne résoudra jamais tout seul. Retourne l'entrée retirée pour que
+   * l'appelant sache quelle écriture optimiste locale annuler (elle
+   * n'existera jamais côté serveur). */
+  async annulerOperation(id: string): Promise<LigneFileAttente | null> {
+    const file = await this.stockage.listerFileAttente();
+    const ligne = file.find((l) => l.id === id) ?? null;
+    if (ligne) {
+      await this.stockage.retirerFileAttente(id);
+      await this.rafraichirCompteurs();
+    }
+    return ligne;
+  }
+
+  /** Ids déjà connus comme en attente d'envoi pour un type d'entité — pour
+   * qu'un écran désactive une action qui dépend d'une création pas encore
+   * confirmée (ex. ajouter une ligne à un sous-compte pas encore synchronisé). */
+  async idsEnAttente(entiteType: EntitePush): Promise<Set<string>> {
+    return this.stockage.idsEnAttente(entiteType);
+  }
+
   async resoudreConflitGarderServeur(conflitId: string, entiteType: EntitePush, donneesServeur: unknown): Promise<void> {
     await this.stockage.appliquerResolutionConflit(entiteType, donneesServeur);
     await this.stockage.supprimerConflit(conflitId);
@@ -136,7 +173,9 @@ export class MoteurSync {
   }
 
   private async pousser(): Promise<void> {
-    const file = await this.stockage.listerFileAttente();
+    // Les opérations rejetées définitivement par le serveur ne sont plus
+    // envoyées : elles restent en file pour l'écran « Actions échouées ».
+    const file = (await this.stockage.listerFileAttente()).filter((l) => l.attempts < SEUIL_ECHEC_DEFINITIF);
     if (file.length === 0) return;
 
     const resultats = await this.client.syncPush(
@@ -162,6 +201,14 @@ export class MoteurSync {
           resultat.remoteId ?? ligne.remoteId ?? ligne.localId,
           resultat.syncVersion ?? ligne.baseSyncVersion ?? 1
         );
+        // Un CREATE parent peut avoir créé des enfants côté serveur (ex. le
+        // premier sous-compte d'un CompteCafeteria) : le mapping
+        // localId→remoteId est répercuté tout de suite — sinon l'enfant
+        // local resterait un fantôme non synchronisable et le prochain pull
+        // le créerait en doublon sous son vrai id serveur (bug du 27/09/2026).
+        for (const enfant of resultat.enfants ?? []) {
+          await this.stockage.confirmerPush(enfant.entiteType, enfant.localId, enfant.remoteId, enfant.syncVersion ?? 1);
+        }
         await this.stockage.retirerFileAttente(ligne.id);
       } else if (resultat.statut === "CONFLICT") {
         await this.stockage.ajouterConflit({
@@ -186,9 +233,16 @@ export class MoteurSync {
 
     // Horodatage minimum partagé entre toutes les entités demandées pour un
     // seul appel groupé — une entité en avance sera juste re-filtrée par des
-    // upserts idempotents, jamais en retard.
+    // upserts idempotents, jamais en retard. Une entité jamais tirée
+    // (`lireDernierePull` renvoie null, ex. Produit/CompteCafeteria ajoutés à
+    // `entitesPull` après que Chambre a déjà un historique) DOIT ramener tout
+    // le lot à l'epoch — sans ça, elle hérite silencieusement du curseur déjà
+    // avancé d'une entité voisine et ne reçoit jamais son historique complet
+    // (bug trouvé en conditions réelles : "aucun produit" après l'ajout de la
+    // Cafétaria hors ligne, 26/09/2026).
+    const EPOCH = new Date(0).toISOString();
     const dernieres = await Promise.all(this.entitesPull.map((e) => this.stockage.lireDernierePull(e)));
-    const depuis = dernieres.filter((d): d is string => !!d).sort()[0] ?? new Date(0).toISOString();
+    const depuis = dernieres.map((d) => d ?? EPOCH).sort()[0];
 
     const reponse = await this.client.syncPull(depuis, this.entitesPull);
 

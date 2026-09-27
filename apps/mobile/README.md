@@ -63,14 +63,16 @@ et son URL doit correspondre à celle des Paramètres de l'app (par défaut
 
 ## Pas encore fait
 
-Impression thermique Bluetooth (section 11) construite et câblée (Facturation
-et Compte cafétaria) mais **jamais testée sur une vraie imprimante** — voir
-`DECISIONS.md`, Phase 6. À vérifier avec le matériel du patron avant de
-considérer la fonctionnalité terminée.
+Impression thermique Bluetooth (section 11) : testée avec succès sur une
+imprimante générique réelle (ticket de test) — voir `DECISIONS.md`, Phase 6,
+pour le correctif qu'il a fallu (délai avant de fermer la connexion, sans
+quoi le ticket ne sortait pas malgré un envoi réussi côté code).
 
-Le stockage hors ligne SQLite + file de synchronisation (section 10) existe
-mais reste câblé uniquement sur l'écran Chambres (entité plate — les autres
-entités poussables, Cafétaria en tête, ont des relations imbriquées que
-`GET /sync/pull` ne renvoie qu'en lignes plates par table, donc plus de
-travail pour les mettre en miroir localement) ; Caisse/Comptes ouverts/Menu/
-Stock restent en ligne directe.
+Le stockage hors ligne SQLite + file de synchronisation (section 10) couvre
+maintenant Chambres **et** Cafétaria (Caisse, Comptes ouverts, Compte détail —
+ouvrir un compte/ajouter une personne/ajouter une ligne sont instantanés,
+voir `DECISIONS.md` Phase 6 pour le découpage id local/`remoteId` propre aux
+entités créées hors ligne). L'encaissement reste volontairement en ligne
+(numérotation séquentielle des reçus, ne peut pas être précalculée). Menu et
+Stock (écrans PATRON, pas le goulot d'étranglement du service) restent en
+ligne directe.

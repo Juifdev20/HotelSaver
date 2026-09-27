@@ -11,6 +11,7 @@ function creerPrismaMock() {
     },
     sousCompte: { create: jest.fn() },
     ligneCommande: { create: jest.fn() },
+    mouvementStock: { create: jest.fn().mockResolvedValue({}) },
     venteCafeteria: {
       create: jest.fn(),
       findFirst: jest.fn().mockResolvedValue(null),
@@ -30,12 +31,12 @@ const currentUser = { userId: "u1" };
 
 describe("CafeteriaService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
-  let stockService: { enregistrerMouvement: jest.Mock };
+  let stockService: { enregistrerMouvement: jest.Mock; decrementerStock: jest.Mock };
   let service: CafeteriaService;
 
   beforeEach(() => {
     prisma = creerPrismaMock();
-    stockService = { enregistrerMouvement: jest.fn().mockResolvedValue({}) };
+    stockService = { enregistrerMouvement: jest.fn().mockResolvedValue({}), decrementerStock: jest.fn().mockResolvedValue(undefined) };
     service = new CafeteriaService(prisma, stockService as any);
   });
 
@@ -100,10 +101,26 @@ describe("CafeteriaService", () => {
 
       expect(ligne.prixUnitaire).toBe(3);
       expect(ligne.devise).toBe("USD");
-      expect(stockService.enregistrerMouvement).toHaveBeenCalledWith(
+      expect(stockService.decrementerStock).toHaveBeenCalledWith(
         prisma,
-        expect.objectContaining({ produitId: "p1", type: "SORTIE_VENTE", quantite: 2 })
+        expect.objectContaining({ produitId: "p1", type: "SORTIE_VENTE", quantite: 2 }),
+        expect.objectContaining({ nom: "Bière" })
       );
+      expect(prisma.mouvementStock.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ produitId: "p1", type: "SORTIE_VENTE", quantite: 2 }) })
+      );
+    });
+
+    it("ne crée ni ligne ni mouvement si le stock est insuffisant", async () => {
+      prisma.compteCafeteria.findUnique.mockResolvedValue(compteOuvert);
+      prisma.produit.findUnique.mockResolvedValue({ id: "p1", nom: "Bière", actif: true, prix: 3, devise: "USD" });
+      stockService.decrementerStock.mockRejectedValue(new ConflictException("Stock insuffisant"));
+
+      await expect(
+        service.ajouterLigne("c1", { sousCompteId: "sc1", produitId: "p1", quantite: 2 } as any, currentUser)
+      ).rejects.toThrow(ConflictException);
+      expect(prisma.ligneCommande.create).not.toHaveBeenCalled();
+      expect(prisma.mouvementStock.create).not.toHaveBeenCalled();
     });
   });
 

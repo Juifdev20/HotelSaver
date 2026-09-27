@@ -1081,3 +1081,46 @@ Non créé dans cette passe : le déploiement Render est une étape de la Phase
 Créer un `render.yaml` maintenant, pointant vers une API qui n'expose que des
 routes stub, n'aurait pas de valeur et créerait un faux sentiment
 d'achèvement.
+
+## Phase 6 (suite 2) — correctifs miroir cafétéria trouvés sur appareil réel, 27/09/2026
+
+Trois défauts liés, découverts en observant une `LigneCommande` rejetée par
+le serveur **52 fois** (« le sous-compte n'appartient pas au compte ») sur le
+téléphone après la migration Prisma 7 :
+
+1. **Enfant embarqué jamais re-mappé** : `ouvrirCompte` crée le premier
+   sous-compte côté serveur avec son propre id, mais la réponse sync ne
+   renvoyait que le `remoteId` du compte — le sous-compte local gardait
+   `remoteId NULL` à jamais, et le pull suivant créait son doublon sous le
+   vrai id serveur (deux « Juif » affichés). Corrigé de bout en bout : le
+   client envoie `premierSousCompteLocalId` dans le payload du CREATE
+   CompteCafeteria, `SyncService` renvoie `enfants[]` (mapping
+   localId→remoteId), le moteur répercute via `confirmerPush` immédiatement
+   — le pull ultérieur fusionne alors au lieu de dupliquer
+   (`upsertSousCompte` matche déjà par `remoteId OR id`).
+2. **Rejet métier retenté indéfiniment** : un statut `ERROR` (validation
+   serveur, erreur déterministe — pas une panne réseau) incrémentait
+   `attempts` mais l'opération était re-poussée à chaque poll (~20 s), soit
+   ~300 ms d'aller-retour gaspillé par cycle sur une connexion coûteuse.
+   `SEUIL_ECHEC_DEFINITIF = 3` (exporté du sync-engine, réutilisé par
+   l'écran Synchronisation au lieu de sa constante locale) : au-delà, plus
+   de push — l'op reste en file dans « Actions échouées » pour retrait
+   manuel (`annulerOperation` + `supprimerEcritureCafeteriaLocale`, qui
+   supprime désormais en cascade les enfants miroir : lignes du sous-compte,
+   sous-comptes du compte).
+3. **Join miroir incomplet** : `assemblerComptes` joignait
+   `sous_comptes.compteId` / `lignes_commande.sousCompteId` à l'id **local**
+   seul, alors que le pull réécrit ces colonnes avec l'id **serveur** — un
+   sous-compte confirmé (remoteId renseigné, compteId réécrit en remote par
+   l'upsert) devenait invisible à l'écran. Le join accepte désormais les
+   deux clés (local OU remote). Avant le correctif, ce bug masquait le
+   premier : seul le sous-compte fantôme (compteId local) s'affichait.
+
+Garde-fou UI : « ajouter une ligne » est aussi bloqué sur un sous-compte
+`remoteId === null` (fantôme créé par un ancien build, jamais
+synchronisable), pas seulement s'il a une op en file.
+
+Validé sur appareil réel : compte « Table Test » + sous-compte « Testeur »
+créés hors ligne → push → `remoteId` renseigné sur les deux, pull sans
+doublon, carte visible après rechargement. Tests : 11/11 sync-engine dont 2
+nouveaux (mapping enfants, arrêt au seuil), 127/127 API.

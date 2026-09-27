@@ -69,7 +69,6 @@ export function EcranPlus() {
   if (vue.id === "comptes-ouverts") {
     return (
       <EcranComptesOuverts
-        client={client}
         onRetour={() => setVue(VUE_LISTE)}
         onOuvrirCompte={(compteId) => setVue({ id: "compte", compteId })}
       />
@@ -78,7 +77,6 @@ export function EcranPlus() {
   if (vue.id === "caisse") {
     return (
       <EcranCaisse
-        client={client}
         onRetour={() => setVue(VUE_LISTE)}
         onCompteOuvert={(compteId) => setVue({ id: "compte", compteId })}
       />

@@ -20,9 +20,9 @@ const CLE = "hotel-chicago:configuration";
 // data ni d'IP réseau à connaître) — voir README.md.
 const VALEURS_PAR_DEFAUT: ConfigurationApp = {
   apiUrl: "http://localhost:3001",
-  supabaseUrl: "https://krvhnsyvlkgvcxncvwkx.supabase.co",
+  supabaseUrl: "https://zjplcqocmkctbfxnxheq.supabase.co",
   supabaseAnonKey:
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtydmhuc3l2bGtndmN4bmN2d2t4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNDI1NjYsImV4cCI6MjEwNTgxODU2Nn0.7hIYhQG8M1qEDIJZENRgR9gxAyUW1q9DmuSRqiYX__Y",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqcGxjcW9jbWtjdGJmeG54aGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NTg0MzgsImV4cCI6MjEwNjAzNDQzOH0.fkgb9UjnDKQ956wWrv73EAGbBcJly_NrfS-pwKibMSI",
 };
 
 export async function lireConfiguration(): Promise<ConfigurationApp> {

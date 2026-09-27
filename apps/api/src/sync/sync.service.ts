@@ -15,6 +15,10 @@ import { SyncPullQueryDto } from "./dto/sync-pull.query.dto";
 interface EntiteCree {
   id: string;
   syncVersion: number;
+  /** Enfants créés implicitement par le CREATE parent (ex. le premier
+   * sous-compte d'un CompteCafeteria), renvoyés pour que le miroir local
+   * remplisse leur `remoteId` sans attendre le prochain pull. */
+  enfants?: { entiteType: EntitePush; localId: string; remoteId: string; syncVersion?: number }[];
 }
 
 interface ConfigEntite {
@@ -34,6 +38,7 @@ interface ResultatOperation {
   statut: "SYNCED" | "CONFLICT" | "ERROR";
   message?: string;
   donneesServeur?: unknown;
+  enfants?: { entiteType: EntitePush; localId: string; remoteId: string; syncVersion?: number }[];
 }
 
 /** Lecture (GET /sync/pull) — mêmes permissions que les endpoints GET directs de chaque module. */
@@ -94,7 +99,20 @@ export class SyncService {
       CompteCafeteria: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
         rolesUpdate: [],
-        create: (payload, currentUser) => this.cafeteriaService.ouvrirCompte(payload as any, currentUser),
+        create: async (payload, currentUser) => {
+          const cree = await this.cafeteriaService.ouvrirCompte(payload as any, currentUser);
+          // ouvrirCompte crée aussi le premier sous-compte côté serveur : si
+          // le client a envoyé l'id local de ce sous-compte, on renvoie le
+          // mapping — sinon le miroir local garderait un enfant fantôme sans
+          // remoteId, doublé au prochain pull (bug constaté le 27/09/2026).
+          const premier = cree.sousComptes?.[0];
+          const localIdPremier = (payload as { premierSousCompteLocalId?: string }).premierSousCompteLocalId;
+          if (!premier || !localIdPremier) return cree;
+          return {
+            ...cree,
+            enfants: [{ entiteType: "SousCompte" as const, localId: localIdPremier, remoteId: premier.id, syncVersion: premier.syncVersion }],
+          };
+        },
       },
       SousCompte: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
@@ -150,6 +168,7 @@ export class SyncService {
           remoteId: cree.id,
           syncVersion: cree.syncVersion,
           statut: "SYNCED",
+          enfants: cree.enfants,
         };
       }
 

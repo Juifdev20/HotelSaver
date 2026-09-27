@@ -1,16 +1,17 @@
 import * as React from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import type { ClientApi } from "@hotel-chicago/api-client";
-import { CompteCafeteria, Devise, StatutCompte } from "@hotel-chicago/types";
+import { CompteCafeteria, Devise } from "@hotel-chicago/types";
 import { ClipboardList } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
-import { useDonnee } from "../hooks/useDonnee";
+import { useSession } from "../contexteSession";
+import { useSyncEtat } from "../hooks/useSyncEtat";
+import { listerComptesOuvertsMiroir } from "../stockage/cafeteriaMirroir";
 
 export interface EcranComptesOuvertsProps {
-  client: ClientApi;
   onOuvrirCompte: (compteId: string) => void;
   onRetour: () => void;
 }
@@ -28,13 +29,38 @@ function totalCompte(compte: CompteCafeteria): { usd: number; cdf: number } {
   return { usd, cdf };
 }
 
-export function EcranComptesOuverts({ client, onOuvrirCompte, onRetour }: EcranComptesOuvertsProps) {
-  const {
-    donnee: comptes,
-    erreur,
-    enCours,
-    recharger,
-  } = useDonnee(() => client.listerComptesCafeteria(StatutCompte.OUVERT), client);
+/**
+ * Hors ligne (Phase 6, 26/09/2026) : lit toujours le miroir SQLite local,
+ * jamais l'API directement — même patron que EcranChambres.tsx.
+ */
+export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOuvertsProps) {
+  const { moteurSync } = useSession();
+  const etatSync = useSyncEtat();
+  const [comptes, setComptes] = useState<CompteCafeteria[] | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [rafraichissement, setRafraichissement] = useState(false);
+
+  const rechargerMiroir = useCallback(() => {
+    listerComptesOuvertsMiroir()
+      .then(setComptes)
+      .catch((e: Error) => setErreur(e.message));
+  }, []);
+
+  useEffect(() => {
+    rechargerMiroir();
+    moteurSync.forcerSynchronisation();
+  }, [rechargerMiroir, moteurSync]);
+
+  useEffect(() => {
+    if (etatSync.dernierePousseeLe) rechargerMiroir();
+  }, [etatSync.dernierePousseeLe, rechargerMiroir]);
+
+  async function actualiser() {
+    setRafraichissement(true);
+    await moteurSync.forcerSynchronisation();
+    rechargerMiroir();
+    setRafraichissement(false);
+  }
 
   return (
     <View style={styles.page}>
@@ -60,7 +86,7 @@ export function EcranComptesOuverts({ client, onOuvrirCompte, onRetour }: EcranC
         data={comptes ?? []}
         keyExtractor={(c) => c.id}
         contentContainerStyle={styles.liste}
-        refreshControl={<RefreshControl refreshing={enCours} onRefresh={recharger} />}
+        refreshControl={<RefreshControl refreshing={rafraichissement} onRefresh={actualiser} />}
         renderItem={({ item }) => {
           const total = totalCompte(item);
           const nombrePersonnes = item.sousComptes.length;

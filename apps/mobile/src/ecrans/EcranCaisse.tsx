@@ -1,21 +1,28 @@
 import * as React from "react";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import type { ClientApi } from "@hotel-chicago/api-client";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
+import { useSession } from "../contexteSession";
+import { creerCompteLocal } from "../stockage/cafeteriaMirroir";
 
 export interface EcranCaisseProps {
-  client: ClientApi;
   onCompteOuvert: (compteId: string) => void;
   onRetour: () => void;
 }
 
-/** Point d'entrée d'une nouvelle vente : ouvre un compte cafétaria puis passe
+/**
+ * Point d'entrée d'une nouvelle vente : ouvre un compte cafétaria puis passe
  * directement à son détail (EcranCompteCafeteria) pour y ajouter des lignes.
- * "Comptes ouverts" reste l'écran pour reprendre un compte déjà en cours. */
-export function EcranCaisse({ client, onCompteOuvert, onRetour }: EcranCaisseProps) {
+ * "Comptes ouverts" reste l'écran pour reprendre un compte déjà en cours.
+ *
+ * Hors ligne (Phase 6, 26/09/2026) : le compte (+ son premier sous-compte)
+ * est écrit instantanément dans le miroir local, puis mis en file pour
+ * l'envoi réseau en arrière-plan — plus d'attente réseau ici, voir le plan.
+ */
+export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
+  const { moteurSync } = useSession();
   const [tableOuNom, setTableOuNom] = useState("");
   const [nomPremierSousCompte, setNomPremierSousCompte] = useState("");
   const [enCours, setEnCours] = useState(false);
@@ -29,9 +36,19 @@ export function EcranCaisse({ client, onCompteOuvert, onRetour }: EcranCaissePro
     setEnCours(true);
     setErreur(null);
     try {
-      const compte = await client.ouvrirCompteCafeteria({
-        tableOuNom: tableOuNom.trim(),
-        nomPremierSousCompte: nomPremierSousCompte.trim() || undefined,
+      const compte = await creerCompteLocal(tableOuNom.trim(), nomPremierSousCompte.trim() || undefined);
+      await moteurSync.mettreEnFile({
+        entiteType: "CompteCafeteria",
+        localId: compte.id,
+        operation: "CREATE",
+        payload: {
+          tableOuNom: compte.tableOuNom,
+          nomPremierSousCompte: compte.sousComptes[0]?.nom,
+          // Le serveur crée ce sous-compte avec son propre id : ce mapping
+          // permet de renseigner son remoteId local dès la confirmation,
+          // sans doublon au prochain pull (bug du 27/09/2026).
+          premierSousCompteLocalId: compte.sousComptes[0]?.id,
+        },
       });
       setTableOuNom("");
       setNomPremierSousCompte("");

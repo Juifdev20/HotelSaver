@@ -3,7 +3,7 @@ import { StockService } from "./stock.service";
 
 function creerPrismaMock() {
   return {
-    produit: { findUnique: jest.fn(), update: jest.fn() },
+    produit: { findUnique: jest.fn(), updateMany: jest.fn() },
     mouvementStock: { findMany: jest.fn(), create: jest.fn() },
     $transaction: jest.fn((fn: any) => fn(mockSelf)),
   } as any;
@@ -20,7 +20,7 @@ describe("StockService", () => {
     mockSelf = prisma;
     service = new StockService(prisma);
     prisma.mouvementStock.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "m1", ...data }));
-    prisma.produit.update.mockResolvedValue({});
+    prisma.produit.updateMany.mockResolvedValue({ count: 1 });
   });
 
   it("lève NotFoundException si le produit n'existe pas", async () => {
@@ -33,7 +33,19 @@ describe("StockService", () => {
   it("une ENTREE augmente le stock", async () => {
     prisma.produit.findUnique.mockResolvedValue({ id: "p1", nom: "Coca", stockActuel: 10 });
     await service.enregistrerMouvement(prisma, { produitId: "p1", type: "ENTREE", quantite: 5, createdBy: "u1" });
-    expect(prisma.produit.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { stockActuel: 15, syncVersion: { increment: 1 } } });
+    expect(prisma.produit.updateMany).toHaveBeenCalledWith({
+      where: { id: "p1", stockActuel: 10 },
+      data: { stockActuel: 15, syncVersion: { increment: 1 } },
+    });
+  });
+
+  it("relance une ConflictException si le stock a changé entre-temps (mise à jour concurrente)", async () => {
+    prisma.produit.findUnique.mockResolvedValue({ id: "p1", nom: "Coca", stockActuel: 10 });
+    prisma.produit.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      service.enregistrerMouvement(prisma, { produitId: "p1", type: "ENTREE", quantite: 5, createdBy: "u1" })
+    ).rejects.toThrow(ConflictException);
+    expect(prisma.mouvementStock.create).not.toHaveBeenCalled();
   });
 
   it("une SORTIE_VENTE diminue le stock", async () => {
@@ -44,7 +56,10 @@ describe("StockService", () => {
       quantite: 3,
       createdBy: "u1",
     });
-    expect(prisma.produit.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { stockActuel: 7, syncVersion: { increment: 1 } } });
+    expect(prisma.produit.updateMany).toHaveBeenCalledWith({
+      where: { id: "p1", stockActuel: 10 },
+      data: { stockActuel: 7, syncVersion: { increment: 1 } },
+    });
   });
 
   it("refuse une SORTIE_VENTE qui ferait passer le stock sous zéro", async () => {
@@ -67,7 +82,10 @@ describe("StockService", () => {
   it("un AJUSTEMENT applique directement le delta signé (positif ou négatif)", async () => {
     prisma.produit.findUnique.mockResolvedValue({ id: "p1", nom: "Coca", stockActuel: 10 });
     await service.enregistrerMouvement(prisma, { produitId: "p1", type: "AJUSTEMENT", quantite: -4, createdBy: "u1" });
-    expect(prisma.produit.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { stockActuel: 6, syncVersion: { increment: 1 } } });
+    expect(prisma.produit.updateMany).toHaveBeenCalledWith({
+      where: { id: "p1", stockActuel: 10 },
+      data: { stockActuel: 6, syncVersion: { increment: 1 } },
+    });
   });
 
   it("refuse un AJUSTEMENT qui ferait passer le stock sous zéro", async () => {

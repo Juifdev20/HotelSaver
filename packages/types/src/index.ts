@@ -63,6 +63,11 @@ export interface Produit {
   stockActuel: string;
   seuilAlerte: string;
   actif: boolean;
+  /** Présents en base (comme Chambre) mais absents jusqu'ici de ce type —
+   * ajoutés pour le miroir hors ligne Cafétaria (Phase 6, 26/09/2026), voir
+   * apps/mobile/src/stockage/stockageLocalMobile.ts. */
+  updatedAt: string;
+  syncVersion: number;
 }
 
 /** Deux montants séparés, jamais fusionnés (section 9.4). */
