@@ -21,6 +21,7 @@
     "@react-navigation/native-stack": "^7.3.14",
     "buffer": "^6.0.3",
     "expo": "~57.0.25",
+    "expo-crypto": "~57.0.3",
     "expo-secure-store": "~57.0.4",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",

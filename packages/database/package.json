@@ -6,24 +6,28 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "prisma generate && tsc -p tsconfig.json",
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:status": "prisma migrate status",
+    "migrate:appliquer": "node scripts/appliquer-migrations.js",
+    "migrate:verifier": "node scripts/appliquer-migrations.js --verifier",
     "studio": "prisma studio",
     "apply-rls": "node scripts/apply-rls.js",
     "creer-utilisateur": "node scripts/creer-utilisateur.js",
     "reconnecter-utilisateur": "node scripts/reconnecter-utilisateur.js"
   },
   "dependencies": {
-    "@prisma/client": "^5.20.0"
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "^7.10.0",
+    "pg": "8.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.10",
+    "@types/pg": "^8.23.1",
     "dotenv": "^16.4.5",
-    "pg": "^8.13.1",
-    "prisma": "^5.20.0",
+    "prisma": "^7.10.0",
     "typescript": "^5.6.3"
   }
 }

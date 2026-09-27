@@ -28,6 +28,8 @@ out/
 
 # Prisma
 packages/database/prisma/migrations/dev.db
+# Client Prisma 7 généré par `prisma generate` (recréé au build)
+packages/database/src/generated/
 
 # Electron / builds natifs
 apps/desktop/out/

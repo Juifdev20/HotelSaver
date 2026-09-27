@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Logger, Module, OnModuleInit } from "@nestjs/common";
 import { prisma } from "@hotel-chicago/database";
 import { VERIFICATEUR_JWT, VerificateurJwtSupabase } from "../common/auth/verificateur-jwt";
 
@@ -26,4 +26,26 @@ export const PRISMA = Symbol("PRISMA");
   ],
   exports: [PRISMA, VERIFICATEUR_JWT],
 })
-export class PrismaModule {}
+export class PrismaModule implements OnModuleInit {
+  private readonly logger = new Logger(PrismaModule.name);
+
+  /**
+   * Ouvre la première connexion au démarrage plutôt qu'à la première requête :
+   * TCP+TLS+auth vers Supabase coûtent ~2–2,5 s depuis Kasindi, autant les
+   * payer pendant le boot que sur le premier appel d'un réceptionniste.
+   * `$connect()` seul ne suffit pas avec Prisma 7 + adaptateur `pg` (il ne
+   * fait ouvrir aucune connexion physique au pool, mesuré) : une requête
+   * triviale force réellement l'ouverture.
+   * Un échec ici n'est que journalisé : l'API doit démarrer même si la base
+   * est momentanément injoignable (le pool réessaiera à la prochaine requête).
+   */
+  async onModuleInit(): Promise<void> {
+    const debut = Date.now();
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      this.logger.log(`Connexion Postgres établie en ${Date.now() - debut} ms`);
+    } catch (erreur) {
+      this.logger.warn(`Base injoignable au démarrage (${(erreur as Error).message}) — nouvel essai à la première requête`);
+    }
+  }
+}

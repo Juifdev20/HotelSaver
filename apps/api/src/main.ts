@@ -1,3 +1,4 @@
+import "./charger-env"; // doit rester le premier import (voir le fichier)
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";

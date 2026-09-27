@@ -822,6 +822,258 @@ pure), `tsc --noEmit` propre dans `packages/types`, `api-client`, `receipts`,
 imprimante Bluetooth/réseau physique — nécessite le matériel du patron, à
 faire à la prochaine session avec l'appareil en main.
 
+## Phase 6 (suite) — Cafétaria hors ligne + enquête de lenteur Prisma/Supabase, 26/09/2026
+
+**Symptôme** : le patron a signalé le service Cafétaria mobile comme trop
+lent (chaque "ajouter une ligne" attendait un aller-retour réseau complet).
+Mesuré en direct : `prisma.produit.findFirst()` répété prend 1,2 à 4s à
+chaque appel, sans amélioration entre le 1er et le 4ème appel immédiat.
+
+**Cafétaria rendue hors ligne** (même moteur que Chambres, Phase 5) :
+`CompteCafeteria`/`SousCompte`/`LigneCommande` étaient déjà dans
+`ENTITES_PUSH`/`ENTITES_PULL` et routés côté serveur — zéro changement
+backend nécessaire. Côté mobile : nouvelles tables miroir
+(`comptes_cafeteria`/`sous_comptes`/`lignes_commande`/`produits` dans
+`sqlite.ts`), nouveau `cafeteriaMirroir.ts` (patron `chambresMirroir.ts`),
+`EcranCaisse`/`EcranComptesOuverts`/`EcranCompteCafeteria` retrofités pour
+lire/écrire le miroir au lieu de l'API directe. Différence avec Chambres :
+Cafétaria fait des `CREATE` (pas seulement des `UPDATE`), donc pas d'id
+serveur connu à l'écriture optimiste — les tables miroir Cafétaria gardent
+un **id local stable, jamais renommé**, avec une colonne `remoteId` séparée
+remplie une fois la création confirmée (`apps/mobile/src/stockage/cafeteriaMirroir.ts`),
+pour éviter une re-clé en cascade sur les enfants. Pour la même raison, "ajouter une personne"/"ajouter
+une ligne" sont désactivés tant que leur parent (compte/sous-compte) n'est
+pas confirmé synchronisé (`MoteurSync.idsEnAttente`, déjà exposé par
+l'interface). **L'encaissement reste volontairement en ligne** — impossible
+à précalculer hors ligne (numérotation séquentielle des reçus, fermeture
+atomique du compte) — et bloque désormais tant que des lignes du compte sont
+encore en file, sans quoi le total facturé serait incomplet.
+
+**Bug de moteur trouvé en testant** : `MoteurSync.tirer()` calculait le
+curseur "depuis" partagé comme le MINIMUM des curseurs déjà connus, en
+ignorant les entités jamais tirées (`null`) — si une entité neuve (Produit)
+était ajoutée à `entitesPull` alors qu'une autre (Chambre) avait déjà un
+curseur avancé, la neuve héritait silencieusement de ce curseur avancé et ne
+recevait jamais son historique complet ("aucun produit" en test réel). Corrigé :
+une entité jamais tirée ramène tout le lot à l'epoch. Un appareil déjà touché
+par le bug avant le correctif garde un curseur corrompu en local (le
+correctif ne le répare pas rétroactivement) — remède appliqué : effacer les
+données de l'app (`pm clear`) pour repartir propre.
+
+**Enquête de lenteur Prisma/Supabase (le patron a eu raison de douter que
+"c'est juste la distance")** : mesures en direct qui ont isolé la vraie
+cause, à ne pas oublier si le sujet revient :
+- Latence réseau générale (Google, API REST Supabase, pooler Supabase) :
+  ~200-400ms — normale, pas le problème.
+- Connexion Postgres brute (`pg`), une fois établie, enchaîne les requêtes à
+  ~220ms chacune — cohérent avec cette latence.
+- La même requête via Prisma prend 1,2 à 4s **à chaque fois**, y compris
+  immédiatement répétée : Prisma ne réutilise pas sa connexion.
+- Retirer `pgbouncer=true` de `DATABASE_URL` fait retomber Prisma à ~220ms —
+  mais un test de charge (requêtes différentes enchaînées) échoue aussitôt
+  avec des erreurs de requêtes préparées : `pgbouncer=true` reste
+  obligatoire tant que le pooler Supabase est coincé en mode "transaction"
+  (panne du mode "session" du 25/09/2026, toujours pas réparée).
+- **Essayé et abandonné** : passer `packages/database` sur le "driver
+  adapter" `@prisma/adapter-pg` (connexion portée par un `pg.Pool` classique
+  au lieu du moteur natif de Prisma). Corrige bien le risque de requêtes
+  préparées, mais **aucun gain de vitesse** : à Prisma 5.22, le moteur
+  enveloppe TOUTE requête (même un simple `findFirst`) dans un contexte de
+  transaction côté adaptateur (`transactionContext()` → `pool.connect()`
+  dédié → commit/release) — ce qui déclenche exactement le même cycle de
+  réassignation de connexion que le pooler impose déjà à une vraie
+  transaction. Un `pg.Pool.query()` brut, hors du chemin d'exécution de
+  Prisma, reste rapide (~220-270ms, une seule connexion physique réutilisée,
+  vérifié). Changement annulé proprement (schema.prisma, package.json,
+  `packages/database/src/index.ts` restaurés).
+- **Conclusion** : le vrai correctif est soit (a) la réparation du pooler
+  Supabase en mode "session" par Supabase (hors de notre contrôle), soit
+  (b) une montée de version majeure de Prisma (5→6/7/8 — les driver adapters
+  sont sortis de préversion et ce chemin d'exécution a été retravaillé) —
+  un chantier à part entière, pas fait dans cette passe. En attendant,
+  l'approche retenue est de rendre hors ligne les parcours à haute fréquence
+  (Cafétaria fait dans cette passe, Réception à suivre) plutôt que de
+  chercher à accélérer chaque aller-retour individuel.
+
+Vérifié dans cette passe : `pnpm --filter sync-engine test` (9 tests, dont le
+nouveau test de curseur epoch + `annulerOperation`), `pnpm --filter api test`
+(cafétaria/stock, 29 tests), `npx tsc --noEmit` propre dans `apps/mobile`,
+build Android natif réussi après ajout d'`expo-crypto`. **Non vérifié en
+usage prolongé réel** : le comportement de "Encaisser" bloqué en attente de
+synchronisation, et le retrait d'une action définitivement échouée depuis
+"Synchronisation" — testés une fois chacun en conditions réelles, à
+surveiller.
+
+## Migration vers un nouveau projet Supabase (`zjplcqocmkctbfxnxheq`), 27/09/2026
+
+Suite de l'enquête de lenteur Prisma/Supabase (Phase 6 ci-dessus) : le patron
+a fait une découverte importante en comparant avec un autre de ses projets
+(**LinkPay**, même région `eu-west-1`, fonctionne normalement) — ce n'était
+donc pas une panne régionale. Décision : créer un nouveau projet Supabase
+plutôt que d'attendre une réponse du support sur l'ancien
+(`krvhnsyvlkgvcxncvwkx`, gardé tel quel, non supprimé, en secours).
+
+**Découverte en testant** : le premier nouveau projet créé (`eu-west-1`,
+comme l'ancien) avait **exactement le même problème** — port 5432 (mode
+session) muet, port 6543 (transaction) fonctionnel. Un deuxième projet créé
+dans une **région différente** (`eu-central-1`) a **le même symptôme**.
+Conclusion réelle, plus large que prévu : ce n'est ni le projet ni la région
+qui posent problème — c'est une limitation/panne du mode "session" de
+Supavisor qui semble toucher large (peut-être toute l'infrastructure
+Supabase actuelle, pas juste `eu-west-1`). Le message déjà rédigé pour le
+support Supabase reste valable et pertinent, à envoyer indépendamment de
+cette migration.
+
+**Le mode "direct connection"** (`db.<ref>.supabase.co:5432`, sans passer
+par le pooler partagé) a aussi été essayé : ne fonctionne pas ici — il est
+IPv6 uniquement par défaut (confirmé : la résolution DNS renvoie bien une
+adresse IPv6, mais ce poste n'a **aucune route réseau IPv6** vers
+l'extérieur, `ENETUNREACH`). Nécessiterait soit l'option payante IPv4 chez
+Supabase, soit une machine avec IPv6 opérationnel.
+
+**Décision finale** : garder le nouveau projet (`eu-central-1`,
+`zjplcqocmkctbfxnxheq`) tel quel, en mode transaction (`pgbouncer=true`,
+port 6543) — même limite de vitesse que l'ancien (voir Phase 6 ci-dessus,
+non résolue par ce changement de projet), mais base de données propre sans
+les données de test du 26/09, et si Supabase répare un jour le mode session
+n'importe où dans son infrastructure, on en profite automatiquement sans
+reconfigurer.
+
+**Complication rencontrée** : `prisma migrate deploy` (le moteur de
+migration Prisma, un binaire Rust séparé du client JS) échoue contre ce
+pooler en mode transaction avec `P1017: Server has closed the connection` —
+les migrations ont besoin d'une session stable que ce mode ne garantit pas,
+contrairement aux requêtes applicatives normales. Contourné en appliquant
+les 3 fichiers `migration.sql` manuellement via une connexion `pg` brute
+(même patron que `scripts/apply-rls.js`, une connexion, tout le SQL d'un
+fichier en un seul appel) puis en enregistrant chaque migration dans
+`_prisma_migrations` à la main (checksum SHA-256 du fichier, comme le fait
+Prisma lui-même) pour que les outils Prisma la reconnaissent comme déjà
+appliquée. `scripts/apply-rls.js`, lui, a fonctionné du premier coup (même
+patron de connexion unique).
+
+**Ce qui a été migré** : compte PATRON (Elie Rwitani,
+`hotelchicago@gmail.com`, nouveau mot de passe) recréé via
+`scripts/creer-utilisateur.js` (déjà existant, opération par id exact) ; les
+3 vraies chambres et le produit (Coca-Cola) recopiés à l'identique
+(nouveaux `id`, mêmes valeurs). **Volontairement pas migré** (décision du
+patron) : les comptes/sous-comptes/lignes/ventes cafétaria du 26/09,
+clairement des données de test.
+
+**Corrigé au passage** : `apps/desktop/src/main/config-store.ts` avait
+`apiUrl: "http://localhost:3000"` par défaut — le port de LinkPay, pas
+celui d'Hôtel Chicago (3001) — un reliquat jamais corrigé jusqu'ici, profité
+de l'édition de ce fichier pour le réparer.
+
+**Fichiers mis à jour** : `apps/api/.env`, `packages/database/.env`
+(nouvelles URL/clés), `apps/mobile/src/stockage/configuration.ts`,
+`apps/desktop/src/main/config-store.ts`,
+`apps/desktop/src/renderer/src/navigateur-secours.ts` (nouvelles valeurs
+par défaut). L'appareil mobile déjà utilisé aujourd'hui a été réinitialisé
+(`pm clear`) pour repartir sur ces nouvelles valeurs par défaut plutôt que
+sur l'ancienne configuration mémorisée localement — pas d'écran dans l'app
+pour éditer l'URL/la clé Supabase directement, seulement l'URL de l'API.
+
+Vérifié : connexion Supabase Auth réussie avec le nouveau compte,
+`GET /auth/me` renvoie bien le rôle PATRON, `GET /public/menu` renvoie le
+produit recréé, reconnexion réelle depuis l'app mobile confirmée par le
+patron. Vitesse inchangée par rapport à l'ancien projet (attendu, toujours
+en mode transaction) : ~1,2 à 3,7s par requête Prisma.
+
+## Migration Prisma 5.22 → 7.10 + adaptateur `pg` : la lenteur résolue, 27/09/2026
+
+**Le diagnostic de la Phase 6 (« Prisma ne réutilise pas sa connexion »)
+était faux.** Mesure instrumentée (`log: [{ emit: "event", level: "query" }]`)
+d'un `produit.findFirst()` répété trois fois contre la vraie base, avant
+migration :
+
+```
+BEGIN 275 ms → DEALLOCATE ALL 278 ms → SELECT 551 ms → COMMIT 562 ms = 1683 ms
+(puis 1656 ms, 1395 ms — identique à chaque fois)
+```
+
+La connexion EST réutilisée (pool interne du moteur). Le coût vient de
+`?pgbouncer=true` : dans le code source du moteur Rust
+(`query-engine/request-handlers/src/load_executor.rs`, identique en 5.22 et
+6.19), ce paramètre met `force_transactions = true` → chaque opération, même
+une lecture, est enveloppée dans `BEGIN`/`COMMIT`, précédée d'un
+`DEALLOCATE ALL`, et le cache d'instructions préparées est mis à zéro (prepare
++ execute = deux allers-retours). Six allers-retours × 220–400 ms depuis
+Kasindi = les 1,2 à 4 s observées. C'est un comportement documenté et connu
+(issues prisma/prisma #16081, #21635 ; le dépôt trellisorg/prisma-pgbouncer-
+flag-repro le reproduit en local).
+
+**La piste « driver adapter » n'avait pas ce défaut, même en 5.22** : le
+chemin `driver_adapter()` appelle `executor_for(js, false)` et une lecture
+simple passe directement par `pool.query()` ; `transactionContext()` n'est
+appelé que par `start_transaction`. La mesure « adapter 5.22 = 1,1–1,6 s » du
+26/09 reste inexpliquée (peut-être une fuite de client : en 5.22,
+`PgTransactionContext` ne relâchait jamais son client si aucune transaction
+n'était démarrée) et n'a pas été re-creusée — la version 7 rend la question
+sans objet.
+
+**Ce qui a été fait** : `packages/database` passe à Prisma **7.10.0**
+(`prev`, stable depuis novembre 2025 ; Prisma 8 était encore en release
+candidate, API mouvante) avec `@prisma/adapter-pg` 7.10.0 et `pg` en
+dépendance runtime :
+- `schema.prisma` : generator `prisma-client` (le nouveau client TypeScript,
+  sans moteur Rust), `output = "../src/generated/prisma"`, `moduleFormat =
+  "cjs"` (le paquet et apps/api sont en CommonJS). Le dossier généré est
+  gitignoré et recréé par `pnpm build` (`prisma generate && tsc`).
+- Nouveau `prisma.config.ts` : le CLI y lit `DATABASE_URL` (le `url =
+  env(...)` du schéma est déprécié en v7). Prisma 7 ne charge plus les `.env`
+  tout seul, d'où `import "dotenv/config"` en tête.
+- `src/index.ts` : `new PrismaClient({ adapter: new PrismaPg({ ... }) })`,
+  avec un pool `pg` réglé explicitement — `connectionTimeoutMillis: 10 s`
+  (`pg` n'a aucun délai par défaut, et TCP+TLS+auth coûtent 2–2,5 s d'ici),
+  `idleTimeoutMillis: 10 min` (`pg` ferme à 10 s par défaut, ce qui aurait
+  fait repayer 2,5 s à chaque creux d'activité de la réception), `max: 5`.
+- `apps/api` : `src/charger-env.ts` importé en PREMIER dans `main.ts` (la
+  base est initialisée pendant l'évaluation des imports de `app.module.ts`,
+  donc avant `ConfigModule.forRoot()`) ; `PrismaModule.onModuleInit` exécute
+  un `SELECT 1` pour ouvrir la première connexion au démarrage (`$connect()`
+  seul n'ouvre aucune connexion `pg`, mesuré) — le boot journalise
+  « Connexion Postgres établie en ~2 s » et la première requête d'un
+  réceptionniste ne paie plus ce délai.
+- `.env` : `?pgbouncer=true` retiré. Le pooler reste en mode transaction
+  (port 6543) : l'adaptateur `pg` envoie des instructions **non nommées**
+  (Parse/Bind/Execute/Sync en un paquet = une transaction implicite), donc
+  aucun conflit de prepared statements, sans `DEALLOCATE ALL`. Les vraies
+  transactions (`$transaction`) prennent un client dédié `BEGIN`…`COMMIT`.
+
+**Mesures après migration**, même script, même base :
+- `findFirst` : 271–294 ms par requête, **une seule** instruction SQL (× 6
+  plus rapide ; la première requête d'un process paie ~2 s d'ouverture de
+  connexion, d'où la pré-chauffe au boot de l'API).
+- 50 requêtes différentes en séquence (10 modèles, `include`, `count`,
+  `where`), 10 en parallèle sur 5 connexions, une transaction batch et une
+  transaction interactive : **zéro erreur** de prepared statement.
+- Via l'API : `GET /public/chambres-disponibles` en 280–290 ms de bout en
+  bout dès le premier appel.
+- `pnpm --filter api test` : 127 tests verts sans modification des specs
+  (`Prisma.TransactionClient`, `Prisma.PrismaClientKnownRequestError`,
+  `$transaction` inchangés en v7) ; `tsc` propre partout.
+
+**Migrations** : `prisma migrate status` (v7) échoue encore via le pooler
+(« Schema engine error »), comme `migrate deploy` (v5) le 27/09 — le moteur de
+schéma a besoin d'une session stable. La manipulation manuelle du 27/09 est
+formalisée en `scripts/appliquer-migrations.js` (`pnpm migrate:appliquer`,
+`pnpm migrate:verifier`) : même patron qu'`apply-rls.js` (une connexion `pg`,
+tout le fichier SQL en un appel), une transaction par migration, et
+l'enregistrement dans `_prisma_migrations` avec le checksum SHA-256 du fichier
+— vérifié : les trois migrations existantes sont reconnues avec un checksum
+identique à celui écrit par Prisma. Créer une nouvelle migration reste
+`prisma migrate dev` contre une base locale/directe ; ce script ne fait que
+l'appliquer.
+
+**Toujours non résolu, indépendant de ce chantier** : le pooler en mode
+session (5432) muet. Précision utile : la comparaison avec LinkPay ne prouve
+rien — sa « Direct connection » (`db.<ref>.supabase.co`) ne résout, comme la
+nôtre, qu'en IPv6, et ce poste n'a aucune connectivité IPv6 (`ping -6`
+échoue) ; LinkPay ne peut donc pas l'utiliser depuis ce PC non plus. Ce qui
+distinguerait un blocage réseau local d'un problème Supabase : tester
+`pooler…:5432` depuis un autre réseau (partage de connexion du téléphone).
+
 ## render.yaml (section 15)
 
 Non créé dans cette passe : le déploiement Render est une étape de la Phase

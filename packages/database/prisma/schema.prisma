@@ -4,13 +4,18 @@
 // compilation du schéma (relations inverses manquantes dans le prompt
 // d'origine, index explicites sur les clés étrangères).
 
+// Prisma 7 : client TypeScript généré dans src/ (compilé par tsc avec le
+// reste du paquet, en CommonJS comme apps/api). L'URL de connexion vit dans
+// prisma.config.ts (plus de `url = env(...)` ici). Voir DECISIONS.md,
+// « Migration Prisma 5 → 7 » pour le pourquoi (lenteur via le pooler).
 generator client {
-  provider = "prisma-client-js"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Role {
