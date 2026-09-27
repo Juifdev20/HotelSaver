@@ -1,0 +1,140 @@
+body {
+  margin: 0;
+  background: var(--hc-surface-100);
+  color: var(--hc-ink);
+  font-family: "Public Sans", system-ui, sans-serif;
+}
+
+.page-centree {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hc-space-5);
+}
+
+.carte {
+  background: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  padding: var(--hc-space-6);
+}
+
+.carte--etroite {
+  width: 100%;
+  max-width: 380px;
+}
+
+.titre {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--hc-navy);
+  text-align: center;
+  margin: 0;
+}
+
+.sous-titre {
+  font-size: 13px;
+  color: var(--hc-ink-muted);
+  text-align: center;
+  margin: 4px 0 var(--hc-space-4);
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hc-ink-muted);
+  margin: var(--hc-space-2) 0 var(--hc-space-1);
+}
+
+.champ {
+  width: 100%;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-sm);
+  padding: 0 var(--hc-space-3);
+  font-size: 14px;
+  color: var(--hc-ink);
+  background: var(--hc-surface-100);
+}
+
+.erreur {
+  color: var(--hc-danger);
+  font-size: 13px;
+  margin-top: var(--hc-space-3);
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--hc-space-6) var(--hc-space-5);
+}
+
+.titre-page {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--hc-navy);
+  margin: 0 0 var(--hc-space-4);
+}
+
+.barre-navigation {
+  display: flex;
+  gap: var(--hc-space-5);
+  padding: var(--hc-space-4) var(--hc-space-5);
+  border-bottom: 1px solid var(--hc-border);
+  background: var(--hc-surface-200);
+}
+
+.barre-navigation a {
+  color: var(--hc-navy);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.barre-navigation a:hover {
+  color: var(--hc-blue);
+}
+
+.grille-cartes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--hc-space-4);
+}
+
+.selecteur-dates {
+  display: flex;
+  gap: var(--hc-space-4);
+  margin-bottom: var(--hc-space-2);
+  max-width: 400px;
+}
+
+.selecteur-dates > div {
+  flex: 1;
+}
+
+.fond-modale {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 39, 66, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hc-space-5);
+  z-index: 10;
+}
+
+.lien-retour {
+  display: block;
+  width: 100%;
+  margin-top: var(--hc-space-3);
+  background: none;
+  border: none;
+  color: var(--hc-ink-muted);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: var(--hc-space-2);
+}

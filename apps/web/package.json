@@ -2,9 +2,25 @@
   "name": "@hotel-chicago/web",
   "private": true,
   "version": "0.1.0",
-  "description": "Site web public Hôtel Chicago (Next.js) — non implémenté, voir README.md",
+  "description": "Site public HotelSaver — inscription, chambres, menu (Phases 8-9)",
   "scripts": {
-    "build": "echo \"apps/web n'est pas encore implémenté (Phase 7)\" && exit 0",
-    "dev": "echo \"apps/web n'est pas encore implémenté (Phase 7)\" && exit 0"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@hotel-chicago/api-client": "workspace:*",
+    "@hotel-chicago/types": "workspace:*",
+    "@hotel-chicago/ui": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8"
   }
 }
