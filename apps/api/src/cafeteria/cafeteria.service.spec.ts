@@ -27,7 +27,8 @@ function creerPrismaMock() {
   return prisma;
 }
 
-const currentUser = { userId: "u1" };
+const HOTEL_ID = "hotel-1";
+const currentUser = { userId: "u1", supabaseAuthId: "a1", role: "CAFETARIA", nom: "Serveur", hotelId: HOTEL_ID } as any;
 
 describe("CafeteriaService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
@@ -45,7 +46,9 @@ describe("CafeteriaService", () => {
       prisma.compteCafeteria.create.mockResolvedValue({});
       await service.ouvrirCompte({ tableOuNom: "Table 4" } as any, currentUser);
       expect(prisma.compteCafeteria.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ sousComptes: { create: [{ nom: "Personne 1" }] } }) })
+        expect.objectContaining({
+          data: expect.objectContaining({ sousComptes: { create: [{ hotelId: HOTEL_ID, nom: "Personne 1" }] } }),
+        })
       );
     });
 
@@ -53,7 +56,9 @@ describe("CafeteriaService", () => {
       prisma.compteCafeteria.create.mockResolvedValue({});
       await service.ouvrirCompte({ tableOuNom: "Table 4", nomPremierSousCompte: "Jean" } as any, currentUser);
       expect(prisma.compteCafeteria.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ sousComptes: { create: [{ nom: "Jean" }] } }) })
+        expect.objectContaining({
+          data: expect.objectContaining({ sousComptes: { create: [{ hotelId: HOTEL_ID, nom: "Jean" }] } }),
+        })
       );
     });
   });
@@ -165,7 +170,7 @@ describe("CafeteriaService", () => {
       expect(vente.montantTotalCDF).toBe(0);
       expect(vente.createdBy).toBe("u1");
       expect(prisma.compteCafeteria.updateMany).toHaveBeenCalledWith({
-        where: { id: "c1", statut: "OUVERT" },
+        where: { id: "c1", hotelId: HOTEL_ID, statut: "OUVERT" },
         data: expect.objectContaining({ statut: "FERME" }),
       });
     });
@@ -291,7 +296,7 @@ describe("CafeteriaService", () => {
   describe("annulerVente", () => {
     it("refuse d'annuler une vente déjà annulée", async () => {
       prisma.venteCafeteria.findUnique.mockResolvedValue({ id: "v1", annuleLe: new Date() });
-      await expect(service.annulerVente("v1", "erreur")).rejects.toThrow(ConflictException);
+      await expect(service.annulerVente("v1", "erreur", HOTEL_ID)).rejects.toThrow(ConflictException);
     });
   });
 });

@@ -1,0 +1,127 @@
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Prisma, PrismaClient } from "@hotel-chicago/database";
+import { PRISMA } from "../prisma/prisma.module";
+import { CreerHotelDto } from "./dto/creer-hotel.dto";
+import { ChangerStatutHotelDto } from "./dto/changer-statut-hotel.dto";
+import { EnregistrerPaiementDto } from "./dto/enregistrer-paiement.dto";
+import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
+import { genererPalette } from "../common/palette/generer-palette";
+import { calculerFinValidite } from "./calculer-validite";
+
+@Injectable()
+export class SuperAdminService {
+  private readonly logger = new Logger(SuperAdminService.name);
+
+  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+
+  /** Chaque hôtel gagne `valideJusquau` (Phase 12), calculé à partir de son
+   * dernier paiement — jamais stocké, voir calculer-validite.ts. */
+  async findAllHotels() {
+    const hotels = await this.prisma.hotel.findMany({
+      include: { branding: true, paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+      orderBy: { createdAt: "desc" },
+    });
+    return hotels.map(({ paiementsLicence, ...hotel }) => ({
+      ...hotel,
+      valideJusquau: calculerFinValidite(hotel, paiementsLicence[0] ?? null),
+    }));
+  }
+
+  /**
+   * Onboarding manuel — jamais le formulaire public (POST /public/hotels/inscription,
+   * hors scope de cette phase) : statutLicence = ACTIF directement, pas ESSAI.
+   * Crée la HotelBranding dans la même opération : un hôtel sans charte
+   * graphique ne serait pas exploitable côté mobile/desktop/web. Si un logo
+   * est fourni, la palette en est dérivée (Phase 5) ; sinon PALETTE_DEFAUT.
+   */
+  async creerHotel(dto: CreerHotelDto) {
+    const couleurBase = dto.logoUrl ? await extraireCouleursLogo(dto.logoUrl) : null;
+    const palette = genererPalette(couleurBase);
+
+    try {
+      return await this.prisma.hotel.create({
+        data: {
+          nom: dto.nom,
+          sousDomaine: dto.sousDomaine,
+          statutLicence: "ACTIF",
+          emailContact: dto.emailContact,
+          telephoneContact: dto.telephoneContact,
+          adresse: dto.adresse,
+          branding: { create: { palette, logoUrl: dto.logoUrl } },
+        },
+        include: { branding: true },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException(`Un hôtel avec le sous-domaine "${dto.sousDomaine}" existe déjà.`);
+      }
+      throw error;
+    }
+  }
+
+  async changerStatut(id: string, dto: ChangerStatutHotelDto) {
+    const hotel = await this.prisma.hotel.findUnique({ where: { id } });
+    if (!hotel) {
+      throw new NotFoundException(`Aucun hôtel trouvé avec l'identifiant ${id}.`);
+    }
+    return this.prisma.hotel.update({ where: { id }, data: { statutLicence: dto.statutLicence } });
+  }
+
+  /**
+   * Enregistrer un paiement réactive TOUJOURS l'hôtel (ESSAI/SUSPENDU/RESILIE
+   * → ACTIF) : un client qui revient après résiliation doit pouvoir repartir
+   * en payant, pas rester bloqué (décision du patron, Phase 12).
+   */
+  async enregistrerPaiement(hotelId: string, dto: EnregistrerPaiementDto, superAdminId: string) {
+    const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) {
+      throw new NotFoundException(`Aucun hôtel trouvé avec l'identifiant ${hotelId}.`);
+    }
+
+    const [paiement] = await this.prisma.$transaction([
+      this.prisma.paiementLicence.create({
+        data: {
+          hotelId,
+          montant: dto.montant,
+          devise: dto.devise,
+          methode: dto.methode,
+          periodeCouverteJusquau: new Date(dto.periodeCouverteJusquau),
+          note: dto.note,
+          enregistreParSuperAdminId: superAdminId,
+        },
+      }),
+      this.prisma.hotel.update({ where: { id: hotelId }, data: { statutLicence: "ACTIF" } }),
+    ]);
+
+    return paiement;
+  }
+
+  /**
+   * Appelée quotidiennement par LicenceSchedulerService (voir ce fichier) —
+   * extraite en méthode ordinaire pour rester testable directement, sans
+   * attendre un vrai déclenchement cron (pattern standard NestJS).
+   * RESILIE volontairement exclu : un hôtel déjà résilié ne doit pas être
+   * "re-suspendu" (ça n'a pas de sens), seuls ESSAI/ACTIF peuvent expirer.
+   */
+  async suspendreHotelsExpires(): Promise<number> {
+    const hotels = await this.prisma.hotel.findMany({
+      where: { statutLicence: { in: ["ESSAI", "ACTIF"] } },
+      include: { paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+    });
+
+    const maintenant = new Date();
+    const aSuspendre = hotels.filter(
+      (hotel) => calculerFinValidite(hotel, hotel.paiementsLicence[0] ?? null) < maintenant
+    );
+
+    if (aSuspendre.length > 0) {
+      await this.prisma.hotel.updateMany({
+        where: { id: { in: aSuspendre.map((h) => h.id) } },
+        data: { statutLicence: "SUSPENDU" },
+      });
+      this.logger.log(`${aSuspendre.length} hôtel(s) suspendu(s) pour licence expirée : ${aSuspendre.map((h) => h.sousDomaine).join(", ")}`);
+    }
+
+    return aSuspendre.length;
+  }
+}

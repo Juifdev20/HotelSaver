@@ -2,6 +2,7 @@ import { join } from "path";
 import { Module, ValidationPipe } from "@nestjs/common";
 import { APP_PIPE } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
+import { ScheduleModule } from "@nestjs/schedule";
 import { HealthModule } from "./health/health.module";
 import { AuthModule } from "./auth/auth.module";
 import { ChambresModule } from "./chambres/chambres.module";
@@ -13,6 +14,7 @@ import { CafeteriaModule } from "./cafeteria/cafeteria.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { PublicModule } from "./public/public.module";
 import { SyncModule } from "./sync/sync.module";
+import { SuperAdminModule } from "./super-admin/super-admin.module";
 
 @Module({
   imports: [
@@ -21,6 +23,9 @@ import { SyncModule } from "./sync/sync.module";
     // par défaut de @nestjs/config cherche dans process.cwd(), ce qui casse si l'API est
     // lancée depuis la racine du monorepo (le cas courant) plutôt que depuis apps/api.
     ConfigModule.forRoot({ isGlobal: true, envFilePath: join(__dirname, "..", ".env") }),
+    // Phase 12 : suspension automatique des hôtels dont la licence a expiré
+    // (voir super-admin/licence-scheduler.service.ts).
+    ScheduleModule.forRoot(),
     HealthModule,
     AuthModule,
     ChambresModule,
@@ -32,6 +37,7 @@ import { SyncModule } from "./sync/sync.module";
     DashboardModule,
     PublicModule,
     SyncModule,
+    SuperAdminModule,
   ],
   providers: [
     {

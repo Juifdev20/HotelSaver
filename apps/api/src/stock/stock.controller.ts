@@ -20,12 +20,12 @@ export class StockController {
   constructor(private readonly stockService: StockService) {}
 
   @Get()
-  findAll(@Query() query: FindMouvementsQueryDto) {
-    return this.stockService.findAll(query);
+  findAll(@Query() query: FindMouvementsQueryDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.stockService.findAll(query, currentUser.hotelId);
   }
 
   @Post()
   create(@Body() dto: CreateMouvementDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
-    return this.stockService.create(dto, currentUser.userId);
+    return this.stockService.create(dto, currentUser.userId, currentUser.hotelId);
   }
 }

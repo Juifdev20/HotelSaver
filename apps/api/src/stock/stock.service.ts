@@ -8,6 +8,7 @@ import { TypeMouvement } from "./types-mouvement";
 type ClientOuTransaction = PrismaClient | Prisma.TransactionClient;
 
 export interface ParamsMouvement {
+  hotelId: string;
   produitId: string;
   type: TypeMouvement;
   quantite: number;
@@ -19,16 +20,17 @@ export interface ParamsMouvement {
 export class StockService {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
-  findAll(query: FindMouvementsQueryDto) {
+  findAll(query: FindMouvementsQueryDto, hotelId: string) {
     return this.prisma.mouvementStock.findMany({
-      where: { produitId: query.produitId },
+      where: { hotelId, produitId: query.produitId },
       include: { produit: true },
       orderBy: { createdAt: "desc" },
     });
   }
 
-  create(dto: CreateMouvementDto, createdBy: string) {
+  create(dto: CreateMouvementDto, createdBy: string, hotelId: string) {
     return this.enregistrerMouvement(this.prisma, {
+      hotelId,
       produitId: dto.produitId,
       type: dto.type,
       quantite: dto.quantite,
@@ -60,10 +62,11 @@ export class StockService {
    */
   async decrementerStock(
     client: ClientOuTransaction,
-    params: Pick<ParamsMouvement, "produitId" | "type" | "quantite">,
+    params: Pick<ParamsMouvement, "hotelId" | "produitId" | "type" | "quantite">,
     produitDejaCharge?: Pick<Produit, "nom" | "stockActuel">
   ): Promise<void> {
-    const produit = produitDejaCharge ?? (await client.produit.findUnique({ where: { id: params.produitId } }));
+    const produit =
+      produitDejaCharge ?? (await client.produit.findUnique({ where: { id: params.produitId, hotelId: params.hotelId } }));
     if (!produit) {
       throw new NotFoundException(`Aucun produit trouvé avec l'identifiant ${params.produitId}.`);
     }
@@ -99,7 +102,7 @@ export class StockService {
     }
 
     const { count } = await client.produit.updateMany({
-      where: { id: params.produitId, stockActuel: produit.stockActuel },
+      where: { id: params.produitId, hotelId: params.hotelId, stockActuel: produit.stockActuel },
       data: { stockActuel: nouveauStock, syncVersion: { increment: 1 } },
     });
     if (count === 0) {
@@ -119,6 +122,7 @@ export class StockService {
 
     return client.mouvementStock.create({
       data: {
+        hotelId: params.hotelId,
         produitId: params.produitId,
         quantite: params.quantite,
         type: params.type,

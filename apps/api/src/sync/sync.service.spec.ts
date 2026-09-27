@@ -15,9 +15,10 @@ function creerPrismaMock() {
   } as any;
 }
 
-const receptionniste = { userId: "u-recep", supabaseAuthId: "a1", role: Role.RECEPTIONNISTE, nom: "R" };
-const cafetaria = { userId: "u-cafe", supabaseAuthId: "a2", role: Role.CAFETARIA, nom: "C" };
-const patron = { userId: "u-patron", supabaseAuthId: "a3", role: Role.PATRON, nom: "P" };
+const HOTEL_ID = "hotel-1";
+const receptionniste = { userId: "u-recep", supabaseAuthId: "a1", role: Role.RECEPTIONNISTE, nom: "R", hotelId: HOTEL_ID };
+const cafetaria = { userId: "u-cafe", supabaseAuthId: "a2", role: Role.CAFETARIA, nom: "C", hotelId: HOTEL_ID };
+const patron = { userId: "u-patron", supabaseAuthId: "a3", role: Role.PATRON, nom: "P", hotelId: HOTEL_ID };
 
 describe("SyncService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;

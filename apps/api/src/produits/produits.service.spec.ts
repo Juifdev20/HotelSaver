@@ -8,6 +8,8 @@ function creerPrismaMock() {
   } as any;
 }
 
+const HOTEL_ID = "hotel-1";
+
 describe("ProduitsService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
   let service: ProduitsService;
@@ -19,24 +21,30 @@ describe("ProduitsService", () => {
 
   it("lève NotFoundException si le produit n'existe pas", async () => {
     prisma.produit.findUnique.mockResolvedValue(null);
-    await expect(service.findOne("inconnu")).rejects.toThrow(NotFoundException);
+    await expect(service.findOne("inconnu", HOTEL_ID)).rejects.toThrow(NotFoundException);
   });
 
   it("initialise stockActuel à 0 si non fourni à la création", async () => {
     prisma.produit.create.mockImplementation(({ data }: any) => Promise.resolve(data));
-    const produit = await service.create({ nom: "Coca-Cola", categorie: "Boissons", prix: 1.5, devise: "USD" } as any);
+    const produit = await service.create(
+      { nom: "Coca-Cola", categorie: "Boissons", prix: 1.5, devise: "USD" } as any,
+      HOTEL_ID
+    );
     expect(produit.stockActuel).toBe(0);
   });
 
   it("respecte un stock initial explicite à la création", async () => {
     prisma.produit.create.mockImplementation(({ data }: any) => Promise.resolve(data));
-    const produit = await service.create({
-      nom: "Coca-Cola",
-      categorie: "Boissons",
-      prix: 1.5,
-      devise: "USD",
-      stockActuel: 24,
-    } as any);
+    const produit = await service.create(
+      {
+        nom: "Coca-Cola",
+        categorie: "Boissons",
+        prix: 1.5,
+        devise: "USD",
+        stockActuel: 24,
+      } as any,
+      HOTEL_ID
+    );
     expect(produit.stockActuel).toBe(24);
   });
 
@@ -45,6 +53,6 @@ describe("ProduitsService", () => {
     prisma.produit.delete.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("FK violation", { code: "P2003", clientVersion: "5.22.0" })
     );
-    await expect(service.remove("p1")).rejects.toThrow(ConflictException);
+    await expect(service.remove("p1", HOTEL_ID)).rejects.toThrow(ConflictException);
   });
 });

@@ -23,13 +23,13 @@ export class ReservationsController {
   constructor(private readonly reservationsService: ReservationsService) {}
 
   @Get()
-  findAll(@Query() query: FindReservationsQueryDto) {
-    return this.reservationsService.findAll(query);
+  findAll(@Query() query: FindReservationsQueryDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.reservationsService.findAll(query, currentUser.hotelId);
   }
 
   @Get(":id")
-  findOne(@Param("id") id: string) {
-    return this.reservationsService.findOne(id);
+  findOne(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.reservationsService.findOne(id, currentUser.hotelId);
   }
 
   @Post()
@@ -38,22 +38,22 @@ export class ReservationsController {
   }
 
   @Patch(":id")
-  update(@Param("id") id: string, @Body() dto: UpdateReservationDto) {
-    return this.reservationsService.update(id, dto);
+  update(@Param("id") id: string, @Body() dto: UpdateReservationDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.reservationsService.update(id, dto, currentUser.hotelId);
   }
 
   @Post(":id/annuler")
-  annuler(@Param("id") id: string, @Body() dto: AnnulerReservationDto) {
-    return this.reservationsService.annuler(id, dto);
+  annuler(@Param("id") id: string, @Body() dto: AnnulerReservationDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.reservationsService.annuler(id, dto, currentUser.hotelId);
   }
 
   @Post(":id/check-in")
-  checkIn(@Param("id") id: string) {
-    return this.reservationsService.checkIn(id);
+  checkIn(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.reservationsService.checkIn(id, currentUser.hotelId);
   }
 
   @Post(":id/check-out")
-  checkOut(@Param("id") id: string) {
-    return this.reservationsService.checkOut(id);
+  checkOut(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.reservationsService.checkOut(id, currentUser.hotelId);
   }
 }

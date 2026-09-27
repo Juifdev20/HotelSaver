@@ -38,10 +38,22 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException("Jeton d'authentification invalide ou expiré.");
     }
 
-    const utilisateur = await this.prisma.utilisateur.findUnique({ where: { supabaseAuthId: sub } });
+    const utilisateur = await this.prisma.utilisateur.findUnique({
+      where: { supabaseAuthId: sub },
+      include: { hotel: true },
+    });
 
     if (!utilisateur || !utilisateur.actif) {
       throw new UnauthorizedException("Utilisateur inconnu ou désactivé.");
+    }
+
+    // Rend enfin réel le statutLicence posé en Phase 1 (ESSAI/ACTIF/SUSPENDU/
+    // RESILIE) : jusqu'ici purement décoratif, PATCH /super-admin/hotels/:id/statut
+    // n'avait aucun effet. ESSAI et ACTIF restent équivalents pour l'instant
+    // (pas de date d'expiration d'essai — ça reste dans PaiementLicence,
+    // hors scope, phase facturation).
+    if (utilisateur.hotel.statutLicence === "SUSPENDU" || utilisateur.hotel.statutLicence === "RESILIE") {
+      throw new UnauthorizedException("Cet hôtel n'a plus accès à la plateforme (licence suspendue ou résiliée).");
     }
 
     const user: UtilisateurAuthentifie = {
@@ -49,6 +61,7 @@ export class SupabaseAuthGuard implements CanActivate {
       supabaseAuthId: utilisateur.supabaseAuthId,
       role: utilisateur.role as unknown as Role,
       nom: utilisateur.nom,
+      hotelId: utilisateur.hotelId,
     };
 
     request.user = user;

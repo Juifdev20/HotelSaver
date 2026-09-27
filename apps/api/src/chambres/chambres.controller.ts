@@ -23,20 +23,20 @@ export class ChambresController {
 
   @Get()
   @Roles(Role.RECEPTIONNISTE, Role.PATRON)
-  findAll(@Query() query: FindChambresQueryDto) {
-    return this.chambresService.findAll(query);
+  findAll(@Query() query: FindChambresQueryDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.chambresService.findAll(query, currentUser.hotelId);
   }
 
   @Get(":id")
   @Roles(Role.RECEPTIONNISTE, Role.PATRON)
-  findOne(@Param("id") id: string) {
-    return this.chambresService.findOne(id);
+  findOne(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.chambresService.findOne(id, currentUser.hotelId);
   }
 
   @Post()
   @Roles(Role.PATRON)
-  create(@Body() dto: CreateChambreDto) {
-    return this.chambresService.create(dto);
+  create(@Body() dto: CreateChambreDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.chambresService.create(dto, currentUser.hotelId);
   }
 
   @Patch(":id")
@@ -51,7 +51,7 @@ export class ChambresController {
 
   @Delete(":id")
   @Roles(Role.PATRON)
-  remove(@Param("id") id: string) {
-    return this.chambresService.remove(id);
+  remove(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.chambresService.remove(id, currentUser.hotelId);
   }
 }

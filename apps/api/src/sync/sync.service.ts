@@ -76,25 +76,25 @@ export class SyncService {
       Chambre: {
         rolesCreate: [Role.PATRON],
         rolesUpdate: [Role.RECEPTIONNISTE, Role.PATRON],
-        create: (payload) => this.chambresService.create(payload as any),
+        create: (payload, currentUser) => this.chambresService.create(payload as any, currentUser.hotelId),
         update: (id, payload, currentUser) => this.chambresService.update(id, payload as any, currentUser),
       },
       Reservation: {
         rolesCreate: [Role.RECEPTIONNISTE, Role.PATRON],
         rolesUpdate: [Role.RECEPTIONNISTE, Role.PATRON],
         create: (payload, currentUser) => this.reservationsService.create(payload as any, currentUser),
-        update: (id, payload) => this.reservationsService.update(id, payload as any),
+        update: (id, payload, currentUser) => this.reservationsService.update(id, payload as any, currentUser.hotelId),
       },
       Produit: {
         rolesCreate: [Role.PATRON],
         rolesUpdate: [Role.PATRON],
-        create: (payload) => this.produitsService.create(payload as any),
-        update: (id, payload) => this.produitsService.update(id, payload as any),
+        create: (payload, currentUser) => this.produitsService.create(payload as any, currentUser.hotelId),
+        update: (id, payload, currentUser) => this.produitsService.update(id, payload as any, currentUser.hotelId),
       },
       MouvementStock: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
         rolesUpdate: [],
-        create: (payload, currentUser) => this.stockService.create(payload as any, currentUser.userId),
+        create: (payload, currentUser) => this.stockService.create(payload as any, currentUser.userId, currentUser.hotelId),
       },
       CompteCafeteria: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
@@ -117,12 +117,12 @@ export class SyncService {
       SousCompte: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
         rolesUpdate: [],
-        create: (payload) => {
+        create: (payload, currentUser) => {
           const { compteId, ...dto } = payload as { compteId?: string; nom?: string };
           if (!compteId) {
             throw new BadRequestException("compteId est obligatoire dans le payload pour SousCompte.");
           }
-          return this.cafeteriaService.ajouterSousCompte(compteId, dto as any);
+          return this.cafeteriaService.ajouterSousCompte(compteId, dto as any, currentUser.hotelId);
         },
       },
       LigneCommande: {
@@ -187,7 +187,9 @@ export class SyncService {
       }
 
       const accesseur = ACCESSEUR_PRISMA[operation.entiteType];
-      const actuel = await (this.prisma as any)[accesseur].findUnique({ where: { id: operation.remoteId } });
+      const actuel = await (this.prisma as any)[accesseur].findUnique({
+        where: { id: operation.remoteId, hotelId: currentUser.hotelId },
+      });
       if (!actuel) {
         return this.erreur(operation, `Aucune ligne ${operation.entiteType} trouvée avec l'identifiant ${operation.remoteId}.`);
       }
@@ -234,7 +236,7 @@ export class SyncService {
     for (const entite of entitesAutorisees) {
       const accesseur = ACCESSEUR_PRISMA[entite];
       resultat[entite] = await (this.prisma as any)[accesseur].findMany({
-        where: { updatedAt: { gt: depuis } },
+        where: { hotelId: currentUser.hotelId, updatedAt: { gt: depuis } },
         orderBy: { updatedAt: "asc" },
       });
     }

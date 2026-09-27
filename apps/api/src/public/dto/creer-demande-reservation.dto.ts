@@ -19,6 +19,10 @@ class ClientDemandeDto {
 /** Pré-réservation depuis le site public (section 8/9.3) : aucune authentification,
  * crée toujours une Reservation EN_ATTENTE, jamais confirmée directement. */
 export class CreerDemandeReservationDto {
+  @IsString()
+  @IsNotEmpty({ message: "sousDomaine est obligatoire." })
+  sousDomaine!: string;
+
   @IsUUID(undefined, { message: "chambreId doit être un identifiant valide." })
   chambreId!: string;
 

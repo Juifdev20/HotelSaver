@@ -21,9 +21,10 @@ export const CHAMPS_RESERVES_PATRON: (keyof UpdateChambreDto)[] = ["numero", "ty
 export class ChambresService {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
-  findAll(query: FindChambresQueryDto) {
+  findAll(query: FindChambresQueryDto, hotelId: string) {
     return this.prisma.chambre.findMany({
       where: {
+        hotelId,
         statut: query.statut,
         type: query.type,
       },
@@ -31,17 +32,17 @@ export class ChambresService {
     });
   }
 
-  async findOne(id: string) {
-    const chambre = await this.prisma.chambre.findUnique({ where: { id } });
+  async findOne(id: string, hotelId: string) {
+    const chambre = await this.prisma.chambre.findUnique({ where: { id, hotelId } });
     if (!chambre) {
       throw new NotFoundException(`Aucune chambre trouvée avec l'identifiant ${id}.`);
     }
     return chambre;
   }
 
-  async create(dto: CreateChambreDto) {
+  async create(dto: CreateChambreDto, hotelId: string) {
     try {
-      return await this.prisma.chambre.create({ data: dto });
+      return await this.prisma.chambre.create({ data: { ...dto, hotelId } });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         throw new ConflictException(`Une chambre avec le numéro "${dto.numero}" existe déjà.`);
@@ -51,7 +52,7 @@ export class ChambresService {
   }
 
   async update(id: string, dto: UpdateChambreDto, currentUser: UtilisateurAuthentifie) {
-    await this.findOne(id);
+    await this.findOne(id, currentUser.hotelId);
 
     if (currentUser.role === Role.RECEPTIONNISTE) {
       const champsRefuses = CHAMPS_RESERVES_PATRON.filter((champ) => dto[champ] !== undefined);
@@ -70,7 +71,7 @@ export class ChambresService {
       // resterait figé à 1 pour toujours et la détection de conflit ne
       // détecterait jamais rien.
       return await this.prisma.chambre.update({
-        where: { id },
+        where: { id, hotelId: currentUser.hotelId },
         data: { ...dto, syncVersion: { increment: 1 } },
       });
     } catch (error) {
@@ -81,10 +82,10 @@ export class ChambresService {
     }
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, hotelId: string) {
+    await this.findOne(id, hotelId);
     try {
-      await this.prisma.chambre.delete({ where: { id } });
+      await this.prisma.chambre.delete({ where: { id, hotelId } });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
         throw new ConflictException(

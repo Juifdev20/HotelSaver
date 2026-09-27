@@ -10,6 +10,8 @@ function creerPrismaMock() {
   } as any;
 }
 
+const HOTEL_ID = "hotel-1";
+
 describe("FacturesService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
   let service: FacturesService;
@@ -35,21 +37,21 @@ describe("FacturesService", () => {
 
     it("lève NotFoundException si la réservation n'existe pas", async () => {
       prisma.reservation.findUnique.mockResolvedValue(null);
-      await expect(service.create({ reservationId: "r1", modePaiement: "CASH" } as any)).rejects.toThrow(
+      await expect(service.create({ reservationId: "r1", modePaiement: "CASH" } as any, HOTEL_ID)).rejects.toThrow(
         NotFoundException
       );
     });
 
     it("refuse de facturer une réservation qui n'a pas encore fait son check-in", async () => {
       prisma.reservation.findUnique.mockResolvedValue({ ...reservationEnCours, statut: "CONFIRMEE" });
-      await expect(service.create({ reservationId: "r1", modePaiement: "CASH" } as any)).rejects.toThrow(
+      await expect(service.create({ reservationId: "r1", modePaiement: "CASH" } as any, HOTEL_ID)).rejects.toThrow(
         ConflictException
       );
     });
 
     it("refuse de créer une deuxième facture pour la même réservation", async () => {
       prisma.reservation.findUnique.mockResolvedValue({ ...reservationEnCours, facture: { id: "f-existante" } });
-      await expect(service.create({ reservationId: "r1", modePaiement: "CASH" } as any)).rejects.toThrow(
+      await expect(service.create({ reservationId: "r1", modePaiement: "CASH" } as any, HOTEL_ID)).rejects.toThrow(
         ConflictException
       );
     });
@@ -59,7 +61,7 @@ describe("FacturesService", () => {
       prisma.facture.create.mockImplementation(({ data }: any) => Promise.resolve(data));
 
       // 2 nuits à 45 $ = 90 $, moins 20 $ d'acompte = 70 $ dus, tout en USD.
-      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any);
+      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any, HOTEL_ID);
 
       expect(facture.montantChambre).toBe(90);
       expect(facture.deviseChambre).toBe("USD");
@@ -77,7 +79,7 @@ describe("FacturesService", () => {
       prisma.facture.findFirst.mockResolvedValue({ numeroRecu: `REC-${aaaammjj}-0007` });
       prisma.facture.create.mockImplementation(({ data }: any) => Promise.resolve(data));
 
-      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any);
+      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any, HOTEL_ID);
 
       expect(facture.numeroRecu).toBe(`REC-${aaaammjj}-0008`);
     });
@@ -86,7 +88,7 @@ describe("FacturesService", () => {
       prisma.reservation.findUnique.mockResolvedValue({ ...reservationEnCours, acompte: 500 });
       prisma.facture.create.mockImplementation(({ data }: any) => Promise.resolve(data));
 
-      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any);
+      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any, HOTEL_ID);
 
       expect(facture.montantTotalUSD).toBe(0);
     });
@@ -99,7 +101,7 @@ describe("FacturesService", () => {
       });
       prisma.facture.create.mockImplementation(({ data }: any) => Promise.resolve(data));
 
-      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any);
+      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any, HOTEL_ID);
 
       expect(facture.montantTotalCDF).toBe(40000);
       expect(facture.montantTotalUSD).toBe(0);
@@ -114,7 +116,7 @@ describe("FacturesService", () => {
       prisma.facture.create.mockImplementation(({ data }: any) => Promise.resolve(data));
 
       // 90 $ (2 nuits) - 20 $ acompte = 70 $ dus pour la chambre + 15 $ de cafétaria = 85 $.
-      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any);
+      const facture = await service.create({ reservationId: "r1", modePaiement: "CASH" } as any, HOTEL_ID);
 
       expect(facture.montantTotalUSD).toBe(85);
       expect(facture.montantTotalCDF).toBe(0);
@@ -132,7 +134,9 @@ describe("FacturesService", () => {
           modePaiement: "CASH",
           deviseRegleeParClient: "USD",
           montantRegleParClient: 100,
-        } as any)
+          } as any,
+          HOTEL_ID
+        )
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -140,17 +144,17 @@ describe("FacturesService", () => {
   describe("annuler", () => {
     it("refuse d'annuler une facture déjà annulée", async () => {
       prisma.facture.findUnique.mockResolvedValue({ id: "f1", annuleLe: new Date() });
-      await expect(service.annuler("f1", { motif: "erreur" })).rejects.toThrow(ConflictException);
+      await expect(service.annuler("f1", { motif: "erreur" }, HOTEL_ID)).rejects.toThrow(ConflictException);
     });
 
     it("trace la date et le motif d'annulation sans supprimer la facture", async () => {
       prisma.facture.findUnique.mockResolvedValue({ id: "f1", annuleLe: null });
       prisma.facture.update.mockResolvedValue({ id: "f1", annuleLe: new Date() });
 
-      await service.annuler("f1", { motif: "Erreur de saisie" });
+      await service.annuler("f1", { motif: "Erreur de saisie" }, HOTEL_ID);
 
       expect(prisma.facture.update).toHaveBeenCalledWith({
-        where: { id: "f1" },
+        where: { id: "f1", hotelId: HOTEL_ID },
         data: expect.objectContaining({ motifAnnulation: "Erreur de saisie" }),
       });
     });

@@ -10,9 +10,10 @@ function creerPrismaMock() {
   } as any;
 }
 
-const receptionniste = { userId: "u-recep", supabaseAuthId: "a1", role: Role.RECEPTIONNISTE, nom: "R" };
-const cafetaria = { userId: "u-cafe", supabaseAuthId: "a2", role: Role.CAFETARIA, nom: "C" };
-const patron = { userId: "u-patron", supabaseAuthId: "a3", role: Role.PATRON, nom: "P" };
+const HOTEL_ID = "hotel-1";
+const receptionniste = { userId: "u-recep", supabaseAuthId: "a1", role: Role.RECEPTIONNISTE, nom: "R", hotelId: HOTEL_ID };
+const cafetaria = { userId: "u-cafe", supabaseAuthId: "a2", role: Role.CAFETARIA, nom: "C", hotelId: HOTEL_ID };
+const patron = { userId: "u-patron", supabaseAuthId: "a3", role: Role.PATRON, nom: "P", hotelId: HOTEL_ID };
 
 describe("DashboardService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
@@ -86,7 +87,7 @@ describe("DashboardService", () => {
         { statut: "RESERVEE" },
       ]);
 
-      const resultat = await service.occupation();
+      const resultat = await service.occupation(HOTEL_ID);
 
       expect(resultat.total).toBe(4);
       expect(resultat.occupees).toBe(2);
@@ -95,7 +96,7 @@ describe("DashboardService", () => {
 
     it("ne divise jamais par zéro s'il n'y a aucune chambre", async () => {
       prisma.chambre.findMany.mockResolvedValue([]);
-      const resultat = await service.occupation();
+      const resultat = await service.occupation(HOTEL_ID);
       expect(resultat.tauxOccupationPourcent).toBe(0);
     });
   });
@@ -108,7 +109,7 @@ describe("DashboardService", () => {
         { nom: "Eau", stockActuel: 5, seuilAlerte: 5 },
       ]);
 
-      const resultat = await service.stockBas();
+      const resultat = await service.stockBas(HOTEL_ID);
 
       expect(resultat.map((p: any) => p.nom)).toEqual(["Coca", "Eau"]);
     });

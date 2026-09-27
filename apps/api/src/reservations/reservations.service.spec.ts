@@ -23,7 +23,8 @@ function creerPrismaMock() {
   } as any;
 }
 
-const currentUser = { userId: "u1", supabaseAuthId: "a1", role: Role.RECEPTIONNISTE, nom: "R" };
+const HOTEL_ID = "hotel-1";
+const currentUser = { userId: "u1", supabaseAuthId: "a1", role: Role.RECEPTIONNISTE, nom: "R", hotelId: HOTEL_ID };
 
 describe("ReservationsService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
@@ -101,7 +102,7 @@ describe("ReservationsService", () => {
 
       await service.create({ ...base, client: { nom: "Jean" } } as any, currentUser);
 
-      expect(prisma.client.create).toHaveBeenCalledWith({ data: { nom: "Jean" } });
+      expect(prisma.client.create).toHaveBeenCalledWith({ data: { nom: "Jean", hotelId: HOTEL_ID } });
       expect(prisma.reservation.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ clientId: "cl-nouveau" }) })
       );
@@ -111,22 +112,22 @@ describe("ReservationsService", () => {
   describe("annuler", () => {
     it("refuse d'annuler une réservation déjà annulée", async () => {
       prisma.reservation.findUnique.mockResolvedValue({ id: "r1", statut: "ANNULEE" });
-      await expect(service.annuler("r1", { motif: "test" })).rejects.toThrow(ConflictException);
+      await expect(service.annuler("r1", { motif: "test" }, HOTEL_ID)).rejects.toThrow(ConflictException);
     });
 
     it("refuse d'annuler une réservation déjà terminée", async () => {
       prisma.reservation.findUnique.mockResolvedValue({ id: "r1", statut: "TERMINEE" });
-      await expect(service.annuler("r1", { motif: "test" })).rejects.toThrow(ConflictException);
+      await expect(service.annuler("r1", { motif: "test" }, HOTEL_ID)).rejects.toThrow(ConflictException);
     });
 
     it("annule et trace le motif pour une réservation CONFIRMEE", async () => {
       prisma.reservation.findUnique.mockResolvedValue({ id: "r1", statut: "CONFIRMEE" });
       prisma.reservation.update.mockResolvedValue({ id: "r1", statut: "ANNULEE" });
 
-      await service.annuler("r1", { motif: "Client ne se présente pas" });
+      await service.annuler("r1", { motif: "Client ne se présente pas" }, HOTEL_ID);
 
       expect(prisma.reservation.update).toHaveBeenCalledWith({
-        where: { id: "r1" },
+        where: { id: "r1", hotelId: HOTEL_ID },
         data: expect.objectContaining({ statut: "ANNULEE", motifAnnulation: "Client ne se présente pas" }),
       });
     });
@@ -135,7 +136,7 @@ describe("ReservationsService", () => {
   describe("checkIn / checkOut", () => {
     it("refuse le check-in d'une réservation qui n'est pas CONFIRMEE", async () => {
       prisma.reservation.findUnique.mockResolvedValue({ id: "r1", statut: "EN_COURS", chambreId: "c1" });
-      await expect(service.checkIn("r1")).rejects.toThrow(ConflictException);
+      await expect(service.checkIn("r1", HOTEL_ID)).rejects.toThrow(ConflictException);
     });
 
     it("passe la réservation en EN_COURS et la chambre en OCCUPEE au check-in", async () => {
@@ -143,21 +144,21 @@ describe("ReservationsService", () => {
       prisma.reservation.update.mockResolvedValue({ id: "r1", statut: "EN_COURS" });
       prisma.chambre.update.mockResolvedValue({ id: "c1", statut: "OCCUPEE" });
 
-      await service.checkIn("r1");
+      await service.checkIn("r1", HOTEL_ID);
 
       expect(prisma.reservation.update).toHaveBeenCalledWith({
-        where: { id: "r1" },
+        where: { id: "r1", hotelId: HOTEL_ID },
         data: { statut: "EN_COURS", syncVersion: { increment: 1 } },
       });
       expect(prisma.chambre.update).toHaveBeenCalledWith({
-        where: { id: "c1" },
+        where: { id: "c1", hotelId: HOTEL_ID },
         data: { statut: "OCCUPEE", syncVersion: { increment: 1 } },
       });
     });
 
     it("refuse le check-out d'une réservation qui n'est pas EN_COURS", async () => {
       prisma.reservation.findUnique.mockResolvedValue({ id: "r1", statut: "CONFIRMEE", chambreId: "c1" });
-      await expect(service.checkOut("r1")).rejects.toThrow(ConflictException);
+      await expect(service.checkOut("r1", HOTEL_ID)).rejects.toThrow(ConflictException);
     });
 
     it("passe la réservation en TERMINEE et la chambre en NETTOYAGE au check-out", async () => {
@@ -165,10 +166,10 @@ describe("ReservationsService", () => {
       prisma.reservation.update.mockResolvedValue({ id: "r1", statut: "TERMINEE" });
       prisma.chambre.update.mockResolvedValue({ id: "c1", statut: "NETTOYAGE" });
 
-      await service.checkOut("r1");
+      await service.checkOut("r1", HOTEL_ID);
 
       expect(prisma.chambre.update).toHaveBeenCalledWith({
-        where: { id: "c1" },
+        where: { id: "c1", hotelId: HOTEL_ID },
         data: { statut: "NETTOYAGE", syncVersion: { increment: 1 } },
       });
     });

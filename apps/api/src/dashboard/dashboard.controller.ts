@@ -26,8 +26,8 @@ export class DashboardController {
 
   @Get("occupation")
   @Roles(Role.RECEPTIONNISTE, Role.PATRON)
-  occupation() {
-    return this.dashboardService.occupation();
+  occupation(@CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.dashboardService.occupation(currentUser.hotelId);
   }
 
   @Get("ventes-recentes")
@@ -38,7 +38,7 @@ export class DashboardController {
 
   @Get("stock-bas")
   @Roles(Role.CAFETARIA, Role.PATRON)
-  stockBas() {
-    return this.dashboardService.stockBas();
+  stockBas(@CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.dashboardService.stockBas(currentUser.hotelId);
   }
 }

@@ -42,6 +42,7 @@ export class DashboardService {
       ? sommerParDevise(
           await this.prisma.facture.findMany({
             where: {
+              hotelId: currentUser.hotelId,
               createdAt: { gte },
               annuleLe: null,
               reservation: currentUser.role === Role.PATRON ? undefined : { createdBy: currentUser.userId },
@@ -55,6 +56,7 @@ export class DashboardService {
       ? sommerParDevise(
           await this.prisma.venteCafeteria.findMany({
             where: {
+              hotelId: currentUser.hotelId,
               createdAt: { gte },
               annuleLe: null,
               createdBy: currentUser.role === Role.PATRON ? undefined : currentUser.userId,
@@ -73,8 +75,8 @@ export class DashboardService {
   }
 
   /** RECEPTIONNISTE + PATRON uniquement (section 9.3, "Chambres"/"Statut chambre"). */
-  async occupation() {
-    const chambres = await this.prisma.chambre.findMany({ select: { statut: true } });
+  async occupation(hotelId: string) {
+    const chambres = await this.prisma.chambre.findMany({ where: { hotelId }, select: { statut: true } });
     const total = chambres.length;
     const compteParStatut = (statut: StatutChambre) => chambres.filter((c) => c.statut === statut).length;
 
@@ -97,6 +99,7 @@ export class DashboardService {
     const factures = voitChambres
       ? await this.prisma.facture.findMany({
           where: {
+            hotelId: currentUser.hotelId,
             reservation: currentUser.role === Role.PATRON ? undefined : { createdBy: currentUser.userId },
           },
           include: { reservation: { include: { chambre: true, client: true } } },
@@ -107,7 +110,10 @@ export class DashboardService {
 
     const ventesCafeteria = voitCafeteria
       ? await this.prisma.venteCafeteria.findMany({
-          where: { createdBy: currentUser.role === Role.PATRON ? undefined : currentUser.userId },
+          where: {
+            hotelId: currentUser.hotelId,
+            createdBy: currentUser.role === Role.PATRON ? undefined : currentUser.userId,
+          },
           orderBy: { createdAt: "desc" },
           take: limite,
         })
@@ -119,9 +125,9 @@ export class DashboardService {
   /** CAFETARIA + PATRON uniquement (section 9.3, "Stock"). Comparaison faite en
    * JS : Prisma ne permet pas de comparer deux colonnes entre elles dans un
    * `where`, et le volume d'un menu d'hôtel ne justifie pas du SQL brut. */
-  async stockBas() {
+  async stockBas(hotelId: string) {
     const produits = await this.prisma.produit.findMany({
-      where: { actif: true },
+      where: { hotelId, actif: true },
       orderBy: { nom: "asc" },
     });
     return produits.filter((p) => Number(p.stockActuel) <= Number(p.seuilAlerte));

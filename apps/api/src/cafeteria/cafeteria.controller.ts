@@ -27,13 +27,13 @@ export class CafeteriaController {
   constructor(private readonly cafeteriaService: CafeteriaService) {}
 
   @Get("comptes")
-  findAllComptes(@Query() query: FindComptesQueryDto) {
-    return this.cafeteriaService.findAllComptes(query);
+  findAllComptes(@Query() query: FindComptesQueryDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.findAllComptes(query, currentUser.hotelId);
   }
 
   @Get("comptes/:id")
-  findOneCompte(@Param("id") id: string) {
-    return this.cafeteriaService.findOneCompte(id);
+  findOneCompte(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.findOneCompte(id, currentUser.hotelId);
   }
 
   @Post("comptes")
@@ -42,8 +42,12 @@ export class CafeteriaController {
   }
 
   @Post("comptes/:id/sous-comptes")
-  ajouterSousCompte(@Param("id") id: string, @Body() dto: AjouterSousCompteDto) {
-    return this.cafeteriaService.ajouterSousCompte(id, dto);
+  ajouterSousCompte(
+    @Param("id") id: string,
+    @Body() dto: AjouterSousCompteDto,
+    @CurrentUser() currentUser: UtilisateurAuthentifie
+  ) {
+    return this.cafeteriaService.ajouterSousCompte(id, dto, currentUser.hotelId);
   }
 
   @Post("comptes/:id/lignes")
@@ -65,13 +69,16 @@ export class CafeteriaController {
   }
 
   @Get("ventes")
-  findAllVentes(@Query("reservationLieeId") reservationLieeId?: string) {
-    return this.cafeteriaService.findAllVentes(reservationLieeId);
+  findAllVentes(
+    @Query("reservationLieeId") reservationLieeId: string | undefined,
+    @CurrentUser() currentUser: UtilisateurAuthentifie
+  ) {
+    return this.cafeteriaService.findAllVentes(currentUser.hotelId, reservationLieeId);
   }
 
   @Post("ventes/:id/annuler")
   @Roles(Role.PATRON)
-  annulerVente(@Param("id") id: string, @Body() dto: AnnulerVenteDto) {
-    return this.cafeteriaService.annulerVente(id, dto.motif);
+  annulerVente(@Param("id") id: string, @Body() dto: AnnulerVenteDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.annulerVente(id, dto.motif, currentUser.hotelId);
   }
 }

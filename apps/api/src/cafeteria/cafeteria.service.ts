@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Devise, Prisma, PrismaClient } from "@hotel-chicago/database";
+import { UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import { StockService } from "../stock/stock.service";
 import { calculerEncaissement } from "../factures/encaissement.util";
@@ -25,17 +26,17 @@ export class CafeteriaService {
     private readonly stockService: StockService
   ) {}
 
-  findAllComptes(query: FindComptesQueryDto) {
+  findAllComptes(query: FindComptesQueryDto, hotelId: string) {
     return this.prisma.compteCafeteria.findMany({
-      where: { statut: query.statut },
+      where: { hotelId, statut: query.statut },
       include: INCLUDE_COMPTE_COMPLET,
       orderBy: { ouvertLe: "desc" },
     });
   }
 
-  async findOneCompte(id: string): Promise<CompteComplet> {
+  async findOneCompte(id: string, hotelId: string): Promise<CompteComplet> {
     const compte = await this.prisma.compteCafeteria.findUnique({
-      where: { id },
+      where: { id, hotelId },
       include: INCLUDE_COMPTE_COMPLET,
     });
     if (!compte) {
@@ -44,30 +45,34 @@ export class CafeteriaService {
     return compte;
   }
 
-  ouvrirCompte(dto: OuvrirCompteDto, currentUser: { userId: string }) {
+  ouvrirCompte(dto: OuvrirCompteDto, currentUser: UtilisateurAuthentifie) {
     return this.prisma.compteCafeteria.create({
       data: {
+        hotelId: currentUser.hotelId,
         tableOuNom: dto.tableOuNom,
         ouvertPar: currentUser.userId,
-        sousComptes: { create: [{ nom: dto.nomPremierSousCompte ?? "Personne 1" }] },
+        // Une écriture imbriquée n'hérite PAS automatiquement du hotelId du
+        // parent (constaté en lisant le SQL généré) : le sous-compte a besoin
+        // du sien explicitement.
+        sousComptes: { create: [{ hotelId: currentUser.hotelId, nom: dto.nomPremierSousCompte ?? "Personne 1" }] },
       },
       include: { sousComptes: true },
     });
   }
 
-  async ajouterSousCompte(compteId: string, dto: AjouterSousCompteDto) {
-    const compte = await this.findOneCompte(compteId);
+  async ajouterSousCompte(compteId: string, dto: AjouterSousCompteDto, hotelId: string) {
+    const compte = await this.findOneCompte(compteId, hotelId);
     this.verifierCompteOuvert(compte);
-    return this.prisma.sousCompte.create({ data: { compteId, nom: dto.nom } });
+    return this.prisma.sousCompte.create({ data: { hotelId, compteId, nom: dto.nom } });
   }
 
-  async ajouterLigne(compteId: string, dto: AjouterLigneDto, currentUser: { userId: string }) {
+  async ajouterLigne(compteId: string, dto: AjouterLigneDto, currentUser: UtilisateurAuthentifie) {
     // Deux lectures indépendantes (aucune n'a besoin du résultat de l'autre) :
     // en parallèle plutôt que l'une après l'autre — chaque aller-retour
     // compte sur une connexion internet lente (voir DECISIONS.md, Phase 6).
     const [compte, produit] = await Promise.all([
-      this.findOneCompte(compteId),
-      this.prisma.produit.findUnique({ where: { id: dto.produitId } }),
+      this.findOneCompte(compteId, currentUser.hotelId),
+      this.prisma.produit.findUnique({ where: { id: dto.produitId, hotelId: currentUser.hotelId } }),
     ]);
     this.verifierCompteOuvert(compte);
 
@@ -95,7 +100,7 @@ export class CafeteriaService {
     // (service jugé trop lent en conditions réelles, 26/09/2026).
     await this.stockService.decrementerStock(
       this.prisma,
-      { produitId: dto.produitId, type: "SORTIE_VENTE", quantite: dto.quantite },
+      { hotelId: currentUser.hotelId, produitId: dto.produitId, type: "SORTIE_VENTE", quantite: dto.quantite },
       produit
     );
 
@@ -105,6 +110,7 @@ export class CafeteriaService {
     const [, ligne] = await Promise.all([
       this.prisma.mouvementStock.create({
         data: {
+          hotelId: currentUser.hotelId,
           produitId: dto.produitId,
           quantite: dto.quantite,
           type: "SORTIE_VENTE",
@@ -114,6 +120,7 @@ export class CafeteriaService {
       }),
       this.prisma.ligneCommande.create({
         data: {
+          hotelId: currentUser.hotelId,
           sousCompteId: dto.sousCompteId,
           produitId: dto.produitId,
           quantite: dto.quantite,
@@ -127,8 +134,8 @@ export class CafeteriaService {
     return ligne;
   }
 
-  async encaisser(compteId: string, dto: EncaisserCompteDto, currentUser: { userId: string }) {
-    const compte = await this.findOneCompte(compteId);
+  async encaisser(compteId: string, dto: EncaisserCompteDto, currentUser: UtilisateurAuthentifie) {
+    const compte = await this.findOneCompte(compteId, currentUser.hotelId);
     this.verifierCompteOuvert(compte);
 
     const toutesLesLignes = compte.sousComptes.flatMap((sc) => sc.lignes);
@@ -140,7 +147,9 @@ export class CafeteriaService {
       throw new BadRequestException("reservationLieeId est obligatoire pour un règlement FACTURE_CHAMBRE.");
     }
     if (dto.reservationLieeId) {
-      const reservation = await this.prisma.reservation.findUnique({ where: { id: dto.reservationLieeId } });
+      const reservation = await this.prisma.reservation.findUnique({
+        where: { id: dto.reservationLieeId, hotelId: currentUser.hotelId },
+      });
       if (!reservation) {
         throw new NotFoundException(`Aucune réservation trouvée avec l'identifiant ${dto.reservationLieeId}.`);
       }
@@ -153,6 +162,8 @@ export class CafeteriaService {
           "Encaissez chaque vente séparément pour PAR_SOUS_COMPTE ou PARTAGE_EGAL."
       );
     }
+
+    const { hotelId, userId } = currentUser;
 
     return this.prisma.$transaction(async (tx) => {
       // Compare-and-swap atomique : ferme le compte SEULEMENT s'il est encore
@@ -167,7 +178,7 @@ export class CafeteriaService {
       // encore marqué OUVERT, provoquant une violation de contrainte unique sur
       // numeroRecu au lieu d'un 409 propre).
       const fermeture = await tx.compteCafeteria.updateMany({
-        where: { id: compteId, statut: "OUVERT" },
+        where: { id: compteId, hotelId, statut: "OUVERT" },
         data: { statut: "FERME", fermeLe: new Date(), syncVersion: { increment: 1 } },
       });
       if (fermeture.count === 0) {
@@ -178,22 +189,22 @@ export class CafeteriaService {
 
       switch (dto.mode) {
         case "GROUPE":
-          return [await this.creerVenteGroupe(tx, compte, toutesLesLignes, dto, currentUser.userId)];
+          return [await this.creerVenteGroupe(tx, compte, toutesLesLignes, dto, hotelId, userId)];
         case "PAR_SOUS_COMPTE":
-          return this.creerVentesParSousCompte(tx, compte, dto, currentUser.userId);
+          return this.creerVentesParSousCompte(tx, compte, dto, hotelId, userId);
         case "PARTAGE_EGAL":
           if (!dto.nombrePersonnes) {
             throw new BadRequestException("nombrePersonnes est obligatoire pour un encaissement PARTAGE_EGAL.");
           }
-          return this.creerVentesPartageEgal(tx, compte, toutesLesLignes, dto, dto.nombrePersonnes, currentUser.userId);
+          return this.creerVentesPartageEgal(tx, compte, toutesLesLignes, dto, dto.nombrePersonnes, hotelId, userId);
         default:
           throw new BadRequestException(`Mode d'encaissement inconnu : ${dto.mode}.`);
       }
     });
   }
 
-  async annulerVente(id: string, motif: string) {
-    const vente = await this.prisma.venteCafeteria.findUnique({ where: { id } });
+  async annulerVente(id: string, motif: string, hotelId: string) {
+    const vente = await this.prisma.venteCafeteria.findUnique({ where: { id, hotelId } });
     if (!vente) {
       throw new NotFoundException(`Aucune vente trouvée avec l'identifiant ${id}.`);
     }
@@ -201,14 +212,14 @@ export class CafeteriaService {
       throw new ConflictException("Cette vente est déjà annulée.");
     }
     return this.prisma.venteCafeteria.update({
-      where: { id },
+      where: { id, hotelId },
       data: { annuleLe: new Date(), motifAnnulation: motif, syncVersion: { increment: 1 } },
     });
   }
 
-  findAllVentes(reservationLieeId?: string) {
+  findAllVentes(hotelId: string, reservationLieeId?: string) {
     return this.prisma.venteCafeteria.findMany({
-      where: { reservationLieeId },
+      where: { hotelId, reservationLieeId },
       orderBy: { createdAt: "desc" },
     });
   }
@@ -244,13 +255,14 @@ export class CafeteriaService {
    * 0001, 0002, 0003, 0005, 0007 avec des trous en 0004/0006 — `count()`
    * valait 5, produisait ensuite "0006" PUIS "0007", qui existait déjà →
    * violation de contrainte unique au lieu d'un numéro libre). Chercher le
-   * MAX existant reste correct même en présence de trous.
+   * MAX existant reste correct même en présence de trous. Numéroté par hôtel
+   * (Phase 2) : `numeroRecu` n'est plus unique que combiné à `hotelId`.
    */
-  private async genererNumeroRecu(tx: Prisma.TransactionClient): Promise<string> {
+  private async genererNumeroRecu(tx: Prisma.TransactionClient, hotelId: string): Promise<string> {
     const aaaammjj = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const prefixe = `CAF-${aaaammjj}-`;
     const dernier = await tx.venteCafeteria.findFirst({
-      where: { numeroRecu: { startsWith: prefixe } },
+      where: { hotelId, numeroRecu: { startsWith: prefixe } },
       orderBy: { numeroRecu: "desc" },
       select: { numeroRecu: true },
     });
@@ -263,6 +275,7 @@ export class CafeteriaService {
     compte: { id: string },
     lignes: LigneAvecProduit[],
     dto: EncaisserCompteDto,
+    hotelId: string,
     createdBy: string
   ) {
     const { usd, cdf } = this.sommerParDevise(lignes);
@@ -275,7 +288,7 @@ export class CafeteriaService {
     }
 
     const deviseDue: Devise = usd > 0 ? Devise.USD : Devise.CDF;
-    const dernierTaux = await tx.tauxChange.findFirst({ orderBy: { createdAt: "desc" } });
+    const dernierTaux = await tx.tauxChange.findFirst({ where: { hotelId }, orderBy: { createdAt: "desc" } });
 
     const encaissement = calculerEncaissement({
       montantDu: usd > 0 ? usd : cdf,
@@ -288,6 +301,7 @@ export class CafeteriaService {
 
     return tx.venteCafeteria.create({
       data: {
+        hotelId,
         compteId: compte.id,
         montantTotalUSD: usd,
         montantTotalCDF: cdf,
@@ -299,7 +313,7 @@ export class CafeteriaService {
         montantMonnaieRendue: encaissement.montantMonnaieRendue,
         reservationLieeId: dto.reservationLieeId,
         createdBy,
-        numeroRecu: await this.genererNumeroRecu(tx),
+        numeroRecu: await this.genererNumeroRecu(tx, hotelId),
       },
     });
   }
@@ -308,6 +322,7 @@ export class CafeteriaService {
     tx: Prisma.TransactionClient,
     compte: CompteComplet,
     dto: EncaisserCompteDto,
+    hotelId: string,
     createdBy: string
   ) {
     const sousComptesAvecLignes = compte.sousComptes.filter((sc) => sc.lignes.length > 0);
@@ -317,13 +332,14 @@ export class CafeteriaService {
       ventes.push(
         await tx.venteCafeteria.create({
           data: {
+            hotelId,
             compteId: compte.id,
             montantTotalUSD: usd,
             montantTotalCDF: cdf,
             modePaiement: dto.modePaiement,
             reservationLieeId: dto.reservationLieeId,
             createdBy,
-            numeroRecu: await this.genererNumeroRecu(tx),
+            numeroRecu: await this.genererNumeroRecu(tx, hotelId),
           },
         })
       );
@@ -337,6 +353,7 @@ export class CafeteriaService {
     lignes: LigneAvecProduit[],
     dto: EncaisserCompteDto,
     n: number,
+    hotelId: string,
     createdBy: string
   ) {
     const { usd, cdf } = this.sommerParDevise(lignes);
@@ -348,13 +365,14 @@ export class CafeteriaService {
       ventes.push(
         await tx.venteCafeteria.create({
           data: {
+            hotelId,
             compteId: compte.id,
             montantTotalUSD: partsUSD[i],
             montantTotalCDF: partsCDF[i],
             modePaiement: dto.modePaiement,
             reservationLieeId: dto.reservationLieeId,
             createdBy,
-            numeroRecu: await this.genererNumeroRecu(tx),
+            numeroRecu: await this.genererNumeroRecu(tx, hotelId),
           },
         })
       );

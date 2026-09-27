@@ -15,8 +15,9 @@ function creerPrismaMock() {
   } as any;
 }
 
-const receptionniste = { userId: "u1", supabaseAuthId: "a1", role: Role.RECEPTIONNISTE, nom: "R" };
-const patron = { userId: "u2", supabaseAuthId: "a2", role: Role.PATRON, nom: "P" };
+const HOTEL_ID = "hotel-1";
+const receptionniste = { userId: "u1", supabaseAuthId: "a1", role: Role.RECEPTIONNISTE, nom: "R", hotelId: HOTEL_ID };
+const patron = { userId: "u2", supabaseAuthId: "a2", role: Role.PATRON, nom: "P", hotelId: HOTEL_ID };
 
 describe("ChambresService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
@@ -30,7 +31,7 @@ describe("ChambresService", () => {
   describe("findOne", () => {
     it("lève NotFoundException si la chambre n'existe pas", async () => {
       prisma.chambre.findUnique.mockResolvedValue(null);
-      await expect(service.findOne("inconnue")).rejects.toThrow(NotFoundException);
+      await expect(service.findOne("inconnue", HOTEL_ID)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -43,7 +44,7 @@ describe("ChambresService", () => {
       prisma.chambre.update.mockResolvedValue({ id: "c1", statut: "OCCUPEE" });
       await service.update("c1", { statut: "OCCUPEE" } as any, receptionniste);
       expect(prisma.chambre.update).toHaveBeenCalledWith({
-        where: { id: "c1" },
+        where: { id: "c1", hotelId: HOTEL_ID },
         data: { statut: "OCCUPEE", syncVersion: { increment: 1 } },
       });
     });
@@ -83,7 +84,7 @@ describe("ChambresService", () => {
           clientVersion: "5.22.0",
         })
       );
-      await expect(service.remove("c1")).rejects.toThrow(ConflictException);
+      await expect(service.remove("c1", HOTEL_ID)).rejects.toThrow(ConflictException);
     });
   });
 });

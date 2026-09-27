@@ -18,9 +18,13 @@ import { VERIFICATEUR_JWT, VerificateurJwtHs256 } from "../src/common/auth/verif
 describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
   const JWT_SECRET = "test-secret-ne-pas-utiliser-en-production";
 
+  const HOTEL_ID = "hotel-1";
+
+  const HOTEL_ACTIF = { id: HOTEL_ID, statutLicence: "ACTIF" };
+
   const utilisateurs: Record<
     string,
-    { id: string; nom: string; role: string; actif: boolean; supabaseAuthId: string }
+    { id: string; nom: string; role: string; actif: boolean; supabaseAuthId: string; hotelId: string; hotel: typeof HOTEL_ACTIF }
   > = {
     "auth-patron": {
       id: "u-patron",
@@ -28,6 +32,8 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
       role: "PATRON",
       actif: true,
       supabaseAuthId: "auth-patron",
+      hotelId: HOTEL_ID,
+      hotel: HOTEL_ACTIF,
     },
     "auth-receptionniste": {
       id: "u-receptionniste",
@@ -35,6 +41,8 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
       role: "RECEPTIONNISTE",
       actif: true,
       supabaseAuthId: "auth-receptionniste",
+      hotelId: HOTEL_ID,
+      hotel: HOTEL_ACTIF,
     },
     "auth-cafeteria": {
       id: "u-cafeteria",
@@ -42,6 +50,8 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
       role: "CAFETARIA",
       actif: true,
       supabaseAuthId: "auth-cafeteria",
+      hotelId: HOTEL_ID,
+      hotel: HOTEL_ACTIF,
     },
     "auth-inactif": {
       id: "u-inactif",
@@ -49,6 +59,8 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
       role: "RECEPTIONNISTE",
       actif: false,
       supabaseAuthId: "auth-inactif",
+      hotelId: HOTEL_ID,
+      hotel: HOTEL_ACTIF,
     },
   };
 
@@ -62,6 +74,7 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
     // réelle de Chambres/Réservations/Produits/Cafétaria (Phases 2-3) — chacune
     // a ses propres tests. Juste assez de surface ici pour que les routes GET
     // ne plantent pas en 500.
+    hotel: { findUnique: jest.fn().mockResolvedValue(HOTEL_ACTIF) },
     chambre: { findMany: jest.fn().mockResolvedValue([]) },
     reservation: { findMany: jest.fn().mockResolvedValue([]) },
     produit: { findMany: jest.fn().mockResolvedValue([]) },
@@ -223,7 +236,7 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
     it.each(["/public/chambres-disponibles", "/public/menu"])(
       "%s répond 200 SANS aucun jeton d'authentification",
       async (route) => {
-        await request(app.getHttpServer()).get(route).expect(200);
+        await request(app.getHttpServer()).get(`${route}?sousDomaine=chicago`).expect(200);
       }
     );
   });

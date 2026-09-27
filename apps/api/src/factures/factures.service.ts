@@ -9,17 +9,17 @@ import { calculerEncaissement } from "./encaissement.util";
 export class FacturesService {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
-  findAll(reservationId?: string) {
+  findAll(hotelId: string, reservationId?: string) {
     return this.prisma.facture.findMany({
-      where: { reservationId },
+      where: { hotelId, reservationId },
       include: { reservation: { include: { chambre: true, client: true } } },
       orderBy: { createdAt: "desc" },
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, hotelId: string) {
     const facture = await this.prisma.facture.findUnique({
-      where: { id },
+      where: { id, hotelId },
       include: { reservation: { include: { chambre: true, client: true } } },
     });
     if (!facture) {
@@ -28,9 +28,9 @@ export class FacturesService {
     return facture;
   }
 
-  async create(dto: CreateFactureDto) {
+  async create(dto: CreateFactureDto, hotelId: string) {
     const reservation = await this.prisma.reservation.findUnique({
-      where: { id: dto.reservationId },
+      where: { id: dto.reservationId, hotelId },
       include: { chambre: true, facture: true },
     });
     if (!reservation) {
@@ -57,7 +57,7 @@ export class FacturesService {
     // Consommations cafétaria facturées sur la chambre (VenteCafeteria.reservationLieeId,
     // section 9.2) : additionnées par devise, jamais fusionnées entre elles (section 9.4).
     const ventesLiees = await this.prisma.venteCafeteria.findMany({
-      where: { reservationLieeId: dto.reservationId, annuleLe: null },
+      where: { hotelId, reservationLieeId: dto.reservationId, annuleLe: null },
     });
     const cafeteriaUSD = ventesLiees.reduce((somme, v) => somme + Number(v.montantTotalUSD), 0);
     const cafeteriaCDF = ventesLiees.reduce((somme, v) => somme + Number(v.montantTotalCDF), 0);
@@ -75,7 +75,7 @@ export class FacturesService {
     }
 
     const deviseDue: Devise = montantTotalUSD > 0 ? Devise.USD : Devise.CDF;
-    const dernierTaux = await this.prisma.tauxChange.findFirst({ orderBy: { createdAt: "desc" } });
+    const dernierTaux = await this.prisma.tauxChange.findFirst({ where: { hotelId }, orderBy: { createdAt: "desc" } });
 
     const encaissement = calculerEncaissement({
       montantDu: montantTotalUSD > 0 ? montantTotalUSD : montantTotalCDF,
@@ -86,10 +86,11 @@ export class FacturesService {
       cdfParUsd: dernierTaux ? Number(dernierTaux.cdfParUsd) : undefined,
     });
 
-    const numeroRecu = await this.genererNumeroRecu();
+    const numeroRecu = await this.genererNumeroRecu(hotelId);
 
     return this.prisma.facture.create({
       data: {
+        hotelId,
         reservationId: dto.reservationId,
         montantChambre,
         deviseChambre,
@@ -107,13 +108,13 @@ export class FacturesService {
     });
   }
 
-  async annuler(id: string, dto: AnnulerFactureDto) {
-    const facture = await this.findOne(id);
+  async annuler(id: string, dto: AnnulerFactureDto, hotelId: string) {
+    const facture = await this.findOne(id, hotelId);
     if (facture.annuleLe) {
       throw new ConflictException("Cette facture est déjà annulée.");
     }
     return this.prisma.facture.update({
-      where: { id },
+      where: { id, hotelId },
       data: { annuleLe: new Date(), motifAnnulation: dto.motif, syncVersion: { increment: 1 } },
     });
   }
@@ -124,14 +125,15 @@ export class FacturesService {
    * une séquence sans trou, ce qui s'est révélé faux en pratique (voir le même
    * bug corrigé dans CafeteriaService.genererNumeroRecu, trouvé en testant
    * PARTAGE_EGAL contre la vraie base). Pas de gestion du préfixe TEMP- ici,
-   * réservée au mode hors ligne (Phase 4).
+   * réservée au mode hors ligne (Phase 4). Numérotée par hôtel (Phase 2) :
+   * `numeroRecu` n'est plus unique que combiné à `hotelId` (voir schema.prisma).
    */
-  private async genererNumeroRecu(): Promise<string> {
+  private async genererNumeroRecu(hotelId: string): Promise<string> {
     const aaaammjj = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const prefixe = `REC-${aaaammjj}-`;
 
     const derniere = await this.prisma.facture.findFirst({
-      where: { numeroRecu: { startsWith: prefixe } },
+      where: { hotelId, numeroRecu: { startsWith: prefixe } },
       orderBy: { numeroRecu: "desc" },
       select: { numeroRecu: true },
     });

@@ -1,8 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
-import { Role } from "@hotel-chicago/types";
+import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
+import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ProduitsService } from "./produits.service";
 import { CreateProduitDto } from "./dto/create-produit.dto";
 import { UpdateProduitDto } from "./dto/update-produit.dto";
@@ -22,31 +23,31 @@ export class ProduitsController {
 
   @Get()
   @Roles(Role.CAFETARIA, Role.PATRON)
-  findAll(@Query() query: FindProduitsQueryDto) {
-    return this.produitsService.findAll(query);
+  findAll(@Query() query: FindProduitsQueryDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.produitsService.findAll(query, currentUser.hotelId);
   }
 
   @Get(":id")
   @Roles(Role.CAFETARIA, Role.PATRON)
-  findOne(@Param("id") id: string) {
-    return this.produitsService.findOne(id);
+  findOne(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.produitsService.findOne(id, currentUser.hotelId);
   }
 
   @Post()
   @Roles(Role.PATRON)
-  create(@Body() dto: CreateProduitDto) {
-    return this.produitsService.create(dto);
+  create(@Body() dto: CreateProduitDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.produitsService.create(dto, currentUser.hotelId);
   }
 
   @Patch(":id")
   @Roles(Role.PATRON)
-  update(@Param("id") id: string, @Body() dto: UpdateProduitDto) {
-    return this.produitsService.update(id, dto);
+  update(@Param("id") id: string, @Body() dto: UpdateProduitDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.produitsService.update(id, dto, currentUser.hotelId);
   }
 
   @Delete(":id")
   @Roles(Role.PATRON)
-  remove(@Param("id") id: string) {
-    return this.produitsService.remove(id);
+  remove(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.produitsService.remove(id, currentUser.hotelId);
   }
 }

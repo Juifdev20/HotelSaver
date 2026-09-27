@@ -14,17 +14,17 @@ const STATUTS_OCCUPANTS = ["CONFIRMEE", "EN_COURS"] as const;
 export class ReservationsService {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
 
-  findAll(query: FindReservationsQueryDto) {
+  findAll(query: FindReservationsQueryDto, hotelId: string) {
     return this.prisma.reservation.findMany({
-      where: { statut: query.statut, chambreId: query.chambreId },
+      where: { hotelId, statut: query.statut, chambreId: query.chambreId },
       include: { chambre: true, client: true, facture: true },
       orderBy: { dateArrivee: "desc" },
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, hotelId: string) {
     const reservation = await this.prisma.reservation.findUnique({
-      where: { id },
+      where: { id, hotelId },
       include: { chambre: true, client: true, facture: true },
     });
     if (!reservation) {
@@ -46,24 +46,26 @@ export class ReservationsService {
       throw new BadRequestException("La date de départ doit être postérieure à la date d'arrivée.");
     }
 
-    const chambre = await this.prisma.chambre.findUnique({ where: { id: dto.chambreId } });
+    const chambre = await this.prisma.chambre.findUnique({ where: { id: dto.chambreId, hotelId: currentUser.hotelId } });
     if (!chambre) {
       throw new NotFoundException(`Aucune chambre trouvée avec l'identifiant ${dto.chambreId}.`);
     }
 
     if (dto.clientId) {
-      const client = await this.prisma.client.findUnique({ where: { id: dto.clientId } });
+      const client = await this.prisma.client.findUnique({ where: { id: dto.clientId, hotelId: currentUser.hotelId } });
       if (!client) {
         throw new NotFoundException(`Aucun client trouvé avec l'identifiant ${dto.clientId}.`);
       }
     }
 
-    await this.verifierAbsenceDeConflit(dto.chambreId, dateArrivee, dateDepart);
+    await this.verifierAbsenceDeConflit(dto.chambreId, dateArrivee, dateDepart, currentUser.hotelId);
 
-    const clientId = dto.clientId ?? (await this.prisma.client.create({ data: dto.client! })).id;
+    const clientId =
+      dto.clientId ?? (await this.prisma.client.create({ data: { ...dto.client!, hotelId: currentUser.hotelId } })).id;
 
     return this.prisma.reservation.create({
       data: {
+        hotelId: currentUser.hotelId,
         chambreId: dto.chambreId,
         clientId,
         dateArrivee,
@@ -77,8 +79,8 @@ export class ReservationsService {
     });
   }
 
-  async update(id: string, dto: UpdateReservationDto) {
-    const reservation = await this.findOne(id);
+  async update(id: string, dto: UpdateReservationDto, hotelId: string) {
+    const reservation = await this.findOne(id, hotelId);
     if (reservation.statut === "ANNULEE" || reservation.statut === "TERMINEE") {
       throw new ConflictException(
         `Impossible de modifier une réservation ${reservation.statut === "ANNULEE" ? "annulée" : "déjà terminée"}.`
@@ -92,21 +94,21 @@ export class ReservationsService {
     }
 
     if (dto.dateArrivee || dto.dateDepart) {
-      await this.verifierAbsenceDeConflit(reservation.chambreId, dateArrivee, dateDepart, id);
+      await this.verifierAbsenceDeConflit(reservation.chambreId, dateArrivee, dateDepart, hotelId, id);
     }
 
     // syncVersion incrémenté manuellement partout dans ce service (voir
     // ChambresService.update pour le détail) — indispensable pour la
     // détection de conflit hors ligne (Phase 4).
     return this.prisma.reservation.update({
-      where: { id },
+      where: { id, hotelId },
       data: { dateArrivee, dateDepart, acompte: dto.acompte, syncVersion: { increment: 1 } },
       include: { chambre: true, client: true },
     });
   }
 
-  async annuler(id: string, dto: AnnulerReservationDto) {
-    const reservation = await this.findOne(id);
+  async annuler(id: string, dto: AnnulerReservationDto, hotelId: string) {
+    const reservation = await this.findOne(id, hotelId);
     if (reservation.statut === "ANNULEE") {
       throw new ConflictException("Cette réservation est déjà annulée.");
     }
@@ -115,13 +117,13 @@ export class ReservationsService {
     }
 
     return this.prisma.reservation.update({
-      where: { id },
+      where: { id, hotelId },
       data: { statut: "ANNULEE", annuleLe: new Date(), motifAnnulation: dto.motif, syncVersion: { increment: 1 } },
     });
   }
 
-  async checkIn(id: string) {
-    const reservation = await this.findOne(id);
+  async checkIn(id: string, hotelId: string) {
+    const reservation = await this.findOne(id, hotelId);
     if (reservation.statut !== "CONFIRMEE") {
       throw new ConflictException(
         `Cette réservation ne peut pas être enregistrée en arrivée (statut actuel : ${reservation.statut}). ` +
@@ -131,11 +133,11 @@ export class ReservationsService {
 
     const [, chambre] = await this.prisma.$transaction([
       this.prisma.reservation.update({
-        where: { id },
+        where: { id, hotelId },
         data: { statut: "EN_COURS", syncVersion: { increment: 1 } },
       }),
       this.prisma.chambre.update({
-        where: { id: reservation.chambreId },
+        where: { id: reservation.chambreId, hotelId },
         data: { statut: StatutChambre.OCCUPEE, syncVersion: { increment: 1 } },
       }),
     ]);
@@ -143,8 +145,8 @@ export class ReservationsService {
     return { reservationId: id, statutReservation: "EN_COURS", chambre };
   }
 
-  async checkOut(id: string) {
-    const reservation = await this.findOne(id);
+  async checkOut(id: string, hotelId: string) {
+    const reservation = await this.findOne(id, hotelId);
     if (reservation.statut !== "EN_COURS") {
       throw new ConflictException(
         `Cette réservation ne peut pas être enregistrée en départ (statut actuel : ${reservation.statut}). ` +
@@ -154,11 +156,11 @@ export class ReservationsService {
 
     const [, chambre] = await this.prisma.$transaction([
       this.prisma.reservation.update({
-        where: { id },
+        where: { id, hotelId },
         data: { statut: "TERMINEE", syncVersion: { increment: 1 } },
       }),
       this.prisma.chambre.update({
-        where: { id: reservation.chambreId },
+        where: { id: reservation.chambreId, hotelId },
         data: { statut: StatutChambre.NETTOYAGE, syncVersion: { increment: 1 } },
       }),
     ]);
@@ -171,10 +173,12 @@ export class ReservationsService {
     chambreId: string,
     dateArrivee: Date,
     dateDepart: Date,
+    hotelId: string,
     exclureReservationId?: string
   ) {
     const conflit = await this.prisma.reservation.findFirst({
       where: {
+        hotelId,
         chambreId,
         id: exclureReservationId ? { not: exclureReservationId } : undefined,
         statut: { in: [...STATUTS_OCCUPANTS] },

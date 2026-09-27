@@ -1,8 +1,15 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaClient, StatutChambre } from "@hotel-chicago/database";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma, PrismaClient } from "@hotel-chicago/database";
+import { StatutChambre } from "@hotel-chicago/database";
 import { PRISMA } from "../prisma/prisma.module";
+import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
+import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
+import { genererPalette } from "../common/palette/generer-palette";
 import { CreerDemandeReservationDto } from "./dto/creer-demande-reservation.dto";
 import { FindChambresDisponiblesQueryDto } from "./dto/find-chambres-disponibles.query.dto";
+import { FindHotelPublicQueryDto } from "./dto/find-hotel-public.query.dto";
+import { FindMenuQueryDto } from "./dto/find-menu.query.dto";
+import { InscriptionHotelDto } from "./dto/inscription-hotel.dto";
 
 /** Réservations qui bloquent réellement une chambre (voir ReservationsService —
  * dupliqué ici volontairement : ce service public ne doit dépendre d'aucun
@@ -17,11 +24,57 @@ const CREATED_BY_SITE_PUBLIC = "SITE_PUBLIC";
 
 @Injectable()
 export class PublicService {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly supabaseAdmin: SupabaseAdminService
+  ) {}
+
+  /**
+   * Résolution de tenant par sous-domaine (Phase 9) — le visiteur anonyme
+   * n'a pas de JWT (voir public.controller.ts), donc pas de `hotelId` à en
+   * tirer comme partout ailleurs (Phase 2) : `apps/web` détermine son propre
+   * sous-domaine (`window.location.hostname`) et le transmet explicitement à
+   * chaque appel, jamais déduit d'un en-tête côté serveur. 404 uniforme si
+   * le sous-domaine est inconnu OU si l'hôtel est SUSPENDU/RESILIE (même
+   * raisonnement que SupabaseAuthGuard, Phase 4) : ne pas révéler qu'un
+   * sous-domaine existe mais est suspendu.
+   */
+  private async resoudreHotel(sousDomaine: string) {
+    const hotel = await this.prisma.hotel.findUnique({ where: { sousDomaine } });
+    if (!hotel || hotel.statutLicence === "SUSPENDU" || hotel.statutLicence === "RESILIE") {
+      throw new NotFoundException(`Aucun hôtel disponible pour "${sousDomaine}".`);
+    }
+    return hotel;
+  }
+
+  /**
+   * Charte graphique publique d'un hôtel (Phase 11) — réponse volontairement
+   * minimale : ni `statutLicence`, ni `emailContact`, etc., qui n'ont rien à
+   * faire côté public. Réutilise le même 404 uniforme que `resoudreHotel`.
+   */
+  async obtenirInfoPublique(query: FindHotelPublicQueryDto) {
+    const hotel = await this.prisma.hotel.findUnique({
+      where: { sousDomaine: query.sousDomaine },
+      include: { branding: true },
+    });
+    if (!hotel || hotel.statutLicence === "SUSPENDU" || hotel.statutLicence === "RESILIE") {
+      throw new NotFoundException(`Aucun hôtel disponible pour "${query.sousDomaine}".`);
+    }
+    return {
+      nom: hotel.nom,
+      logoUrl: hotel.branding?.logoUrl ?? null,
+      policeAffichage: hotel.branding?.policeAffichage ?? "Fraunces",
+      policeCorps: hotel.branding?.policeCorps ?? "Public Sans",
+      policeMono: hotel.branding?.policeMono ?? "IBM Plex Mono",
+      palette: hotel.branding?.palette ?? null,
+    };
+  }
 
   async findChambresDisponibles(query: FindChambresDisponiblesQueryDto) {
+    const { id: hotelId } = await this.resoudreHotel(query.sousDomaine);
+
     if (!query.dateArrivee || !query.dateDepart) {
-      return this.prisma.chambre.findMany({ where: { statut: StatutChambre.LIBRE }, orderBy: { numero: "asc" } });
+      return this.prisma.chambre.findMany({ where: { hotelId, statut: StatutChambre.LIBRE }, orderBy: { numero: "asc" } });
     }
 
     const dateArrivee = new Date(query.dateArrivee);
@@ -32,6 +85,7 @@ export class PublicService {
 
     const chambresOccupees = await this.prisma.reservation.findMany({
       where: {
+        hotelId,
         statut: { in: [...STATUTS_OCCUPANTS] },
         dateArrivee: { lt: dateDepart },
         dateDepart: { gt: dateArrivee },
@@ -41,20 +95,23 @@ export class PublicService {
     const idsOccupees = chambresOccupees.map((r) => r.chambreId);
 
     return this.prisma.chambre.findMany({
-      where: { id: { notIn: idsOccupees } },
+      where: { hotelId, id: { notIn: idsOccupees } },
       orderBy: { numero: "asc" },
     });
   }
 
-  findMenu() {
+  async findMenu(query: FindMenuQueryDto) {
+    const { id: hotelId } = await this.resoudreHotel(query.sousDomaine);
     return this.prisma.produit.findMany({
-      where: { actif: true },
+      where: { hotelId, actif: true },
       orderBy: [{ categorie: "asc" }, { nom: "asc" }],
     });
   }
 
   async creerDemandeReservation(dto: CreerDemandeReservationDto) {
-    const chambre = await this.prisma.chambre.findUnique({ where: { id: dto.chambreId } });
+    const { id: hotelId } = await this.resoudreHotel(dto.sousDomaine);
+
+    const chambre = await this.prisma.chambre.findUnique({ where: { id: dto.chambreId, hotelId } });
     if (!chambre) {
       throw new NotFoundException(`Aucune chambre trouvée avec l'identifiant ${dto.chambreId}.`);
     }
@@ -70,12 +127,13 @@ export class PublicService {
     // réception. Pas de vérification de conflit ici, volontairement.
 
     const client = dto.client.telephone
-      ? ((await this.prisma.client.findFirst({ where: { telephone: dto.client.telephone } })) ??
-          (await this.prisma.client.create({ data: dto.client })))
-      : await this.prisma.client.create({ data: dto.client });
+      ? ((await this.prisma.client.findFirst({ where: { hotelId, telephone: dto.client.telephone } })) ??
+          (await this.prisma.client.create({ data: { ...dto.client, hotelId } })))
+      : await this.prisma.client.create({ data: { ...dto.client, hotelId } });
 
     return this.prisma.reservation.create({
       data: {
+        hotelId,
         chambreId: dto.chambreId,
         clientId: client.id,
         dateArrivee,
@@ -86,5 +144,48 @@ export class PublicService {
       },
       include: { chambre: true, client: true },
     });
+  }
+
+  /**
+   * Inscription en libre-service (section 3 du document de séquencement
+   * HotelSaver) — toujours statutLicence = ESSAI, jamais ACTIF (ça, c'est le
+   * chemin manuel du Super-Admin, Phase 3). Contrairement à ce chemin manuel
+   * (deux étapes volontairement séparées : POST /super-admin/hotels puis
+   * creer-utilisateur.js), ici tout doit fonctionner en un seul geste — le
+   * propriétaire n'a personne pour créer son premier compte à sa place.
+   */
+  async inscrireHotel(dto: InscriptionHotelDto) {
+    const compteAuth = await this.supabaseAdmin.creerCompte({ email: dto.email, motDePasse: dto.motDePasse });
+    // Un logo mal formé ne doit jamais faire échouer l'inscription :
+    // extraireCouleursLogo ne lève jamais, renvoie null au moindre souci
+    // (Phase 5) — genererPalette(null) retombe sur PALETTE_DEFAUT.
+    const couleurBase = dto.logoUrl ? await extraireCouleursLogo(dto.logoUrl) : null;
+    const palette = genererPalette(couleurBase);
+
+    try {
+      return await this.prisma.hotel.create({
+        data: {
+          nom: dto.nom,
+          sousDomaine: dto.sousDomaine,
+          statutLicence: "ESSAI",
+          telephoneContact: dto.telephoneContact,
+          adresse: dto.adresse,
+          emailContact: dto.email,
+          branding: { create: { palette, logoUrl: dto.logoUrl } },
+          utilisateurs: {
+            create: [{ nom: dto.nomProprietaire, role: "PATRON", actif: true, supabaseAuthId: compteAuth.id }],
+          },
+        },
+        include: { branding: true },
+      });
+    } catch (error) {
+      // Jamais laisser un compte Supabase orphelin (ex. sousDomaine déjà pris) —
+      // même principe que les scripts CLI (creer-utilisateur.js).
+      await this.supabaseAdmin.supprimerCompte(compteAuth.id);
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException(`Un hôtel avec le sous-domaine "${dto.sousDomaine}" existe déjà.`);
+      }
+      throw error;
+    }
   }
 }
