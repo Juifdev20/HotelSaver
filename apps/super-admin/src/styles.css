@@ -26,6 +26,27 @@ body {
   margin-bottom: var(--hc-space-5);
 }
 
+.marque {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+}
+
+.marque__logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.logo-carte {
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto var(--hc-space-3);
+  object-fit: contain;
+}
+
 .entete-actions {
   display: flex;
   gap: var(--hc-space-3);

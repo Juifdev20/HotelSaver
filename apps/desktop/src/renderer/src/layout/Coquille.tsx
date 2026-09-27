@@ -5,7 +5,6 @@ import {
   ArrowLeftRight,
   Bell,
   BedDouble,
-  Building2,
   CalendarDays,
   ChevronDown,
   ClipboardList,
@@ -25,6 +24,9 @@ import {
   X,
 } from "lucide-react";
 import { EntreeNavigation, IdPage, entreesBarreDuBas, sectionsPourRole } from "../navigation";
+// Logo de l'APPLICATION HotelSaver (identité plateforme, distincte du logo
+// de chaque hôtel — voir DECISIONS.md « branding application vs hôtel »).
+import logoHotelSaver from "../../../../../../assets/icons/hotelsaver-icone.png";
 import "./coquille.css";
 
 const ICONES: Record<IdPage, LucideIcon> = {
@@ -181,12 +183,10 @@ export function Coquille({
     <div className="coquille">
       <aside className="coquille__laterale" aria-label="Navigation principale">
         <div className="coquille__marque">
-          <span className="coquille__logo" aria-hidden="true">
-            <Building2 size={22} strokeWidth={2} />
-          </span>
+          <img className="coquille__logo coquille__logo-img" src={logoHotelSaver} alt="" />
           <span className="coquille__marque-textes">
-            <span className="hc-text-heading coquille__nom-hotel">Hôtel Chicago</span>
-            <span className="coquille__slogan">Confort · Élégance · Service</span>
+            <span className="hc-text-heading coquille__nom-hotel">HotelSaver</span>
+            <span className="coquille__slogan">Gestion hôtelière</span>
           </span>
         </div>
         <nav className="coquille__nav">{navigationComplete}</nav>
@@ -212,8 +212,8 @@ export function Coquille({
           </button>
 
           <span className="coquille__marque-etroit coquille__seulement-etroit">
-            <Building2 size={16} strokeWidth={2} aria-hidden="true" />
-            Hôtel Chicago
+            <img className="coquille__logo-mini" src={logoHotelSaver} alt="" />
+            HotelSaver
           </span>
 
           <label className="coquille__recherche coquille__masque-etroit">
@@ -347,10 +347,8 @@ export function Coquille({
         <div className="coquille__tiroir" role="dialog" aria-modal="true" aria-label="Menu">
           <div className="coquille__tiroir-entete">
             <div className="coquille__marque">
-              <span className="coquille__logo" aria-hidden="true">
-                <Building2 size={20} strokeWidth={2} />
-              </span>
-              <span className="hc-text-heading coquille__nom-hotel">Hôtel Chicago</span>
+              <img className="coquille__logo coquille__logo-img" src={logoHotelSaver} alt="" />
+              <span className="hc-text-heading coquille__nom-hotel">HotelSaver</span>
             </div>
             <button
               type="button"

@@ -1,8 +1,9 @@
 {
   "name": "@hotel-chicago/desktop",
   "private": true,
+  "productName": "HotelSaver",
   "version": "0.1.0",
-  "description": "Application desktop Hôtel Chicago (Electron) — Réception : connexion + écran Chambres (slice 1)",
+  "description": "Application desktop HotelSaver (Electron) — Réception & administration",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

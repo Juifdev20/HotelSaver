@@ -1,8 +1,9 @@
 import * as React from "react";
 import { useState } from "react";
 import { Button } from "@hotel-chicago/ui";
-// Section 12.6 : le logo n'apparaît que sur l'écran de connexion, le site public et les impressions.
-import logo from "../../../../../../assets/logo/logo-couleur.png";
+// Logo de l'APPLICATION HotelSaver — distinct du logo de l'hôtel
+// (HotelBranding.logoUrl), voir DECISIONS.md « branding application vs hôtel ».
+import logo from "../../../../../../assets/icons/hotelsaver-icone.png";
 
 export interface EcranConnexionProps {
   onConnexion: (email: string, motDePasse: string) => void;
@@ -20,8 +21,8 @@ export function EcranConnexion({ onConnexion, onOuvrirParametres, erreur, enCour
       <div className="hc-ecran-connexion">
         <img className="hc-ecran-connexion__logo" src={logo} alt="" />
         <div className="hc-ecran-connexion__entete">
-          <h1 className="hc-text-display-md">Hôtel Chicago</h1>
-          <p className="hc-text-caption texte-discret">Quartier Congo ya Sika, Kasindi, Nord-Kivu, RDC</p>
+          <h1 className="hc-text-display-md">HotelSaver</h1>
+          <p className="hc-text-caption texte-discret">Réception & gestion hôtelière</p>
         </div>
 
         <form

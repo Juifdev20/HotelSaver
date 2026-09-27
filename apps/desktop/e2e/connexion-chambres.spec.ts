@@ -57,7 +57,7 @@ test.afterEach(() => {
 test("la police de la charte (Inter) est réellement chargée", async () => {
   const app = await lancerApp();
   const fenetre = await app.firstWindow();
-  await expect(fenetre.getByRole("heading", { name: "Hôtel Chicago" })).toBeVisible();
+  await expect(fenetre.getByRole("heading", { name: "HotelSaver" })).toBeVisible();
 
   // document.fonts.check() renvoie true même quand AUCUNE @font-face ne
   // correspond (repli système) : on liste donc les polices effectivement

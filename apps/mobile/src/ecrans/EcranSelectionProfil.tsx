@@ -1,5 +1,5 @@
 import * as React from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { UserPlus } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import type { ProfilEnregistre } from "../stockage/profils";
@@ -27,7 +27,8 @@ export interface EcranSelectionProfilProps {
 export function EcranSelectionProfil({ profils, onChoisir, onAjouterCompte, onOublierProfil }: EcranSelectionProfilProps) {
   return (
     <View style={styles.page}>
-      <Text style={styles.titre}>Hôtel Chicago</Text>
+      <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
+      <Text style={styles.titre}>HotelSaver</Text>
       <Text style={styles.sousTitre}>Qui utilise l'appareil ?</Text>
       {profils.length > 0 && <Text style={styles.astuce}>Appui long sur un profil pour le retirer de cet appareil.</Text>}
 
@@ -68,6 +69,7 @@ const styles = StyleSheet.create({
     padding: espacements.s5,
     paddingTop: espacements.s7,
   },
+  logo: { width: 72, height: 72, marginBottom: espacements.s3 },
   titre: { fontSize: 28, fontWeight: "700", color: couleurs.navy },
   sousTitre: { fontSize: 15, color: couleurs.encreAttenuee, marginTop: espacements.s1 },
   astuce: { fontSize: 12, color: couleurs.encreFaible, marginTop: espacements.s1, marginBottom: espacements.s5 },

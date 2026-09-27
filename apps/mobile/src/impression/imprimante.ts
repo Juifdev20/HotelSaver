@@ -18,7 +18,7 @@ async function assurerPermissionsBluetooth(): Promise<void> {
   ]);
   const refusee = Object.values(resultats).some((r) => r !== PermissionsAndroid.RESULTS.GRANTED);
   if (refusee) {
-    throw new Error("Permission Bluetooth refusée — autorisez-la dans les réglages du téléphone (Applications > Hôtel Chicago > Autorisations).");
+    throw new Error("Permission Bluetooth refusée — autorisez-la dans les réglages du téléphone (Applications > HotelSaver > Autorisations).");
   }
 }
 

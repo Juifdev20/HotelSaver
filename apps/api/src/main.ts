@@ -23,7 +23,7 @@ async function bootstrap() {
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
   await app.listen(port);
   // eslint-disable-next-line no-console
-  console.log(`Hôtel Chicago API démarrée sur le port ${port}`);
+  console.log(`HotelSaver API démarrée sur le port ${port}`);
 }
 
 bootstrap();

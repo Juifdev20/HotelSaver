@@ -20,6 +20,7 @@ export function EcranConnexion({ erreur, enCours, onConnexion }: EcranConnexionP
   return (
     <div className="page-centree">
       <form className="carte carte--etroite" onSubmit={soumettre}>
+        <img className="logo-carte" src="/logo-hotelsaver.png" alt="HotelSaver" />
         <h1 className="titre">HotelSaver</h1>
         <p className="sous-titre">Panel Super-Admin</p>
 

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { InscriptionHotelPayload } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 
@@ -69,6 +69,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
     <View style={styles.page}>
       <ScrollView contentContainerStyle={styles.contenu}>
         <View style={styles.carte}>
+          <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
           <Text style={styles.titre}>Créer un compte hôtel</Text>
           <Text style={styles.sousTitre}>{etape === 1 ? "Étape 1 sur 2 — Votre hôtel" : "Étape 2 sur 2 — Votre compte"}</Text>
 
@@ -201,6 +202,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: couleurs.bordure,
   },
+  logo: { width: 72, height: 72, alignSelf: "center", marginBottom: espacements.s2 },
   titre: { fontSize: 22, fontWeight: "700", color: couleurs.navy, textAlign: "center" },
   sousTitre: { fontSize: 13, color: couleurs.encreAttenuee, textAlign: "center", marginTop: 2, marginBottom: espacements.s4 },
   label: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginBottom: espacements.s1, marginTop: espacements.s2 },

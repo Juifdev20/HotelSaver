@@ -67,6 +67,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
   return (
     <div className="page-centree">
       <div className="carte carte--etroite">
+        <img className="logo-carte" src="/logo-hotelsaver.png" alt="HotelSaver" />
         <h1 className="titre">HotelSaver</h1>
         <p className="sous-titre">{etape === 1 ? "Étape 1 sur 2 — Votre hôtel" : "Étape 2 sur 2 — Votre compte"}</p>
 

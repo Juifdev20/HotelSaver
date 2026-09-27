@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import { ClientApi, ErreurApi, connecterAvecMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
 import { MoteurSync } from "@hotel-chicago/sync-engine";
 import type { InscriptionHotelPayload, UtilisateurAuthentifie } from "@hotel-chicago/types";
@@ -24,7 +24,6 @@ import { EcranConnexion } from "./src/ecrans/EcranConnexion";
 import { EcranInscription } from "./src/ecrans/EcranInscription";
 import { CoquilleOnglets } from "./src/CoquilleOnglets";
 import { FournisseurSession } from "./src/contexteSession";
-import { couleurs } from "./src/tokens";
 
 type Ecran = "chargement" | "selection-profil" | "connexion" | "inscription" | "application";
 
@@ -225,10 +224,13 @@ export default function App() {
   // Le second cas couvre le bref instant entre la connexion réussie et
   // l'ouverture de la base SQLite locale (asynchrone, voir useEffect
   // ci-dessus) — sans lui, un écran vide apparaîtrait entre les deux.
+  // Même logo et même fond que le splash natif (app.json) : la transition
+  // natif → JS est invisible, à la manière des splash de Facebook.
   if (ecran === "chargement" || !configuration || (ecran === "application" && !moteurSync)) {
     return (
       <View style={styles.chargement}>
-        <ActivityIndicator color={couleurs.bleu} size="large" />
+        <Image source={require("./assets/hotelsaver-logo.png")} style={styles.logoDemarrage} resizeMode="contain" />
+        <ActivityIndicator color="#FFFFFF" size="large" style={styles.spinnerDemarrage} />
       </View>
     );
   }
@@ -299,5 +301,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  chargement: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: couleurs.surface100 },
+  chargement: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#053483" },
+  logoDemarrage: { width: 180, height: 180 },
+  spinnerDemarrage: { marginTop: 32 },
 });

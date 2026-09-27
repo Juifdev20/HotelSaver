@@ -79,7 +79,10 @@ export function EcranHotels({
   return (
     <div className="page">
       <header className="entete">
-        <h1 className="titre-page">Hôtels</h1>
+        <div className="marque">
+          <img className="marque__logo" src="/logo-hotelsaver.png" alt="HotelSaver" />
+          <h1 className="titre-page">Hôtels</h1>
+        </div>
         <div className="entete-actions">
           <Button variant="secondary" onClick={() => setFormulaireOuvert((v) => !v)}>
             {formulaireOuvert ? "Annuler" : "Nouvel hôtel"}

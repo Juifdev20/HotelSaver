@@ -81,10 +81,65 @@ body {
 
 .barre-navigation {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--hc-space-5);
-  padding: var(--hc-space-4) var(--hc-space-5);
+  padding: var(--hc-space-3) var(--hc-space-5);
   border-bottom: 1px solid var(--hc-border);
   background: var(--hc-surface-200);
+}
+
+.barre-navigation__liens {
+  display: flex;
+  gap: var(--hc-space-5);
+}
+
+.marque-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+}
+
+.marque-nav__logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.marque-nav__nom {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--hc-navy);
+}
+
+.bandeau-hotel {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-3) var(--hc-space-5);
+  background: var(--hc-surface-100);
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.bandeau-hotel__logo {
+  height: 40px;
+  max-width: 160px;
+  object-fit: contain;
+}
+
+.bandeau-hotel__nom {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--hc-navy);
+}
+
+.logo-carte {
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto var(--hc-space-3);
+  object-fit: contain;
 }
 
 .barre-navigation a {

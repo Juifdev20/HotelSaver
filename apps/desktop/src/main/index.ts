@@ -15,6 +15,9 @@ function creerFenetrePrincipale(): BrowserWindow {
     width: 1280,
     height: 800,
     autoHideMenuBar: true,
+    // Icône HotelSaver (fenêtre/barre des tâches en dev ; resources/ est la
+    // convention electron-vite reprise par le packaging — icon.ico pour Windows).
+    icon: join(__dirname, "../../resources/icon.png"),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false,

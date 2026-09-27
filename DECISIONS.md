@@ -1865,3 +1865,56 @@ pas fait — prérequis pour que `RENDER_WEB_SERVICE_ID` existe et que ce
 chantier devienne testable en live), choix du domaine de base final de la
 plateforme, instructions DNS affichées dans le panel, plusieurs domaines
 par hôtel, vérification automatique périodique (cron).
+
+## HotelSaver — Phase 14 : identité de l'application (logo, icônes, splash), 28/09/2026
+
+Le patron a fourni le logo officiel de l'application (`badge bleu « H +
+étoiles », 1024×1024, fond transparent` → `assets/icons/hotelsaver-icone.png`)
+en précisant la règle désormais appliquée partout : **le logo de
+l'application HotelSaver et celui de chaque hôtel sont deux choses
+distinctes, chacune à sa place.**
+
+**Règle de répartition** (conséquence directe de la multi-tenancy, Phases
+1-13) : l'identité HotelSaver est un actif statique versionné
+(`assets/icons/`), utilisée dans le chrome applicatif — icône Play Store,
+splash, écran de connexion, en-têtes, favicons, panel Super-Admin. Le logo
+d'un hôtel reste une donnée du tenant (`HotelBranding.logoUrl`, servie par
+`GET /public/hotel`), affichée uniquement dans les contextes propres à cet
+hôtel : bandeau des pages publiques du tenant (`apps/web`), nom d'hôtel dans
+les heroes des tableaux de bord, titre des reçus imprimés. L'ancien
+`logo-couleur.png` (monogramme doré-roux) est le logo **de l'hôtel Chicago**,
+pas de l'application — il est conservé comme actif du tenant mais n'apparaît
+plus dans le chrome générique.
+
+**Mobile** : `app.json` renommé `HotelSaver` (slug/scheme `hotelsaver`),
+`icon` + `adaptiveIcon` + `splash` régénérés depuis le maître. Le package
+Android/iOS passe de `com.hotelchicago.app` à `com.hotelsaver.app` : changement
+gratuit tant que rien n'a jamais été publié sur un store (l'applicationId
+n'existait que sur l'appareil de test) — à verrouiller définitivement au
+premier upload Play Console, il ne pourra plus changer ensuite. Le splash
+natif (`splash.image` + `backgroundColor #053483`, navy relevé sur le bord
+bas du badge) enchaîne sans couture sur l'écran `chargement` de `App.tsx`
+(même logo, même fond) — effet « splash Facebook ». Suppression de
+`monochromeImage` : le badge n'a pas de silhouette exploitable pour les
+icônes thémées Android (son alpha = un carré arrondi plein) — prévoir la
+variante « symbole seul » si besoin.
+
+**Dérivés générés** (`assets/scripts/generer-icones-hotelsaver.cjs`, pngjs +
+bilineaire, redocumenté dans `assets/README.md`) : avant-plan adaptatif =
+artwork réduit à 62 % centré (zone sûre des masques Android) ; arrière-plan
+= dégradé vertical prolongé du badge ligne par ligne (le squircle fond sans
+couture quel que soit le masque) ; favicon 64 ; `icon.ico` = PNG 256
+encapsulé (valide Vista+, suffisant tant qu'electron-builder n'est pas
+configuré). Les placeholders de template Android Studio (chevron bleu) et
+le `logo-couleur.png` dupliqué dans `apps/mobile/assets/` sont supprimés.
+
+**Desktop** : `BrowserWindow.icon` (`resources/icon.png`, convention
+electron-vite), `productName: HotelSaver`, logo dans la barre latérale et
+le tiroir mobile (`Coquille`), écran de connexion rebrandé. **Web** :
+favicon, logo dans la nav, page d'inscription. **Super-Admin** : favicon,
+logo connexion + entête. Le titre des reçus (`HOTEL CHICAGO` dans
+`receipts/` et les imprimantes) reste volontairement celui du tenant —
+rendre le titre du reçu dynamique par hôtel est un chantier à part.
+
+**Vérifié** : voir la vérification du commit — typecheck/build des quatre
+applis concernées.

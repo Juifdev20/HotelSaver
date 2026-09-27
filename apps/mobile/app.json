@@ -1,30 +1,41 @@
 {
   "expo": {
-    "name": "Hôtel Chicago",
-    "slug": "hotel-chicago",
-    "scheme": "hotelchicago",
+    "name": "HotelSaver",
+    "slug": "hotelsaver",
+    "scheme": "hotelsaver",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#F6F8FC",
+    "backgroundColor": "#053483",
     "ios": {
-      "bundleIdentifier": "com.hotelchicago.app",
+      "bundleIdentifier": "com.hotelsaver.app",
       "supportsTablet": true
     },
     "android": {
-      "package": "com.hotelchicago.app",
+      "package": "com.hotelsaver.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0F2742",
+        "backgroundColor": "#053483",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundImage": "./assets/android-icon-background.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-secure-store", "expo-sqlite"]
+    "plugins": [
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#053483"
+        }
+      ]
+    ]
   }
 }

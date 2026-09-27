@@ -51,8 +51,8 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
       <View style={[styles.barreConteneur, { paddingTop: insets.top + espacements.s2 }]}>
         <View style={styles.barre}>
           <View style={styles.marque}>
-            <Image source={require("../../assets/logo-couleur.png")} style={styles.logo} resizeMode="contain" />
-            <Text style={styles.marqueTexte}>Hôtel Chicago</Text>
+            <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
+            <Text style={styles.marqueTexte}>HotelSaver</Text>
           </View>
           <Pressable style={styles.boutonIcone} onPress={() => setNotifOuvertes(true)} hitSlop={8}>
             <Bell size={20} color={couleurs.encre} />

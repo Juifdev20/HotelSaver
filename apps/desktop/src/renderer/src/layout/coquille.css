@@ -45,6 +45,19 @@
   color: var(--hc-navy);
 }
 
+.coquille__logo-img {
+  object-fit: cover;
+  background: none;
+}
+
+.coquille__logo-mini {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--hc-radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .coquille__marque-textes {
   display: flex;
   flex-direction: column;

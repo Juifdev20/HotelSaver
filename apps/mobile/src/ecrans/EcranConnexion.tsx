@@ -21,13 +21,13 @@ export function EcranConnexion({ emailInitial, message, erreur, enCours, onConne
     <View style={styles.page}>
       <View style={styles.carte}>
         <Image
-          source={require("../../assets/logo-couleur.png")}
+          source={require("../../assets/hotelsaver-logo.png")}
           style={styles.logo}
           resizeMode="contain"
           accessibilityIgnoresInvertColors
         />
-        <Text style={styles.titre}>Hôtel Chicago</Text>
-        <Text style={styles.adresse}>Quartier Congo ya Sika, Kasindi, Nord-Kivu, RDC</Text>
+        <Text style={styles.titre}>HotelSaver</Text>
+        <Text style={styles.adresse}>Gestion hôtelière</Text>
 
         {message && <Text style={styles.message}>{message}</Text>}
 
@@ -39,7 +39,7 @@ export function EcranConnexion({ emailInitial, message, erreur, enCours, onConne
           autoCapitalize="none"
           keyboardType="email-address"
           textContentType="emailAddress"
-          placeholder="vous@hotel-chicago.com"
+          placeholder="vous@exemple.com"
           placeholderTextColor={couleurs.encreFaible}
         />
 
