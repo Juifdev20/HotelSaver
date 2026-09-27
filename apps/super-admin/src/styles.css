@@ -1,0 +1,128 @@
+body {
+  margin: 0;
+  background: var(--hc-surface-100);
+  color: var(--hc-ink);
+  font-family: "Public Sans", system-ui, sans-serif;
+}
+
+.page-centree {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hc-space-5);
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--hc-space-6) var(--hc-space-5);
+}
+
+.entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--hc-space-5);
+}
+
+.entete-actions {
+  display: flex;
+  gap: var(--hc-space-3);
+}
+
+.titre-page {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--hc-navy);
+  margin: 0;
+}
+
+.carte {
+  background: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  padding: var(--hc-space-6);
+}
+
+.carte--etroite {
+  width: 100%;
+  max-width: 380px;
+}
+
+.titre {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--hc-navy);
+  text-align: center;
+  margin: 0;
+}
+
+.sous-titre {
+  font-size: 13px;
+  color: var(--hc-ink-muted);
+  text-align: center;
+  margin: 4px 0 var(--hc-space-4);
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hc-ink-muted);
+  margin: var(--hc-space-2) 0 var(--hc-space-1);
+}
+
+.champ {
+  width: 100%;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-sm);
+  padding: 0 var(--hc-space-3);
+  font-size: 14px;
+  color: var(--hc-ink);
+  background: var(--hc-surface-100);
+}
+
+.erreur {
+  color: var(--hc-danger);
+  font-size: 13px;
+  margin-top: var(--hc-space-3);
+}
+
+.tableau {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  overflow: hidden;
+}
+
+.tableau th,
+.tableau td {
+  text-align: left;
+  padding: var(--hc-space-3) var(--hc-space-4);
+  border-bottom: 1px solid var(--hc-border);
+  font-size: 14px;
+}
+
+.tableau th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hc-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fond-modale {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 39, 66, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hc-space-5);
+  z-index: 10;
+}
