@@ -1,5 +1,9 @@
 /**
- * Section 7 : ces 9 tables portent `updatedAt`/`syncVersion`. Facture et
+ * Section 7 : ces 9 tables portent `updatedAt`/`syncVersion`. Client ajouté
+ * en Phase 16 (pull uniquement — un Client naît toujours implicitement dans
+ * le payload `client` inline d'un CREATE Reservation, jamais en push
+ * direct ; `updatedAt`/`syncVersion` ajoutés par migration pour le curseur
+ * incrémental). Facture et
  * VenteCafeteria sont lisibles via GET /sync/pull (un appareil doit connaître
  * les factures/ventes créées par d'autres postes), mais volontairement
  * exclues de POST /sync/push : leur création implique un calcul serveur
@@ -21,7 +25,7 @@ export const ENTITES_PUSH = [
 ] as const;
 export type EntitePush = (typeof ENTITES_PUSH)[number];
 
-export const ENTITES_PULL = [...ENTITES_PUSH, "Facture", "VenteCafeteria"] as const;
+export const ENTITES_PULL = [...ENTITES_PUSH, "Client", "Facture", "VenteCafeteria"] as const;
 export type EntitePull = (typeof ENTITES_PULL)[number];
 
 /** Nom de l'accesseur PrismaClient correspondant à chaque type d'entité. */
@@ -30,6 +34,7 @@ export const ACCESSEUR_PRISMA: Record<EntitePull, string> = {
   Reservation: "reservation",
   Produit: "produit",
   MouvementStock: "mouvementStock",
+  Client: "client",
   CompteCafeteria: "compteCafeteria",
   SousCompte: "sousCompte",
   LigneCommande: "ligneCommande",

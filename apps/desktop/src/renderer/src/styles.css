@@ -87,7 +87,8 @@ p {
 }
 
 .hc-ecran-connexion input,
-.formulaire input {
+.formulaire input,
+.formulaire select {
   padding: 0 var(--hc-space-3);
   height: 42px;
   border-radius: var(--hc-radius-sm);
@@ -98,8 +99,17 @@ p {
   font-size: 14px;
 }
 
+.tableau .ligne-cliquable {
+  cursor: pointer;
+}
+
+.tableau .ligne-cliquable:hover td {
+  background-color: var(--hc-surface-100);
+}
+
 .hc-ecran-connexion input:focus,
-.formulaire input:focus {
+.formulaire input:focus,
+.formulaire select:focus {
   outline: none;
   border-color: var(--hc-blue);
   box-shadow: 0 0 0 3px var(--hc-blue-light);

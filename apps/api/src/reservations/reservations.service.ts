@@ -122,6 +122,34 @@ export class ReservationsService {
     });
   }
 
+  /** Valide une demande venue du site public (EN_ATTENTE → CONFIRMEE). Une
+   * demande EN_ATTENTE ne bloque pas la chambre (voir STATUTS_OCCUPANTS) : le
+   * contrôle de chevauchement ne peut donc se faire qu'ici, au moment de la
+   * confirmation, jamais à la création de la demande. */
+  async confirmer(id: string, hotelId: string) {
+    const reservation = await this.findOne(id, hotelId);
+    if (reservation.statut !== "EN_ATTENTE") {
+      throw new ConflictException(
+        `Cette réservation ne peut pas être confirmée (statut actuel : ${reservation.statut}). ` +
+          "Seule une demande EN_ATTENTE peut être validée."
+      );
+    }
+
+    await this.verifierAbsenceDeConflit(
+      reservation.chambreId,
+      reservation.dateArrivee,
+      reservation.dateDepart,
+      hotelId,
+      id
+    );
+
+    return this.prisma.reservation.update({
+      where: { id, hotelId },
+      data: { statut: "CONFIRMEE", syncVersion: { increment: 1 } },
+      include: { chambre: true, client: true },
+    });
+  }
+
   async checkIn(id: string, hotelId: string) {
     const reservation = await this.findOne(id, hotelId);
     if (reservation.statut !== "CONFIRMEE") {

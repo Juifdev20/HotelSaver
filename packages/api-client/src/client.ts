@@ -1,5 +1,6 @@
 import {
   Chambre,
+  Client,
   CompteCafeteria,
   Devise,
   Facture,
@@ -12,6 +13,7 @@ import {
   Reservation,
   Role,
   SousCompte,
+  StatutChambre,
   StatutCompte,
   StatutReservation,
   UtilisateurAuthentifie,
@@ -94,6 +96,56 @@ export interface FiltresReservations {
   chambreId?: string;
 }
 
+/** Champs de apps/api/src/reservations/dto/create-reservation.dto.ts —
+ * `clientId` (client existant) XOR `client` (nouveau, créé inline). */
+export interface DonneesReservation {
+  chambreId: string;
+  clientId?: string;
+  client?: { nom: string; telephone?: string; email?: string };
+  dateArrivee: string;
+  dateDepart: string;
+  acompte?: number;
+}
+
+/** Champs de apps/api/src/reservations/dto/update-reservation.dto.ts. */
+export interface DonneesModificationReservation {
+  dateArrivee?: string;
+  dateDepart?: string;
+  acompte?: number;
+}
+
+/** Corps de POST /reservations/:id/annuler — ligne plate, sans `include`
+ * (contrairement à findAll/findOne qui incluent chambre/client/facture). */
+export type ReservationAnnulee = Omit<Reservation, "chambre" | "client" | "facture">;
+
+/** GET /clients — le client et tout son historique de séjours. */
+export interface ClientAvecSejours extends Client {
+  createdAt: string;
+  reservations: Reservation[];
+}
+
+/** GET/POST /taux-change — une ligne d'historique (1 USD = cdfParUsd CDF). */
+export interface TauxChange {
+  id: string;
+  cdfParUsd: string;
+  definiPar: string;
+  createdAt: string;
+}
+
+/** Champs de apps/api/src/chambres/dto/create-chambre.dto.ts (PATRON). */
+export interface DonneesChambre {
+  numero: string;
+  type: string;
+  prixParNuit: number;
+  devise: Devise;
+  statut?: StatutChambre;
+  photos?: string[];
+}
+
+/** Champs de update-chambre.dto.ts — tous optionnels, le filtrage par rôle
+ * (RECEPTIONNISTE : statut/photos uniquement) est fait côté serveur. */
+export type DonneesModificationChambre = Partial<DonneesChambre>;
+
 /** Champs de apps/api/src/factures/dto/create-facture.dto.ts. */
 export interface DonneesFacture {
   reservationId: string;
@@ -146,7 +198,7 @@ export const ENTITES_PUSH = [
 ] as const;
 export type EntitePush = (typeof ENTITES_PUSH)[number];
 
-export const ENTITES_PULL = [...ENTITES_PUSH, "Facture", "VenteCafeteria"] as const;
+export const ENTITES_PULL = [...ENTITES_PUSH, "Client", "Facture", "VenteCafeteria"] as const;
 export type EntitePull = (typeof ENTITES_PULL)[number];
 
 /** Un élément de `SyncPushDto.operations` (apps/api/src/sync/dto). */
@@ -180,9 +232,11 @@ export interface ResultatOperation {
 }
 
 /** Mapping localId→remoteId d'une entité enfant créée implicitement par un
- * CREATE parent. */
+ * CREATE parent. EntitePull (pas EntitePush) : un enfant peut être une
+ * entité non poussable directement (Client créé inline dans une
+ * Reservation, Phase 16). */
 export interface EnfantCree {
-  entiteType: EntitePush;
+  entiteType: EntitePull;
   localId: string;
   remoteId: string;
   syncVersion?: number;
@@ -221,6 +275,23 @@ export class ClientApi {
       method: "PATCH",
       body: JSON.stringify({ statut }),
     });
+  }
+
+  /** PATRON uniquement côté API (RolesGuard). */
+  async creerChambre(donnees: DonneesChambre): Promise<Chambre> {
+    return this.requete<Chambre>("/chambres", { method: "POST", body: JSON.stringify(donnees) });
+  }
+
+  /** PATRON : tous champs ; RECEPTIONNISTE : statut/photos uniquement (le
+   * contrôle par rôle est dans ChambresService.update, section 9.3). */
+  async modifierChambre(id: string, donnees: DonneesModificationChambre): Promise<Chambre> {
+    return this.requete<Chambre>(`/chambres/${id}`, { method: "PATCH", body: JSON.stringify(donnees) });
+  }
+
+  /** PATRON uniquement — DELETE réel (les chambres ne sont pas une donnée
+   * financière ; l'API refuse si des réservations y sont rattachées). */
+  async supprimerChambre(id: string): Promise<void> {
+    return this.requete<void>(`/chambres/${id}`, { method: "DELETE" });
   }
 
   /** Vrai si le serveur de l'hôtel répond — et c'est bien lui (pas un autre
@@ -349,12 +420,74 @@ export class ClientApi {
     return this.requete<Reservation>(`/reservations/${id}`);
   }
 
+  async creerReservation(donnees: DonneesReservation): Promise<Reservation> {
+    return this.requete<Reservation>("/reservations", { method: "POST", body: JSON.stringify(donnees) });
+  }
+
+  async modifierReservation(id: string, donnees: DonneesModificationReservation): Promise<Reservation> {
+    return this.requete<Reservation>(`/reservations/${id}`, { method: "PATCH", body: JSON.stringify(donnees) });
+  }
+
+  async confirmerReservation(id: string): Promise<Reservation> {
+    return this.requete<Reservation>(`/reservations/${id}/confirmer`, { method: "POST" });
+  }
+
+  async annulerReservation(id: string, motif: string): Promise<ReservationAnnulee> {
+    return this.requete<ReservationAnnulee>(`/reservations/${id}/annuler`, {
+      method: "POST",
+      body: JSON.stringify({ motif }),
+    });
+  }
+
   async checkIn(reservationId: string): Promise<ResultatCheckInOut> {
     return this.requete<ResultatCheckInOut>(`/reservations/${reservationId}/check-in`, { method: "POST" });
   }
 
   async checkOut(reservationId: string): Promise<ResultatCheckInOut> {
     return this.requete<ResultatCheckInOut>(`/reservations/${reservationId}/check-out`, { method: "POST" });
+  }
+
+  async listerFactures(reservationId?: string): Promise<Facture[]> {
+    return this.requete<Facture[]>(`/factures${reservationId ? `?reservationId=${reservationId}` : ""}`);
+  }
+
+  /** PATRON côté matrice 9.3 (l'API autorise aussi RECEPTIONNISTE, voir
+   * factures.controller.ts) — l'UI n'expose l'annulation qu'au patron. */
+  async annulerFacture(id: string, motif: string): Promise<Facture> {
+    return this.requete<Facture>(`/factures/${id}/annuler`, {
+      method: "POST",
+      body: JSON.stringify({ motif }),
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Clients (répertoire) et taux de change
+  // ---------------------------------------------------------------------
+
+  async listerClients(q?: string): Promise<ClientAvecSejours[]> {
+    return this.requete<ClientAvecSejours[]>(`/clients${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+  }
+
+  async obtenirClient(id: string): Promise<ClientAvecSejours> {
+    return this.requete<ClientAvecSejours>(`/clients/${id}`);
+  }
+
+  /** Taux du jour en vigueur, ou null si le patron n'en a jamais saisi —
+   * l'écran d'encaissement s'en sert pour l'aperçu du paiement croisé. */
+  async tauxActuel(): Promise<TauxChange | null> {
+    return this.requete<TauxChange | null>("/taux-change/actuel");
+  }
+
+  /** PATRON uniquement côté API. */
+  async listerTauxChange(): Promise<TauxChange[]> {
+    return this.requete<TauxChange[]>("/taux-change");
+  }
+
+  async creerTauxChange(cdfParUsd: number): Promise<TauxChange> {
+    return this.requete<TauxChange>("/taux-change", {
+      method: "POST",
+      body: JSON.stringify({ cdfParUsd }),
+    });
   }
 
   async creerFacture(donnees: DonneesFacture): Promise<Facture> {

@@ -1,9 +1,13 @@
 import { Role } from "@hotel-chicago/types";
 
 /** Onglets du bas, filtrés par rôle — même matrice 9.3 que le desktop
- * (`apps/desktop/src/renderer/src/navigation.ts`), et même répartition à 4
- * icônes que la maquette mobile (Accueil/Chambres/Réservations/Plus). */
-export type IdOnglet = "tableau-de-bord" | "chambres" | "reservations" | "plus";
+ * (`apps/desktop/src/renderer/src/navigation.ts`), et même principe de 4
+ * icônes par rôle que la maquette mobile : RECEPTIONNISTE/PATRON gardent
+ * Accueil/Chambres/Réserv./Plus, CAFETARIA a Accueil/Caisse/Comptes/Plus —
+ * les deux actions utilisées en continu (ouvrir une vente, reprendre un
+ * compte) en onglet direct, Menu/Stock (consultés occasionnellement)
+ * restent dans "Plus" (retour du patron, 28/09/2026). */
+export type IdOnglet = "tableau-de-bord" | "chambres" | "reservations" | "caisse" | "comptes-ouverts" | "plus";
 
 export interface OngletNavigation {
   id: IdOnglet;
@@ -20,6 +24,8 @@ export const ONGLETS: OngletNavigation[] = [
   { id: "tableau-de-bord", libelle: "Accueil", roles: TOUS, disponible: true },
   { id: "chambres", libelle: "Chambres", roles: RECEPTION, disponible: true },
   { id: "reservations", libelle: "Réserv.", roles: RECEPTION, disponible: true },
+  { id: "caisse", libelle: "Caisse", roles: [Role.CAFETARIA], disponible: true },
+  { id: "comptes-ouverts", libelle: "Comptes", roles: [Role.CAFETARIA], disponible: true },
   { id: "plus", libelle: "Plus", roles: TOUS, disponible: true },
 ];
 
@@ -66,13 +72,19 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
     // chemin vers le même endroit n'apporterait rien (même retour du
     // patron que pour le menu hamburger de EnteteMobile, 25/09/2026).
     titre: "Réception",
-    entrees: [{ id: "arrivees-departs", libelle: "Arrivées et départs", roles: RECEPTION, disponible: false }],
+    entrees: [
+      { id: "arrivees-departs", libelle: "Arrivées et départs", roles: RECEPTION, disponible: true },
+      { id: "clients", libelle: "Clients", roles: RECEPTION, disponible: true },
+    ],
   },
   {
     titre: "Cafétaria",
     entrees: [
-      { id: "caisse", libelle: "Caisse", roles: CAFETARIA_ROLES, disponible: true },
-      { id: "comptes-ouverts", libelle: "Comptes ouverts", roles: CAFETARIA_ROLES, disponible: true },
+      // Caisse/Comptes ouverts ont leur propre onglet pour CAFETARIA (voir
+      // ONGLETS ci-dessus) — inutile de les dupliquer ici pour ce rôle ;
+      // PATRON, qui n'a pas ces onglets, les garde accessibles depuis Plus.
+      { id: "caisse", libelle: "Caisse", roles: [Role.PATRON], disponible: true },
+      { id: "comptes-ouverts", libelle: "Comptes ouverts", roles: [Role.PATRON], disponible: true },
       { id: "menu", libelle: "Menu", roles: CAFETARIA_ROLES, disponible: true },
       { id: "stock", libelle: "Stock", roles: CAFETARIA_ROLES, disponible: true },
     ],
@@ -83,7 +95,7 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
     titre: "Administration",
     entrees: [
       { id: "utilisateurs", libelle: "Utilisateurs", roles: [Role.PATRON], disponible: true },
-      { id: "taux-de-change", libelle: "Taux de change", roles: [Role.PATRON], disponible: false },
+      { id: "taux-de-change", libelle: "Taux de change", roles: [Role.PATRON], disponible: true },
     ],
   },
 ];

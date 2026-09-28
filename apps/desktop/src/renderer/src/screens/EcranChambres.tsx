@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Chambre, StatutChambre } from "@hotel-chicago/types";
+import { Chambre, Devise, Reservation, Role, StatutChambre, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button, RoomCard, StatusBadge, StatusTone, formatMontant } from "@hotel-chicago/ui";
 import { BedDouble, MoreVertical, Plus, Search } from "lucide-react";
 import type { IdPage } from "../navigation";
@@ -45,6 +45,8 @@ function useEtroit(seuil: number): boolean {
 
 export interface EcranChambresProps {
   client: ClientApi;
+  /** Rôle courant — la gestion des chambres (créer/modifier/supprimer) est PATRON. */
+  utilisateur: UtilisateurAuthentifie;
   /** Terme tapé dans la recherche globale de la barre du haut. */
   rechercheInitiale?: string;
   onNaviguer: (page: IdPage) => void;
@@ -52,10 +54,16 @@ export interface EcranChambresProps {
 
 function MenuActionsChambre({
   chambre,
+  estPatron,
   onChangerStatut,
+  onModifier,
+  onSupprimer,
 }: {
   chambre: Chambre;
+  estPatron: boolean;
   onChangerStatut: (statut: StatutChambre) => void;
+  onModifier: () => void;
+  onSupprimer: () => void;
 }) {
   const [ouvert, setOuvert] = useState(false);
   const ref = useFermetureExterne(ouvert, () => setOuvert(false));
@@ -90,18 +98,54 @@ function MenuActionsChambre({
                 {LABEL_PAR_STATUT[statut]}
               </button>
             ))}
+          {estPatron && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="coquille__item-menu"
+                onClick={() => {
+                  setOuvert(false);
+                  onModifier();
+                }}
+              >
+                Modifier la chambre
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="coquille__item-menu coquille__item-menu--danger"
+                onClick={() => {
+                  setOuvert(false);
+                  onSupprimer();
+                }}
+              >
+                Supprimer
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export function EcranChambres({ client, rechercheInitiale, onNaviguer }: EcranChambresProps) {
+export function EcranChambres({ client, utilisateur, rechercheInitiale, onNaviguer }: EcranChambresProps) {
   const [chambres, setChambres] = useState<Chambre[] | null>(null);
+  const [reservationsEnCours, setReservationsEnCours] = useState<Reservation[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [filtreStatut, setFiltreStatut] = useState<StatutChambre | null>(null);
   const [recherche, setRecherche] = useState(rechercheInitiale ?? "");
   const etroit = useEtroit(860);
+
+  const estPatron = utilisateur.role === Role.PATRON;
+  // Formulaire de gestion PATRON : null = fermé, "creation" ou la chambre éditée.
+  const [chambreEdit, setChambreEdit] = useState<Chambre | "creation" | null>(null);
+  const [numero, setNumero] = useState("");
+  const [type, setType] = useState("");
+  const [prix, setPrix] = useState("");
+  const [devise, setDevise] = useState<Devise>(Devise.USD);
+  const [enCours, setEnCours] = useState(false);
 
   useEffect(() => {
     if (rechercheInitiale) setRecherche(rechercheInitiale);
@@ -109,10 +153,11 @@ export function EcranChambres({ client, rechercheInitiale, onNaviguer }: EcranCh
 
   useEffect(() => {
     let annule = false;
-    client
-      .listerChambres()
-      .then((donnees) => {
-        if (!annule) setChambres(donnees);
+    Promise.all([client.listerChambres(), client.listerReservations({ statut: "EN_COURS" })])
+      .then(([donnees, enCoursListe]) => {
+        if (annule) return;
+        setChambres(donnees);
+        setReservationsEnCours(enCoursListe);
       })
       .catch((erreurRecue: Error) => {
         if (!annule) setErreur(erreurRecue.message);
@@ -122,6 +167,12 @@ export function EcranChambres({ client, rechercheInitiale, onNaviguer }: EcranCh
     };
   }, [client]);
 
+  const clientParChambre = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of reservationsEnCours) m.set(r.chambreId, r.client.nom);
+    return m;
+  }, [reservationsEnCours]);
+
   async function changerStatut(chambre: Chambre, statut: StatutChambre) {
     const precedent = chambres;
     setChambres((liste) => liste?.map((c) => (c.id === chambre.id ? { ...c, statut } : c)) ?? liste);
@@ -130,6 +181,72 @@ export function EcranChambres({ client, rechercheInitiale, onNaviguer }: EcranCh
     } catch (erreurRecue) {
       setChambres(precedent);
       setErreur(erreurRecue instanceof Error ? erreurRecue.message : "Impossible de modifier le statut.");
+    }
+  }
+
+  function recharger() {
+    Promise.all([client.listerChambres(), client.listerReservations({ statut: "EN_COURS" })])
+      .then(([donnees, enCoursListe]) => {
+        setChambres(donnees);
+        setReservationsEnCours(enCoursListe);
+      })
+      .catch((e: Error) => setErreur(e.message));
+  }
+
+  function ouvrirCreation() {
+    setChambreEdit("creation");
+    setNumero("");
+    setType("");
+    setPrix("");
+    setDevise(Devise.USD);
+    setErreur(null);
+  }
+
+  function ouvrirEdition(chambre: Chambre) {
+    setChambreEdit(chambre);
+    setNumero(chambre.numero);
+    setType(chambre.type);
+    setPrix(chambre.prixParNuit);
+    setDevise(chambre.devise);
+    setErreur(null);
+  }
+
+  async function enregistrerChambre() {
+    const prixNombre = Number(prix.replace(/\s/g, "").replace(",", "."));
+    if (!numero.trim() || !type.trim()) {
+      setErreur("Le numéro et le type sont obligatoires.");
+      return;
+    }
+    if (Number.isNaN(prixNombre) || prixNombre <= 0) {
+      setErreur("Le prix par nuit doit être un nombre positif.");
+      return;
+    }
+    setEnCours(true);
+    setErreur(null);
+    try {
+      const donnees = { numero: numero.trim(), type: type.trim(), prixParNuit: prixNombre, devise };
+      if (chambreEdit === "creation") await client.creerChambre(donnees);
+      else if (chambreEdit) await client.modifierChambre(chambreEdit.id, donnees);
+      setChambreEdit(null);
+      recharger();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  async function supprimerChambre(chambre: Chambre) {
+    if (!window.confirm(`Supprimer la chambre ${chambre.numero} ?`)) return;
+    setEnCours(true);
+    setErreur(null);
+    try {
+      await client.supprimerChambre(chambre.id);
+      recharger();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnCours(false);
     }
   }
 
@@ -149,10 +266,17 @@ export function EcranChambres({ client, rechercheInitiale, onNaviguer }: EcranCh
           <h1 className="hc-text-display-md page__titre">Chambres</h1>
           <p className="hc-text-body page__sous-titre">Gérez vos chambres et leurs disponibilités.</p>
         </div>
-        <Button type="button" onClick={() => onNaviguer("reservations")}>
-          <Plus size={18} aria-hidden="true" />
-          Nouvelle réservation
-        </Button>
+        <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
+          {estPatron && (
+            <Button type="button" variant="secondary" onClick={ouvrirCreation}>
+              <Plus size={18} aria-hidden="true" />
+              Nouvelle chambre
+            </Button>
+          )}
+          <Button type="button" onClick={() => onNaviguer("reservations")}>
+            Nouvelle réservation
+          </Button>
+        </div>
       </header>
 
       {erreur && (
@@ -186,6 +310,42 @@ export function EcranChambres({ client, rechercheInitiale, onNaviguer }: EcranCh
           ))}
         </div>
       </div>
+
+      {chambreEdit && (
+        <div className="carte-formulaire formulaire">
+          <p className="hc-text-label texte-discret">
+            {chambreEdit === "creation" ? "Nouvelle chambre" : `Chambre ${chambreEdit.numero}`}
+          </p>
+          <label className="hc-text-label" htmlFor="chambre-numero">
+            Numéro
+          </label>
+          <input id="chambre-numero" type="text" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Ex. 104" />
+          <label className="hc-text-label" htmlFor="chambre-type">
+            Type
+          </label>
+          <input id="chambre-type" type="text" value={type} onChange={(e) => setType(e.target.value)} placeholder="Ex. Standard, Suite…" />
+          <label className="hc-text-label" htmlFor="chambre-prix">
+            Prix par nuit
+          </label>
+          <input id="chambre-prix" type="text" inputMode="decimal" value={prix} onChange={(e) => setPrix(e.target.value)} placeholder="Ex. 45" />
+          <p className="hc-text-label texte-discret">Devise</p>
+          <div className="puces" role="group" aria-label="Devise">
+            {[Devise.USD, Devise.CDF].map((d) => (
+              <button key={d} type="button" className="puce" aria-pressed={devise === d} onClick={() => setDevise(d)}>
+                {d}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-3)" }}>
+            <Button type="button" onClick={enregistrerChambre} disabled={enCours}>
+              {enCours ? "…" : "Enregistrer"}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setChambreEdit(null)}>
+              Annuler
+            </Button>
+          </div>
+        </div>
+      )}
 
       {chambres === null && !erreur && <p className="hc-text-body texte-discret">Chargement des chambres…</p>}
 
@@ -235,11 +395,15 @@ export function EcranChambres({ client, rechercheInitiale, onNaviguer }: EcranCh
                     <StatusBadge tone={TONE_PAR_STATUT[chambre.statut]} label={LABEL_PAR_STATUT[chambre.statut]} />
                   </td>
                   <td className="hc-text-price">{formatMontant(chambre.prixParNuit, chambre.devise)}</td>
-                  {/* La réception n'existe pas encore (écran « Bientôt ») : impossible de
-                      savoir quel client occupe la chambre sans inventer une donnée. */}
-                  <td className="texte-discret">—</td>
+                  <td className="texte-discret">{clientParChambre.get(chambre.id) ?? "—"}</td>
                   <td>
-                    <MenuActionsChambre chambre={chambre} onChangerStatut={(statut) => changerStatut(chambre, statut)} />
+                    <MenuActionsChambre
+                      chambre={chambre}
+                      estPatron={estPatron}
+                      onChangerStatut={(statut) => changerStatut(chambre, statut)}
+                      onModifier={() => ouvrirEdition(chambre)}
+                      onSupprimer={() => void supprimerChambre(chambre)}
+                    />
                   </td>
                 </tr>
               ))}

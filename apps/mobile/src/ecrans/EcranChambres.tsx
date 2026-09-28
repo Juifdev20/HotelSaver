@@ -1,15 +1,15 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { Chambre, StatutChambre } from "@hotel-chicago/types";
-import { BedDouble } from "lucide-react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { Chambre, Devise, Role, StatutChambre } from "@hotel-chicago/types";
+import { BedDouble, Plus } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import { listerChambresMiroir, ecrireStatutChambreLocal } from "../stockage/chambresMirroir";
+import { listerChambresMiroir, ecrireStatutChambreLocal, supprimerChambreLocale } from "../stockage/chambresMirroir";
 
 const COULEUR_PAR_STATUT: Record<StatutChambre, { fond: string; texte: string }> = {
   [StatutChambre.LIBRE]: { fond: couleurs.succesClair, texte: couleurs.succes },
@@ -38,12 +38,21 @@ const TOUS_LES_STATUTS = [StatutChambre.LIBRE, StatutChambre.RESERVEE, StatutCha
  * dans "Synchronisation" si le `syncVersion` a bougé entre-temps.
  */
 export function EcranChambres() {
-  const { moteurSync } = useSession();
+  const { client, moteurSync, utilisateur } = useSession();
   const etatSync = useSyncEtat();
   const [chambres, setChambres] = useState<Chambre[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [chambreChoisie, setChambreChoisie] = useState<Chambre | null>(null);
+
+  const estPatron = utilisateur.role === Role.PATRON;
+  const [formulaire, setFormulaire] = useState<"ferme" | "creation" | "edition">("ferme");
+  const [chambreEnEdition, setChambreEnEdition] = useState<Chambre | null>(null);
+  const [numero, setNumero] = useState("");
+  const [type, setType] = useState("");
+  const [prix, setPrix] = useState("");
+  const [devise, setDevise] = useState<Devise>(Devise.USD);
+  const [enCours, setEnCours] = useState(false);
 
   const rechargerMiroir = useCallback(() => {
     listerChambresMiroir()
@@ -85,14 +94,96 @@ export function EcranChambres() {
     });
   }
 
+  /** Création/modification/suppression de chambre : actions PATRON en ligne
+   * direct (comme la gestion des Utilisateurs) — le pull qui suit remet le
+   * miroir à jour ; pour la suppression il faut retirer la ligne locale
+   * tout de suite, le pull ne supprime rien (pas de tombstone). */
+  async function synchroniserApresAction() {
+    await moteurSync.forcerSynchronisation();
+    rechargerMiroir();
+  }
+
+  function ouvrirCreation() {
+    setChambreEnEdition(null);
+    setNumero("");
+    setType("");
+    setPrix("");
+    setDevise(Devise.USD);
+    setErreur(null);
+    setFormulaire("creation");
+  }
+
+  function ouvrirEdition(chambre: Chambre) {
+    setChambreChoisie(null);
+    setChambreEnEdition(chambre);
+    setNumero(chambre.numero);
+    setType(chambre.type);
+    setPrix(chambre.prixParNuit);
+    setDevise(chambre.devise);
+    setErreur(null);
+    setFormulaire("edition");
+  }
+
+  async function enregistrerChambre() {
+    const prixNombre = Number(prix.replace(/\s/g, "").replace(",", "."));
+    if (!numero.trim() || !type.trim()) {
+      setErreur("Le numéro et le type sont obligatoires.");
+      return;
+    }
+    if (Number.isNaN(prixNombre) || prixNombre <= 0) {
+      setErreur("Le prix par nuit doit être un nombre positif.");
+      return;
+    }
+    setEnCours(true);
+    setErreur(null);
+    try {
+      const donnees = { numero: numero.trim(), type: type.trim(), prixParNuit: prixNombre, devise };
+      if (formulaire === "creation") {
+        await client.creerChambre(donnees);
+      } else if (chambreEnEdition) {
+        await client.modifierChambre(chambreEnEdition.id, donnees);
+      }
+      setFormulaire("ferme");
+      await synchroniserApresAction();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  async function supprimerChambre() {
+    if (!chambreEnEdition) return;
+    const cible = chambreEnEdition;
+    setEnCours(true);
+    setErreur(null);
+    try {
+      await client.supprimerChambre(cible.id);
+      await supprimerChambreLocale(cible.id);
+      setFormulaire("ferme");
+      rechargerMiroir();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
   return (
     <View style={styles.page}>
       <EnteteMobile />
       <View style={styles.entete}>
-        <Text style={styles.titre}>Chambres</Text>
-        <Text style={styles.sousTitre}>
-          {chambres ? `${chambres.length} chambre${chambres.length > 1 ? "s" : ""}` : "Chargement…"}
-        </Text>
+        <View>
+          <Text style={styles.titre}>Chambres</Text>
+          <Text style={styles.sousTitre}>
+            {chambres ? `${chambres.length} chambre${chambres.length > 1 ? "s" : ""}` : "Chargement…"}
+          </Text>
+        </View>
+        {estPatron && (
+          <Pressable style={styles.boutonPlus} onPress={ouvrirCreation} disabled={!etatSync.enLigne} hitSlop={8}>
+            <Plus size={20} color="#fff" />
+          </Pressable>
+        )}
       </View>
 
       {erreur && <Text style={styles.erreur}>{erreur}</Text>}
@@ -137,6 +228,45 @@ export function EcranChambres() {
             <Text style={styles.optionStatutTexte}>{LABEL_PAR_STATUT[statut]}</Text>
           </Pressable>
         ))}
+        {estPatron && chambreChoisie && (
+          <Pressable style={styles.optionModifier} onPress={() => ouvrirEdition(chambreChoisie)} disabled={!etatSync.enLigne}>
+            <Text style={styles.optionModifierTexte}>Modifier la chambre (numéro, type, prix)</Text>
+          </Pressable>
+        )}
+      </FeuilleModale>
+
+      <FeuilleModale
+        visible={formulaire !== "ferme"}
+        onFermer={() => setFormulaire("ferme")}
+        titre={formulaire === "creation" ? "Nouvelle chambre" : `Chambre ${chambreEnEdition?.numero ?? ""}`}
+      >
+        <Text style={styles.champLabel}>Numéro</Text>
+        <TextInput style={styles.champ} value={numero} onChangeText={setNumero} placeholder="Ex. 104" placeholderTextColor={couleurs.encreFaible} />
+        <Text style={styles.champLabel}>Type</Text>
+        <TextInput style={styles.champ} value={type} onChangeText={setType} placeholder="Ex. Standard, Suite…" placeholderTextColor={couleurs.encreFaible} />
+        <Text style={styles.champLabel}>Prix par nuit</Text>
+        <TextInput style={styles.champ} value={prix} onChangeText={setPrix} placeholder="Ex. 45" placeholderTextColor={couleurs.encreFaible} keyboardType="numeric" />
+        <Text style={styles.champLabel}>Devise</Text>
+        <View style={styles.selecteurDevise}>
+          {[Devise.USD, Devise.CDF].map((d) => (
+            <Pressable
+              key={d}
+              style={[styles.optionDevise, devise === d && styles.optionDeviseActive]}
+              onPress={() => setDevise(d)}
+            >
+              <Text style={[styles.optionDeviseTexte, devise === d && styles.optionDeviseTexteActif]}>{d}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+        <Pressable style={styles.boutonEnregistrer} onPress={enregistrerChambre} disabled={enCours}>
+          <Text style={styles.boutonEnregistrerTexte}>{enCours ? "…" : "Enregistrer"}</Text>
+        </Pressable>
+        {formulaire === "edition" && (
+          <Pressable style={styles.boutonSupprimer} onPress={supprimerChambre} disabled={enCours}>
+            <Text style={styles.boutonSupprimerTexte}>{enCours ? "…" : "Supprimer la chambre"}</Text>
+          </Pressable>
+        )}
       </FeuilleModale>
     </View>
   );
@@ -168,4 +298,61 @@ const styles = StyleSheet.create({
   optionStatut: { flexDirection: "row", alignItems: "center", gap: espacements.s3, paddingVertical: espacements.s3 },
   pastilleStatut: { width: 12, height: 12, borderRadius: rayons.pill },
   optionStatutTexte: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
+  boutonPlus: {
+    width: 40,
+    height: 40,
+    borderRadius: rayons.pill,
+    backgroundColor: couleurs.bleu,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  optionModifier: {
+    marginTop: espacements.s3,
+    borderTopWidth: 1,
+    borderTopColor: couleurs.bordure,
+    paddingTop: espacements.s3,
+  },
+  optionModifierTexte: { fontSize: 14, fontWeight: "600", color: couleurs.bleu },
+  champLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },
+  champ: {
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    borderRadius: rayons.sm,
+    paddingHorizontal: espacements.s3,
+    height: 44,
+    fontSize: 15,
+    color: couleurs.encre,
+    backgroundColor: couleurs.surface100,
+  },
+  selecteurDevise: { flexDirection: "row", gap: espacements.s2 },
+  optionDevise: {
+    flex: 1,
+    height: 40,
+    borderRadius: rayons.sm,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  optionDeviseActive: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
+  optionDeviseTexte: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
+  optionDeviseTexteActif: { color: "#fff" },
+  boutonEnregistrer: {
+    height: 48,
+    borderRadius: rayons.sm,
+    backgroundColor: couleurs.bleu,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: espacements.s2,
+  },
+  boutonEnregistrerTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  boutonSupprimer: {
+    height: 44,
+    borderRadius: rayons.sm,
+    borderWidth: 1,
+    borderColor: couleurs.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  boutonSupprimerTexte: { color: couleurs.danger, fontWeight: "700", fontSize: 14 },
 });

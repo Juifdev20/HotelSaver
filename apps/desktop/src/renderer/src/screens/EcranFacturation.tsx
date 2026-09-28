@@ -1,7 +1,8 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Devise, Facture, ModePaiement, Reservation, UtilisateurAuthentifie, VenteCafeteria } from "@hotel-chicago/types";
+import { Devise, Facture, ModePaiement, Reservation, Role, UtilisateurAuthentifie, VenteCafeteria } from "@hotel-chicago/types";
+import type { TauxChange } from "@hotel-chicago/api-client";
 import { construireRecuFacture } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { CalendarCheck } from "lucide-react";
@@ -12,6 +13,9 @@ export interface EcranFacturationProps {
   /** Connexion imprimante configurée (Paramètres > Imprimante) — null tant
    * qu'aucune n'est réglée, le bouton d'impression le signale alors. */
   interfaceImprimante: string | null;
+  /** Présent quand on arrive d'une autre page (Réservations, Arrivées et
+   * départs) : ouvre directement le détail de cette réservation. */
+  reservationInitiale?: string | null;
 }
 
 type Vue = { id: "liste" } | { id: "detail"; reservationId: string };
@@ -40,11 +44,10 @@ function calculerApercu(reservation: Reservation, ventesLiees: VenteCafeteria[])
 }
 
 /**
- * Facturer et check-out un séjour EN_COURS (section 11.2). Pas de sélecteur
- * de réservation séparé côté desktop (`reservations` reste "Bientôt" dans la
- * barre latérale, voir navigation.ts) : cet écran combine la liste et le
- * détail, comme `EcranFacturation.tsx` mobile. Pas de paiement croisé/monnaie
- * rendue ici, même simplification que Caisse mobile.
+ * Facturer et check-out un séjour EN_COURS (section 11.2), paiement croisé
+ * inclus (section 9.4) — même prévisualisation que l'écran mobile
+ * (encaissement.util.ts fait foi côté serveur). Cet écran combine la liste
+ * des séjours à facturer, le détail d'encaissement et le journal des reçus.
  */
 function DetailFacturation({
   client,
@@ -69,13 +72,20 @@ function DetailFacturation({
   const [enImpression, setEnImpression] = useState(false);
   const [messageImpression, setMessageImpression] = useState<string | null>(null);
 
+  // Paiement croisé (section 9.4) : devise remise, montant remis, devise du rendu.
+  const [taux, setTaux] = useState<TauxChange | null>(null);
+  const [deviseReglee, setDeviseReglee] = useState<Devise>(Devise.USD);
+  const [montantRegle, setMontantRegle] = useState("");
+  const [deviseRendu, setDeviseRendu] = useState<Devise>(Devise.USD);
+
   useEffect(() => {
     let annule = false;
-    Promise.all([client.obtenirReservation(reservationId), client.listerVentesCafeteria(reservationId)])
-      .then(([r, ventes]) => {
+    Promise.all([client.obtenirReservation(reservationId), client.listerVentesCafeteria(reservationId), client.tauxActuel()])
+      .then(([r, ventes, t]) => {
         if (annule) return;
         setReservation(r);
         setVentesLiees(ventes.filter((v) => !v.annuleLe));
+        setTaux(t);
       })
       .catch((e: Error) => {
         if (!annule) setErreur(e.message);
@@ -87,11 +97,50 @@ function DetailFacturation({
 
   const apercu = useMemo(() => (reservation ? calculerApercu(reservation, ventesLiees) : null), [reservation, ventesLiees]);
 
+  const factureMixte = apercu ? apercu.totalUSD > 0 && apercu.totalCDF > 0 : false;
+  const deviseDue: Devise | null = apercu ? (apercu.totalUSD > 0 ? Devise.USD : apercu.totalCDF > 0 ? Devise.CDF : null) : null;
+  const cdfParUsd = taux ? Number(taux.cdfParUsd) : undefined;
+  const regle = Number(montantRegle.replace(/\s/g, "").replace(",", "."));
+  const detailSaisi = montantRegle.trim() !== "" && !Number.isNaN(regle);
+
+  /** Prévisualisation de la monnaie — même règles que
+   * apps/api/src/factures/encaissement.util.ts (référence côté serveur). */
+  const apercuMonnaie = useMemo(() => {
+    if (!apercu || !deviseDue || !detailSaisi || factureMixte) return null;
+    const du = deviseDue === Devise.USD ? apercu.totalUSD : apercu.totalCDF;
+    const croise = deviseReglee !== deviseDue;
+    if (croise && !cdfParUsd) return { statut: "taux-manquant" as const };
+    const duReglee = croise ? (deviseDue === Devise.USD ? du * cdfParUsd! : du / cdfParUsd!) : du;
+    const reste = regle - duReglee;
+    if (reste < -0.005) return { statut: "insuffisant" as const, duReglee };
+    const monnaieReglee = Math.max(0, reste);
+    const monnaieRendue =
+      deviseRendu === deviseReglee
+        ? monnaieReglee
+        : deviseReglee === Devise.USD
+          ? monnaieReglee * cdfParUsd!
+          : monnaieReglee / cdfParUsd!;
+    return {
+      statut: "ok" as const,
+      monnaie: deviseRendu === Devise.CDF ? Math.round(monnaieRendue) : Math.round(monnaieRendue * 100) / 100,
+      deviseMonnaie: deviseRendu,
+    };
+  }, [apercu, deviseDue, deviseReglee, deviseRendu, detailSaisi, regle, cdfParUsd, factureMixte]);
+
+  const bloquerPaiement =
+    detailSaisi && (apercuMonnaie?.statut === "insuffisant" || apercuMonnaie?.statut === "taux-manquant");
+
   async function facturerEtCheckOut() {
     setEnCours(true);
     setErreur(null);
     try {
-      const facture = await client.creerFacture({ reservationId, modePaiement });
+      const facture = await client.creerFacture({
+        reservationId,
+        modePaiement,
+        ...(detailSaisi
+          ? { deviseRegleeParClient: deviseReglee, montantRegleParClient: regle, deviseRenduChoisie: deviseRendu }
+          : {}),
+      });
       setFactureCreee(facture);
       try {
         await client.checkOut(reservationId);
@@ -251,7 +300,95 @@ function DetailFacturation({
               ))}
             </div>
 
-            <Button type="button" onClick={facturerEtCheckOut} disabled={enCours} style={{ marginTop: "var(--hc-space-3)" }}>
+            {factureMixte && (
+              <p className="hc-text-body" style={{ color: "var(--hc-warning)", marginTop: "var(--hc-space-3)" }}>
+                Facture en deux devises : le règlement croisé n'est pas possible — encaisser les montants USD et CDF
+                séparément.
+              </p>
+            )}
+
+            {!factureMixte && deviseDue && (
+              <div className="carte-formulaire" style={{ marginTop: "var(--hc-space-3)" }}>
+                <p className="hc-text-label texte-discret">Détail du règlement (optionnel)</p>
+                <div className="parametres-ligne">
+                  <span className="hc-text-body">Devise remise par le client</span>
+                  <div className="puces" role="group" aria-label="Devise remise">
+                    {[Devise.USD, Devise.CDF].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        className="puce"
+                        aria-pressed={deviseReglee === d}
+                        onClick={() => setDeviseReglee(d)}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {deviseReglee !== deviseDue && (
+                  <p className="hc-text-caption" style={{ color: "var(--hc-primary)" }}>
+                    {taux
+                      ? `Dû : ${formatMontant(
+                          deviseDue === Devise.USD ? apercu.totalUSD * cdfParUsd! : apercu.totalCDF / cdfParUsd!,
+                          deviseReglee
+                        )} (1 $ = ${formatMontant(cdfParUsd!, Devise.CDF)})`
+                      : "Aucun taux de change défini par le patron — paiement croisé impossible."}
+                  </p>
+                )}
+                <label className="hc-text-label" htmlFor="montant-remis">
+                  Montant remis
+                </label>
+                <input
+                  id="montant-remis"
+                  type="text"
+                  inputMode="decimal"
+                  value={montantRegle}
+                  onChange={(e) => setMontantRegle(e.target.value)}
+                  placeholder={deviseReglee === Devise.USD ? "Ex. 100.00" : "Ex. 280 000"}
+                />
+                {detailSaisi && (
+                  <div className="parametres-ligne">
+                    <span className="hc-text-body">Rendre la monnaie en</span>
+                    <div className="puces" role="group" aria-label="Devise du rendu">
+                      {[Devise.USD, Devise.CDF].map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          className="puce"
+                          aria-pressed={deviseRendu === d}
+                          onClick={() => setDeviseRendu(d)}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {apercuMonnaie?.statut === "insuffisant" && (
+                  <p role="alert" className="hc-text-body texte-erreur">
+                    Montant insuffisant : il faut {formatMontant(apercuMonnaie.duReglee, deviseReglee)}.
+                  </p>
+                )}
+                {apercuMonnaie?.statut === "taux-manquant" && (
+                  <p role="alert" className="hc-text-body texte-erreur">
+                    Aucun taux de change défini par le patron.
+                  </p>
+                )}
+                {apercuMonnaie?.statut === "ok" && (
+                  <p className="hc-text-body-strong texte-succes">
+                    Monnaie à rendre : {formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <Button
+              type="button"
+              onClick={facturerEtCheckOut}
+              disabled={enCours || bloquerPaiement}
+              style={{ marginTop: "var(--hc-space-3)" }}
+            >
               {enCours ? "…" : "Facturer et check-out"}
             </Button>
           </div>
@@ -261,8 +398,193 @@ function DetailFacturation({
   );
 }
 
-export function EcranFacturation({ client, utilisateur, interfaceImprimante }: EcranFacturationProps) {
-  const [vue, setVue] = useState<Vue>({ id: "liste" });
+/** Journal des reçus (section 11.2 / matrice 9.3) : toutes les factures de
+ * l'hôtel, triées récent en premier — réimpression pour tout le monde à la
+ * réception, annulation PATRON uniquement (Roles(PATRON) côté API). */
+function JournalRecus({
+  client,
+  utilisateur,
+  interfaceImprimante,
+}: {
+  client: ClientApi;
+  utilisateur: UtilisateurAuthentifie;
+  interfaceImprimante: string | null;
+}) {
+  const [factures, setFactures] = useState<Facture[] | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [annulationDe, setAnnulationDe] = useState<string | null>(null);
+  const [motif, setMotif] = useState("");
+  const [enCours, setEnCours] = useState<string | null>(null);
+
+  const charger = useCallback(() => {
+    client
+      .listerFactures()
+      .then((liste) =>
+        setFactures([...liste].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50))
+      )
+      .catch((e: Error) => setErreur(e.message));
+  }, [client]);
+
+  useEffect(charger, [charger]);
+
+  async function reimprimer(facture: Facture) {
+    if (!interfaceImprimante) {
+      setMessage("Aucune imprimante configurée — Paramètres > Imprimante.");
+      return;
+    }
+    setEnCours(facture.id);
+    setMessage(null);
+    setErreur(null);
+    try {
+      const [reservation, ventes] = await Promise.all([
+        client.obtenirReservation(facture.reservationId),
+        client.listerVentesCafeteria(facture.reservationId),
+      ]);
+      await window.hotelChicago.imprimer(
+        interfaceImprimante,
+        construireRecuFacture(facture, reservation, utilisateur.nom, ventes)
+      );
+      setMessage(`Reçu ${facture.numeroRecu} envoyé à l'imprimante.`);
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Échec de l'impression.");
+    } finally {
+      setEnCours(null);
+    }
+  }
+
+  async function annuler(facture: Facture) {
+    if (!motif.trim()) {
+      setErreur("Le motif d'annulation est obligatoire.");
+      return;
+    }
+    setEnCours(facture.id);
+    setErreur(null);
+    try {
+      await client.annulerFacture(facture.id, motif.trim());
+      setAnnulationDe(null);
+      setMotif("");
+      charger();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnCours(null);
+    }
+  }
+
+  const estPatron = utilisateur.role === Role.PATRON;
+
+  return (
+    <div className="carte-tableau" style={{ marginTop: "var(--hc-space-4)" }}>
+      <p className="hc-text-label texte-discret" style={{ padding: "var(--hc-space-3)" }}>
+        Journal des reçus
+      </p>
+      {message && (
+        <p className="hc-text-body texte-succes" role="status" style={{ padding: "0 var(--hc-space-3)" }}>
+          {message}
+        </p>
+      )}
+      <table className="tableau">
+        <thead>
+          <tr>
+            <th>N° reçu</th>
+            <th>Date</th>
+            <th>Montant</th>
+            <th>Mode</th>
+            <th>État</th>
+            <th aria-label="Actions" />
+          </tr>
+        </thead>
+        <tbody>
+          {(factures ?? []).map((f) => (
+            <React.Fragment key={f.id}>
+              <tr>
+                <td className="hc-text-body-strong">{f.numeroRecu}</td>
+                <td className="texte-discret">
+                  {new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(
+                    new Date(f.createdAt)
+                  )}
+                </td>
+                <td className="hc-text-price">
+                  {Number(f.montantTotalUSD) > 0 && formatMontant(f.montantTotalUSD, Devise.USD)}
+                  {Number(f.montantTotalUSD) > 0 && Number(f.montantTotalCDF) > 0 && " + "}
+                  {Number(f.montantTotalCDF) > 0 && formatMontant(f.montantTotalCDF, Devise.CDF)}
+                </td>
+                <td className="texte-discret">{f.modePaiement === "CASH" ? "Espèces" : f.modePaiement}</td>
+                <td className="texte-discret">{f.annuleLe ? `Annulé — ${f.motifAnnulation ?? ""}` : "Réglé"}</td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  <Button type="button" variant="secondary" size="sm" disabled={enCours !== null} onClick={() => void reimprimer(f)}>
+                    {enCours === f.id ? "…" : "Réimprimer"}
+                  </Button>{" "}
+                  {estPatron && !f.annuleLe && (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      disabled={enCours !== null}
+                      onClick={() => {
+                        setAnnulationDe(f.id);
+                        setMotif("");
+                        setErreur(null);
+                      }}
+                    >
+                      Annuler
+                    </Button>
+                  )}
+                </td>
+              </tr>
+              {annulationDe === f.id && (
+                <tr>
+                  <td colSpan={6}>
+                    <div style={{ display: "flex", gap: "var(--hc-space-2)", alignItems: "center" }}>
+                      <input
+                        type="text"
+                        placeholder="Motif d'annulation (obligatoire)"
+                        value={motif}
+                        onChange={(e) => setMotif(e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      <Button type="button" variant="danger" size="sm" disabled={enCours !== null} onClick={() => void annuler(f)}>
+                        Confirmer
+                      </Button>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => setAnnulationDe(null)}>
+                        Fermer
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          ))}
+          {factures && factures.length === 0 && (
+            <tr>
+              <td className="texte-discret" colSpan={6}>
+                Aucun reçu pour le moment.
+              </td>
+            </tr>
+          )}
+          {factures === null && !erreur && (
+            <tr>
+              <td className="texte-discret" colSpan={6}>
+                Chargement…
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      {erreur && (
+        <p role="alert" className="hc-text-body texte-erreur" style={{ padding: "var(--hc-space-3)" }}>
+          {erreur}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function EcranFacturation({ client, utilisateur, interfaceImprimante, reservationInitiale }: EcranFacturationProps) {
+  const [vue, setVue] = useState<Vue>(
+    reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" }
+  );
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -342,6 +664,8 @@ export function EcranFacturation({ client, utilisateur, interfaceImprimante }: E
           </table>
         </div>
       )}
+
+      <JournalRecus client={client} utilisateur={utilisateur} interfaceImprimante={interfaceImprimante} />
     </div>
   );
 }

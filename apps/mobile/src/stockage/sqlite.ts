@@ -113,5 +113,38 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       updatedAt TEXT NOT NULL,
       syncVersion INTEGER NOT NULL
     );
+
+    -- Tables miroir Réception (Phase 16) : même convention que la Cafétaria —
+    -- "id" est l'id LOCAL stable (jamais renommé), "remoteId" l'id serveur
+    -- une fois la création confirmée. "clients" sert aussi au picker
+    -- « client existant » hors ligne ; les lignes tirées du serveur ont
+    -- id = remoteId dès l'insertion (voir upsertClient/upsertReservation).
+    CREATE TABLE IF NOT EXISTS clients (
+      id TEXT PRIMARY KEY,
+      remoteId TEXT,
+      nom TEXT NOT NULL,
+      telephone TEXT,
+      email TEXT,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      syncVersion INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS reservations (
+      id TEXT PRIMARY KEY,
+      remoteId TEXT,
+      chambreId TEXT NOT NULL,
+      clientId TEXT NOT NULL,
+      dateArrivee TEXT NOT NULL,
+      dateDepart TEXT NOT NULL,
+      acompte TEXT NOT NULL,
+      statut TEXT NOT NULL,
+      origine TEXT NOT NULL,
+      createdBy TEXT NOT NULL,
+      annuleLe TEXT,
+      motifAnnulation TEXT,
+      updatedAt TEXT NOT NULL,
+      syncVersion INTEGER NOT NULL
+    );
   `);
 }

@@ -133,6 +133,44 @@ describe("ReservationsService", () => {
     });
   });
 
+  describe("confirmer", () => {
+    it("refuse de confirmer une réservation qui n'est pas EN_ATTENTE", async () => {
+      prisma.reservation.findUnique.mockResolvedValue({ id: "r1", statut: "CONFIRMEE" });
+      await expect(service.confirmer("r1", HOTEL_ID)).rejects.toThrow(ConflictException);
+    });
+
+    it("refuse de confirmer si la chambre a été prise entre-temps par une réservation occupante", async () => {
+      prisma.reservation.findUnique.mockResolvedValue({
+        id: "r1",
+        statut: "EN_ATTENTE",
+        chambreId: "c1",
+        dateArrivee: new Date("2026-10-01"),
+        dateDepart: new Date("2026-10-03"),
+      });
+      prisma.reservation.findFirst.mockResolvedValue({ id: "autre" });
+      await expect(service.confirmer("r1", HOTEL_ID)).rejects.toThrow(ConflictException);
+    });
+
+    it("confirme une demande EN_ATTENTE sans conflit", async () => {
+      prisma.reservation.findUnique.mockResolvedValue({
+        id: "r1",
+        statut: "EN_ATTENTE",
+        chambreId: "c1",
+        dateArrivee: new Date("2026-10-01"),
+        dateDepart: new Date("2026-10-03"),
+      });
+      prisma.reservation.update.mockResolvedValue({ id: "r1", statut: "CONFIRMEE" });
+
+      await service.confirmer("r1", HOTEL_ID);
+
+      expect(prisma.reservation.update).toHaveBeenCalledWith({
+        where: { id: "r1", hotelId: HOTEL_ID },
+        data: { statut: "CONFIRMEE", syncVersion: { increment: 1 } },
+        include: { chambre: true, client: true },
+      });
+    });
+  });
+
   describe("checkIn / checkOut", () => {
     it("refuse le check-in d'une réservation qui n'est pas CONFIRMEE", async () => {
       prisma.reservation.findUnique.mockResolvedValue({ id: "r1", statut: "EN_COURS", chambreId: "c1" });

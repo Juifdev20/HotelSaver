@@ -16,6 +16,9 @@ import { EcranCompteCafeteria } from "./EcranCompteCafeteria";
 import { EcranSynchronisation } from "./EcranSynchronisation";
 import { EcranImprimante } from "./EcranImprimante";
 import { EcranUtilisateurs } from "./EcranUtilisateurs";
+import { EcranReservations } from "./EcranReservations";
+import { EcranClients } from "./EcranClients";
+import { EcranTauxChange } from "./EcranTauxChange";
 
 function initiales(nom: string): string {
   return nom
@@ -36,7 +39,10 @@ type VuePlus =
   | { id: "comptes-ouverts" }
   | { id: "caisse" }
   | { id: "compte"; compteId: string }
-  | { id: "utilisateurs" };
+  | { id: "utilisateurs" }
+  | { id: "arrivees-departs" }
+  | { id: "clients" }
+  | { id: "taux-de-change" };
 
 const VUE_LISTE: VuePlus = { id: "liste" };
 
@@ -91,6 +97,15 @@ export function EcranPlus() {
   }
   if (vue.id === "utilisateurs") {
     return <EcranUtilisateurs client={client} onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "arrivees-departs") {
+    return <EcranReservations segmentInitial="aujourdhui" onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "clients") {
+    return <EcranClients onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "taux-de-change") {
+    return <EcranTauxChange onRetour={() => setVue(VUE_LISTE)} />;
   }
 
   return (
@@ -152,7 +167,19 @@ export function EcranPlus() {
                 <Pressable
                   key={entree.id}
                   style={styles.ligne}
-                  onPress={() => setVue({ id: entree.id as "caisse" | "comptes-ouverts" | "menu" | "stock" | "utilisateurs" })}
+                  onPress={() =>
+                    setVue({
+                      id: entree.id as
+                        | "caisse"
+                        | "comptes-ouverts"
+                        | "menu"
+                        | "stock"
+                        | "utilisateurs"
+                        | "arrivees-departs"
+                        | "clients"
+                        | "taux-de-change",
+                    })
+                  }
                 >
                   <Text style={styles.ligneTexte}>{entree.libelle}</Text>
                 </Pressable>

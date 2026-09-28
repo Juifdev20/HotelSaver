@@ -226,6 +226,10 @@ export interface Client {
   nom: string;
   telephone: string | null;
   email: string | null;
+  /** Présents en base depuis la Phase 16 (pull /sync/pull + miroir local) —
+   * jamais renseignés dans le payload `client` inline de création. */
+  updatedAt: string;
+  syncVersion: number;
 }
 
 /** Forme JSON d'une Facture (Decimal → string, voir Chambre). */

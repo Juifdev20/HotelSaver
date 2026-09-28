@@ -1,13 +1,22 @@
 export { ClientApi, ErreurApi, ENTITES_PULL, ENTITES_PUSH } from "./client";
 export type {
+  ClientAvecSejours,
+  DonneesChambre,
   DonneesCreationUtilisateur,
+  DonneesModificationChambre,
+  DonneesModificationReservation,
+  DonneesReservation,
   EnfantCree,
   FiltresChambres,
+  FiltresReservations,
   EntitePull,
   EntitePush,
   OperationPush,
   ReponsePull,
+  ReservationAnnulee,
+  ResultatCheckInOut,
   ResultatOperation,
+  TauxChange,
   Utilisateur,
 } from "./client";
 export { connecterAvecMotDePasse, rafraichirSession } from "./supabase-auth";

@@ -56,6 +56,34 @@ interface LigneCommandeBrute {
   syncVersion: number;
 }
 
+/** Formes brutes du pull Réception (Phase 16) — lignes Prisma plates, le
+ * client/la chambre sont joints côté client par reservationsMirroir.ts. */
+interface ReservationBrute {
+  id: string;
+  chambreId: string;
+  clientId: string;
+  dateArrivee: string;
+  dateDepart: string;
+  acompte: string;
+  statut: string;
+  origine: string;
+  createdBy: string;
+  annuleLe: string | null;
+  motifAnnulation: string | null;
+  updatedAt: string;
+  syncVersion: number;
+}
+
+interface ClientBrute {
+  id: string;
+  nom: string;
+  telephone: string | null;
+  email: string | null;
+  createdAt: string;
+  updatedAt: string;
+  syncVersion: number;
+}
+
 function depuisLigneBrute(ligne: LigneFileAttenteBrute): LigneFileAttente {
   return {
     id: ligne.id,
@@ -202,6 +230,18 @@ export async function creerStockageLocalMobile(): Promise<StockageLocal> {
         }
         return;
       }
+      if (entiteType === "Reservation") {
+        for (const brute of lignes as ReservationBrute[]) {
+          await upsertReservation(db, brute);
+        }
+        return;
+      }
+      if (entiteType === "Client") {
+        for (const brute of lignes as ClientBrute[]) {
+          await upsertClient(db, brute);
+        }
+        return;
+      }
       // Autres entités : pas encore de table miroir dédiée (voir le plan).
     },
 
@@ -218,12 +258,19 @@ export async function creerStockageLocalMobile(): Promise<StockageLocal> {
         await db.runAsync("UPDATE sous_comptes SET remoteId = ?, syncVersion = ? WHERE id = ?", [remoteId, syncVersion, localId]);
       } else if (entiteType === "LigneCommande") {
         await db.runAsync("UPDATE lignes_commande SET remoteId = ?, syncVersion = ? WHERE id = ?", [remoteId, syncVersion, localId]);
+      } else if (entiteType === "Reservation") {
+        await db.runAsync("UPDATE reservations SET remoteId = ?, syncVersion = ? WHERE id = ?", [remoteId, syncVersion, localId]);
+      } else if (entiteType === "Client") {
+        // Enfant du CREATE Reservation (client inline, Phase 16).
+        await db.runAsync("UPDATE clients SET remoteId = ?, syncVersion = ? WHERE id = ?", [remoteId, syncVersion, localId]);
       }
     },
 
     async appliquerResolutionConflit(entiteType, donneesServeur) {
       if (entiteType === "Chambre") {
         await upsertChambre(db, donneesServeur as Chambre);
+      } else if (entiteType === "Reservation") {
+        await upsertReservation(db, donneesServeur as ReservationBrute);
       }
     },
   };
@@ -316,6 +363,57 @@ async function upsertLigneCommande(db: Awaited<ReturnType<typeof obtenirBase>>, 
       `INSERT INTO lignes_commande (id, remoteId, sousCompteId, produitId, quantite, prixUnitaire, devise, createdAt, updatedAt, syncVersion)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [brute.id, brute.id, brute.sousCompteId, brute.produitId, brute.quantite, brute.prixUnitaire, brute.devise, brute.createdAt, brute.updatedAt, brute.syncVersion]
+    );
+  }
+}
+
+/** Réservation et client (Phase 16) : upsert par `remoteId` d'abord (ligne
+ * créée par cet appareil sous un id local différent), sinon par `id` (ligne
+ * venant d'un autre appareil ou du site public — `id = remoteId` dès
+ * l'insertion). La jointure avec chambres/clients locaux est faite à la
+ * lecture par reservationsMirroir.ts. */
+async function upsertReservation(db: Awaited<ReturnType<typeof obtenirBase>>, brute: ReservationBrute): Promise<void> {
+  const existant = await db.getFirstAsync<{ id: string }>(
+    "SELECT id FROM reservations WHERE remoteId = ? OR id = ?",
+    [brute.id, brute.id]
+  );
+  if (existant) {
+    await db.runAsync(
+      `UPDATE reservations SET remoteId = ?, chambreId = ?, clientId = ?, dateArrivee = ?, dateDepart = ?, acompte = ?, statut = ?, origine = ?, createdBy = ?, annuleLe = ?, motifAnnulation = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
+      [
+        brute.id, brute.chambreId, brute.clientId, brute.dateArrivee, brute.dateDepart, brute.acompte,
+        brute.statut, brute.origine, brute.createdBy, brute.annuleLe, brute.motifAnnulation,
+        brute.updatedAt, brute.syncVersion, existant.id,
+      ]
+    );
+  } else {
+    await db.runAsync(
+      `INSERT INTO reservations (id, remoteId, chambreId, clientId, dateArrivee, dateDepart, acompte, statut, origine, createdBy, annuleLe, motifAnnulation, updatedAt, syncVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        brute.id, brute.id, brute.chambreId, brute.clientId, brute.dateArrivee, brute.dateDepart, brute.acompte,
+        brute.statut, brute.origine, brute.createdBy, brute.annuleLe, brute.motifAnnulation,
+        brute.updatedAt, brute.syncVersion,
+      ]
+    );
+  }
+}
+
+async function upsertClient(db: Awaited<ReturnType<typeof obtenirBase>>, brute: ClientBrute): Promise<void> {
+  const existant = await db.getFirstAsync<{ id: string }>(
+    "SELECT id FROM clients WHERE remoteId = ? OR id = ?",
+    [brute.id, brute.id]
+  );
+  if (existant) {
+    await db.runAsync(
+      `UPDATE clients SET remoteId = ?, nom = ?, telephone = ?, email = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
+      [brute.id, brute.nom, brute.telephone, brute.email, brute.updatedAt, brute.syncVersion, existant.id]
+    );
+  } else {
+    await db.runAsync(
+      `INSERT INTO clients (id, remoteId, nom, telephone, email, createdAt, updatedAt, syncVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [brute.id, brute.id, brute.nom, brute.telephone, brute.email, brute.createdAt, brute.updatedAt, brute.syncVersion]
     );
   }
 }

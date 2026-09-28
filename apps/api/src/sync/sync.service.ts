@@ -16,9 +16,11 @@ interface EntiteCree {
   id: string;
   syncVersion: number;
   /** Enfants créés implicitement par le CREATE parent (ex. le premier
-   * sous-compte d'un CompteCafeteria), renvoyés pour que le miroir local
-   * remplisse leur `remoteId` sans attendre le prochain pull. */
-  enfants?: { entiteType: EntitePush; localId: string; remoteId: string; syncVersion?: number }[];
+   * sous-compte d'un CompteCafeteria, le client inline d'une Reservation),
+   * renvoyés pour que le miroir local remplisse leur `remoteId` sans
+   * attendre le prochain pull. EntitePull (pas EntitePush) : un enfant
+   * peut être une entité non poussable directement (Client, Phase 16). */
+  enfants?: { entiteType: EntitePull; localId: string; remoteId: string; syncVersion?: number }[];
 }
 
 interface ConfigEntite {
@@ -38,13 +40,14 @@ interface ResultatOperation {
   statut: "SYNCED" | "CONFLICT" | "ERROR";
   message?: string;
   donneesServeur?: unknown;
-  enfants?: { entiteType: EntitePush; localId: string; remoteId: string; syncVersion?: number }[];
+  enfants?: { entiteType: EntitePull; localId: string; remoteId: string; syncVersion?: number }[];
 }
 
 /** Lecture (GET /sync/pull) — mêmes permissions que les endpoints GET directs de chaque module. */
 const ROLES_LECTURE: Record<EntitePull, Role[]> = {
   Chambre: [Role.RECEPTIONNISTE, Role.PATRON],
   Reservation: [Role.RECEPTIONNISTE, Role.PATRON],
+  Client: [Role.RECEPTIONNISTE, Role.PATRON],
   Facture: [Role.RECEPTIONNISTE, Role.PATRON],
   Produit: [Role.CAFETARIA, Role.PATRON],
   MouvementStock: [Role.CAFETARIA, Role.PATRON],
@@ -82,7 +85,21 @@ export class SyncService {
       Reservation: {
         rolesCreate: [Role.RECEPTIONNISTE, Role.PATRON],
         rolesUpdate: [Role.RECEPTIONNISTE, Role.PATRON],
-        create: (payload, currentUser) => this.reservationsService.create(payload as any, currentUser),
+        create: async (payload, currentUser) => {
+          const cree = await this.reservationsService.create(payload as any, currentUser);
+          // Un client inline (payload.client, nouveau client) est créé
+          // implicitement côté serveur — même mécanisme que le premier
+          // sous-compte cafétaria : si l'appareil a envoyé l'id local de sa
+          // ligne Client optimiste, le mapping évite le doublon au pull.
+          const clientLocalId = (payload as { clientLocalId?: string }).clientLocalId;
+          if (!clientLocalId || !cree.client) return cree;
+          return {
+            ...cree,
+            enfants: [
+              { entiteType: "Client" as const, localId: clientLocalId, remoteId: cree.client.id, syncVersion: cree.client.syncVersion },
+            ],
+          };
+        },
         update: (id, payload, currentUser) => this.reservationsService.update(id, payload as any, currentUser.hotelId),
       },
       Produit: {

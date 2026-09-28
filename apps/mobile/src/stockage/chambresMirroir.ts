@@ -33,3 +33,11 @@ export async function ecrireStatutChambreLocal(id: string, statut: StatutChambre
   const db = await obtenirBase();
   await db.runAsync("UPDATE chambres SET statut = ? WHERE id = ?", [statut, id]);
 }
+
+/** Retire une chambre du miroir après un DELETE serveur réussi — le pull
+ * incrémental n'upsert que les lignes présentes, il ne supprime jamais
+ * (pas de tombstone) : la suppression locale doit être faite à la main. */
+export async function supprimerChambreLocale(id: string): Promise<void> {
+  const db = await obtenirBase();
+  await db.runAsync("DELETE FROM chambres WHERE id = ?", [id]);
+}

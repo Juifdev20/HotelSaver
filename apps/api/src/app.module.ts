@@ -16,6 +16,8 @@ import { PublicModule } from "./public/public.module";
 import { SyncModule } from "./sync/sync.module";
 import { SuperAdminModule } from "./super-admin/super-admin.module";
 import { UtilisateursModule } from "./utilisateurs/utilisateurs.module";
+import { ClientsModule } from "./clients/clients.module";
+import { TauxChangeModule } from "./taux-change/taux-change.module";
 
 @Module({
   imports: [
@@ -40,6 +42,8 @@ import { UtilisateursModule } from "./utilisateurs/utilisateurs.module";
     SyncModule,
     SuperAdminModule,
     UtilisateursModule,
+    ClientsModule,
+    TauxChangeModule,
   ],
   providers: [
     {

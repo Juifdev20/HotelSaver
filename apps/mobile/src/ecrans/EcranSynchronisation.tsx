@@ -10,6 +10,7 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { supprimerEcritureCafeteriaLocale } from "../stockage/cafeteriaMirroir";
+import { supprimerEcritureReservationLocale } from "../stockage/reservationsMirroir";
 
 export interface EcranSynchronisationProps {
   onRetour: () => void;
@@ -80,7 +81,11 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
     try {
       await moteurSync.annulerOperation(ligne.id);
       if (ligne.operation === "CREATE") {
-        await supprimerEcritureCafeteriaLocale(ligne.entiteType, ligne.localId);
+        if (ligne.entiteType === "Reservation") {
+          await supprimerEcritureReservationLocale(ligne.localId);
+        } else {
+          await supprimerEcritureCafeteriaLocale(ligne.entiteType, ligne.localId);
+        }
       }
       await rechargerActionsEchouees();
     } finally {

@@ -7,6 +7,9 @@ import { IdPage, libellePage } from "./navigation";
 import { Coquille } from "./layout/Coquille";
 import { EcranConnexion } from "./screens/EcranConnexion";
 import { EcranChambres } from "./screens/EcranChambres";
+import { EcranReservations } from "./screens/EcranReservations";
+import { EcranArriveesDeparts } from "./screens/EcranArriveesDeparts";
+import { EcranClients } from "./screens/EcranClients";
 import { EcranFacturation } from "./screens/EcranFacturation";
 import { EcranImprimante } from "./screens/EcranImprimante";
 import { EcranParametres } from "./screens/EcranParametres";
@@ -51,6 +54,9 @@ export function App() {
   // zéro à chaque navigation pour ne jamais montrer un détail périmé en
   // revenant sur l'une de ces deux pages (voir naviguer() plus bas).
   const [compteCafeteriaOuvert, setCompteCafeteriaOuvert] = useState<string | null>(null);
+  // Séjour à ouvrir directement dans l'écran Facturation (deep-link depuis
+  // Réservations ou Arrivées et départs) — remis à zéro par naviguer().
+  const [reservationAFacturer, setReservationAFacturer] = useState<string | null>(null);
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
   const [themeSombre, setThemeSombre] = useState(themeSombrePrefere);
@@ -145,7 +151,16 @@ export function App() {
    * dernière visite au lieu du formulaire/de la liste. */
   function naviguer(nouvellePage: IdPage) {
     setCompteCafeteriaOuvert(null);
+    setReservationAFacturer(null);
     setPage(nouvellePage);
+  }
+
+  /** Deep-link vers le détail d'encaissement d'un séjour dans Facturation —
+   * contrairement à naviguer() on pose d'abord le contexte, puis la page. */
+  function naviguerVersFacturation(reservationId: string) {
+    setCompteCafeteriaOuvert(null);
+    setReservationAFacturer(reservationId);
+    setPage("facturation");
   }
 
   if (ecran === "chargement" || !configuration) {
@@ -175,9 +190,22 @@ export function App() {
     if (page === "tableau-de-bord") {
       contenu = <EcranTableauDeBord client={client} utilisateur={utilisateur} onNaviguer={naviguer} />;
     } else if (page === "chambres") {
-      contenu = <EcranChambres client={client} rechercheInitiale={rechercheChambres} onNaviguer={naviguer} />;
+      contenu = <EcranChambres client={client} utilisateur={utilisateur} rechercheInitiale={rechercheChambres} onNaviguer={naviguer} />;
+    } else if (page === "reservations") {
+      contenu = <EcranReservations client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} />;
+    } else if (page === "arrivees-departs") {
+      contenu = <EcranArriveesDeparts client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} />;
+    } else if (page === "clients") {
+      contenu = <EcranClients client={client} />;
     } else if (page === "facturation") {
-      contenu = <EcranFacturation client={client} utilisateur={utilisateur} interfaceImprimante={configuration.imprimanteInterface} />;
+      contenu = (
+        <EcranFacturation
+          client={client}
+          utilisateur={utilisateur}
+          interfaceImprimante={configuration.imprimanteInterface}
+          reservationInitiale={reservationAFacturer}
+        />
+      );
     } else if (page === "caisse" || page === "comptes-ouverts") {
       // Les deux entrées mènent au même écran de détail une fois un compte
       // choisi/créé — voir compteCafeteriaOuvert plus haut.

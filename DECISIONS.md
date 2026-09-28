@@ -2210,3 +2210,87 @@ dans `navigateur-secours.ts` sont préexistantes, sans rapport avec cette
 phase). Test de bout en bout restant à faire par le patron : créer un
 compte CAFETARIA via les deux apps, se reconnecter avec, confirmer
 l'atterrissage sur l'interface Cafétaria (mobile et desktop).
+
+---
+
+## 28/09/2026 — Phase 16 : module Réception complet (mobile + desktop)
+
+**Portée** : tout le circuit d'une réception hôtelière, sur les deux apps,
+avec hors-ligne mobile pour la consultation et la création/modification de
+réservations (option « hors-ligne complet » choisie par le patron).
+
+### API
+
+- `POST /reservations/:id/confirmer` : les demandes `EN_ATTENTE` venues du
+  site public peuvent enfin être validées — le contrôle de chevauchement se
+  fait ici (une demande en attente ne bloque pas la chambre, voir
+  `STATUTS_OCCUPANTS` dans `reservations.service.ts`).
+- `GET /clients` et `GET /clients/:id` : chaque client renvoyé avec son
+  historique de séjours embarqué (`ClientAvecSejours`).
+- `GET /taux-change/actuel`, `GET /taux-change`, `POST /taux-change`
+  (PATRON) : le paiement croisé (section 9.4) n'était jusque-là pas
+  utilisable faute d'endpoint pour définir le taux.
+- `Client` devient synchronisable : migration ajoutant `updatedAt` +
+  `syncVersion`, ajout au pull `/sync/pull`, et mapping `clientLocalId →
+  remoteId` côté `sync.service.ts` pour les réservations créées hors ligne
+  avec un client inline (le client naît avec sa réservation au push).
+
+### Hors-ligne mobile — bornes documentées
+
+- **Hors-ligne** : consultation (réservations, clients, chambres),
+  création de réservation (client nouveau ou existant synchronisé) et
+  modification dates/acompte via la file de sync générique — miroir SQLite
+  `reservations` + `clients` (`stockage/reservationsMirroir.ts`, pattern
+  id local stable + `remoteId` comme `cafeteriaMirroir.ts`).
+- **En ligne seulement** : confirmer, check-in, check-out, annuler,
+  facturer — transitions transactionnelles multi-entités hors de la file
+  générique (même borne que l'encaissement cafétaria). L'UI grise ces
+  actions hors ligne et pour une réservation sans `remoteId` (« en attente
+  de synchro »). Après une action en ligne réussie, le miroir est écrit
+  localement tout de suite (`ecrireStatutReservationLocal`) puis
+  réconcilié par le pull suivant.
+- Un client créé hors ligne ne peut pas être référencé par une autre
+  réservation tant qu'il n'a pas de `remoteId` (le push échouerait) : le
+  formulaire n'offre « client existant » que pour les clients synchronisés,
+  ou « nouveau client » inline.
+- Check-in immédiat (« le client est déjà là ») : en ligne uniquement,
+  appel direct `creerReservation` + `checkIn` — la file ne donnerait
+  l'`remoteId` qu'au prochain push, trop tard pour enchaîner le check-in.
+- `StockageLocal.confirmerPush` accepte désormais `EntitePull` (les
+  mappings enfants peuvent concerner `Client`, pullable mais non poussable).
+
+### Paiement croisé (9.4) — mobile et desktop
+
+Les écrans de facturation affichent : devise remise (USD/CDF), montant
+remis, devise du rendu, et la monnaie à rendre prévisualisée — même calcul
+que `encaissement.util.ts` (le serveur fait foi). Borne inchangée : une
+facture mixte (chambre + cafétaria en devises différentes) refuse le
+croisé ; l'UI le signale au lieu de tenter l'envoi. Le taux saisi par le
+patron est lu via `GET /taux-change/actuel` au chargement.
+
+### Écrans
+
+- **Mobile** : onglet « Réserv. » = hub à 4 segments (Aujourd'hui /
+  À venir / En cours / Historique) lisant le miroir ; `EcranNouvelleReservation`
+  (dates JJ/MM/AAAA + stepper nuits, chambre grisée si occupée sur la
+  période — même règle que `verifierAbsenceDeConflit`, client nouveau/
+  existant, acompte, aperçu total) ; `EcranReservationDetail` (actions
+  contextuelles selon statut + connectivité) ; `EcranClients` et
+  `EcranTauxChange` dans « Plus » ; gestion des chambres PATRON dans
+  `EcranChambres` (« + », modifier, supprimer — en ligne, suppression
+  retirée du miroir à la main car le pull n'a pas de tombstone).
+- **Desktop** : `EcranReservations` (tableau filtrable + détail +
+  création), `EcranArriveesDeparts` (arrivées/départs du jour + clients
+  présents, actions directes), `EcranClients`, gestion des chambres
+  PATRON dans `EcranChambres` (+ colonne client occupant), journal des
+  reçus dans `EcranFacturation` (réimpression pour tous à la réception,
+  annulation PATRON avec motif), taux de change dans Paramètres >
+  Administration, deep-link « Facturer » vers le détail d'encaissement
+  (`reservationAFacturer` dans `App.tsx`, même pattern que
+  `compteCafeteriaOuvert`).
+
+**Vérifié** : 206/206 tests API (l'e2e `roles` exige un `beforeAll` à
+temps — relancer la suite seule sous charge parallèle), 43 tests
+api-client, tests + build sync-engine, `tsc --noEmit` mobile et desktop
+propres, `electron-vite build` OK, migration `client_updated_syncversion`
+appliquée et vérifiée.

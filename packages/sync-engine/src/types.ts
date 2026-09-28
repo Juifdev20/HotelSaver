@@ -70,8 +70,11 @@ export interface StockageLocal {
   appliquerLignesServeur(entiteType: EntitePull, lignes: unknown[]): Promise<void>;
 
   /** Après un push SYNCED : reporter le nouveau `syncVersion` (et le
-   * `remoteId` si c'était une création) dans le miroir local. */
-  confirmerPush(entiteType: EntitePush, localId: string, remoteId: string, syncVersion: number): Promise<void>;
+   * `remoteId` si c'était une création) dans le miroir local. EntitePull
+   * (pas EntitePush) : les enfants renvoyés par un CREATE parent peuvent
+   * être des entités non poussables directement (Client inline d'une
+   * Reservation, Phase 16). */
+  confirmerPush(entiteType: EntitePull, localId: string, remoteId: string, syncVersion: number): Promise<void>;
 
   /** L'utilisateur choisit de garder la version serveur pour un conflit :
    * écrire `donneesServeur` dans le miroir. Indispensable — sans ça, la

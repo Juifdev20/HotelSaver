@@ -1,8 +1,8 @@
 import * as React from "react";
-import { useState } from "react";
-import type { ClientApi } from "@hotel-chicago/api-client";
-import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
-import { Button } from "@hotel-chicago/ui";
+import { useCallback, useEffect, useState } from "react";
+import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
+import { Devise, Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Button, formatMontant } from "@hotel-chicago/ui";
 import { Coins, Moon, Printer, Sun, Users } from "lucide-react";
 import type { ConfigurationApp } from "../../../main/config-store";
 import type { IdPage } from "../navigation";
@@ -23,6 +23,94 @@ export interface EcranParametresProps {
    * (maquette mobile du 25/09/2026), donc toujours accessible ici. */
   themeSombre: boolean;
   onBasculerTheme: () => void;
+}
+
+/** Taux de change USD/CDF (PATRON, section 9.4) : taux en vigueur, saisie
+ * du nouveau taux du jour, historique (50 dernières lignes). */
+function GestionTauxChange({ client }: { client: ClientApi }) {
+  const [historique, setHistorique] = useState<TauxChange[] | null>(null);
+  const [saisie, setSaisie] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<string | null>(null);
+
+  const recharger = useCallback(() => {
+    client
+      .listerTauxChange()
+      .then(setHistorique)
+      .catch((e: Error) => setErreur(e.message));
+  }, [client]);
+
+  useEffect(recharger, [recharger]);
+
+  const actuel = historique?.[0] ?? null;
+
+  async function enregistrer() {
+    const valeur = Number(saisie.replace(/\s/g, "").replace(",", "."));
+    if (!saisie.trim() || Number.isNaN(valeur) || valeur <= 0) {
+      setErreur("Saisissez un taux positif (ex. 2800 pour 1 $ = 2 800 FC).");
+      return;
+    }
+    setEnCours(true);
+    setErreur(null);
+    setConfirmation(null);
+    try {
+      await client.creerTauxChange(valeur);
+      setSaisie("");
+      setConfirmation(`Taux enregistré : 1 $ = ${formatMontant(valeur, Devise.CDF)}`);
+      recharger();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="parametres-ligne">
+        <span className="parametres-ligne__icone">
+          <Coins size={18} aria-hidden="true" />
+        </span>
+        <span className="hc-text-body">
+          Taux de change : {actuel ? `1 $ = ${formatMontant(actuel.cdfParUsd, Devise.CDF)}` : historique ? "aucun taux défini" : "…"}
+        </span>
+      </div>
+      <div className="parametres-ligne" style={{ alignItems: "center" }}>
+        <input
+          type="text"
+          inputMode="decimal"
+          placeholder="Nouveau taux, ex. 2800"
+          value={saisie}
+          onChange={(e) => setSaisie(e.target.value)}
+          aria-label="Nouveau taux USD/CDF"
+          style={{ maxWidth: 220 }}
+        />
+        <Button type="button" variant="secondary" size="sm" onClick={enregistrer} disabled={enCours}>
+          {enCours ? "…" : "Enregistrer"}
+        </Button>
+      </div>
+      {erreur && (
+        <p role="alert" className="hc-text-body texte-erreur">
+          {erreur}
+        </p>
+      )}
+      {confirmation && (
+        <p className="hc-text-body texte-succes" role="status">
+          {confirmation}
+        </p>
+      )}
+      {historique && historique.length > 1 && (
+        <p className="hc-text-caption texte-discret">
+          Historique :{" "}
+          {historique
+            .slice(1, 6)
+            .map((t) => `${new Date(t.createdAt).toLocaleDateString("fr-FR")} → ${formatMontant(t.cdfParUsd, Devise.CDF)}`)
+            .join(" · ")}
+        </p>
+      )}
+    </>
+  );
 }
 
 /**
@@ -144,13 +232,17 @@ export function EcranParametres({
               </Button>
             )}
           </div>
-          <div className="parametres-ligne">
-            <span className="parametres-ligne__icone">
-              <Coins size={18} aria-hidden="true" />
-            </span>
-            <span className="hc-text-body">Taux de change</span>
-            <span className="badge-bientot">Bientôt</span>
-          </div>
+          {client ? (
+            <GestionTauxChange client={client} />
+          ) : (
+            <div className="parametres-ligne">
+              <span className="parametres-ligne__icone">
+                <Coins size={18} aria-hidden="true" />
+              </span>
+              <span className="hc-text-body">Taux de change</span>
+              <span className="hc-text-caption texte-discret">disponible une fois connecté</span>
+            </div>
+          )}
         </div>
       )}
     </div>

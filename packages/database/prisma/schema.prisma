@@ -215,6 +215,11 @@ model Client {
   telephone    String?
   email        String?
   createdAt    DateTime      @default(now())
+  // Ajoutés en Phase 16 pour rendre Client pullable par /sync/pull (le pull
+  // incrémental filtre sur updatedAt > curseur, comme toutes les entités
+  // synchronisées — voir section 10.3 et DECISIONS.md) :
+  updatedAt    DateTime      @updatedAt
+  syncVersion  Int           @default(1)
   reservations Reservation[]
 
   @@index([hotelId])

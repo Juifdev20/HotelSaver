@@ -21,6 +21,7 @@ import {
   ShoppingCart,
   Sun,
   UserRound,
+  Users,
   UtensilsCrossed,
   X,
 } from "lucide-react";
@@ -35,6 +36,7 @@ const ICONES: Record<IdPage, LucideIcon> = {
   chambres: BedDouble,
   reservations: CalendarDays,
   "arrivees-departs": ArrowLeftRight,
+  clients: Users,
   facturation: Receipt,
   caisse: ShoppingCart,
   "comptes-ouverts": ClipboardList,

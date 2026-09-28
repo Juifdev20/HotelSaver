@@ -5,6 +5,7 @@ function creerPrismaMock() {
   return {
     chambre: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     reservation: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    client: { findMany: jest.fn().mockResolvedValue([]) },
     produit: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     mouvementStock: { findMany: jest.fn().mockResolvedValue([]) },
     compteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
@@ -204,6 +205,7 @@ describe("SyncService", () => {
 
       expect(prisma.chambre.findMany).toHaveBeenCalled();
       expect(prisma.reservation.findMany).toHaveBeenCalled();
+      expect(prisma.client.findMany).toHaveBeenCalled();
       expect(prisma.facture.findMany).toHaveBeenCalled();
       expect(prisma.produit.findMany).not.toHaveBeenCalled();
       expect(prisma.compteCafeteria.findMany).not.toHaveBeenCalled();
@@ -215,6 +217,7 @@ describe("SyncService", () => {
         [
           "Chambre",
           "Reservation",
+          "Client",
           "Produit",
           "MouvementStock",
           "CompteCafeteria",

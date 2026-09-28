@@ -1,4 +1,4 @@
-import type { ClientApi, EntitePush, OperationPush, ResultatOperation } from "@hotel-chicago/api-client";
+import type { ClientApi, EntitePull, EntitePush, OperationPush, ResultatOperation } from "@hotel-chicago/api-client";
 import { MoteurSync, SEUIL_ECHEC_DEFINITIF } from "./moteur-sync";
 import type { ConflitSync, LigneFileAttente, StockageLocal } from "./types";
 
@@ -7,13 +7,13 @@ function creerStockageFactice(): StockageLocal & {
   file: LigneFileAttente[];
   conflits: ConflitSync[];
   miroir: unknown[];
-  confirmations: { entiteType: EntitePush; localId: string; remoteId: string; syncVersion: number }[];
+  confirmations: { entiteType: EntitePull; localId: string; remoteId: string; syncVersion: number }[];
 } {
   let compteur = 0;
   const file: LigneFileAttente[] = [];
   const conflits: ConflitSync[] = [];
   const miroir: unknown[] = [];
-  const confirmations: { entiteType: EntitePush; localId: string; remoteId: string; syncVersion: number }[] = [];
+  const confirmations: { entiteType: EntitePull; localId: string; remoteId: string; syncVersion: number }[] = [];
   const dernierePull = new Map<string, string>();
 
   return {

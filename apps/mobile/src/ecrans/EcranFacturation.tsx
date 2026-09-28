@@ -1,7 +1,8 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Devise, Facture, ModePaiement, Reservation, VenteCafeteria } from "@hotel-chicago/types";
+import type { TauxChange } from "@hotel-chicago/api-client";
 import { construireRecuFacture } from "@hotel-chicago/receipts";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -39,11 +40,14 @@ function calculerApercu(reservation: Reservation, ventesLiees: VenteCafeteria[])
 }
 
 /**
- * Facturer et check-out un séjour EN_COURS (section 11.2). Pas de paiement
- * croisé/monnaie rendue ici — même simplification que l'encaissement Caisse
- * (`EcranCompteCafeteria.tsx`) : le serveur refuse de toute façon le paiement
- * croisé automatique dès que la facture mélange USD et CDF (chambre +
- * cafétaria dans des devises différentes), voir factures.service.ts.
+ * Facturer et check-out un séjour EN_COURS (section 11.2), paiement croisé
+ * inclus (section 9.4) : une facture libellée en USD peut être réglée en
+ * CDF ou inversement — l'écran affiche le montant remis, le taux appliqué
+ * et la monnaie à rendre avant l'envoi. Borne serveur : une facture MIXTE
+ * (chambre + cafétaria dans deux devises différentes) ne peut pas être
+ * réglée en croisé — affiché comme tel. Le vrai montant facturé et la
+ * monnaie restent calculés côté serveur (encaissement.util.ts) ; ici c'est
+ * une prévisualisation fidèle.
  * Facturer et check-out sont deux appels indépendants côté API — si le
  * check-out échoue après une facture réussie, rien n'est perdu (la facture
  * existe déjà), juste signalé pour un check-out manuel plus tard.
@@ -60,22 +64,74 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
   const [enImpression, setEnImpression] = useState(false);
   const [messageImpression, setMessageImpression] = useState<string | null>(null);
 
+  // Paiement croisé (section 9.4) : devise remise, montant remis, devise du rendu.
+  const [taux, setTaux] = useState<TauxChange | null>(null);
+  const [deviseReglee, setDeviseReglee] = useState<Devise>(Devise.USD);
+  const [montantRegle, setMontantRegle] = useState("");
+  const [deviseRendu, setDeviseRendu] = useState<Devise>(Devise.USD);
+
   useEffect(() => {
-    Promise.all([client.obtenirReservation(reservationId), client.listerVentesCafeteria(reservationId)])
-      .then(([r, ventes]) => {
+    Promise.all([client.obtenirReservation(reservationId), client.listerVentesCafeteria(reservationId), client.tauxActuel()])
+      .then(([r, ventes, t]) => {
         setReservation(r);
         setVentesLiees(ventes.filter((v) => !v.annuleLe));
+        setTaux(t);
       })
       .catch((e: Error) => setErreur(e.message));
   }, [reservationId, client]);
 
   const apercu = useMemo(() => (reservation ? calculerApercu(reservation, ventesLiees) : null), [reservation, ventesLiees]);
 
+  // Facture mixte (chambre USD + cafétaria CDF, ou l'inverse) : le serveur
+  // refuse tout paiement croisé — le règlement se fait forcément en deux
+  // montants, le bloc de détail n'est pas affiché.
+  const factureMixte = apercu ? apercu.totalUSD > 0 && apercu.totalCDF > 0 : false;
+  const deviseDue: Devise | null = apercu ? (apercu.totalUSD > 0 ? Devise.USD : apercu.totalCDF > 0 ? Devise.CDF : null) : null;
+  const cdfParUsd = taux ? Number(taux.cdfParUsd) : undefined;
+  const regle = Number(montantRegle.replace(/\s/g, "").replace(",", "."));
+  const detailSaisi = montantRegle.trim() !== "" && !Number.isNaN(regle);
+
+  /** Prévisualisation de la monnaie — même règles que
+   * apps/api/src/factures/encaissement.util.ts (calcul de référence
+   * côté serveur). */
+  const apercuMonnaie = useMemo(() => {
+    if (!apercu || !deviseDue || !detailSaisi || factureMixte) return null;
+    const du = deviseDue === Devise.USD ? apercu.totalUSD : apercu.totalCDF;
+    const croise = deviseReglee !== deviseDue;
+    if (croise && !cdfParUsd) return { statut: "taux-manquant" as const };
+    const duReglee = croise ? (deviseDue === Devise.USD ? du * cdfParUsd! : du / cdfParUsd!) : du;
+    const reste = regle - duReglee;
+    if (reste < -0.005) return { statut: "insuffisant" as const, duReglee, croise };
+    const monnaieReglee = Math.max(0, reste);
+    const monnaieRendue =
+      deviseRendu === deviseReglee
+        ? monnaieReglee
+        : deviseReglee === Devise.USD
+          ? monnaieReglee * cdfParUsd!
+          : monnaieReglee / cdfParUsd!;
+    return {
+      statut: "ok" as const,
+      duReglee,
+      croise,
+      monnaie: deviseRendu === Devise.CDF ? Math.round(monnaieRendue) : Math.round(monnaieRendue * 100) / 100,
+      deviseMonnaie: deviseRendu,
+    };
+  }, [apercu, deviseDue, deviseReglee, deviseRendu, detailSaisi, regle, cdfParUsd, factureMixte]);
+
+  const bloquerPaiement =
+    (detailSaisi && (apercuMonnaie?.statut === "insuffisant" || apercuMonnaie?.statut === "taux-manquant")) ?? false;
+
   async function facturerEtCheckOut() {
     setEnCours(true);
     setErreur(null);
     try {
-      const facture = await client.creerFacture({ reservationId, modePaiement });
+      const facture = await client.creerFacture({
+        reservationId,
+        modePaiement,
+        ...(detailSaisi
+          ? { deviseRegleeParClient: deviseReglee, montantRegleParClient: regle, deviseRenduChoisie: deviseRendu }
+          : {}),
+      });
       setFactureCreee(facture);
       try {
         await client.checkOut(reservationId);
@@ -204,7 +260,80 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
             ))}
           </View>
 
-          <Pressable style={styles.bouton} onPress={facturerEtCheckOut} disabled={enCours}>
+          {factureMixte && (
+            <Text style={styles.noteMixte}>
+              Facture en deux devises : le règlement croisé n'est pas possible —
+              encaisser les montants USD et CDF séparément.
+            </Text>
+          )}
+
+          {!factureMixte && deviseDue && (
+            <View style={styles.carte}>
+              <Text style={styles.champLabel}>Détail du règlement (optionnel)</Text>
+              <Text style={styles.sousLabel}>Devise remise par le client</Text>
+              <View style={styles.selecteurMode}>
+                {[Devise.USD, Devise.CDF].map((d) => (
+                  <Pressable
+                    key={d}
+                    style={[styles.optionMode, deviseReglee === d && styles.optionModeActive]}
+                    onPress={() => setDeviseReglee(d)}
+                  >
+                    <Text style={[styles.optionModeTexte, deviseReglee === d && styles.optionModeTexteActif]}>{d}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {deviseReglee !== deviseDue && (
+                <Text style={styles.equivalence}>
+                  {taux
+                    ? `Dû : ${formatMontant(
+                        deviseDue === Devise.USD ? apercu.totalUSD * cdfParUsd! : apercu.totalCDF / cdfParUsd!,
+                        deviseReglee
+                      )} (1 $ = ${formatMontant(cdfParUsd!, Devise.CDF)})`
+                    : "Aucun taux de change défini par le patron — paiement croisé impossible."}
+                </Text>
+              )}
+              <Text style={styles.sousLabel}>Montant remis</Text>
+              <TextInput
+                style={styles.champ}
+                value={montantRegle}
+                onChangeText={setMontantRegle}
+                placeholder={`Ex. ${deviseReglee === Devise.USD ? "100.00" : "280 000"}`}
+                placeholderTextColor={couleurs.encreFaible}
+                keyboardType="numeric"
+              />
+              {detailSaisi && (
+                <>
+                  <Text style={styles.sousLabel}>Rendre la monnaie en</Text>
+                  <View style={styles.selecteurMode}>
+                    {[Devise.USD, Devise.CDF].map((d) => (
+                      <Pressable
+                        key={d}
+                        style={[styles.optionMode, deviseRendu === d && styles.optionModeActive]}
+                        onPress={() => setDeviseRendu(d)}
+                      >
+                        <Text style={[styles.optionModeTexte, deviseRendu === d && styles.optionModeTexteActif]}>{d}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
+              {apercuMonnaie?.statut === "insuffisant" && (
+                <Text style={styles.erreurBloc}>
+                  Montant insuffisant : il faut {formatMontant(apercuMonnaie.duReglee, deviseReglee)}.
+                </Text>
+              )}
+              {apercuMonnaie?.statut === "taux-manquant" && (
+                <Text style={styles.erreurBloc}>Aucun taux de change défini par le patron.</Text>
+              )}
+              {apercuMonnaie?.statut === "ok" && (
+                <Text style={styles.monnaie}>
+                  Monnaie à rendre : {formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}
+                </Text>
+              )}
+            </View>
+          )}
+
+          <Pressable style={[styles.bouton, bloquerPaiement && styles.boutonInactif]} onPress={facturerEtCheckOut} disabled={enCours || bloquerPaiement}>
             <Text style={styles.boutonTexte}>{enCours ? "…" : "Facturer et check-out"}</Text>
           </Pressable>
         </ScrollView>
@@ -248,7 +377,23 @@ const styles = StyleSheet.create({
   optionModeTexte: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
   optionModeTexteActif: { color: "#fff" },
   bouton: { height: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
+  boutonInactif: { opacity: 0.45 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  sousLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginTop: espacements.s3 },
+  champ: {
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    borderRadius: rayons.sm,
+    paddingHorizontal: espacements.s3,
+    height: 44,
+    fontSize: 15,
+    color: couleurs.encre,
+    backgroundColor: couleurs.surface100,
+  },
+  equivalence: { fontSize: 12, color: couleurs.bleu, marginTop: espacements.s2 },
+  noteMixte: { fontSize: 13, color: couleurs.alerte },
+  erreurBloc: { fontSize: 13, color: couleurs.danger, marginTop: espacements.s2 },
+  monnaie: { fontSize: 14, fontWeight: "700", color: couleurs.succes, marginTop: espacements.s2 },
   carteSucces: { backgroundColor: couleurs.succesClair, borderRadius: rayons.lg, padding: espacements.s5, alignItems: "center", gap: 4 },
   numeroRecu: { fontSize: 16, fontWeight: "700", color: couleurs.succes, marginBottom: espacements.s2 },
   avertissement: { color: couleurs.alerte, fontSize: 13 },

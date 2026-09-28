@@ -5,6 +5,7 @@ export type IdPage =
   | "chambres"
   | "reservations"
   | "arrivees-departs"
+  | "clients"
   | "facturation"
   | "caisse"
   | "comptes-ouverts"
@@ -43,8 +44,9 @@ export const SECTIONS: SectionNavigation[] = [
     titre: "Réception",
     entrees: [
       { id: "chambres", libelle: "Chambres", libelleCourt: "Chambres", roles: RECEPTION, disponible: true },
-      { id: "reservations", libelle: "Réservations", libelleCourt: "Réserv.", roles: RECEPTION, disponible: false },
-      { id: "arrivees-departs", libelle: "Arrivées et départs", libelleCourt: "Arrivées", roles: RECEPTION, disponible: false },
+      { id: "reservations", libelle: "Réservations", libelleCourt: "Réserv.", roles: RECEPTION, disponible: true },
+      { id: "arrivees-departs", libelle: "Arrivées et départs", libelleCourt: "Arrivées", roles: RECEPTION, disponible: true },
+      { id: "clients", libelle: "Clients", libelleCourt: "Clients", roles: RECEPTION, disponible: true },
       { id: "facturation", libelle: "Facturation", libelleCourt: "Factures", roles: RECEPTION, disponible: true },
     ],
   },

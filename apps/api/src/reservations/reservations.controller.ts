@@ -42,6 +42,11 @@ export class ReservationsController {
     return this.reservationsService.update(id, dto, currentUser.hotelId);
   }
 
+  @Post(":id/confirmer")
+  confirmer(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.reservationsService.confirmer(id, currentUser.hotelId);
+  }
+
   @Post(":id/annuler")
   annuler(@Param("id") id: string, @Body() dto: AnnulerReservationDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.reservationsService.annuler(id, dto, currentUser.hotelId);
