@@ -2126,3 +2126,17 @@ haut (écrit avant la refonte en deux écrans) dit `imageWidth` passé de 220
 à 171 — l'état final est `imageWidth: 220` dans `app.json`, cohérent avec
 le voile natif remonté à 220 dp ; seul l'écran JS de chargement est plus
 petit (140 dp), volontairement.
+
+### 2026-09-28 — Bascule hot-reload conditionnelle (`HOT_RELOAD=1`)
+
+Le bundle-embarqué (`debuggableVariants = []` + `useDevSupport = false`,
+injectés par `withSurfaceTranslucide.js`) rend chaque itération JS coûteuse
+(~1-13 min de rebuild). Pour le développement, le plugin saute désormais
+ces deux injections quand `HOT_RELOAD=1` est présent au moment de
+`expo prebuild` : le build debug recharge son bundle depuis Metro (fast
+refresh) au lieu de l'embarquer. Usage : `HOT_RELOAD=1 pnpm --filter mobile
+prebuild`, rebuild `gradlew installDebug`, puis `pnpm --filter mobile dev
+--port 8081` avec `adb reverse tcp:8081`. Le voile natif couvre le
+téléchargement du bundle au démarrage comme prévu (barre « Bundling » de
+Metro visible dessous). Vérifié sur l'OUKITEL : bundle servi en ~54 s puis
+tableau de bord, session restaurée silencieusement.

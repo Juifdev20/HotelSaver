@@ -145,8 +145,9 @@ const METHODES = `
  *    embarque son bundle JS (export:embed). Le lancement ne dépend alors
  *    plus de Metro ni d'adb reverse : ~2-3 s au lieu de ~60-80 s sur
  *    appareil modeste. Conséquence : pas de rechargement à chaud — tout
- *    changement JS demande un rebuild (~3 min). Pour itérer vite, repasser
- *    la valeur à `["debug"]` le temps du développement.
+ *    changement JS demande un rebuild (~3 min). Pour itérer vite :
+ *    `HOT_RELOAD=1 pnpm prebuild` saute les deux injections (voir plus bas),
+ *    puis rebuild + `pnpm dev --port 8081` avec `adb reverse tcp:8081`.
  *
  * Un troisième problème (le « fantôme » : la Starting Window système affiche
  * l'icône à une taille fixe ~288 dp, plus grande que notre voile 171 dp, le
@@ -172,6 +173,12 @@ module.exports = function withSurfaceTranslucide(config) {
     cfg.modResults.contents = src;
     return cfg;
   });
+
+  // HOT_RELOAD=1 au moment de `expo prebuild` : les deux injections
+  // ci-dessous sont sautéees — le build debug recharge alors son bundle
+  // depuis Metro à chaque lancement (fast refresh) au lieu de l'embarquer.
+  // À utiliser avec `pnpm dev --port 8081` + `adb reverse tcp:8081`.
+  if (process.env.HOT_RELOAD === "1") return config;
 
   config = withAppBuildGradle(config, (cfg) => {
     let src = cfg.modResults.contents;
