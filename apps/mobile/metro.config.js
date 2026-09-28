@@ -35,4 +35,13 @@ config.resolver.nodeModulesPaths = [
 // réellement pour que Metro sache que ces fichiers existent.
 config.resolver.disableHierarchicalLookup = false;
 
+// inlineRequires : les modules ne sont évalués qu'à leur premier usage —
+// nettement plus rapide au démarrage sur les appareils modestes.
+config.transformer.getTransformOptions = async () => ({
+  transform: {
+    experimentalImportSupport: false,
+    inlineRequires: true,
+  },
+});
+
 module.exports = config;

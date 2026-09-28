@@ -1957,3 +1957,172 @@ au lieu du téléchargement — même rendu sans noir.
 limite MAX_PATH de ninja (chemins d'objets ~380 chars via le store pnpm +
 ninja sans manifest `longPathAware`). Utiliser un build cloud (EAS) ou une
 machine avec chemins longs pour l'APK de production.
+
+### 2026-09-28 — Élimination du « logo fantôme » au démarrage Android
+
+**Constat mesuré sur l'OUKITEL (captures en rafale)** : après le fix du
+flash noir (entrée précédente), un second défaut restait visible pendant
+~1,5 s au démarrage à froid : un logo plus grand (~288 dp) apparaissait en
+fondu croisé par-dessus notre voile natif et l'écran JS `EcranDemarrage`
+(tous deux à 171 dp) — un changement de taille perceptible, contraire à
+l'objectif d'un démarrage « façon Facebook » à taille constante.
+
+**Diagnostic** : la **Starting Window** système (l'aperçu qu'Android
+dessine seul, à partir du thème de l'Activity, *avant même* que
+`MainActivity.onCreate()` ne s'exécute) affiche l'icône de
+`Theme.App.SplashScreen` à une taille fixe calculée en interne par l'OS
+(~288 dp) — ni `androidx.core:core-splashscreen` ni `Theme.SplashScreen`
+(API 31+) n'exposent d'attribut de thème pour la configurer (contrairement
+à `splashScreenIconSize`, qui avait été tenté et n'existe pas). Le fantôme,
+c'est cette Starting Window elle-même, distincte de notre voile.
+
+**Solution testée et écartée** : ajouter `android:windowDisablePreview` à
+`Theme.App.SplashScreen` depuis un plugin de config Expo
+(`withAndroidStyles` ou `withDangerousMod`, dans
+`apps/mobile/plugins/withSurfaceTranslucide.js`). Vérifié par instrumentation
+directe (`console.log` dans le mod, capture du fichier généré) : quelle que
+soit la position de ce plugin dans `app.json` (`plugins`), le mod
+`expo-splash-screen` qui reconstruit `Theme.App.SplashScreen` (4 items :
+`windowSplashScreenBackground`, `windowSplashScreenAnimatedIcon`,
+`postSplashScreenTheme`, `windowSplashScreenBehavior`) s'exécute à une étape
+fixe et plus tardive de `expo prebuild`, indépendante de l'ordre du tableau
+`plugins` — tout ce qu'un autre plugin y ajoute (via mod « safe » ou
+« dangerous ») est systématiquement écrasé.
+
+**Solution retenue** : patcher le fichier généré directement, une fois
+`expo prebuild` terminé — `apps/mobile/scripts/patch-native-splash.js`
+(nouveau), qui insère `<item name="android:windowDisablePreview">true</item>`
+dans `Theme.App.SplashScreen` au sein de `styles.xml`, de façon idempotente.
+Câblé dans `apps/mobile/package.json` (`"prebuild": "expo prebuild && node
+scripts/patch-native-splash.js"`) pour rester automatique à chaque
+régénération de `android/` (gitignoré), dans le même esprit que le plugin.
+Sans Starting Window système, la première chose dessinée à l'écran devient
+directement notre voile natif (`ajouterVoileDemarrage`, 171 dp, posé de
+façon synchrone en tout début d'`onCreate()`) — une seule taille du début à
+la fin.
+
+**Alignement secondaire** : `imageWidth` de la config `expo-splash-screen`
+(`app.json`) passé de `220` à `171`, pour que `R.drawable.splashscreen_logo`
+(référencé directement par le voile natif) corresponde à la taille utilisée
+partout ailleurs.
+
+**Vérifié** : captures en rafale sur l'OUKITEL après rebuild — plus de
+phase à taille différente, fondu croisé entre deux logos de même taille
+(imperceptible), spinner apparaît normalement, transition vers l'écran de
+sélection de profil ou le dashboard inchangée.
+
+### 2026-09-28 — Refonte du démarrage mobile en deux écrans explicites
+
+Le patron a rejeté la tentative précédente (une seule vue « logo puis spinner
+en fondu ») : le résultat réel divergeait de ce qui avait été demandé, malgré
+une annonce de succès prématurée. Consigne explicite, sans ambiguïté :
+**deux écrans distincts**, pas de tour de passe-passe visuel.
+
+`apps/mobile/App.tsx` — `EcranDemarrage` remplacé par deux composants :
+
+1. `EcranAccueil` : logo en grande taille (220 dp, même taille que le voile
+   natif — transition invisible) + slogan (« La gestion complète de votre
+   hôtel, simplifiée. »). Affiché pendant `DUREE_ACCUEIL_MS` (1,5 s) fixe,
+   indépendamment du temps de chargement réel.
+2. `EcranChargement` : logo réduit (140 dp) + `ActivityIndicator` + texte
+   « Veuillez patienter… ». Affiché ensuite, pendant la vérification réelle
+   (config, profils, rafraîchissement de session) — pas de durée minimale
+   artificielle, juste le temps que ça prend.
+
+Le `useEffect` de démarrage est redevenu strictement séquentiel : attendre
+`DUREE_ACCUEIL_MS`, passer à `"chargement"`, puis faire le travail réel
+(l'ancien `attendreDureeMinimale()` par branche est supprimé — un seul délai
+fixe au début suffit). Le voile natif (`withSurfaceTranslucide.js`) est
+passé de 171 dp à 220 dp pour rester assorti à `EcranAccueil`, qui est
+maintenant le premier écran JS rendu (et non plus l'écran de chargement) :
+`SplashScreen.hideAsync()` est donc appelé depuis son `onLayout`.
+
+**Vérifié** : captures en rafale sur l'OUKITEL, deux démarrages à froid
+consécutifs — logo seul (voile natif) → logo + slogan (JS) → logo réduit +
+spinner + « Veuillez patienter… » → sélection de profil, sans écran noir ni
+changement de taille intermédiaire.
+
+**Correction du même jour** : le voile natif n'affichait que le logo (pas de
+texte) — la brève fenêtre entre son apparition et le premier rendu JS
+(`EcranAccueil`, avec le slogan) était perçue par le patron comme un écran
+supplémentaire distinct (« deux interfaces ajoutées sur les deux d'avant »).
+Première tentative : ajouter le même slogan au voile natif (`LinearLayout`
+logo + `TextView`), pour que les deux rendus soient identiques dès la
+première frame — insuffisant : même à contenu pixel-identique, deux moteurs
+de rendu indépendants (Kotlin puis React) affichant successivement « le même
+écran » restent perçus comme une répétition (« le logo apparaît deux fois »).
+
+**Solution retenue** : `EcranAccueil` est supprimé côté JS — le voile natif
+est désormais le SEUL rendu du premier écran (logo + slogan), affiché au
+minimum 1500 ms au total (calculé depuis `ajouterVoileDemarrage`, pas
+seulement jusqu'à `CONTENT_APPEARED`). `App.tsx` passe directement à son
+écran de chargement (logo réduit + spinner + « Veuillez patienter… »), un
+contenu visuellement différent, donc jamais confondu avec une répétition.
+
+Effet de bord corrigé au passage : le minimum d'affichage du second écran
+(`DUREE_MINIMALE_CHARGEMENT_MS`) se comptait depuis le montage JS — à peu
+près le même instant que le début du voile natif. Avec une session déjà
+valide (vérification quasi instantanée), le JS traversait tout l'écran de
+chargement PENDANT qu'il était encore caché sous le voile, qui ne se
+retirait qu'ensuite — révélant le tableau de bord directement, sans jamais
+montrer le spinner. Remonté à 2500 ms (couvre les ~1500 ms du voile plus une
+marge visible), pour que l'écran de chargement reste réellement vu après la
+levée du voile, quelle que soit la rapidité de la vérification réelle.
+
+**Correction du même jour (2) — fond bleu nu entre deux écrans** : signalé à
+deux endroits distincts de la séquence (juste après le voile, et juste avant
+le tableau de bord). Cause commune : `ecran === "chargement"` et
+`ecran === "application"` étaient deux `return` séparés au sommet du
+composant — passer de l'un à l'autre force React à démonter tout l'arbre
+affiché pour en monter un tout nouveau (pour "application" : navigation +
+onglets + écrans, un montage coûteux), laissant voir le fond bleu de la
+fenêtre le temps que ce nouvel arbre peigne sa première image, même avec une
+surimpression placée À L'INTÉRIEUR de ce nouvel arbre (elle subit le même
+retard que ses voisins). Les deux états partagent désormais un seul arbre
+racine stable ; l'écran de chargement y est une simple bascule de visibilité
+(`applicationPrete`), jamais démonté/remonté pendant la transition.
+
+Piège au passage : la remise à `false` de `applicationPrete` se faisait dans
+un `useEffect` déclenché par le changement de `client` — un `useEffect` ne
+s'exécute qu'*après* le rendu, donc au premier rendu où `client` devient
+non-nul (le tableau de bord commence à monter), `applicationPrete` valait
+encore sa valeur précédente (`true`, mis par le passage précédent dans
+l'écran de chargement) : ce tout premier rendu se faisait donc sans
+surimpression. Remplacé par une remise à zéro synchrone pendant le rendu
+lui-même (comparaison avec un `useRef`, pattern recommandé par React pour
+« réinitialiser un état quand une prop change »).
+
+**Mesure de la marge nécessaire** : instrumentation temporaire
+(`Log`/`console.log` horodatés + captures d'écran avec timestamp système
+précis, pas seulement un numéro de frame) sur l'OUKITEL. Résultat : le délai
+entre `CONTENT_APPEARED` (le voile natif ne fait que réagir à ce signal) et
+l'apparition réelle du contenu varie énormément d'un démarrage à l'autre —
+observé entre ~0,45 s et plusieurs secondes après une dizaine de cycles
+reconstruction/relance consécutifs pendant cette session de débogage,
+symptôme cohérent d'un appareil d'entrée de gamme sous forte charge
+(mémoire, cache) plutôt que d'un défaut de code à ce stade. La marge a été
+portée à 600 ms par prudence, mais aucune constante fixe ne peut garantir
+l'absence totale de ce fond bleu sur un appareil déjà très sollicité — un
+nouveau test après redémarrage du téléphone est nécessaire pour confirmer le
+comportement en conditions normales.
+
+**Correction à la relecture (même jour, avant commit)** : la surimpression
+`{!applicationPrete && <EcranChargement onPret=…/>}` se détruisait
+elle-même pendant la phase `"chargement"` : `onPret` se déclenchait ~430 ms
+après son montage → `applicationPrete = true` → démontage, alors que
+`ecran` reste `"chargement"` jusqu'à `DUREE_MINIMALE_CHARGEMENT_MS`
+(2500 ms) — ~2 s de fond navy nu, sans logo ni spinner, à chaque démarrage.
+Fix : la surimpression n'a pas de `onPret` pendant `"chargement"` et ne
+devient relevable qu'une fois le contenu applicatif monté (`contenuPret` =
+`ecran === "application"` && client && utilisateur && moteurSync) ; la
+`key` de la surimpression bascule alors, la remontant pour que
+`onLayout` → `onPret` se redéclenche et lève le voile ~430 ms plus tard —
+ce qui couvre aussi l'attente asynchrone de `moteurSync` (ouverture
+SQLite), que l'ancienne condition `{!applicationPrete}` laissait nue si
+l'ouverture dépassait 430 ms.
+
+**Rectificatif tailles** : le paragraphe « Alignement secondaire » plus
+haut (écrit avant la refonte en deux écrans) dit `imageWidth` passé de 220
+à 171 — l'état final est `imageWidth: 220` dans `app.json`, cohérent avec
+le voile natif remonté à 220 dp ; seul l'écran JS de chargement est plus
+petit (140 dp), volontairement.

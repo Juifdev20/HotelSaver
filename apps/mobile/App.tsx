@@ -4,7 +4,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
-import { ActivityIndicator, Animated, Image, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { ClientApi, ErreurApi, connecterAvecMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
 import { MoteurSync } from "@hotel-chicago/sync-engine";
 import type { InscriptionHotelPayload, UtilisateurAuthentifie } from "@hotel-chicago/types";
@@ -28,62 +28,53 @@ import { FournisseurSession } from "./src/contexteSession";
 
 type Ecran = "chargement" | "selection-profil" | "connexion" | "inscription" | "application";
 
-/** Délai avant l'apparition du spinner sur l'écran de démarrage : le logo
- * HotelSaver s'affiche seul d'abord, puis le widget de chargement rejoint —
- * séquence visible à l'oeil même quand l'initialisation est instantanée. */
-const DELAI_APPARITION_SPINNER_MS = 1200;
+/** Durée minimale, comptée depuis le montage JS (donc à peu près depuis le
+ * lancement natif), avant de quitter cet écran. Le voile natif (premier
+ * écran, logo + slogan — voir withSurfaceTranslucide.js) couvre tout ce qui
+ * se passe côté JS pendant ~1500 ms minimum ; sans marge supplémentaire ici,
+ * une session déjà valide (vérification quasi instantanée, stockage local)
+ * fait passer l'écran de chargement directement au tableau de bord PENDANT
+ * qu'il est encore caché sous le voile — l'utilisateur ne le voit alors
+ * jamais. 2500 ms garantit qu'il reste visible ~1 s de plus une fois le
+ * voile retiré, quelle que soit la rapidité de la vérification réelle. */
+const DUREE_MINIMALE_CHARGEMENT_MS = 2500;
 
-/** Durée minimale totale de l'écran de démarrage : garantit que la séquence
- * logo → spinner est réellement vue, et que le démarrage ne donne pas
- * l'impression d'un flash avant le tableau de bord ou la connexion. */
-const DUREE_MINIMALE_DEMARRAGE_MS = 2600;
-
-/** Écran de démarrage brandé : badge HotelSaver centré sur navy #053483
- * (identique au splash natif → transition invisible), puis le spinner
- * apparaît en fondu après DELAI_APPARITION_SPINNER_MS. */
-function EcranDemarrage() {
-  const fonduSpinner = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const minuteur = setTimeout(() => {
-      Animated.timing(fonduSpinner, {
-        toValue: 1,
-        duration: 350,
-        useNativeDriver: true,
-      }).start();
-    }, DELAI_APPARITION_SPINNER_MS);
-    return () => clearTimeout(minuteur);
-  }, [fonduSpinner]);
-
+/** Seul écran de démarrage côté JS : logo à taille réduite + widget de
+ * chargement, affiché pendant la vérification réelle de la session
+ * (configuration, profils, rafraîchissement du jeton). Le voile natif
+ * (logo grande taille + slogan) reste visible par-dessus jusqu'à ce que ce
+ * rendu soit commis (CONTENT_APPEARED, voir le plugin) — la transition
+ * natif → JS montre donc un contenu différent (plus petit, avec spinner),
+ * jamais une répétition.
+ *
+ * Réutilisé aussi en surimpression lors du passage vers le tableau de bord
+ * (`onPret`, passé uniquement à ce moment-là) : monter tout l'arbre de
+ * navigation (onglets, écrans) prend un instant avant sa première image
+ * réelle — sans ce voile, on voit passer le fond bleu de la fenêtre pendant
+ * ce court instant (mesuré sur appareil). */
+function EcranChargement({ onPret }: { onPret?: () => void }) {
   return (
-    // Mesuré sur appareil (captures d'écran en rafale au démarrage) : même
-    // avec un double requestAnimationFrame, un écran noir franc apparaît
-    // AVANT que ce fond navy n'apparaisse — la surface Fabric reste noire
-    // par défaut pendant que React Native finit de démarrer, largement au-
-    // delà de deux frames. onLayout + rAF garantissent seulement qu'une
-    // image a été commise, pas que la surface est déjà prête à composer ;
-    // la marge fixe ci-dessous couvre l'écart réellement observé. Un
-    // splash natif affiché un peu plus longtemps est invisible pour
-    // l'utilisateur ; un écran noir au milieu ne l'est pas.
     <View
       style={styles.chargement}
       onLayout={() => {
+        // Mesuré sur appareil (captures d'écran en rafale au démarrage) :
+        // onLayout garantit une mesure, pas un rendu déjà composé à l'écran —
+        // le double requestAnimationFrame + la marge fixe attendent qu'une
+        // vraie image ait été affichée avant de lever le splash JS (le voile
+        // natif, lui, se retire séparément sur CONTENT_APPEARED, voir le plugin).
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             setTimeout(() => {
               void SplashScreen.hideAsync();
+              onPret?.();
             }, 400);
           });
         });
       }}
     >
-      <Image source={require("./assets/hotelsaver-logo.png")} style={styles.logoDemarrage} resizeMode="contain" />
-      {/* Hauteur fixe réservée : l'apparition du spinner ne déplace pas le logo. */}
-      <View style={styles.zoneSpinner}>
-        <Animated.View style={{ opacity: fonduSpinner }}>
-          <ActivityIndicator color="#FFFFFF" size="large" />
-        </Animated.View>
-      </View>
+      <Image source={require("./assets/hotelsaver-logo.png")} style={styles.logoChargement} resizeMode="contain" />
+      <ActivityIndicator color="#FFFFFF" size="large" style={styles.spinnerChargement} />
+      <Text style={styles.texteChargement}>Veuillez patienter…</Text>
     </View>
   );
 }
@@ -116,6 +107,26 @@ export default function App() {
 
   const [moteurSync, setMoteurSync] = useState<MoteurSync | null>(null);
 
+  // Le tableau de bord (CoquilleOnglets, plus bas) est un tout nouvel arbre
+  // de navigation à chaque connexion/changement de profil : redémarre à
+  // false pour que la surimpression de chargement le couvre le temps qu'il
+  // peigne sa première image réelle (voir le rendu de l'écran "application").
+  // Remise à zéro PENDANT le rendu (pas dans un useEffect) : quand "client"
+  // redevient non-nul après un changement de profil, un useEffect ne
+  // remettrait applicationPrete à false qu'au rendu SUIVANT, laissant passer
+  // un premier rendu de l'arbre lourd sans aucune surimpression par-dessus
+  // (mesuré sur appareil : fond bleu nu juste après l'écran de chargement).
+  // (Pendant la phase "chargement" initiale, applicationPrete reste false :
+  // la surimpression n'y reçoit pas de onPret — voir le rendu plus bas.)
+  const [applicationPrete, setApplicationPrete] = useState(false);
+  const dernierClientRef = useRef(client);
+  if (dernierClientRef.current !== client) {
+    dernierClientRef.current = client;
+    if (applicationPrete) {
+      setApplicationPrete(false);
+    }
+  }
+
   // Démarre le moteur de synchronisation dès qu'un client est disponible
   // (connexion réussie), l'arrête si le client disparaît (changerDeProfil).
   // La base SQLite sous-jacente est partagée par l'appareil (pas par
@@ -141,15 +152,15 @@ export default function App() {
   }, [client]);
 
   // Démarrage : charge la config puis la liste des profils déjà connectés
-  // sur cet appareil (section 5, "sélection de profil au démarrage").
+  // sur cet appareil (section 5, "sélection de profil au démarrage"), et
+  // tente une reconnexion silencieuse. DUREE_MINIMALE_CHARGEMENT_MS garantit
+  // que le widget de chargement reste visible un minimum, même si tout ceci
+  // est instantané (stockage local).
   useEffect(() => {
-    const debutDemarrage = Date.now();
-    // Garantit DUREE_MINIMALE_DEMARRAGE_MS d'affichage de l'écran de démarrage
-    // avant toute transition — la séquence logo → spinner reste visible même
-    // quand l'initialisation est instantanée (stockage local, session valide).
+    const debut = Date.now();
     const attendreDureeMinimale = () =>
       new Promise<void>((resolve) =>
-        setTimeout(resolve, Math.max(0, DUREE_MINIMALE_DEMARRAGE_MS - (Date.now() - debutDemarrage)))
+        setTimeout(resolve, Math.max(0, DUREE_MINIMALE_CHARGEMENT_MS - (Date.now() - debut)))
       );
 
     (async () => {
@@ -157,7 +168,7 @@ export default function App() {
       setConfiguration(config);
       const liste = await listerProfils();
       setProfils(liste);
-      
+
       // Si aucun profil, aller à l'écran de connexion
       if (liste.length === 0) {
         await attendreDureeMinimale();
@@ -195,7 +206,15 @@ export default function App() {
 
   async function terminerConnexion(session: { accessToken: string; refreshToken: string }, config: ConfigurationApp, email: string) {
     const clientTemporaire = new ClientApi(config.apiUrl, () => session.accessToken);
-    const donnees = await clientTemporaire.moi();
+    // Timeout : sans lui, un serveur injoignable fait pendre le démarrage
+    // jusqu'au timeout TCP (~2 min). En échec, le démarrage retombe sur la
+    // sélection de profil au lieu de rester figé.
+    const donnees = await Promise.race([
+      clientTemporaire.moi(),
+      new Promise<never>((_, rejette) =>
+        setTimeout(() => rejette(new Error("Serveur injoignable")), 10_000)
+      ),
+    ]);
     await enregistrerProfil({ utilisateurId: donnees.userId, nom: donnees.nom, role: donnees.role, email });
     await ecrireJetonRafraichissement(donnees.userId, session.refreshToken);
     await ecrireDernierUtilisateur(donnees.userId);
@@ -294,15 +313,6 @@ export default function App() {
     retourSelectionProfil();
   }
 
-  // Le second cas couvre le bref instant entre la connexion réussie et
-  // l'ouverture de la base SQLite locale (asynchrone, voir useEffect
-  // ci-dessus) — sans lui, un écran vide apparaîtrait entre les deux.
-  // Même logo et même fond que le splash natif (app.json) : la transition
-  // natif → JS est invisible, à la manière des splash de Facebook.
-  if (ecran === "chargement" || !configuration || (ecran === "application" && !moteurSync)) {
-    return <EcranDemarrage />;
-  }
-
   if (ecran === "selection-profil") {
     return (
       <EcranSelectionProfil
@@ -352,26 +362,52 @@ export default function App() {
     );
   }
 
-  if (ecran === "application" && client && utilisateur && moteurSync) {
-    return (
-      <SafeAreaProvider>
-        <FournisseurSession session={{ client, utilisateur, changerDeProfil, moteurSync }}>
-          <NavigationContainer>
-            <CoquilleOnglets />
-          </NavigationContainer>
-        </FournisseurSession>
-        <StatusBar style="dark" />
-      </SafeAreaProvider>
-    );
-  }
-
-  return null;
+  // "chargement" (avant authentification) et "application" (tableau de bord)
+  // partagent ce même arbre : l'écran de chargement y reste monté en
+  // continu (une simple bascule de visibilité, jamais un nouvel arbre)
+  // pendant que le tableau de bord — lourd, navigation + onglets + écrans —
+  // monte en arrière-plan. Mesuré sur appareil : les rendre par deux
+  // `return` séparés forçait React à démonter tout l'arbre de chargement
+  // pour en monter un tout nouveau, laissant voir le fond bleu de la
+  // fenêtre le temps que ce nouvel arbre peigne sa première image, même
+  // avec une surimpression placée À L'INTÉRIEUR de ce nouvel arbre (elle
+  // subissait le même retard que ses voisins).
+  //
+  // La surimpression couvre TOUTE la phase "chargement" (elle n'a pas de
+  // onPret dans ce cas — sinon elle se démonterait ~430 ms après son
+  // montage et laisserait l'arbre racine vide jusqu'à la fin de
+  // DUREE_MINIMALE_CHARGEMENT_MS : du fond nu sans logo ni spinner). Elle
+  // ne devient relevable qu'une fois le contenu applicatif monté — la `key`
+  // change alors, la remontant pour que son onLayout → onPret se
+  // redéclenche et lève le voile ~430 ms après, le temps que le tableau de
+  // bord peigne sa première image réelle en dessous.
+  const contenuPret =
+    ecran === "application" && client !== null && utilisateur !== null && moteurSync !== null;
+  return (
+    <View style={styles.racine}>
+      {contenuPret && (
+        <SafeAreaProvider>
+          <FournisseurSession session={{ client, utilisateur, changerDeProfil, moteurSync }}>
+            <NavigationContainer>
+              <CoquilleOnglets />
+            </NavigationContainer>
+          </FournisseurSession>
+          <StatusBar style="dark" />
+        </SafeAreaProvider>
+      )}
+      {(ecran === "chargement" || (ecran === "application" && !applicationPrete)) && (
+        <View key={contenuPret ? "application" : "demarrage"} style={StyleSheet.absoluteFill}>
+          <EcranChargement onPret={contenuPret ? () => setApplicationPrete(true) : undefined} />
+        </View>
+      )}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  racine: { flex: 1 },
   chargement: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#053483" },
-  logoDemarrage: { width: 180, height: 180 },
-  // 32 de marge + ~40 pour le spinner : espace réservé avant son apparition
-  // pour que le logo ne bouge jamais.
-  zoneSpinner: { marginTop: 32, height: 40, justifyContent: "center" },
+  logoChargement: { width: 140, height: 140 },
+  spinnerChargement: { marginTop: 24 },
+  texteChargement: { marginTop: 16, color: "#FFFFFF", fontSize: 14 },
 });

@@ -7,7 +7,7 @@
     "dev": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "prebuild": "expo prebuild",
+    "prebuild": "expo prebuild && node scripts/patch-native-splash.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

@@ -48,7 +48,9 @@ function messageErreurAuth(status: number, corps: { error_code?: string; error?:
 
 async function envoyer(url: string, init: RequestInit): Promise<Response> {
   try {
-    return await fetch(url, init);
+    // Borne l'attente réseau : sans signal, fetch peut pendre jusqu'au
+    // timeout TCP (~2 min) sur connexion instable — critique au démarrage.
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
   } catch {
     // Internet coupé (fréquent à l'hôtel, section 0) : fetch lève avant toute réponse.
     throw new Error(
