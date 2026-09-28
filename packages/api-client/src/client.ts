@@ -585,9 +585,14 @@ export class ClientApi {
       throw new ErreurApi(reponse.status, corps.message || `Erreur ${reponse.status} sur ${chemin}.`);
     }
 
-    if (reponse.status === 204) {
+    // Corps vide possible sans 204 : NestJS sérialise `null`/`undefined` en
+    // réponse vide (ex. GET /taux-change/actuel avant toute saisie, ou un
+    // DELETE qui retourne void) — `reponse.json()` lèverait « JSON Parse
+    // error: Unexpected end of input ».
+    try {
+      return await reponse.json();
+    } catch {
       return undefined as T;
     }
-    return reponse.json();
   }
 }
