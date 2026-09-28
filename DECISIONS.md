@@ -2382,3 +2382,14 @@ silencieuse au démarrage saute désormais un dernier profil PATRON : un
 redémarrage de l'app sur un téléphone partagé ne doit pas rouvrir la
 session patron sans mot de passe (les profils employés, eux, reprennent
 leur session — continuité sur leur propre compte, pas de changement).
+
+### UX — refonte de l'onglet « Plus » mobile
+
+Retour du patron : la liste empilait déconnexion, réglages et modules sans
+hiérarchie — « pas une app professionnelle ». Nouvel ordre, calqué sur la
+barre latérale desktop : carte profil → sections métier (icône + libellé +
+chevron, mêmes icônes que `ICONES` de Coquille.tsx) → section « Appareil »
+(Paramètres, Imprimante, Synchronisation) → action de compte en bas
+(Changer de profil PATRON / Se déconnecter rouge employés). La carte
+« Compte » existe aussi en bas de Paramètres mobile — deux endroits
+évidents plutôt qu'un.
