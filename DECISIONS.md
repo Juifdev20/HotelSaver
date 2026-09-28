@@ -2370,3 +2370,15 @@ Deux trous du mode « téléphone partagé » (section 5) corrigés :
   employés ont « Se déconnecter » (rouge), qui oublie le profil ET son
   jeton (`oublierProfil`) — la reconnexion exige le mot de passe, il n'y a
   plus de porte dérobée par la liste des profils.
+
+### Durcissement complet — chacun garde son compte
+
+Le patron a tranché : pas de basculement entre comptes employés du tout.
+`choisirProfil` ne repasse plus par le jeton mémorisé pour PERSONNE —
+chaque carte de profil redemande le mot de passe. Le patron « circule »
+parce qu'il connaît les identifiants qu'il a créés dans Utilisateurs, pas
+grâce à un raccourci sans authentification. De même, la reconnexion
+silencieuse au démarrage saute désormais un dernier profil PATRON : un
+redémarrage de l'app sur un téléphone partagé ne doit pas rouvrir la
+session patron sans mot de passe (les profils employés, eux, reprennent
+leur session — continuité sur leur propre compte, pas de changement).

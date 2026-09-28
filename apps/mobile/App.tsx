@@ -187,9 +187,12 @@ export default function App() {
       // Reconnexion silencieuse au dernier profil utilisé sur cet appareil
       // (le seul s'il n'y en a qu'un) — évite de repasser par la sélection de
       // profil à chaque lancement quand ce n'est pas un appareil partagé.
+      // Jamais pour un PATRON : ce compte exige le mot de passe partout,
+      // y compris ici — sinon un redémarrage de l'app ouvrirait sa session
+      // sur un téléphone entre des mains d'employés (retour terrain 28/09).
       const dernierId = liste.length === 1 ? liste[0].utilisateurId : await lireDernierUtilisateur();
       const profil = liste.find((p) => p.utilisateurId === dernierId);
-      if (profil) {
+      if (profil && profil.role !== Role.PATRON) {
         const jeton = await lireJetonRafraichissement(profil.utilisateurId);
         if (jeton) {
           try {
@@ -233,36 +236,14 @@ export default function App() {
 
   async function choisirProfil(profil: ProfilEnregistre) {
     if (!configuration) return;
-    // Un compte PATRON ne repasse jamais par le jeton mémorisé : sinon, sur
-    // un téléphone partagé, n'importe quel employé ouvrirait la session
-    // patron sans mot de passe — fuite complète (retour terrain 28/09).
-    // Lui, en revanche, peut encore basculer vers un profil employé.
-    if (profil.role === Role.PATRON) {
-      setEmailPreRempli(profil.email);
-      setMessageConnexion("Compte Patron : mot de passe requis pour se reconnecter.");
-      setEcran("connexion");
-      return;
-    }
-    const jeton = await lireJetonRafraichissement(profil.utilisateurId);
-    if (!jeton) {
-      setEmailPreRempli(profil.email);
-      setMessageConnexion("Reconnectez-vous pour continuer.");
-      setEcran("connexion");
-      return;
-    }
-    try {
-      const session = await rafraichirSession(
-        { url: configuration.supabaseUrl, anonKey: configuration.supabaseAnonKey },
-        jeton
-      );
-      await terminerConnexion(session, configuration, profil.email);
-    } catch {
-      // Session expirée/invalide : redemande le mot de passe, sans supprimer
-      // le profil (l'utilisateur pourrait juste être hors ligne).
-      setEmailPreRempli(profil.email);
-      setMessageConnexion("Votre session a expiré. Reconnectez-vous.");
-      setEcran("connexion");
-    }
+    // Chacun garde son compte : choisir un profil exige TOUJOURS son mot de
+    // passe, jamais le jeton mémorisé — sinon un réceptionniste ouvrirait le
+    // compte cafétaria (ou le patron) en un tap sur le téléphone partagé
+    // (retour terrain 28/09). Le patron circule quand même : il connaît les
+    // identifiants de chaque compte puisque c'est lui qui les crée.
+    setEmailPreRempli(profil.email);
+    setMessageConnexion("Entrez le mot de passe de ce compte pour continuer.");
+    setEcran("connexion");
   }
 
   async function seConnecter(email: string, motDePasse: string) {
