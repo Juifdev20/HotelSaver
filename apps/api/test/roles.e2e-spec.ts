@@ -173,6 +173,20 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
         .set("Authorization", bearer("auth-receptionniste"))
         .expect(403);
     });
+
+    // Exception justifiée (section 9.3 "Facture séjour") : la réception lit
+    // les ventes liées à un séjour pour l'aperçu de la facture — mais pas la
+    // liste globale des ventes cafétaria.
+    it("RECEPTIONNISTE → 403 sur /cafeteria/ventes sans filtre, 200 avec reservationLieeId", async () => {
+      await request(app.getHttpServer())
+        .get("/cafeteria/ventes")
+        .set("Authorization", bearer("auth-receptionniste"))
+        .expect(403);
+      await request(app.getHttpServer())
+        .get("/cafeteria/ventes?reservationLieeId=r-1")
+        .set("Authorization", bearer("auth-receptionniste"))
+        .expect(200);
+    });
   });
 
   it("/health répond 200 sans authentification", async () => {

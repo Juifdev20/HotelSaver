@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -14,7 +14,11 @@ import { AnnulerVenteDto } from "./dto/annuler-vente.dto";
 
 /**
  * Permissions (section 9.3, lignes Comptes/Ventes cafétaria) : RECEPTIONNISTE
- * n'a aucun accès à ce module. CAFETARIA gère tout le cycle de vie normal
+ * n'a aucun accès à ce module, à une exception près — la lecture des ventes
+ * liées à un séjour (GET /cafeteria/ventes?reservationLieeId=…), nécessaire
+ * à l'aperçu de la facture séjour (section 9.3 "Facture séjour" : la réception
+ * encaisse chambre + cafétaria) ; sans ce paramètre elle reçoit 403.
+ * CAFETARIA gère tout le cycle de vie normal
  * (ouverture, sous-comptes, lignes, encaissement). PATRON a également accès
  * à toutes ces actions (cohérent avec le traitement de Réservations/Factures,
  * voir DECISIONS.md) mais est SEUL à pouvoir annuler une vente déjà encaissée
@@ -68,11 +72,20 @@ export class CafeteriaController {
     return this.cafeteriaService.encaisser(id, dto, currentUser);
   }
 
+  /** Seule brèche de la matrice pour RECEPTIONNISTE : les ventes liées à
+   * un séjour précis, pour l'aperçu de facturation. Sans `reservationLieeId`
+   * (liste globale des ventes), la réception reste dehors. */
   @Get("ventes")
+  @Roles(Role.CAFETARIA, Role.PATRON, Role.RECEPTIONNISTE)
   findAllVentes(
     @Query("reservationLieeId") reservationLieeId: string | undefined,
     @CurrentUser() currentUser: UtilisateurAuthentifie
   ) {
+    if (currentUser.role === Role.RECEPTIONNISTE && !reservationLieeId) {
+      throw new ForbiddenException(
+        "La réception ne peut consulter que les ventes liées à un séjour, dans le cadre d'une facturation."
+      );
+    }
     return this.cafeteriaService.findAllVentes(currentUser.hotelId, reservationLieeId);
   }
 

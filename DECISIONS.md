@@ -2327,3 +2327,13 @@ grise les rôles déjà dotés (« · déjà créé ») à la création.
 update Supabase→Prisma, rollback email P2002), api-client étendu
 (`modifierUtilisateur`, `DonneesModificationUtilisateur`), typechecks
 mobile et desktop propres.
+
+### Correctif — GET /cafeteria/ventes et rôle RECEPTIONNISTE
+
+Bug trouvé au premier test réel de facturation : l'écran « Facturer et
+check-out » appelait `GET /cafeteria/ventes?reservationLieeId=…` pour
+l'aperçu du total (chambre + cafétaria), or la route n'acceptait que
+CAFETARIA/PATRON → 403 « accès refusé » avant même la création de la
+facture. La réception peut désormais lire **uniquement** les ventes liées
+à un séjour (`reservationLieeId` obligatoire pour ce rôle, sinon 403) —
+la matrice « pas d'accès au module cafétaria » reste intacte ailleurs.
