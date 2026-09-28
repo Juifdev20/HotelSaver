@@ -1,7 +1,24 @@
 import * as React from "react";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Printer, RefreshCw, Settings, UserRound, LogOut } from "lucide-react-native";
+import {
+  ArrowLeftRight,
+  ChevronRight,
+  ClipboardList,
+  Coins,
+  LogOut,
+  LucideIcon,
+  Package,
+  Printer,
+  ReceiptText,
+  RefreshCw,
+  Settings,
+  ShoppingCart,
+  UserCog,
+  UserRound,
+  Users,
+  UtensilsCrossed,
+} from "lucide-react-native";
 import { Role } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
@@ -49,6 +66,49 @@ type VuePlus =
 
 const VUE_LISTE: VuePlus = { id: "liste" };
 
+/** Une icône par entrée de menu — même choix que `ICONES` de la coquille
+ * desktop (layout/Coquille.tsx) pour que les deux apps parlent pareil. */
+const ICONES_MENU: Record<string, LucideIcon> = {
+  "arrivees-departs": ArrowLeftRight,
+  clients: Users,
+  caisse: ShoppingCart,
+  "comptes-ouverts": ClipboardList,
+  menu: UtensilsCrossed,
+  stock: Package,
+  "journal-recus": ReceiptText,
+  utilisateurs: UserCog,
+  "taux-de-change": Coins,
+};
+
+/** Ligne de menu standardisée : icône, libellé, chevron (ou badge « Bientôt »). */
+function LigneMenu({
+  icone: Icone,
+  libelle,
+  desactive,
+  badge,
+  onPress,
+}: {
+  icone: LucideIcon;
+  libelle: string;
+  desactive?: boolean;
+  badge?: React.ReactNode;
+  onPress?: () => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.ligne, desactive && styles.ligneDesactivee]}
+      onPress={onPress}
+      disabled={desactive}
+      accessibilityRole="button"
+    >
+      <Icone size={18} color={desactive ? couleurs.encreFaible : couleurs.encre} />
+      <Text style={[styles.ligneTexte, desactive && styles.ligneTexteDesactive]}>{libelle}</Text>
+      {badge}
+      {!desactive && <ChevronRight size={16} color={couleurs.encreFaible} />}
+    </Pressable>
+  );
+}
+
 /** Onglet "Plus" — profil courant, actions rattachées à l'appareil, et les
  * modules du rôle qui n'ont pas leur propre onglet en bas (Réception
  * au-delà de Chambres, Cafétaria, Administration — voir
@@ -63,7 +123,15 @@ export function EcranPlus() {
   const etatSync = useSyncEtat();
 
   if (vue.id === "parametres") {
-    return <EcranParametresMobile client={client} onRetour={() => setVue(VUE_LISTE)} />;
+    return (
+      <EcranParametresMobile
+        client={client}
+        utilisateur={utilisateur}
+        onChangerProfil={changerDeProfil}
+        onSeDeconnecter={seDeconnecter}
+        onRetour={() => setVue(VUE_LISTE)}
+      />
+    );
   }
   if (vue.id === "synchronisation") {
     return <EcranSynchronisation onRetour={() => setVue(VUE_LISTE)} />;
@@ -126,44 +194,6 @@ export function EcranPlus() {
           <Text style={styles.role}>{LIBELLE_ROLE[utilisateur.role]}</Text>
         </View>
 
-        {/* Seul le PATRON bascule entre les profils mémorisés (téléphone
-            partagé, retour rapide). Un employé n'a que « Se déconnecter » —
-            qui oublie son profil et son jeton : impossible de revenir sur
-            son compte ou d'en ouvrir un autre sans mot de passe. Et même
-            sur la sélection de profil, une carte Patron exige le mot de
-            passe (voir choisirProfil dans App.tsx). */}
-        {utilisateur.role === Role.PATRON ? (
-          <Pressable style={styles.ligne} onPress={changerDeProfil}>
-            <UserRound size={18} color={couleurs.encre} />
-            <Text style={styles.ligneTexte}>Changer de profil</Text>
-          </Pressable>
-        ) : (
-          <Pressable style={styles.ligne} onPress={seDeconnecter}>
-            <LogOut size={18} color={couleurs.danger} />
-            <Text style={[styles.ligneTexte, { color: couleurs.danger }]}>Se déconnecter</Text>
-          </Pressable>
-        )}
-
-        <Pressable style={styles.ligne} onPress={() => setVue({ id: "parametres" })}>
-          <Settings size={18} color={couleurs.encre} />
-          <Text style={styles.ligneTexte}>Paramètres</Text>
-        </Pressable>
-
-        <Pressable style={styles.ligne} onPress={() => setVue({ id: "synchronisation" })}>
-          <RefreshCw size={18} color={couleurs.encre} />
-          <Text style={styles.ligneTexte}>Synchronisation</Text>
-          {(etatSync.enAttente > 0 || etatSync.conflits > 0) && (
-            <View style={styles.badgeCompteur}>
-              <Text style={styles.badgeCompteurTexte}>{etatSync.enAttente + etatSync.conflits}</Text>
-            </View>
-          )}
-        </Pressable>
-
-        <Pressable style={styles.ligne} onPress={() => setVue({ id: "imprimante" })}>
-          <Printer size={18} color={couleurs.encre} />
-          <Text style={styles.ligneTexte}>Imprimante</Text>
-        </Pressable>
-
         {/* Modules qui n'ont pas leur propre onglet en bas (Réception au-delà
             de Chambres, Cafétaria, Administration) — même contenu que la
             barre latérale desktop, voir navigation.ts. Sans ça, un compte
@@ -171,42 +201,74 @@ export function EcranPlus() {
         {sections.map((section) => (
           <View key={section.titre} style={styles.section}>
             <Text style={styles.titreSection}>{section.titre}</Text>
-            {section.entrees.map((entree) => {
-              if (!entree.disponible) {
-                return (
-                  <View key={entree.id} style={[styles.ligne, styles.ligneDesactivee]}>
-                    <Text style={[styles.ligneTexte, styles.ligneTexteDesactive]}>{entree.libelle}</Text>
+            {section.entrees.map((entree) => (
+              <LigneMenu
+                key={entree.id}
+                icone={ICONES_MENU[entree.id] ?? Settings}
+                libelle={entree.libelle}
+                desactive={!entree.disponible}
+                badge={
+                  !entree.disponible ? (
                     <View style={styles.badgeBientot}>
                       <Text style={styles.badgeBientotTexte}>Bientôt</Text>
                     </View>
-                  </View>
-                );
-              }
-              return (
-                <Pressable
-                  key={entree.id}
-                  style={styles.ligne}
-                  onPress={() =>
-                    setVue({
-                      id: entree.id as
-                        | "caisse"
-                        | "comptes-ouverts"
-                        | "menu"
-                        | "stock"
-                        | "utilisateurs"
-                        | "arrivees-departs"
-                        | "clients"
-                        | "taux-de-change"
-                        | "journal-recus",
-                    })
-                  }
-                >
-                  <Text style={styles.ligneTexte}>{entree.libelle}</Text>
-                </Pressable>
-              );
-            })}
+                  ) : undefined
+                }
+                onPress={() =>
+                  setVue({
+                    id: entree.id as
+                      | "caisse"
+                      | "comptes-ouverts"
+                      | "menu"
+                      | "stock"
+                      | "utilisateurs"
+                      | "arrivees-departs"
+                      | "clients"
+                      | "taux-de-change"
+                      | "journal-recus",
+                  })
+                }
+              />
+            ))}
           </View>
         ))}
+
+        {/* Réglages propres à cet appareil — section à part, après les
+            modules métier, comme « Paramètres » tout en bas de la barre
+            latérale desktop. */}
+        <View style={styles.section}>
+          <Text style={styles.titreSection}>Appareil</Text>
+          <LigneMenu icone={Settings} libelle="Paramètres" onPress={() => setVue({ id: "parametres" })} />
+          <LigneMenu icone={Printer} libelle="Imprimante" onPress={() => setVue({ id: "imprimante" })} />
+          <LigneMenu
+            icone={RefreshCw}
+            libelle="Synchronisation"
+            onPress={() => setVue({ id: "synchronisation" })}
+            badge={
+              etatSync.enAttente > 0 || etatSync.conflits > 0 ? (
+                <View style={styles.badgeCompteur}>
+                  <Text style={styles.badgeCompteurTexte}>{etatSync.enAttente + etatSync.conflits}</Text>
+                </View>
+              ) : undefined
+            }
+          />
+        </View>
+
+        {/* Action de compte en fin de liste — jamais en haut sous la carte
+            profil (retour du patron) : la déconnexion ne doit pas couvrir
+            l'accès aux modules. Seul le PATRON bascule entre les profils
+            mémorisés ; les employés voient « Se déconnecter », qui oublie
+            leur profil et son jeton (voir App.tsx). */}
+        <View style={styles.sectionCompte}>
+          {utilisateur.role === Role.PATRON ? (
+            <LigneMenu icone={UserRound} libelle="Changer de profil" onPress={changerDeProfil} />
+          ) : (
+            <Pressable style={styles.ligne} onPress={seDeconnecter} accessibilityRole="button">
+              <LogOut size={18} color={couleurs.danger} />
+              <Text style={[styles.ligneTexte, { color: couleurs.danger }]}>Se déconnecter</Text>
+            </Pressable>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -270,4 +332,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   badgeCompteurTexte: { fontSize: 11, fontWeight: "700", color: "#fff" },
+  sectionCompte: { marginTop: espacements.s4, marginBottom: espacements.s2 },
 });
