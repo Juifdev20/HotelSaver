@@ -2,7 +2,8 @@ import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { Chambre, Devise, Role, StatutChambre } from "@hotel-chicago/types";
-import { BedDouble, Plus } from "lucide-react-native";
+import { BedDouble } from "lucide-react-native";
+import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -179,11 +180,6 @@ export function EcranChambres() {
             {chambres ? `${chambres.length} chambre${chambres.length > 1 ? "s" : ""}` : "Chargement…"}
           </Text>
         </View>
-        {estPatron && (
-          <Pressable style={styles.boutonPlus} onPress={ouvrirCreation} disabled={!etatSync.enLigne} hitSlop={8}>
-            <Plus size={20} color="#fff" />
-          </Pressable>
-        )}
       </View>
 
       {erreur && <Text style={styles.erreur}>{erreur}</Text>}
@@ -268,6 +264,11 @@ export function EcranChambres() {
           </Pressable>
         )}
       </FeuilleModale>
+
+      {/* FAB bas-droite (PATRON, en ligne) — standard Android, sous le pouce. */}
+      {estPatron && (
+        <BoutonAjouterFlottant onPress={ouvrirCreation} disabled={!etatSync.enLigne} accessibilityLabel="Nouvelle chambre" />
+      )}
     </View>
   );
 }
@@ -278,7 +279,8 @@ const styles = StyleSheet.create({
   titre: { fontSize: 22, fontWeight: "700", color: couleurs.navy },
   sousTitre: { fontSize: 13, color: couleurs.encreAttenuee, marginTop: 2 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
-  liste: { padding: espacements.s4, gap: espacements.s3 },
+  // 88px de marge basse : le FAB ne recouvre pas la dernière carte.
+  liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },
   videConteneur: { alignItems: "center", padding: espacements.s7, gap: espacements.s2 },
   videTitre: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
   carte: {
@@ -298,14 +300,6 @@ const styles = StyleSheet.create({
   optionStatut: { flexDirection: "row", alignItems: "center", gap: espacements.s3, paddingVertical: espacements.s3 },
   pastilleStatut: { width: 12, height: 12, borderRadius: rayons.pill },
   optionStatutTexte: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
-  boutonPlus: {
-    width: 40,
-    height: 40,
-    borderRadius: rayons.pill,
-    backgroundColor: couleurs.bleu,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   optionModifier: {
     marginTop: espacements.s3,
     borderTopWidth: 1,

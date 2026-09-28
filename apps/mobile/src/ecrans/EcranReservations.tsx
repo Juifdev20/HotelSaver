@@ -2,7 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import type { StatutReservation } from "@hotel-chicago/types";
-import { Plus } from "lucide-react-native";
+import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -184,9 +184,6 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: E
             {reservations ? `${liste.length} séjour${liste.length > 1 ? "s" : ""}` : "Chargement…"}
           </Text>
         </View>
-        <Pressable style={styles.boutonPlus} onPress={() => setVue({ id: "nouveau" })} hitSlop={8}>
-          <Plus size={20} color="#fff" />
-        </Pressable>
       </View>
 
       <View style={styles.segments}>
@@ -202,7 +199,7 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: E
       </View>
 
       {onRetour && (
-        <Pressable onPress={onRetour} style={styles.retourExterne}>
+        <Pressable onPress={onRetour} style={styles.retourExterne} hitSlop={10} accessibilityRole="button">
           <Text style={styles.retourExterneTexte}>‹ Retour</Text>
         </Pressable>
       )}
@@ -242,6 +239,10 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: E
           );
         }}
       />
+
+      {/* « + » flottant bas-droite — sous le pouce, standard Android
+          (remplace l'ancien bouton d'en-tête). */}
+      <BoutonAjouterFlottant onPress={() => setVue({ id: "nouveau" })} accessibilityLabel="Nouvelle réservation" />
     </View>
   );
 }
@@ -257,14 +258,6 @@ const styles = StyleSheet.create({
   },
   titre: { fontSize: 22, fontWeight: "700", color: couleurs.navy },
   sousTitre: { fontSize: 13, color: couleurs.encreAttenuee, marginTop: 2 },
-  boutonPlus: {
-    width: 40,
-    height: 40,
-    borderRadius: rayons.pill,
-    backgroundColor: couleurs.bleu,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   segments: { flexDirection: "row", paddingHorizontal: espacements.s4, gap: espacements.s2, paddingBottom: espacements.s2 },
   segment: {
     flex: 1,
@@ -278,10 +271,19 @@ const styles = StyleSheet.create({
   segmentActif: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
   segmentTexte: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },
   segmentTexteActif: { color: "#fff" },
-  retourExterne: { paddingHorizontal: espacements.s4, paddingBottom: espacements.s1 },
-  retourExterneTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encre },
+  // Zone tactile ≥44px — le « ‹ Retour » de 13px était trop petit
+  // (retour du patron 28/09, écran Arrivées et départs).
+  retourExterne: {
+    paddingHorizontal: espacements.s4,
+    paddingVertical: espacements.s2,
+    marginBottom: espacements.s1,
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  retourExterneTexte: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
-  liste: { padding: espacements.s4, gap: espacements.s3 },
+  // 88px de marge basse : le FAB ne recouvre pas la dernière carte.
+  liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },
   videConteneur: { alignItems: "center", padding: espacements.s7 },
   videTexte: { fontSize: 14, color: couleurs.encreAttenuee },
   carte: {

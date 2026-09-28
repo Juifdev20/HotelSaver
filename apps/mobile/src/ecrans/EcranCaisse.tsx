@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { useSession } from "../contexteSession";
 import { creerCompteLocal } from "../stockage/cafeteriaMirroir";
 
@@ -65,7 +66,7 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
       <EnteteMobile />
       <EnteteRetour titre="Caisse" sousTitre="Ouvrir un nouveau compte cafétaria." onRetour={onRetour} />
 
-      <View style={styles.contenu}>
+      <ConteneurFormulaire>
         <View style={styles.carte}>
           <Text style={styles.label}>Table ou nom du client</Text>
           <TextInput
@@ -91,7 +92,7 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
             <Text style={styles.boutonTexte}>{enCours ? "…" : "Ouvrir le compte"}</Text>
           </Pressable>
         </View>
-      </View>
+      </ConteneurFormulaire>
     </View>
   );
 }

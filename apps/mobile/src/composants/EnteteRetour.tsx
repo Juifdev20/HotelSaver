@@ -20,8 +20,8 @@ export function EnteteRetour({ titre, sousTitre, onRetour, action }: EnteteRetou
   return (
     <View style={styles.entete}>
       <View style={styles.texte}>
-        <Pressable style={styles.boutonRetour} onPress={onRetour} hitSlop={8}>
-          <ChevronLeft size={20} color={couleurs.encre} />
+        <Pressable style={styles.boutonRetour} onPress={onRetour} hitSlop={12} accessibilityRole="button">
+          <ChevronLeft size={22} color={couleurs.encre} />
           <Text style={styles.boutonRetourTexte}>Retour</Text>
         </Pressable>
         <Text style={styles.titre}>{titre}</Text>
@@ -41,8 +41,17 @@ const styles = StyleSheet.create({
     paddingBottom: espacements.s2,
   },
   texte: { flex: 1, gap: 2 },
-  boutonRetour: { flexDirection: "row", alignItems: "center", marginBottom: espacements.s1 },
-  boutonRetourTexte: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
+  // Zone tactile ≥44px (guideline) — le « ‹ Retour » de 14px était jugé
+  // trop petit sur l'appareil réel (retour du patron 28/09).
+  boutonRetour: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 44,
+    marginBottom: espacements.s1,
+    marginLeft: -espacements.s2,
+    paddingHorizontal: espacements.s2,
+  },
+  boutonRetourTexte: { fontSize: 16, fontWeight: "600", color: couleurs.encre },
   titre: { fontSize: 22, fontWeight: "700", color: couleurs.navy },
   sousTitre: { fontSize: 13, color: couleurs.encreAttenuee },
 });

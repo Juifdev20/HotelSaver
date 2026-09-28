@@ -3,7 +3,8 @@ import { useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { MouvementStock, Produit } from "@hotel-chicago/types";
-import { Package, Plus } from "lucide-react-native";
+import { Package } from "lucide-react-native";
+import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
@@ -85,11 +86,6 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
         titre="Stock"
         sousTitre="Mouvements de stock des produits."
         onRetour={onRetour}
-        action={
-          <Pressable style={styles.boutonAjouter} onPress={ouvrirFormulaire} hitSlop={8}>
-            <Plus size={20} color="#fff" />
-          </Pressable>
-        }
       />
 
       {erreur && <Text style={styles.erreur}>{erreur}</Text>}
@@ -180,22 +176,18 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
           setSelecteurOuvert(false);
         }}
       />
+
+      {/* FAB bas-droite — standard Android, sous le pouce. */}
+      <BoutonAjouterFlottant onPress={ouvrirFormulaire} accessibilityLabel="Nouveau mouvement" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.surface100 },
-  boutonAjouter: {
-    width: 36,
-    height: 36,
-    borderRadius: rayons.pill,
-    backgroundColor: couleurs.bleu,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
-  liste: { padding: espacements.s4, gap: espacements.s3 },
+  // 88px de marge basse : le FAB ne recouvre pas la dernière carte.
+  liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },
   videConteneur: { alignItems: "center", padding: espacements.s7, gap: espacements.s2 },
   videTitre: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
   carte: {

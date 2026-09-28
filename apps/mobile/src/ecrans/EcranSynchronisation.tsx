@@ -98,7 +98,7 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
       <EnteteMobile />
       <EnteteRetour titre="Synchronisation" onRetour={onRetour} />
 
-      <ScrollView contentContainerStyle={styles.contenu}>
+      <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
         <View style={styles.carteEtat}>
           <View style={styles.ligneEtat}>
             <Text style={styles.label}>État</Text>

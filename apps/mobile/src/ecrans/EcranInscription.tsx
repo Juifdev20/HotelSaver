@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import type { InscriptionHotelPayload } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 
@@ -67,7 +68,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
 
   return (
     <View style={styles.page}>
-      <ScrollView contentContainerStyle={styles.contenu}>
+      <ConteneurFormulaire styleContenu={styles.contenu}>
         <View style={styles.carte}>
           <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
           <Text style={styles.titre}>Créer un compte hôtel</Text>
@@ -185,7 +186,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
             <Text style={styles.boutonRetourTexte}>J'ai déjà un compte</Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </ConteneurFormulaire>
     </View>
   );
 }

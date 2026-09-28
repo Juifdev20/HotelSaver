@@ -6,7 +6,6 @@ import {
   ChevronRight,
   ClipboardList,
   Coins,
-  LogOut,
   LucideIcon,
   Package,
   Printer,
@@ -15,11 +14,9 @@ import {
   Settings,
   ShoppingCart,
   UserCog,
-  UserRound,
   Users,
   UtensilsCrossed,
 } from "lucide-react-native";
-import { Role } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
 import { useSession } from "../contexteSession";
@@ -185,7 +182,7 @@ export function EcranPlus() {
   return (
     <View style={styles.page}>
       <EnteteMobile />
-      <ScrollView contentContainerStyle={styles.contenu}>
+      <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
         <View style={styles.carteProfil}>
           <View style={styles.avatar}>
             <Text style={styles.avatarTexte}>{initiales(utilisateur.nom)}</Text>
@@ -254,21 +251,6 @@ export function EcranPlus() {
           />
         </View>
 
-        {/* Action de compte en fin de liste — jamais en haut sous la carte
-            profil (retour du patron) : la déconnexion ne doit pas couvrir
-            l'accès aux modules. Seul le PATRON bascule entre les profils
-            mémorisés ; les employés voient « Se déconnecter », qui oublie
-            leur profil et son jeton (voir App.tsx). */}
-        <View style={styles.sectionCompte}>
-          {utilisateur.role === Role.PATRON ? (
-            <LigneMenu icone={UserRound} libelle="Changer de profil" onPress={changerDeProfil} />
-          ) : (
-            <Pressable style={styles.ligne} onPress={seDeconnecter} accessibilityRole="button">
-              <LogOut size={18} color={couleurs.danger} />
-              <Text style={[styles.ligneTexte, { color: couleurs.danger }]}>Se déconnecter</Text>
-            </Pressable>
-          )}
-        </View>
       </ScrollView>
     </View>
   );
@@ -332,5 +314,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   badgeCompteurTexte: { fontSize: 11, fontWeight: "700", color: "#fff" },
-  sectionCompte: { marginTop: espacements.s4, marginBottom: espacements.s2 },
 });

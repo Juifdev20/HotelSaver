@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Devise, ModePaiement, Produit, StatutCompte, VenteCafeteria } from "@hotel-chicago/types";
 import { construireRecuVente } from "@hotel-chicago/receipts";
@@ -276,7 +277,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
 
       {compte && (
         <>
-          <ScrollView contentContainerStyle={styles.contenu}>
+          <ConteneurFormulaire styleContenu={styles.contenu}>
             {!compteOuvert && (
               <View style={styles.bandeauFerme}>
                 <Text style={styles.bandeauFermeTexte}>Ce compte est déjà encaissé.</Text>
@@ -340,7 +341,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
                 </>
               )}
             </View>
-          </ScrollView>
+          </ConteneurFormulaire>
 
           {compteOuvert && (
             <View style={styles.barreActions}>

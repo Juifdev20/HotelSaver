@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
@@ -88,7 +89,7 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
       <View style={styles.page}>
         <EnteteMobile />
         <EnteteRetour titre={clientChoisi.nom} sousTitre="Fiche client" onRetour={() => setClientChoisi(null)} />
-        <ScrollView contentContainerStyle={styles.contenu}>
+        <ConteneurFormulaire styleContenu={styles.contenu}>
           <View style={styles.carte}>
             {clientChoisi.telephone && <Text style={styles.ligne}>{clientChoisi.telephone}</Text>}
             {clientChoisi.email && <Text style={styles.ligne}>{clientChoisi.email}</Text>}
@@ -108,7 +109,7 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
             </View>
           ))}
           {sejoursDuClient.length === 0 && <Text style={styles.ligneSecondaire}>Aucun séjour enregistré.</Text>}
-        </ScrollView>
+        </ConteneurFormulaire>
       </View>
     );
   }

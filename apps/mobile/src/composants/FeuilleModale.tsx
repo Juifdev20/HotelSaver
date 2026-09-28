@@ -13,7 +13,11 @@ export interface FeuilleModaleProps {
    * should never be nested inside plain ScrollViews". Par défaut true : sans
    * ça, le clavier masque les derniers champs d'un formulaire à plusieurs
    * lignes (constaté sur l'appareil réel avec Nom/Catégorie/Prix/Seuil du
-   * formulaire Menu) sans aucun moyen de les atteindre. */
+   * formulaire Menu) sans aucun moyen de les atteindre. Sur Android,
+   * behavior="height" du KeyboardAvoidingView ci-dessous est en plus
+   * obligatoire : une Modal RN est une fenêtre séparée, `adjustResize` du
+   * manifeste ne l'atteint pas — le clavier couvrait les champs du bas
+   * (retour du patron 28/09). */
   avecDefilement?: boolean;
 }
 
@@ -28,7 +32,7 @@ export function FeuilleModale({ visible, onFermer, titre, children, avecDefileme
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onFermer}>
-      <KeyboardAvoidingView style={styles.fond} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.fond} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <Pressable style={styles.fondPressable} onPress={onFermer}>
           <Pressable style={styles.feuille} onPress={(e) => e.stopPropagation()}>
             {avecDefilement ? (

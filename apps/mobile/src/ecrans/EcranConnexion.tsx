@@ -2,6 +2,7 @@ import * as React from "react";
 import { useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { couleurs, espacements, rayons } from "../tokens";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 
 export interface EcranConnexionProps {
   emailInitial?: string;
@@ -19,6 +20,8 @@ export function EcranConnexion({ emailInitial, message, erreur, enCours, onConne
 
   return (
     <View style={styles.page}>
+      {/* Scroll + évitement clavier — partagé avec tous les formulaires. */}
+      <ConteneurFormulaire styleContenu={{ justifyContent: "center", alignItems: "center", padding: espacements.s5 }}>
       <View style={styles.carte}>
         <Image
           source={require("../../assets/hotelsaver-logo.png")}
@@ -80,6 +83,7 @@ export function EcranConnexion({ emailInitial, message, erreur, enCours, onConne
           </Pressable>
         )}
       </View>
+      </ConteneurFormulaire>
     </View>
   );
 }

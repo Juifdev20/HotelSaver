@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { Devise, Facture, ModePaiement, Reservation, VenteCafeteria } from "@hotel-chicago/types";
 import type { TauxChange } from "@hotel-chicago/api-client";
 import { construireRecuFacture } from "@hotel-chicago/receipts";
@@ -200,7 +201,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
       {erreur && <Text style={styles.erreur}>{erreur}</Text>}
 
       {reservation && apercu && (
-        <ScrollView contentContainerStyle={styles.contenu}>
+        <ConteneurFormulaire styleContenu={styles.contenu}>
           <View style={styles.carte}>
             <Text style={styles.champLabel}>Client</Text>
             <Text style={styles.champValeur}>{reservation.client.nom}</Text>
@@ -336,7 +337,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
           <Pressable style={[styles.bouton, bloquerPaiement && styles.boutonInactif]} onPress={facturerEtCheckOut} disabled={enCours || bloquerPaiement}>
             <Text style={styles.boutonTexte}>{enCours ? "…" : "Facturer et check-out"}</Text>
           </Pressable>
-        </ScrollView>
+        </ConteneurFormulaire>
       )}
     </View>
   );

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { LogOut, UserRound } from "lucide-react-native";
@@ -8,6 +8,7 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE } from "../navigation";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { ecrireConfiguration, lireConfiguration } from "../stockage/configuration";
 
 export interface EcranParametresMobileProps {
@@ -20,19 +21,17 @@ export interface EcranParametresMobileProps {
   onSeDeconnecter?: () => void;
 }
 
-type EtatConnexion = "inconnu" | "verification" | "ok" | "echec";
-
 /**
  * Même principe que EcranParametres du desktop (apps/desktop/src/renderer/src/screens/EcranParametres.tsx) :
- * juste l'URL de l'API + un test de connexion. Pas de bascule de thème (pas
- * de mode sombre mobile), pas de bloc Administration (Utilisateurs/Taux de
- * change vivent déjà dans "Plus", inchangés) — voir le plan pour ce cadrage.
+ * l'URL de l'API + la carte Compte. Pas de test de connexion — retiré
+ * (retour du patron 28/09 : « je ne trouve pas ça professionnel »), pas de
+ * bascule de thème (pas de mode sombre mobile), pas de bloc Administration
+ * (Utilisateurs/Taux de change vivent déjà dans "Plus", inchangés).
  */
 export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter }: EcranParametresMobileProps) {
   const [apiUrl, setApiUrl] = useState("");
   const [chargement, setChargement] = useState(true);
   const [enregistre, setEnregistre] = useState(false);
-  const [connexion, setConnexion] = useState<EtatConnexion>("inconnu");
 
   useEffect(() => {
     lireConfiguration().then((config) => {
@@ -41,15 +40,19 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
     });
   }, []);
 
-  async function tester() {
-    setConnexion("verification");
-    const ok = await client.estJoignable();
-    setConnexion(ok ? "ok" : "echec");
-  }
-
   async function enregistrer() {
     await ecrireConfiguration({ apiUrl: apiUrl.trim() });
     setEnregistre(true);
+  }
+
+  /** Confirmation avant de fermer la session — un tap par inadvertance ne
+   * doit pas faire perdre la session en cours (retour du patron 28/09). */
+  function confirmerDeconnexion() {
+    if (!onSeDeconnecter) return;
+    Alert.alert("Se déconnecter", "Voulez-vous vraiment vous déconnecter ?", [
+      { text: "Annuler", style: "cancel" },
+      { text: "Se déconnecter", style: "destructive", onPress: onSeDeconnecter },
+    ]);
   }
 
   return (
@@ -60,7 +63,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
       {chargement ? (
         <ActivityIndicator style={styles.chargement} color={couleurs.bleu} />
       ) : (
-        <View style={styles.contenu}>
+        <ConteneurFormulaire>
           <View style={styles.carte}>
             <Text style={styles.label}>URL de l'API</Text>
             <TextInput
@@ -69,7 +72,6 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
               onChangeText={(texte) => {
                 setApiUrl(texte);
                 setEnregistre(false);
-                setConnexion("inconnu");
               }}
               autoCapitalize="none"
               autoCorrect={false}
@@ -79,20 +81,6 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
             />
             <Text style={styles.aide}>Adresse du serveur de l'hôtel, par exemple http://localhost:3001.</Text>
 
-            {connexion !== "inconnu" && (
-              <Text
-                style={[
-                  styles.etatConnexion,
-                  connexion === "ok" && styles.etatConnexionOk,
-                  connexion === "echec" && styles.etatConnexionEchec,
-                ]}
-              >
-                {connexion === "verification" && "Vérification…"}
-                {connexion === "ok" && "Connecté."}
-                {connexion === "echec" && "Injoignable — vérifiez l'URL ou la connexion internet."}
-              </Text>
-            )}
-
             {enregistre && (
               <Text style={styles.confirmation} accessibilityRole="alert">
                 Paramètres enregistrés.
@@ -100,9 +88,6 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
             )}
 
             <View style={styles.boutons}>
-              <Pressable style={styles.boutonSecondaire} onPress={tester}>
-                <Text style={styles.boutonSecondaireTexte}>Tester la connexion</Text>
-              </Pressable>
               <Pressable style={styles.bouton} onPress={enregistrer}>
                 <Text style={styles.boutonTexte}>Enregistrer</Text>
               </Pressable>
@@ -132,7 +117,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
                 )
               ) : (
                 onSeDeconnecter && (
-                  <Pressable style={styles.boutonDanger} onPress={onSeDeconnecter}>
+                  <Pressable style={styles.boutonDanger} onPress={confirmerDeconnexion}>
                     <LogOut size={16} color="#fff" />
                     <Text style={styles.boutonDangerTexte}>Se déconnecter</Text>
                   </Pressable>
@@ -140,7 +125,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
               )}
             </View>
           )}
-        </View>
+        </ConteneurFormulaire>
       )}
     </View>
   );
@@ -149,7 +134,6 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   chargement: { marginTop: espacements.s6 },
-  contenu: { padding: espacements.s4 },
   carte: {
     backgroundColor: couleurs.surface200,
     borderRadius: rayons.lg,
@@ -169,9 +153,6 @@ const styles = StyleSheet.create({
     backgroundColor: couleurs.surface100,
   },
   aide: { fontSize: 12, color: couleurs.encreAttenuee, marginTop: espacements.s2 },
-  etatConnexion: { fontSize: 13, marginTop: espacements.s3, color: couleurs.encreAttenuee },
-  etatConnexionOk: { color: couleurs.succes },
-  etatConnexionEchec: { color: couleurs.danger },
   confirmation: { fontSize: 13, color: couleurs.succes, marginTop: espacements.s3 },
   boutons: { flexDirection: "row", gap: espacements.s3, marginTop: espacements.s4 },
   boutonSecondaire: {

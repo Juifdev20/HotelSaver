@@ -7,6 +7,7 @@ import { formatMontant } from "../formatMontant";
 import { Devise } from "@hotel-chicago/types";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 
@@ -69,7 +70,7 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
         <Text style={styles.horsLigne}>Hors ligne — la saisie et l'historique nécessitent une connexion.</Text>
       )}
 
-      <View style={styles.contenu}>
+      <ConteneurFormulaire styleContenu={{ gap: espacements.s3 }}>
         <View style={styles.carteActuel}>
           <Text style={styles.labelActuel}>Taux en vigueur</Text>
           <Text style={styles.valeurActuel}>
@@ -121,7 +122,7 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
             )}
           />
         )}
-      </View>
+      </ConteneurFormulaire>
     </View>
   );
 }

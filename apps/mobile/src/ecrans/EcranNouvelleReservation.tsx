@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import type { Chambre } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -199,7 +200,7 @@ export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleRese
 
       {erreur && <Text style={styles.erreur}>{erreur}</Text>}
 
-      <ScrollView contentContainerStyle={styles.contenu}>
+      <ConteneurFormulaire styleContenu={styles.contenu}>
         <View style={styles.carte}>
           <Text style={styles.champLabel}>Arrivée (JJ/MM/AAAA)</Text>
           <TextInput
@@ -345,7 +346,7 @@ export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleRese
         {!etatSync.enLigne && (
           <Text style={styles.infoHorsLigne}>Hors ligne : la réservation sera envoyée au serveur dès le retour de la connexion.</Text>
         )}
-      </ScrollView>
+      </ConteneurFormulaire>
     </View>
   );
 }

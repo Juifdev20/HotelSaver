@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { Devise, ModePaiement, StatutChambre } from "@hotel-chicago/types";
 import type { StatutReservation } from "@hotel-chicago/types";
 import { construireRecuFacture } from "@hotel-chicago/receipts";
@@ -261,7 +262,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
       {messageImpression && <Text style={styles.messageInfo}>{messageImpression}</Text>}
 
       {reservation && statut && (
-        <ScrollView contentContainerStyle={styles.contenu}>
+        <ConteneurFormulaire styleContenu={styles.contenu}>
           <View style={styles.carte}>
             <View style={styles.ligneEntete}>
               <Text style={styles.titre}>Séjour</Text>
@@ -333,7 +334,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
             {statut === "TERMINEE" &&
               bouton("impression", "Réimprimer le reçu", reimprimerRecu, actionsEnLignePossibles, true)}
           </View>
-        </ScrollView>
+        </ConteneurFormulaire>
       )}
 
       <FeuilleModale visible={feuille === "annuler"} onFermer={() => setFeuille(null)} titre="Annuler la réservation">

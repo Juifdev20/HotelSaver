@@ -2393,3 +2393,29 @@ chevron, mêmes icônes que `ICONES` de Coquille.tsx) → section « Appareil »
 (Changer de profil PATRON / Se déconnecter rouge employés). La carte
 « Compte » existe aussi en bas de Paramètres mobile — deux endroits
 évidents plutôt qu'un.
+
+### UX — correctifs terrain du 29/09 (suite au premier test complet)
+
+Retour du patron après un vrai passage sur le téléphone, quatre sujets :
+
+1. **Clavier** : `adjustResize` du manifeste est inerte parce que
+   `edgeToEdgeEnabled=true` (gradle.properties) — la fenêtre ne
+   redimensionne plus, le clavier recouvrait tous les champs du bas
+   (login compris, qui n'avait même pas de ScrollView). Un seul
+   composant partagé `ConteneurFormulaire` (KeyboardAvoidingView
+   `behavior="height"` sur Android + ScrollView persistTaps) enveloppe
+   désormais tous les écrans-formulaires ; `FeuilleModale` a le même
+   comportement (une Modal RN ne profite pas de l'activité parente). Le
+   formulaire remonte au focus, défile, revient en place à la fermeture.
+2. **Déconnexion** : confirmation `Alert` (« Annuler » / « Se
+   déconnecter » en rouge) avant de couper la session ; l'action vit
+   uniquement dans Paramètres → carte Compte (retirée du bas de Plus où
+   elle apparaissait en double).
+3. **Boutons « + »** : déplacés de l'en-tête vers un FAB bas-droite
+   (`BoutonAjouterFlottant`) — standard Android, sous le pouce — sur
+   Réservations, Chambres, Utilisateurs, Menu, Stock ; +88px de marge
+   basse sur les listes pour ne pas recouvrir la dernière carte.
+4. **« Retour »** : zone tactile ≥44px partout (`EnteteRetour` et le
+   retour embarqué d'EcranReservations, jugé trop petit).
+5. **Paramètres** : « Tester la connexion » supprimé (le statut de
+   connexion du bandeau EnteteMobile suffit).
