@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
-import { UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
 import { CreateUtilisateurDto } from "./dto/create-utilisateur.dto";
@@ -16,6 +16,14 @@ const SELECTION = {
   actif: true,
   createdAt: true,
 } satisfies Prisma.UtilisateurSelect;
+
+/** Libellé métier d'un rôle, utilisé dans le message « un seul compte par
+ * rôle » (règle validée avec le patron, Phase 16). */
+const LIBELLE_ROLE: Record<Role, string> = {
+  [Role.PATRON]: "Patron",
+  [Role.RECEPTIONNISTE]: "Réception",
+  [Role.CAFETARIA]: "Cafétaria",
+};
 
 @Injectable()
 export class UtilisateursService {
@@ -40,8 +48,24 @@ export class UtilisateursService {
    * l'écriture Prisma échoue (email déjà utilisé par un autre hôtel, etc.) —
    * même principe que creer-utilisateur.js et PublicService.inscrireHotel :
    * jamais de compte Supabase orphelin.
+   *
+   * Un hôtel n'a qu'UN compte par rôle (règle validée avec le patron,
+   * Phase 16 : un compte de rôle partagé, dont on fait tourner les
+   * identifiants via update quand l'employé change). Le contrôle est posé
+   * AVANT l'appel Supabase pour ne pas créer de compte orphelin, compté
+   * sans filtre `actif` — un compte désactivé se réactive/modifie, il ne
+   * se remplace pas.
    */
   async create(dto: CreateUtilisateurDto, hotelId: string) {
+    const existant = await this.prisma.utilisateur.count({ where: { hotelId, role: dto.role } });
+    if (existant > 0) {
+      throw new ConflictException(
+        `Cet hôtel a déjà un compte ${LIBELLE_ROLE[dto.role]}. ` +
+          `Un seul compte par rôle est autorisé — modifiez le compte existant ` +
+          `(nom, email ou mot de passe) pour le transmettre à un nouvel employé.`
+      );
+    }
+
     const compteAuth = await this.supabaseAdmin.creerCompte({
       email: dto.email,
       motDePasse: dto.motDePasse,
@@ -62,20 +86,49 @@ export class UtilisateursService {
     }
   }
 
-  /** Active/désactive un compte, scopé au même hôtel que l'appelant — un
-   * PATRON d'un autre hôtel ne doit jamais pouvoir toucher ce compte. */
+  /** Met à jour un compte, scopé au même hôtel que l'appelant — un PATRON
+   * d'un autre hôtel ne doit jamais pouvoir toucher ce compte. Email et mot
+   * de passe passent par Supabase Auth AVANT l'écriture Prisma (la source
+   * d'authentification fait foi) ; si l'écriture Prisma échoue ensuite
+   * (email déjà pris par un autre compte), on tente de remettre l'ancien
+   * email — le mot de passe, lui, n'est pas réversible. */
   async update(id: string, dto: UpdateUtilisateurDto, currentUser: UtilisateurAuthentifie) {
-    if (id === currentUser.userId) {
+    if (dto.actif === undefined && dto.nom === undefined && dto.email === undefined && dto.motDePasse === undefined) {
+      throw new BadRequestException("Aucun champ à modifier.");
+    }
+    if (id === currentUser.userId && dto.actif === false) {
       throw new BadRequestException("Vous ne pouvez pas désactiver votre propre compte.");
     }
     const utilisateur = await this.prisma.utilisateur.findUnique({ where: { id } });
     if (!utilisateur || utilisateur.hotelId !== currentUser.hotelId) {
       throw new NotFoundException(`Aucun utilisateur trouvé avec l'identifiant ${id}.`);
     }
-    return this.prisma.utilisateur.update({
-      where: { id },
-      data: { actif: dto.actif },
-      select: SELECTION,
-    });
+
+    if (dto.email !== undefined || dto.motDePasse !== undefined) {
+      await this.supabaseAdmin.mettreAJourCompte(utilisateur.supabaseAuthId, {
+        email: dto.email,
+        motDePasse: dto.motDePasse,
+      });
+    }
+
+    try {
+      return await this.prisma.utilisateur.update({
+        where: { id },
+        data: {
+          ...(dto.nom !== undefined && { nom: dto.nom }),
+          ...(dto.email !== undefined && { email: dto.email }),
+          ...(dto.actif !== undefined && { actif: dto.actif }),
+        },
+        select: SELECTION,
+      });
+    } catch (error) {
+      if (dto.email !== undefined && utilisateur.email) {
+        await this.supabaseAdmin.mettreAJourCompte(utilisateur.supabaseAuthId, { email: utilisateur.email }).catch(() => {});
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException(`Un compte existe déjà avec l'adresse ${dto.email}.`);
+      }
+      throw error;
+    }
   }
 }

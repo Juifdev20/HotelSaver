@@ -59,4 +59,22 @@ export class SupabaseAdminService {
   async supprimerCompte(id: string): Promise<void> {
     await this.appel("DELETE", `/users/${id}`);
   }
+
+  /** Mise à jour admin du compte Auth : nouvel email et/ou nouveau mot de
+   * passe (rotation d'équipe Phase 16 — quand un employé part, le patron
+   * change les identifiants du compte de rôle plutôt que d'en créer un
+   * autre). `email_confirm: true` pour que le nouvel email soit utilisable
+   * tout de suite : changement posé par un admin de confiance, pas un
+   * libre-service (même raisonnement que creerCompte ici et
+   * PublicService.inscrireHotel). */
+  async mettreAJourCompte(id: string, champs: { email?: string; motDePasse?: string }): Promise<void> {
+    const corps: Record<string, unknown> = {};
+    if (champs.email !== undefined) {
+      corps.email = champs.email;
+      corps.email_confirm = true;
+    }
+    if (champs.motDePasse !== undefined) corps.password = champs.motDePasse;
+    if (Object.keys(corps).length === 0) return;
+    await this.appel("PUT", `/users/${id}`, corps);
+  }
 }

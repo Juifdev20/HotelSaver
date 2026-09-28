@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import type { ClientApi, Utilisateur } from "@hotel-chicago/api-client";
+import type { ClientApi, DonneesModificationUtilisateur, Utilisateur } from "@hotel-chicago/api-client";
 import { Role } from "@hotel-chicago/types";
 import { Plus, UserRound } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -25,6 +25,12 @@ interface FormulaireCreation {
   role: Role;
 }
 
+interface FormulaireEdition {
+  nom: string;
+  email: string;
+  motDePasse: string;
+}
+
 const FORMULAIRE_VIDE: FormulaireCreation = { nom: "", email: "", motDePasse: "", role: Role.CAFETARIA };
 
 /**
@@ -42,11 +48,26 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
   const [enEnvoi, setEnEnvoi] = useState(false);
   const [erreurFormulaire, setErreurFormulaire] = useState<string | null>(null);
   const [idsEnCours, setIdsEnCours] = useState<Set<string>>(new Set());
+  // Compte en cours d'édition (Phase 16 : rotation des identifiants quand
+  // un employé part — le compte de rôle est unique, on le modifie).
+  const [edition, setEdition] = useState<Utilisateur | null>(null);
+  const [formEdition, setFormEdition] = useState<FormulaireEdition>({ nom: "", email: "", motDePasse: "" });
+  const [erreurEdition, setErreurEdition] = useState<string | null>(null);
+
+  /** Rôles déjà dotés d'un compte — un seul compte par rôle par hôtel
+   * (règle API, UtilisateursService.create). */
+  const rolesPris = new Set((utilisateurs ?? []).map((u) => u.role));
 
   function ouvrirCreation() {
     setFormulaire(FORMULAIRE_VIDE);
     setErreurFormulaire(null);
     setModaleOuverte(true);
+  }
+
+  function ouvrirEdition(utilisateur: Utilisateur) {
+    setEdition(utilisateur);
+    setFormEdition({ nom: utilisateur.nom, email: utilisateur.email ?? "", motDePasse: "" });
+    setErreurEdition(null);
   }
 
   async function creer() {
@@ -67,6 +88,40 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
       recharger();
     } catch (e) {
       setErreurFormulaire(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnEnvoi(false);
+    }
+  }
+
+  async function enregistrerEdition() {
+    if (!edition) return;
+    const nom = formEdition.nom.trim();
+    const email = formEdition.email.trim();
+    const motDePasse = formEdition.motDePasse;
+    if (!nom || !email) {
+      setErreurEdition("Le nom et l'email sont obligatoires.");
+      return;
+    }
+    if (motDePasse && motDePasse.length < 8) {
+      setErreurEdition("Le mot de passe doit contenir au moins 8 caractères (ou laisser vide pour ne pas le changer).");
+      return;
+    }
+    const donnees: DonneesModificationUtilisateur = {};
+    if (nom !== edition.nom) donnees.nom = nom;
+    if (email !== (edition.email ?? "")) donnees.email = email;
+    if (motDePasse) donnees.motDePasse = motDePasse;
+    if (!donnees.nom && !donnees.email && !donnees.motDePasse) {
+      setEdition(null);
+      return;
+    }
+    setEnEnvoi(true);
+    setErreurEdition(null);
+    try {
+      await client.modifierUtilisateur(edition.id, donnees);
+      setEdition(null);
+      recharger();
+    } catch (e) {
+      setErreurEdition(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
       setEnEnvoi(false);
     }
@@ -132,11 +187,16 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
               <Text style={item.actif ? styles.statutActif : styles.statutInactif}>
                 {item.actif ? "Actif" : "Désactivé"}
               </Text>
-              <Switch
-                value={item.actif}
-                onValueChange={() => basculerActif(item)}
-                disabled={idsEnCours.has(item.id)}
-              />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: espacements.s3 }}>
+                <Pressable onPress={() => ouvrirEdition(item)} hitSlop={8} accessibilityLabel={`Modifier ${item.nom}`}>
+                  <Text style={styles.lienModifier}>Modifier</Text>
+                </Pressable>
+                <Switch
+                  value={item.actif}
+                  onValueChange={() => basculerActif(item)}
+                  disabled={idsEnCours.has(item.id)}
+                />
+              </View>
             </View>
           </View>
         )}
@@ -175,23 +235,78 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
 
         <Text style={styles.label}>Rôle</Text>
         <View style={styles.selecteurRole}>
-          {ROLES.map((r) => (
-            <Pressable
-              key={r}
-              style={[styles.optionRole, formulaire.role === r && styles.optionRoleActive]}
-              onPress={() => setFormulaire((f) => ({ ...f, role: r }))}
-            >
-              <Text style={[styles.optionRoleTexte, formulaire.role === r && styles.optionRoleTexteActif]}>
-                {LIBELLE_ROLE[r]}
-              </Text>
-            </Pressable>
-          ))}
+          {ROLES.map((r) => {
+            const pris = rolesPris.has(r);
+            return (
+              <Pressable
+                key={r}
+                style={[styles.optionRole, formulaire.role === r && styles.optionRoleActive, pris && styles.optionRoleDesactive]}
+                disabled={pris}
+                onPress={() => setFormulaire((f) => ({ ...f, role: r }))}
+              >
+                <Text style={[styles.optionRoleTexte, formulaire.role === r && styles.optionRoleTexteActif, pris && styles.optionRoleTexteDesactive]}>
+                  {LIBELLE_ROLE[r]}
+                  {pris ? " · déjà créé" : ""}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
+        {ROLES.every((r) => rolesPris.has(r)) && (
+          <Text style={styles.aide}>
+            Un seul compte par rôle est autorisé. Modifiez un compte existant pour le transmettre à un nouvel
+            employé.
+          </Text>
+        )}
 
         {erreurFormulaire && <Text style={styles.erreurFormulaire}>{erreurFormulaire}</Text>}
 
         <Pressable style={styles.bouton} onPress={creer} disabled={enEnvoi}>
           <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Créer le compte"}</Text>
+        </Pressable>
+      </FeuilleModale>
+
+      <FeuilleModale
+        visible={edition !== null}
+        onFermer={() => setEdition(null)}
+        titre={edition ? `Modifier — ${LIBELLE_ROLE[edition.role]}` : "Modifier"}
+      >
+        <Text style={styles.aide}>
+          Changez le nom, l'email ou le mot de passe pour transmettre le compte à un nouvel employé.
+        </Text>
+
+        <Text style={styles.label}>Nom</Text>
+        <TextInput
+          style={styles.champ}
+          value={formEdition.nom}
+          onChangeText={(v) => setFormEdition((f) => ({ ...f, nom: v }))}
+          placeholderTextColor={couleurs.encreFaible}
+        />
+
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.champ}
+          value={formEdition.email}
+          onChangeText={(v) => setFormEdition((f) => ({ ...f, email: v }))}
+          placeholderTextColor={couleurs.encreFaible}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+
+        <Text style={styles.label}>Nouveau mot de passe</Text>
+        <TextInput
+          style={styles.champ}
+          value={formEdition.motDePasse}
+          onChangeText={(v) => setFormEdition((f) => ({ ...f, motDePasse: v }))}
+          placeholder="Laisser vide pour ne pas le changer"
+          placeholderTextColor={couleurs.encreFaible}
+          secureTextEntry
+        />
+
+        {erreurEdition && <Text style={styles.erreurFormulaire}>{erreurEdition}</Text>}
+
+        <Pressable style={styles.bouton} onPress={enregistrerEdition} disabled={enEnvoi}>
+          <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Enregistrer"}</Text>
         </Pressable>
       </FeuilleModale>
     </View>
@@ -228,6 +343,10 @@ const styles = StyleSheet.create({
   carteBas: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   statutActif: { fontSize: 13, fontWeight: "600", color: couleurs.succes },
   statutInactif: { fontSize: 13, fontWeight: "600", color: couleurs.danger },
+  lienModifier: { fontSize: 13, fontWeight: "600", color: couleurs.bleu },
+  aide: { fontSize: 12, color: couleurs.encreAttenuee, marginTop: espacements.s2, lineHeight: 17 },
+  optionRoleDesactive: { opacity: 0.45 },
+  optionRoleTexteDesactive: { color: couleurs.encreFaible },
 
   label: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginBottom: espacements.s1, marginTop: espacements.s2 },
   champ: {

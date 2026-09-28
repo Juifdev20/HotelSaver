@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
-import type { ClientApi, Utilisateur } from "@hotel-chicago/api-client";
+import type { ClientApi, DonneesModificationUtilisateur, Utilisateur } from "@hotel-chicago/api-client";
 import { Role } from "@hotel-chicago/types";
 import { Button, StatusBadge } from "@hotel-chicago/ui";
 import { Users } from "lucide-react";
@@ -24,6 +24,12 @@ interface FormulaireCreation {
   role: Role;
 }
 
+interface FormulaireEdition {
+  nom: string;
+  email: string;
+  motDePasse: string;
+}
+
 const FORMULAIRE_VIDE: FormulaireCreation = { nom: "", email: "", motDePasse: "", role: Role.CAFETARIA };
 
 /**
@@ -41,12 +47,61 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
   const [enEnvoi, setEnEnvoi] = useState(false);
   const [erreurFormulaire, setErreurFormulaire] = useState<string | null>(null);
   const [idEnCours, setIdEnCours] = useState<string | null>(null);
+  // Compte en cours d'édition (Phase 16 : rotation des identifiants quand
+  // un employé part — le compte de rôle est unique, on le modifie).
+  const [edition, setEdition] = useState<Utilisateur | null>(null);
+  const [formEdition, setFormEdition] = useState<FormulaireEdition>({ nom: "", email: "", motDePasse: "" });
+  const [erreurEdition, setErreurEdition] = useState<string | null>(null);
+
+  /** Rôles déjà dotés d'un compte — un seul compte par rôle par hôtel
+   * (règle API, UtilisateursService.create). */
+  const rolesPris = new Set((utilisateurs ?? []).map((u) => u.role));
 
   function charger() {
     client.listerUtilisateurs().then(setUtilisateurs).catch((e: Error) => setErreur(e.message));
   }
 
   useEffect(charger, [client]);
+
+  function ouvrirEdition(utilisateur: Utilisateur) {
+    setEdition(utilisateur);
+    setFormEdition({ nom: utilisateur.nom, email: utilisateur.email ?? "", motDePasse: "" });
+    setErreurEdition(null);
+  }
+
+  async function enregistrerEdition() {
+    if (!edition) return;
+    const nom = formEdition.nom.trim();
+    const email = formEdition.email.trim();
+    const motDePasse = formEdition.motDePasse;
+    if (!nom || !email) {
+      setErreurEdition("Le nom et l'email sont obligatoires.");
+      return;
+    }
+    if (motDePasse && motDePasse.length < 8) {
+      setErreurEdition("Le mot de passe doit contenir au moins 8 caractères (ou laisser vide pour ne pas le changer).");
+      return;
+    }
+    const donnees: DonneesModificationUtilisateur = {};
+    if (nom !== edition.nom) donnees.nom = nom;
+    if (email !== (edition.email ?? "")) donnees.email = email;
+    if (motDePasse) donnees.motDePasse = motDePasse;
+    if (!donnees.nom && !donnees.email && !donnees.motDePasse) {
+      setEdition(null);
+      return;
+    }
+    setEnEnvoi(true);
+    setErreurEdition(null);
+    try {
+      await client.modifierUtilisateur(edition.id, donnees);
+      setEdition(null);
+      charger();
+    } catch (e) {
+      setErreurEdition(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnEnvoi(false);
+    }
+  }
 
   async function creer() {
     if (!formulaire.nom.trim() || !formulaire.email.trim() || formulaire.motDePasse.length < 8) {
@@ -141,18 +196,29 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
             Rôle
           </p>
           <div className="puces" role="group" aria-label="Rôle">
-            {ROLES.map((r) => (
-              <button
-                key={r}
-                type="button"
-                className="puce"
-                aria-pressed={formulaire.role === r}
-                onClick={() => setFormulaire((f) => ({ ...f, role: r }))}
-              >
-                {LIBELLE_ROLE[r]}
-              </button>
-            ))}
+            {ROLES.map((r) => {
+              const pris = rolesPris.has(r);
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  className="puce"
+                  aria-pressed={formulaire.role === r}
+                  disabled={pris}
+                  onClick={() => setFormulaire((f) => ({ ...f, role: r }))}
+                >
+                  {LIBELLE_ROLE[r]}
+                  {pris ? " · déjà créé" : ""}
+                </button>
+              );
+            })}
           </div>
+          {ROLES.every((r) => rolesPris.has(r)) && (
+            <p className="hc-text-caption texte-discret">
+              Un seul compte par rôle est autorisé. Modifiez un compte existant pour le transmettre à un nouvel
+              employé.
+            </p>
+          )}
 
           {erreurFormulaire && (
             <p role="alert" className="hc-text-body texte-erreur">
@@ -163,6 +229,61 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
           <Button type="button" onClick={creer} disabled={enEnvoi} style={{ marginTop: "var(--hc-space-3)" }}>
             {enEnvoi ? "…" : "Créer le compte"}
           </Button>
+        </div>
+      )}
+
+      {edition && (
+        <div className="carte-formulaire formulaire">
+          <p className="hc-text-label texte-discret">
+            Modifier — {LIBELLE_ROLE[edition.role]}
+          </p>
+          <p className="hc-text-caption texte-discret">
+            Changez le nom, l'email ou le mot de passe pour transmettre le compte à un nouvel employé.
+          </p>
+          <label className="hc-text-label" htmlFor="edit-nom-utilisateur">
+            Nom
+          </label>
+          <input
+            id="edit-nom-utilisateur"
+            value={formEdition.nom}
+            onChange={(e) => setFormEdition((f) => ({ ...f, nom: e.target.value }))}
+          />
+
+          <label className="hc-text-label" htmlFor="edit-email-utilisateur">
+            Email
+          </label>
+          <input
+            id="edit-email-utilisateur"
+            type="email"
+            value={formEdition.email}
+            onChange={(e) => setFormEdition((f) => ({ ...f, email: e.target.value }))}
+          />
+
+          <label className="hc-text-label" htmlFor="edit-mdp-utilisateur">
+            Nouveau mot de passe
+          </label>
+          <input
+            id="edit-mdp-utilisateur"
+            type="password"
+            value={formEdition.motDePasse}
+            onChange={(e) => setFormEdition((f) => ({ ...f, motDePasse: e.target.value }))}
+            placeholder="Laisser vide pour ne pas le changer"
+          />
+
+          {erreurEdition && (
+            <p role="alert" className="hc-text-body texte-erreur">
+              {erreurEdition}
+            </p>
+          )}
+
+          <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-3)" }}>
+            <Button type="button" onClick={enregistrerEdition} disabled={enEnvoi}>
+              {enEnvoi ? "…" : "Enregistrer"}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setEdition(null)}>
+              Fermer
+            </Button>
+          </div>
         </div>
       )}
 
@@ -196,7 +317,10 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
                   <td>
                     <StatusBadge tone={u.actif ? "success" : "danger"} label={u.actif ? "Actif" : "Désactivé"} />
                   </td>
-                  <td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => ouvrirEdition(u)}>
+                      Modifier
+                    </Button>{" "}
                     <Button
                       type="button"
                       variant="secondary"

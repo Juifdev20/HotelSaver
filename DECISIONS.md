@@ -2294,3 +2294,36 @@ temps — relancer la suite seule sous charge parallèle), 43 tests
 api-client, tests + build sync-engine, `tsc --noEmit` mobile et desktop
 propres, `electron-vite build` OK, migration `client_updated_syncversion`
 appliquée et vérifiée.
+
+---
+
+## 28/09/2026 — Phase 16 (suite) : comptes de rôle uniques + rotation des identifiants
+
+Deux règles demandées par le patron, liées :
+
+- **Un seul compte par rôle par hôtel** (`UtilisateursService.create` :
+  `count({ hotelId, role })` avant tout appel Supabase, sans filtre `actif`
+  — un compte désactivé se réactive, il ne se remplace pas). Message 409
+  explicite : « Cet hôtel a déjà un compte <Rôle>. Un seul compte par rôle
+  est autorisé — modifiez le compte existant… ». Conséquence assumée : pas
+  de traçabilité par personne — le compte de rôle est partagé, audit au
+  niveau du compte seulement.
+- **Modification des comptes** (`PATCH /utilisateurs/:id`, PATRON) : nom,
+  email, mot de passe et actif tous optionnels (au moins un requis).
+  Email/mot de passe passent par `SupabaseAdminService.mettreAJourCompte`
+  (PUT admin, `email_confirm: true` pour un effet immédiat) AVANT l'écriture
+  Prisma ; si Prisma refuse ensuite (P2002, email déjà pris), on tente de
+  remettre l'ancien email — le mot de passe n'est pas réversible. Seule la
+  désactivation de son propre compte reste bloquée ; se renommer ou changer
+  son propre email/mot de passe est permis.
+
+C'est le canal de **rotation d'équipe** : quand un employé part, le patron
+modifie le compte du rôle (nouveau nom/email/mot de passe) au lieu d'en
+créer un autre — l'ancien employé n'a alors plus d'identifiants valides.
+Mobile et desktop : bouton « Modifier » par compte + sélecteur de rôle qui
+grise les rôles déjà dotés (« · déjà créé ») à la création.
+
+**Vérifié** : 13/13 tests `utilisateurs.service.spec.ts` (garde par rôle,
+update Supabase→Prisma, rollback email P2002), api-client étendu
+(`modifierUtilisateur`, `DonneesModificationUtilisateur`), typechecks
+mobile et desktop propres.

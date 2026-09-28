@@ -182,6 +182,12 @@ export interface DonneesCreationUtilisateur {
   role: Role;
 }
 
+/** Champs de apps/api/src/utilisateurs/dto/update-utilisateur.dto.ts —
+ * tous optionnels (nom/email/motDePasse/actif), au moins un requis. */
+export type DonneesModificationUtilisateur = Partial<Pick<DonneesCreationUtilisateur, "nom" | "email" | "motDePasse">> & {
+  actif?: boolean;
+};
+
 // ---------------------------------------------------------------------
 // Synchronisation hors-ligne (apps/api/src/sync/)
 // ---------------------------------------------------------------------
@@ -520,6 +526,13 @@ export class ClientApi {
 
   async changerStatutUtilisateur(id: string, actif: boolean): Promise<Utilisateur> {
     return this.requete<Utilisateur>(`/utilisateurs/${id}`, { method: "PATCH", body: JSON.stringify({ actif }) });
+  }
+
+  /** Modification complète d'un compte (Phase 16) : nom, email, mot de
+   * passe et/ou actif — le serveur propage email/mot de passe à Supabase
+   * Auth (rotation des identifiants quand un employé part). */
+  async modifierUtilisateur(id: string, donnees: DonneesModificationUtilisateur): Promise<Utilisateur> {
+    return this.requete<Utilisateur>(`/utilisateurs/${id}`, { method: "PATCH", body: JSON.stringify(donnees) });
   }
 
   // ---------------------------------------------------------------------

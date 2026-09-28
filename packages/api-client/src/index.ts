@@ -5,6 +5,7 @@ export type {
   DonneesCreationUtilisateur,
   DonneesModificationChambre,
   DonneesModificationReservation,
+  DonneesModificationUtilisateur,
   DonneesReservation,
   EnfantCree,
   FiltresChambres,
