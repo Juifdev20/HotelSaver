@@ -90,6 +90,12 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
     ],
   },
   {
+    // Un seul écran pour les deux métiers : les segments Séjours/Cafétaria
+    // sont filtrés par rôle dans EcranJournalRecus (PATRON voit les deux).
+    titre: "Reçus",
+    entrees: [{ id: "journal-recus", libelle: "Journal des reçus", roles: TOUS, disponible: true }],
+  },
+  {
     // Comme sur desktop (EcranParametres) : Utilisateurs et Taux de change,
     // PATRON uniquement, matrice 9.3.
     titre: "Administration",

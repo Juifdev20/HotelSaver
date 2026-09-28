@@ -2337,3 +2337,20 @@ CAFETARIA/PATRON → 403 « accès refusé » avant même la création de la
 facture. La réception peut désormais lire **uniquement** les ventes liées
 à un séjour (`reservationLieeId` obligatoire pour ce rôle, sinon 403) —
 la matrice « pas d'accès au module cafétaria » reste intacte ailleurs.
+
+### Suite — journal des reçus des deux côtés
+
+Retour terrain du patron : après impression d'un reçu, aucun historique ne
+permettait de revoir le détail du paiement ou de réimprimer. Ajout :
+
+- **Mobile** : nouvel écran `EcranJournalRecus` (Plus > Journal des reçus,
+  tous rôles). Segments par rôle — PATRON : Séjours + Cafétaria,
+  RECEPTIONNISTE : Séjours, CAFETARIA : Cafétaria. Chaque pièce affiche le
+  détail complet du règlement (montant remis, devise, taux appliqué, monnaie
+  rendue, dates d'encaissement/impression/annulation) + réimpression
+  Bluetooth + annulation avec motif (PATRON uniquement). En ligne
+  uniquement — les reçus ne sont pas mirrorés dans SQLite (la réimpression
+  hors ligne n'a pas de valeur métier demandée).
+- **Desktop** : réception — bouton « Détail » ajouté au journal des reçus
+  existant (EcranFacturation) ; cafétaria — `JournalVentes` ajouté sous les
+  comptes ouverts (même détail, réimpression, annulation patron).

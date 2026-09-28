@@ -220,7 +220,12 @@ export function App() {
       ) : page === "caisse" ? (
         <EcranCaisse client={client} onCompteOuvert={setCompteCafeteriaOuvert} />
       ) : (
-        <EcranComptesOuverts client={client} onOuvrirCompte={setCompteCafeteriaOuvert} />
+        <EcranComptesOuverts
+          client={client}
+          utilisateur={utilisateur}
+          interfaceImprimante={configuration.imprimanteInterface}
+          onOuvrirCompte={setCompteCafeteriaOuvert}
+        />
       );
     } else if (page === "menu") {
       contenu = <EcranMenu client={client} utilisateur={utilisateur} />;

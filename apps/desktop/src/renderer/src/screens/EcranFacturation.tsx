@@ -414,6 +414,7 @@ function JournalRecus({
   const [erreur, setErreur] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [annulationDe, setAnnulationDe] = useState<string | null>(null);
+  const [detailDe, setDetailDe] = useState<string | null>(null);
   const [motif, setMotif] = useState("");
   const [enCours, setEnCours] = useState<string | null>(null);
 
@@ -513,6 +514,14 @@ function JournalRecus({
                 <td className="texte-discret">{f.modePaiement === "CASH" ? "Espèces" : f.modePaiement}</td>
                 <td className="texte-discret">{f.annuleLe ? `Annulé — ${f.motifAnnulation ?? ""}` : "Réglé"}</td>
                 <td style={{ whiteSpace: "nowrap" }}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setDetailDe(detailDe === f.id ? null : f.id)}
+                  >
+                    Détail
+                  </Button>{" "}
                   <Button type="button" variant="secondary" size="sm" disabled={enCours !== null} onClick={() => void reimprimer(f)}>
                     {enCours === f.id ? "…" : "Réimprimer"}
                   </Button>{" "}
@@ -533,6 +542,25 @@ function JournalRecus({
                   )}
                 </td>
               </tr>
+              {detailDe === f.id && (
+                <tr>
+                  <td colSpan={6} className="texte-discret">
+                    <div style={{ padding: "var(--hc-space-2) var(--hc-space-3)" }}>
+                      {f.deviseRegleeParClient && f.montantRegleParClient && (
+                        <div>Montant remis : {formatMontant(f.montantRegleParClient, f.deviseRegleeParClient)}</div>
+                      )}
+                      {f.tauxChangeApplique && <div>Taux appliqué : 1 $ = {formatMontant(f.tauxChangeApplique, Devise.CDF)}</div>}
+                      {f.deviseMonnaieRendue && f.montantMonnaieRendue && (
+                        <div>Monnaie rendue : {formatMontant(f.montantMonnaieRendue, f.deviseMonnaieRendue)}</div>
+                      )}
+                      {f.motifAnnulation && <div>Motif : {f.motifAnnulation}</div>}
+                      {!f.deviseRegleeParClient && !f.tauxChangeApplique && !f.motifAnnulation && (
+                        <div>Paiement au comptant, sans détail saisi.</div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
               {annulationDe === f.id && (
                 <tr>
                   <td colSpan={6}>

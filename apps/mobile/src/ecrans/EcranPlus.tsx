@@ -19,6 +19,7 @@ import { EcranUtilisateurs } from "./EcranUtilisateurs";
 import { EcranReservations } from "./EcranReservations";
 import { EcranClients } from "./EcranClients";
 import { EcranTauxChange } from "./EcranTauxChange";
+import { EcranJournalRecus } from "./EcranJournalRecus";
 
 function initiales(nom: string): string {
   return nom
@@ -42,7 +43,8 @@ type VuePlus =
   | { id: "utilisateurs" }
   | { id: "arrivees-departs" }
   | { id: "clients" }
-  | { id: "taux-de-change" };
+  | { id: "taux-de-change" }
+  | { id: "journal-recus" };
 
 const VUE_LISTE: VuePlus = { id: "liste" };
 
@@ -106,6 +108,9 @@ export function EcranPlus() {
   }
   if (vue.id === "taux-de-change") {
     return <EcranTauxChange onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "journal-recus") {
+    return <EcranJournalRecus onRetour={() => setVue(VUE_LISTE)} />;
   }
 
   return (
@@ -177,7 +182,8 @@ export function EcranPlus() {
                         | "utilisateurs"
                         | "arrivees-departs"
                         | "clients"
-                        | "taux-de-change",
+                        | "taux-de-change"
+                        | "journal-recus",
                     })
                   }
                 >
