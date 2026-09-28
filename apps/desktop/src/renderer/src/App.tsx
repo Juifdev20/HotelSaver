@@ -11,6 +11,12 @@ import { EcranFacturation } from "./screens/EcranFacturation";
 import { EcranImprimante } from "./screens/EcranImprimante";
 import { EcranParametres } from "./screens/EcranParametres";
 import { EcranTableauDeBord } from "./screens/EcranTableauDeBord";
+import { EcranUtilisateurs } from "./screens/EcranUtilisateurs";
+import { EcranCaisse } from "./screens/EcranCaisse";
+import { EcranComptesOuverts } from "./screens/EcranComptesOuverts";
+import { EcranCompteCafeteria } from "./screens/EcranCompteCafeteria";
+import { EcranMenu } from "./screens/EcranMenu";
+import { EcranStock } from "./screens/EcranStock";
 import { EcranBientot } from "./screens/EcranBientot";
 
 type Ecran = "chargement" | "connexion" | "parametres-hors-connexion" | "application";
@@ -40,6 +46,11 @@ export function App() {
   const [ecran, setEcran] = useState<Ecran>("chargement");
   const [page, setPage] = useState<IdPage>("tableau-de-bord");
   const [rechercheChambres, setRechercheChambres] = useState("");
+  // Compte cafétaria actuellement ouvert en détail depuis "Caisse" ou
+  // "Comptes ouverts" (les deux mènent au même écran de détail) — remis à
+  // zéro à chaque navigation pour ne jamais montrer un détail périmé en
+  // revenant sur l'une de ces deux pages (voir naviguer() plus bas).
+  const [compteCafeteriaOuvert, setCompteCafeteriaOuvert] = useState<string | null>(null);
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
   const [themeSombre, setThemeSombre] = useState(themeSombrePrefere);
@@ -128,6 +139,15 @@ export function App() {
     setConfiguration(nouvelle);
   }
 
+  /** Toute navigation explicite (barre latérale, tableau de bord...) referme
+   * un éventuel détail de compte cafétaria resté ouvert — sans ça, revenir
+   * sur "Caisse" ou "Comptes ouverts" montrerait le détail périmé de la
+   * dernière visite au lieu du formulaire/de la liste. */
+  function naviguer(nouvellePage: IdPage) {
+    setCompteCafeteriaOuvert(null);
+    setPage(nouvellePage);
+  }
+
   if (ecran === "chargement" || !configuration) {
     return (
       <div className="hc-page-centree">
@@ -153,19 +173,41 @@ export function App() {
   if (ecran === "application" && client && utilisateur) {
     let contenu: React.ReactNode;
     if (page === "tableau-de-bord") {
-      contenu = <EcranTableauDeBord client={client} utilisateur={utilisateur} onNaviguer={setPage} />;
+      contenu = <EcranTableauDeBord client={client} utilisateur={utilisateur} onNaviguer={naviguer} />;
     } else if (page === "chambres") {
-      contenu = <EcranChambres client={client} rechercheInitiale={rechercheChambres} onNaviguer={setPage} />;
+      contenu = <EcranChambres client={client} rechercheInitiale={rechercheChambres} onNaviguer={naviguer} />;
     } else if (page === "facturation") {
       contenu = <EcranFacturation client={client} utilisateur={utilisateur} interfaceImprimante={configuration.imprimanteInterface} />;
+    } else if (page === "caisse" || page === "comptes-ouverts") {
+      // Les deux entrées mènent au même écran de détail une fois un compte
+      // choisi/créé — voir compteCafeteriaOuvert plus haut.
+      contenu = compteCafeteriaOuvert ? (
+        <EcranCompteCafeteria
+          client={client}
+          utilisateur={utilisateur}
+          compteId={compteCafeteriaOuvert}
+          interfaceImprimante={configuration.imprimanteInterface}
+          onRetour={() => setCompteCafeteriaOuvert(null)}
+        />
+      ) : page === "caisse" ? (
+        <EcranCaisse client={client} onCompteOuvert={setCompteCafeteriaOuvert} />
+      ) : (
+        <EcranComptesOuverts client={client} onOuvrirCompte={setCompteCafeteriaOuvert} />
+      );
+    } else if (page === "menu") {
+      contenu = <EcranMenu client={client} utilisateur={utilisateur} />;
+    } else if (page === "stock") {
+      contenu = <EcranStock client={client} />;
     } else if (page === "imprimante") {
       contenu = (
         <EcranImprimante
           interfaceImprimante={configuration.imprimanteInterface}
           onEnregistrer={enregistrerParametres}
-          onRetour={() => setPage("parametres")}
+          onRetour={() => naviguer("parametres")}
         />
       );
+    } else if (page === "utilisateurs") {
+      contenu = <EcranUtilisateurs client={client} />;
     } else if (page === "parametres") {
       contenu = (
         <EcranParametres
@@ -173,7 +215,7 @@ export function App() {
           onEnregistrer={enregistrerParametres}
           client={client}
           utilisateur={utilisateur}
-          onNaviguer={setPage}
+          onNaviguer={naviguer}
           themeSombre={themeSombre}
           onBasculerTheme={() => setThemeSombre((v) => !v)}
         />
@@ -186,7 +228,7 @@ export function App() {
       <Coquille
         utilisateur={utilisateur}
         pageActive={page}
-        onNaviguer={setPage}
+        onNaviguer={naviguer}
         themeSombre={themeSombre}
         onBasculerTheme={() => setThemeSombre((v) => !v)}
         onDeconnexion={seDeconnecter}

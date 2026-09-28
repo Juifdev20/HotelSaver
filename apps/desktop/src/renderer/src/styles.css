@@ -28,6 +28,10 @@ p {
   color: var(--hc-danger);
 }
 
+.texte-succes {
+  color: var(--hc-success);
+}
+
 .texte-discret {
   color: var(--hc-ink-muted);
 }

@@ -15,6 +15,7 @@ import { DashboardModule } from "./dashboard/dashboard.module";
 import { PublicModule } from "./public/public.module";
 import { SyncModule } from "./sync/sync.module";
 import { SuperAdminModule } from "./super-admin/super-admin.module";
+import { UtilisateursModule } from "./utilisateurs/utilisateurs.module";
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { SuperAdminModule } from "./super-admin/super-admin.module";
     PublicModule,
     SyncModule,
     SuperAdminModule,
+    UtilisateursModule,
   ],
   providers: [
     {

@@ -20,6 +20,7 @@ import {
   Settings,
   ShoppingCart,
   Sun,
+  UserRound,
   UtensilsCrossed,
   X,
 } from "lucide-react";
@@ -41,6 +42,7 @@ const ICONES: Record<IdPage, LucideIcon> = {
   stock: Package,
   parametres: Settings,
   imprimante: Printer,
+  utilisateurs: UserRound,
 };
 
 const LIBELLE_ROLE: Record<Role, string> = {

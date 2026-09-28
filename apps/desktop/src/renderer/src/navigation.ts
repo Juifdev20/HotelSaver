@@ -11,7 +11,8 @@ export type IdPage =
   | "menu"
   | "stock"
   | "parametres"
-  | "imprimante";
+  | "imprimante"
+  | "utilisateurs";
 
 export interface EntreeNavigation {
   id: IdPage;
@@ -50,10 +51,10 @@ export const SECTIONS: SectionNavigation[] = [
   {
     titre: "Cafétaria",
     entrees: [
-      { id: "caisse", libelle: "Caisse", libelleCourt: "Caisse", roles: CAFETARIA, disponible: false },
-      { id: "comptes-ouverts", libelle: "Comptes ouverts", libelleCourt: "Comptes", roles: CAFETARIA, disponible: false },
-      { id: "menu", libelle: "Menu", libelleCourt: "Menu", roles: CAFETARIA, disponible: false },
-      { id: "stock", libelle: "Stock", libelleCourt: "Stock", roles: CAFETARIA, disponible: false },
+      { id: "caisse", libelle: "Caisse", libelleCourt: "Caisse", roles: CAFETARIA, disponible: true },
+      { id: "comptes-ouverts", libelle: "Comptes ouverts", libelleCourt: "Comptes", roles: CAFETARIA, disponible: true },
+      { id: "menu", libelle: "Menu", libelleCourt: "Menu", roles: CAFETARIA, disponible: true },
+      { id: "stock", libelle: "Stock", libelleCourt: "Stock", roles: CAFETARIA, disponible: true },
     ],
   },
   // Pas de section "Administration" séparée : Utilisateurs et Taux de change
@@ -78,5 +79,6 @@ export function entreesBarreDuBas(role: Role): EntreeNavigation[] {
 export function libellePage(id: IdPage): string {
   if (id === "parametres") return "Paramètres";
   if (id === "imprimante") return "Imprimante";
+  if (id === "utilisateurs") return "Utilisateurs";
   return SECTIONS.flatMap((s) => s.entrees).find((e) => e.id === id)?.libelle ?? "";
 }

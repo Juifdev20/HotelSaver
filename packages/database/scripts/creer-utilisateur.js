@@ -53,7 +53,7 @@ async function main() {
 
   try {
     const utilisateur = await prisma.utilisateur.create({
-      data: { nom, role, actif: true, supabaseAuthId: compteAuth.id, hotelId },
+      data: { nom, role, actif: true, supabaseAuthId: compteAuth.id, hotelId, email },
     });
     console.log(`Compte créé : ${nom} <${email}> — rôle ${role} (Utilisateur ${utilisateur.id}).`);
   } catch (erreur) {

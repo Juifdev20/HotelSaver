@@ -179,6 +179,12 @@ model Utilisateur {
   actif          Boolean  @default(true)
   supabaseAuthId String   @unique
   createdAt      DateTime @default(now())
+  /// Dénormalisé depuis Supabase Auth (source de vérité pour l'authentification
+  /// elle-même) — évite un appel à l'API Admin Supabase par ligne pour afficher
+  /// l'écran "Utilisateurs" (Phase 15). Nullable : les comptes créés avant
+  /// cette Phase (via creer-utilisateur.js, sans ce champ) n'ont pas de valeur
+  /// tant qu'ils ne sont pas mis à jour manuellement.
+  email          String?  @unique
 
   @@index([hotelId])
 }

@@ -1,3 +1,4 @@
+import { Role } from "@hotel-chicago/types";
 import { ClientApi, ErreurApi } from "./client";
 
 function mockFetchOnce(status: number, corps: unknown) {
@@ -122,5 +123,41 @@ describe("ClientApi", () => {
       "http://localhost:3000/chambres/c1",
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ statut: "OCCUPEE" }) })
     );
+  });
+
+  describe("Utilisateurs", () => {
+    it("liste les utilisateurs de l'hôtel courant", async () => {
+      mockFetchOnce(200, []);
+      const client = new ClientApi("http://localhost:3000", () => "jeton");
+
+      await client.listerUtilisateurs();
+
+      expect(global.fetch).toHaveBeenCalledWith("http://localhost:3000/utilisateurs", expect.anything());
+    });
+
+    it("envoie un POST JSON pour creerUtilisateur", async () => {
+      const donnees = { nom: "Employé", email: "employe@exemple.com", motDePasse: "motdepasse123", role: Role.CAFETARIA };
+      mockFetchOnce(201, { id: "u1", ...donnees, actif: true });
+      const client = new ClientApi("http://localhost:3000", () => "jeton");
+
+      await client.creerUtilisateur(donnees);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "http://localhost:3000/utilisateurs",
+        expect.objectContaining({ method: "POST", body: JSON.stringify(donnees) })
+      );
+    });
+
+    it("envoie un PATCH JSON pour changerStatutUtilisateur", async () => {
+      mockFetchOnce(200, { id: "u1", actif: false });
+      const client = new ClientApi("http://localhost:3000", () => "jeton");
+
+      await client.changerStatutUtilisateur("u1", false);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "http://localhost:3000/utilisateurs/u1",
+        expect.objectContaining({ method: "PATCH", body: JSON.stringify({ actif: false }) })
+      );
+    });
   });
 });

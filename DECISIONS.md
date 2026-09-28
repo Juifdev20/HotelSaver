@@ -2140,3 +2140,73 @@ prebuild`, rebuild `gradlew installDebug`, puis `pnpm --filter mobile dev
 téléchargement du bundle au démarrage comme prévu (barre « Bundling » de
 Metro visible dessous). Vérifié sur l'OUKITEL : bundle servi en ~54 s puis
 tableau de bord, session restaurée silencieusement.
+
+## HotelSaver — Phase 15 : gestion des comptes utilisateurs + rattrapage Cafétaria desktop, 28/09/2026
+
+Jusqu'ici, créer un compte employé (Réceptionniste/Cafétaria) nécessitait le
+script CLI `packages/database/scripts/creer-utilisateur.js` — aucun écran ne
+permettait au patron de le faire lui-même. Mobile avait déjà les 4 écrans
+Cafétaria (Caisse, Comptes ouverts, détail compte, Stock/Menu) opérationnels
+avec synchronisation hors ligne ; desktop n'en avait aucun (`disponible:
+false` partout dans `navigation.ts`). Cette phase ferme les deux manques
+pour que « le patron crée le compte, l'employé se connecte sur téléphone ou
+desktop et tombe directement sur son interface » fonctionne de bout en bout.
+
+**Schéma** : `Utilisateur.email` ajouté (`String? @unique`, migration
+`20260928130000_ajout_email_utilisateur`, appliquée via
+`migrate:appliquer` — le pooler transaction ne supporte pas `prisma migrate
+dev`, voir AGENTS.md). Nullable : les comptes déjà créés par le script CLI
+avant cette phase n'ont pas de valeur tant qu'ils ne sont pas mis à jour à
+la main. `creer-utilisateur.js` écrit désormais ce champ pour les nouveaux
+comptes créés en ligne de commande.
+
+**API — `UtilisateursModule`** (`GET/POST /utilisateurs`,
+`PATCH /utilisateurs/:id`, PATRON uniquement, scopé `hotelId` comme tous les
+modules depuis la Phase 2) : réutilise `SupabaseAdminService.creerCompte`
+(déjà servant à `PublicService.inscrireHotel`) avec `emailConfirme: true`
+(un compte posé par un patron de confiance, pas une inscription
+libre-service — pas d'email à confirmer) et le même rollback du compte
+Supabase si l'écriture Prisma échoue (email déjà pris → 409, pas 500). Seul
+`actif` est modifiable pour l'instant (activer/désactiver) — `actif = false`
+est déjà bloqué à la connexion par `SupabaseAuthGuard`, donc immédiatement
+effectif ; désactiver son propre compte est refusé explicitement (400)
+plutôt que de se retrouver bloqué dehors sans recours.
+
+**Clients** : `ClientApi.listerUtilisateurs/creerUtilisateur/
+changerStatutUtilisateur` (api-client), puis un écran « Utilisateurs »
+quasi identique mobile (`EcranPlus` → Administration, déjà réservé) et
+desktop (`EcranParametres` → Administration, bouton « Gérer » remplaçant le
+badge « Bientôt »). Le mot de passe est choisi par le patron dans le
+formulaire et communiqué directement à l'employé — pas de génération
+automatique ni d'email d'invitation (décision explicite : plus simple pour
+un patron qui voit son employé en personne).
+
+**Rattrapage Cafétaria desktop** (Caisse, Comptes ouverts, détail compte,
+Menu, Stock — `apps/desktop/src/renderer/src/screens/`) : même logique
+métier que les écrans mobile équivalents, mais **sans miroir hors ligne** —
+desktop appelle `ClientApi` directement partout (poste fixe, cohérent avec
+`EcranChambres`/`EcranFacturation`, seuls écrans desktop existants). Le
+détail d'un compte (`EcranCompteCafeteria`) est accessible aussi bien
+depuis « Caisse » (après ouverture) que depuis « Comptes ouverts » (en
+cliquant une ligne) : un état `compteCafeteriaOuvert` levé dans `App.tsx`
+bascule l'affichage de la page active entre formulaire/liste et détail,
+réinitialisé à chaque navigation explicite (sidebar, tableau de bord) pour
+ne jamais montrer un détail périmé en revenant sur l'une des deux pages.
+Impression du reçu de vente : même mécanisme que `EcranFacturation`
+(`window.hotelChicago.imprimer` + `construireRecuVente`, déjà agnostique du
+type de compte — mobile ou desktop). `navigation.ts` desktop passe les 4
+entrées Cafétaria à `disponible: true`.
+
+**Hors scope de cette phase** (confirmé avec le patron) : interface
+Réception au-delà de l'existant (Chambres/Facturation) — passe séparée à
+venir ; répartition par personne/part égale à l'encaissement (déjà « à
+venir » côté mobile, inchangé) ; réinitialisation de mot de passe.
+
+**Vérifié** : 198/198 tests API (dont `utilisateurs.service.spec.ts`,
+nouveau), suite api-client (43 tests, `client.spec.ts` étendu),
+`tsc --noEmit` mobile propre, build desktop (`electron-vite build`) et
+`tsc --noEmit` desktop sans nouvelle erreur (les deux erreurs restantes
+dans `navigateur-secours.ts` sont préexistantes, sans rapport avec cette
+phase). Test de bout en bout restant à faire par le patron : créer un
+compte CAFETARIA via les deux apps, se reconnecter avec, confirmer
+l'atterrissage sur l'interface Cafétaria (mobile et desktop).

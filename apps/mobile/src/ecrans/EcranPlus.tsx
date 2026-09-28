@@ -15,6 +15,7 @@ import { EcranCaisse } from "./EcranCaisse";
 import { EcranCompteCafeteria } from "./EcranCompteCafeteria";
 import { EcranSynchronisation } from "./EcranSynchronisation";
 import { EcranImprimante } from "./EcranImprimante";
+import { EcranUtilisateurs } from "./EcranUtilisateurs";
 
 function initiales(nom: string): string {
   return nom
@@ -34,7 +35,8 @@ type VuePlus =
   | { id: "stock" }
   | { id: "comptes-ouverts" }
   | { id: "caisse" }
-  | { id: "compte"; compteId: string };
+  | { id: "compte"; compteId: string }
+  | { id: "utilisateurs" };
 
 const VUE_LISTE: VuePlus = { id: "liste" };
 
@@ -86,6 +88,9 @@ export function EcranPlus() {
     return (
       <EcranCompteCafeteria client={client} compteId={vue.compteId} onRetour={() => setVue({ id: "comptes-ouverts" })} />
     );
+  }
+  if (vue.id === "utilisateurs") {
+    return <EcranUtilisateurs client={client} onRetour={() => setVue(VUE_LISTE)} />;
   }
 
   return (
@@ -147,7 +152,7 @@ export function EcranPlus() {
                 <Pressable
                   key={entree.id}
                   style={styles.ligne}
-                  onPress={() => setVue({ id: entree.id as "caisse" | "comptes-ouverts" | "menu" | "stock" })}
+                  onPress={() => setVue({ id: entree.id as "caisse" | "comptes-ouverts" | "menu" | "stock" | "utilisateurs" })}
                 >
                   <Text style={styles.ligneTexte}>{entree.libelle}</Text>
                 </Pressable>

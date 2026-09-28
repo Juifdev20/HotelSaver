@@ -10,6 +10,7 @@ import {
   Produit,
   RecetteDuJour,
   Reservation,
+  Role,
   SousCompte,
   StatutCompte,
   StatutReservation,
@@ -108,6 +109,25 @@ export interface ResultatCheckInOut {
   reservationId: string;
   statutReservation: StatutReservation;
   chambre: Chambre;
+}
+
+/** Réponse de GET/POST/PATCH /utilisateurs — jamais supabaseAuthId (voir
+ * apps/api/src/utilisateurs/utilisateurs.service.ts, SELECTION). */
+export interface Utilisateur {
+  id: string;
+  nom: string;
+  email: string | null;
+  role: Role;
+  actif: boolean;
+  createdAt: string;
+}
+
+/** Champs de apps/api/src/utilisateurs/dto/create-utilisateur.dto.ts. */
+export interface DonneesCreationUtilisateur {
+  nom: string;
+  email: string;
+  motDePasse: string;
+  role: Role;
 }
 
 // ---------------------------------------------------------------------
@@ -351,6 +371,22 @@ export class ClientApi {
     return this.requete<VenteCafeteria[]>(
       `/cafeteria/ventes${reservationLieeId ? `?reservationLieeId=${reservationLieeId}` : ""}`
     );
+  }
+
+  // ---------------------------------------------------------------------
+  // Utilisateurs (PATRON uniquement côté API)
+  // ---------------------------------------------------------------------
+
+  async listerUtilisateurs(): Promise<Utilisateur[]> {
+    return this.requete<Utilisateur[]>("/utilisateurs");
+  }
+
+  async creerUtilisateur(donnees: DonneesCreationUtilisateur): Promise<Utilisateur> {
+    return this.requete<Utilisateur>("/utilisateurs", { method: "POST", body: JSON.stringify(donnees) });
+  }
+
+  async changerStatutUtilisateur(id: string, actif: boolean): Promise<Utilisateur> {
+    return this.requete<Utilisateur>(`/utilisateurs/${id}`, { method: "PATCH", body: JSON.stringify({ actif }) });
   }
 
   // ---------------------------------------------------------------------

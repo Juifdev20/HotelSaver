@@ -138,7 +138,11 @@ export function EcranParametres({
               <Users size={18} aria-hidden="true" />
             </span>
             <span className="hc-text-body">Utilisateurs</span>
-            <span className="badge-bientot">Bientôt</span>
+            {onNaviguer && (
+              <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("utilisateurs")}>
+                Gérer
+              </Button>
+            )}
           </div>
           <div className="parametres-ligne">
             <span className="parametres-ligne__icone">
