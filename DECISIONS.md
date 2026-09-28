@@ -2354,3 +2354,19 @@ permettait de revoir le détail du paiement ou de réimprimer. Ajout :
 - **Desktop** : réception — bouton « Détail » ajouté au journal des reçus
   existant (EcranFacturation) ; cafétaria — `JournalVentes` ajouté sous les
   comptes ouverts (même détail, réimpression, annulation patron).
+
+### Sécurité — sélection de profil et déconnexion (retour terrain)
+
+Deux trous du mode « téléphone partagé » (section 5) corrigés :
+
+- Un profil choisi dans `EcranSelectionProfil` repassait par le jeton de
+  rafraîchissement mémorisé, mot de passe jamais redemandé — un employé
+  pouvait ouvrir la session **PATRON** depuis son propre téléphone.
+  Désormais, choisir une carte Patron force la saisie du mot de passe
+  (email pré-rempli) même si un jeton existe. Les bascules entre comptes
+  employés restent rapides — le trou qu'elles ouvrent est limité à des
+  privilèges de même niveau.
+- « Changer de profil » dans Plus n'est plus montré qu'au PATRON. Les
+  employés ont « Se déconnecter » (rouge), qui oublie le profil ET son
+  jeton (`oublierProfil`) — la reconnexion exige le mot de passe, il n'y a
+  plus de porte dérobée par la liste des profils.

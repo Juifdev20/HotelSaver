@@ -1,7 +1,8 @@
 import * as React from "react";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Printer, RefreshCw, Settings, UserRound } from "lucide-react-native";
+import { Printer, RefreshCw, Settings, UserRound, LogOut } from "lucide-react-native";
+import { Role } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
 import { useSession } from "../contexteSession";
@@ -56,7 +57,7 @@ const VUE_LISTE: VuePlus = { id: "liste" };
  * et son retour à cette liste sont gérés par un état local ici, même
  * principe que le swap d'écrans déjà utilisé au niveau de App.tsx. */
 export function EcranPlus() {
-  const { client, utilisateur, changerDeProfil } = useSession();
+  const { client, utilisateur, changerDeProfil, seDeconnecter } = useSession();
   const sections = sectionsPlusPourRole(utilisateur.role);
   const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
   const etatSync = useSyncEtat();
@@ -125,10 +126,23 @@ export function EcranPlus() {
           <Text style={styles.role}>{LIBELLE_ROLE[utilisateur.role]}</Text>
         </View>
 
-        <Pressable style={styles.ligne} onPress={changerDeProfil}>
-          <UserRound size={18} color={couleurs.encre} />
-          <Text style={styles.ligneTexte}>Changer de profil</Text>
-        </Pressable>
+        {/* Seul le PATRON bascule entre les profils mémorisés (téléphone
+            partagé, retour rapide). Un employé n'a que « Se déconnecter » —
+            qui oublie son profil et son jeton : impossible de revenir sur
+            son compte ou d'en ouvrir un autre sans mot de passe. Et même
+            sur la sélection de profil, une carte Patron exige le mot de
+            passe (voir choisirProfil dans App.tsx). */}
+        {utilisateur.role === Role.PATRON ? (
+          <Pressable style={styles.ligne} onPress={changerDeProfil}>
+            <UserRound size={18} color={couleurs.encre} />
+            <Text style={styles.ligneTexte}>Changer de profil</Text>
+          </Pressable>
+        ) : (
+          <Pressable style={styles.ligne} onPress={seDeconnecter}>
+            <LogOut size={18} color={couleurs.danger} />
+            <Text style={[styles.ligneTexte, { color: couleurs.danger }]}>Se déconnecter</Text>
+          </Pressable>
+        )}
 
         <Pressable style={styles.ligne} onPress={() => setVue({ id: "parametres" })}>
           <Settings size={18} color={couleurs.encre} />

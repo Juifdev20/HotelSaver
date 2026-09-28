@@ -7,7 +7,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { ClientApi, ErreurApi, connecterAvecMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
 import { MoteurSync } from "@hotel-chicago/sync-engine";
-import type { InscriptionHotelPayload, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Role, type InscriptionHotelPayload, type UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
 import { creerStockageLocalMobile } from "./src/stockage/stockageLocalMobile";
 import {
@@ -233,6 +233,16 @@ export default function App() {
 
   async function choisirProfil(profil: ProfilEnregistre) {
     if (!configuration) return;
+    // Un compte PATRON ne repasse jamais par le jeton mémorisé : sinon, sur
+    // un téléphone partagé, n'importe quel employé ouvrirait la session
+    // patron sans mot de passe — fuite complète (retour terrain 28/09).
+    // Lui, en revanche, peut encore basculer vers un profil employé.
+    if (profil.role === Role.PATRON) {
+      setEmailPreRempli(profil.email);
+      setMessageConnexion("Compte Patron : mot de passe requis pour se reconnecter.");
+      setEcran("connexion");
+      return;
+    }
     const jeton = await lireJetonRafraichissement(profil.utilisateurId);
     if (!jeton) {
       setEmailPreRempli(profil.email);
@@ -314,10 +324,22 @@ export default function App() {
   }
 
   /** "Changer de profil" depuis le tableau de bord : referme la session en
-   * cours mais garde le profil enregistré (jeton compris) pour un retour rapide. */
+   * cours mais garde le profil enregistré (jeton compris) pour un retour rapide.
+   * Réservé au PATRON dans l'UI — les employés passent par seDeconnecter. */
   function changerDeProfil() {
     setAccessToken(null);
     setUtilisateur(null);
+    retourSelectionProfil();
+  }
+
+  /** "Se déconnecter" (employés) : le profil et son jeton sont oubliés —
+   * la reconnexion de CE compte exige le mot de passe. Le patron garde
+   * "Changer de profil" (voir EcranPlus). */
+  async function seDeconnecter() {
+    const id = utilisateur?.userId;
+    setAccessToken(null);
+    setUtilisateur(null);
+    if (id) await oublierProfil(id);
     retourSelectionProfil();
   }
 
@@ -395,7 +417,7 @@ export default function App() {
     <View style={styles.racine}>
       {contenuPret && (
         <SafeAreaProvider>
-          <FournisseurSession session={{ client, utilisateur, changerDeProfil, moteurSync }}>
+          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync }}>
             <NavigationContainer>
               <CoquilleOnglets />
             </NavigationContainer>

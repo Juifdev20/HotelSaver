@@ -10,8 +10,12 @@ import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
 export interface Session {
   client: ClientApi;
   utilisateur: UtilisateurAuthentifie;
-  /** Retour à l'écran de sélection de profil (garde le profil enregistré, juste la session en cours). */
+  /** Retour à l'écran de sélection de profil (garde le profil enregistré,
+   * jeton compris, pour un retour rapide) — PATRON uniquement côté UI. */
   changerDeProfil: () => void;
+  /** Déconnexion complète : le profil ET son jeton sont oubliés — la
+   * reconnexion exige le mot de passe (employés, retour terrain 28/09). */
+  seDeconnecter: () => void;
   /** Démarré après connexion, arrêté dans changerDeProfil() — voir App.tsx. */
   moteurSync: MoteurSync;
 }
