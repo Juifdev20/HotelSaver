@@ -1,9 +1,13 @@
 import * as React from "react";
 import { useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ArrowRight, Building2, Globe, Lock, Mail, MapPin, Phone, User } from "lucide-react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import type { InscriptionHotelPayload } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
+import { EnteteAuth } from "../composants/EnteteAuth";
+import { ChampAuth } from "../composants/ChampAuth";
+import { EtapesAuth } from "../composants/EtapesAuth";
 
 export interface EcranInscriptionProps {
   erreur: string | null;
@@ -68,48 +72,52 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
 
   return (
     <View style={styles.page}>
-      <ConteneurFormulaire styleContenu={styles.contenu}>
-        <View style={styles.carte}>
-          <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.titre}>Créer un compte hôtel</Text>
-          <Text style={styles.sousTitre}>{etape === 1 ? "Étape 1 sur 2 — Votre hôtel" : "Étape 2 sur 2 — Votre compte"}</Text>
+      <EnteteAuth />
+      <View style={styles.feuille}>
+        <ConteneurFormulaire styleContenu={styles.contenu}>
+          <EtapesAuth etape={etape} />
+          <Text style={styles.titre}>Créez votre hôtel</Text>
+          <Text style={styles.sousTitre}>
+            {etape === 1
+              ? "Quelques informations suffisent pour commencer."
+              : "Dernière étape : le compte du patron, qui gérera les accès de l'équipe."}
+          </Text>
 
           {etape === 1 && (
             <>
-              <Text style={styles.label}>Nom de l'hôtel</Text>
-              <TextInput
-                style={styles.champ}
+              <ChampAuth
+                libelle="Nom de l'hôtel *"
+                icone={Building2}
                 value={nom}
                 onChangeText={setNom}
-                placeholder="Hôtel Chicago"
-                placeholderTextColor={couleurs.encreFaible}
+                valide={nom.trim().length > 1}
+                placeholder="Ex. Hôtel Le Grand Bleu"
               />
-
-              <Text style={styles.label}>Sous-domaine</Text>
-              <TextInput
-                style={styles.champ}
+              <ChampAuth
+                libelle="Sous-domaine *"
+                icone={Globe}
                 value={sousDomaine}
                 onChangeText={(v) => setSousDomaine(v.toLowerCase())}
+                valide={REGEX_SOUS_DOMAINE.test(sousDomaine)}
+                suffixe=".hotelsaver.com"
                 autoCapitalize="none"
-                placeholder="hotel-chicago"
-                placeholderTextColor={couleurs.encreFaible}
+                autoCorrect={false}
+                placeholder="hotel-mon-etablissement"
               />
-
-              <Text style={styles.label}>Téléphone (optionnel)</Text>
-              <TextInput
-                style={styles.champ}
+              <ChampAuth
+                libelle="Téléphone (optionnel)"
+                icone={Phone}
                 value={telephoneContact}
                 onChangeText={setTelephoneContact}
                 keyboardType="phone-pad"
-                placeholderTextColor={couleurs.encreFaible}
+                placeholder="Ex. +243 970 000 000"
               />
-
-              <Text style={styles.label}>Adresse (optionnel)</Text>
-              <TextInput
-                style={styles.champ}
+              <ChampAuth
+                libelle="Adresse (optionnelle)"
+                icone={MapPin}
                 value={adresse}
                 onChangeText={setAdresse}
-                placeholderTextColor={couleurs.encreFaible}
+                placeholder="Ex. Avenue de la Paix, Goma"
               />
 
               {erreurAffichee && (
@@ -120,50 +128,48 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
 
               <Pressable style={styles.bouton} onPress={passerEtape2}>
                 <Text style={styles.boutonTexte}>Continuer</Text>
+                <ArrowRight size={18} color="#fff" />
               </Pressable>
             </>
           )}
 
           {etape === 2 && (
             <>
-              <Text style={styles.label}>Votre nom</Text>
-              <TextInput
-                style={styles.champ}
+              <ChampAuth
+                libelle="Votre nom *"
+                icone={User}
                 value={nomProprietaire}
                 onChangeText={setNomProprietaire}
-                placeholderTextColor={couleurs.encreFaible}
+                valide={nomProprietaire.trim().length > 1}
+                placeholder="Ex. Jean Mukendi"
               />
-
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.champ}
+              <ChampAuth
+                libelle="Adresse e-mail *"
+                icone={Mail}
                 value={email}
                 onChangeText={setEmail}
+                valide={/^\S+@\S+\.\S+$/.test(email)}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 textContentType="emailAddress"
-                placeholderTextColor={couleurs.encreFaible}
+                placeholder="ex. hotel@monetablissement.com"
               />
-
-              <Text style={styles.label}>Mot de passe</Text>
-              <TextInput
-                style={styles.champ}
+              <ChampAuth
+                libelle="Mot de passe *"
+                icone={Lock}
                 value={motDePasse}
                 onChangeText={setMotDePasse}
                 secureTextEntry
                 textContentType="newPassword"
-                placeholder="8 caractères minimum"
-                placeholderTextColor={couleurs.encreFaible}
+                placeholder="Minimum 8 caractères"
               />
-
-              <Text style={styles.label}>Confirmer le mot de passe</Text>
-              <TextInput
-                style={styles.champ}
+              <ChampAuth
+                libelle="Confirmer le mot de passe *"
+                icone={Lock}
                 value={confirmationMotDePasse}
                 onChangeText={setConfirmationMotDePasse}
                 secureTextEntry
                 textContentType="newPassword"
-                placeholderTextColor={couleurs.encreFaible}
               />
 
               {erreurAffichee && (
@@ -176,58 +182,63 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 {enCours ? <ActivityIndicator color="#fff" /> : <Text style={styles.boutonTexte}>Créer mon compte</Text>}
               </Pressable>
 
-              <Pressable style={styles.boutonRetour} onPress={() => setEtape(1)}>
+              <Pressable
+                style={styles.boutonRetour}
+                onPress={() => {
+                  setErreurLocale(null);
+                  setEtape(1);
+                }}
+              >
                 <Text style={styles.boutonRetourTexte}>Retour</Text>
               </Pressable>
             </>
           )}
 
           <Pressable style={styles.boutonRetour} onPress={onRetourConnexion}>
-            <Text style={styles.boutonRetourTexte}>J'ai déjà un compte</Text>
+            <Text style={styles.boutonRetourTexte}>
+              Vous avez déjà un compte ? <Text style={styles.lien}>Se connecter</Text>
+            </Text>
           </Pressable>
-        </View>
-      </ConteneurFormulaire>
+        </ConteneurFormulaire>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: couleurs.surface300 },
-  contenu: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: espacements.s5 },
-  carte: {
-    width: "100%",
-    maxWidth: 400,
+  page: { flex: 1, backgroundColor: couleurs.navy },
+  feuille: {
+    flex: 1,
+    marginTop: -espacements.s5,
     backgroundColor: couleurs.surface200,
-    borderRadius: rayons.lg,
-    padding: espacements.s6,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: "hidden",
   },
-  logo: { width: 72, height: 72, alignSelf: "center", marginBottom: espacements.s2 },
-  titre: { fontSize: 22, fontWeight: "700", color: couleurs.navy, textAlign: "center" },
-  sousTitre: { fontSize: 13, color: couleurs.encreAttenuee, textAlign: "center", marginTop: 2, marginBottom: espacements.s4 },
-  label: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginBottom: espacements.s1, marginTop: espacements.s2 },
-  champ: {
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
+  contenu: { padding: espacements.s5, paddingTop: espacements.s5 + espacements.s2 },
+  titre: { fontSize: 26, fontWeight: "700", color: couleurs.navy, textAlign: "center" },
+  sousTitre: { fontSize: 14, color: couleurs.encreAttenuee, textAlign: "center", marginTop: 4, marginBottom: espacements.s5 },
+  erreur: {
+    color: "#B42318",
+    backgroundColor: couleurs.dangerClair,
+    fontSize: 13,
+    padding: espacements.s3,
     borderRadius: rayons.sm,
-    paddingHorizontal: espacements.s3,
-    height: 44,
-    fontSize: 15,
-    color: couleurs.encre,
-    backgroundColor: couleurs.surface100,
+    marginBottom: espacements.s2,
   },
-  erreur: { color: couleurs.danger, fontSize: 13, marginTop: espacements.s3 },
   bouton: {
-    marginTop: espacements.s4,
-    height: 48,
-    borderRadius: rayons.sm,
+    marginTop: espacements.s2,
+    height: 52,
+    borderRadius: rayons.md,
     backgroundColor: couleurs.bleu,
+    flexDirection: "row",
+    gap: 8,
     alignItems: "center",
     justifyContent: "center",
   },
   boutonDesactive: { opacity: 0.6 },
-  boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", height: 40 },
+  boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", height: 44 },
   boutonRetourTexte: { color: couleurs.encreAttenuee, fontWeight: "600" },
+  lien: { color: couleurs.bleu, fontWeight: "700" },
 });

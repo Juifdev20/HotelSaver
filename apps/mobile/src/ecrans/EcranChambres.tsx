@@ -8,6 +8,8 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { FeuilleModale } from "../composants/FeuilleModale";
+import { SelecteurPhotos, nettoyerImages } from "../composants/SelecteurPhotos";
+import { MAX_PHOTOS_CHAMBRE } from "@hotel-chicago/types";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { listerChambresMiroir, ecrireStatutChambreLocal, supprimerChambreLocale } from "../stockage/chambresMirroir";
@@ -53,6 +55,9 @@ export function EcranChambres() {
   const [type, setType] = useState("");
   const [prix, setPrix] = useState("");
   const [devise, setDevise] = useState<Devise>(Devise.USD);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photosAvant, setPhotosAvant] = useState<string[]>([]);
+  const [photosEnvoyees, setPhotosEnvoyees] = useState<string[]>([]);
   const [enCours, setEnCours] = useState(false);
 
   const rechargerMiroir = useCallback(() => {
@@ -110,8 +115,18 @@ export function EcranChambres() {
     setType("");
     setPrix("");
     setDevise(Devise.USD);
+    setPhotos([]);
+    setPhotosAvant([]);
+    setPhotosEnvoyees([]);
     setErreur(null);
     setFormulaire("creation");
+  }
+
+  /** Fermer sans enregistrer : les images envoyées pendant l'édition n'auront
+   * servi à rien, on les retire du stockage. */
+  function fermerFormulaire() {
+    void nettoyerImages(client, [], photosEnvoyees, photosAvant);
+    setFormulaire("ferme");
   }
 
   function ouvrirEdition(chambre: Chambre) {
@@ -121,6 +136,9 @@ export function EcranChambres() {
     setType(chambre.type);
     setPrix(chambre.prixParNuit);
     setDevise(chambre.devise);
+    setPhotos(chambre.photos ?? []);
+    setPhotosAvant(chambre.photos ?? []);
+    setPhotosEnvoyees([]);
     setErreur(null);
     setFormulaire("edition");
   }
@@ -138,12 +156,14 @@ export function EcranChambres() {
     setEnCours(true);
     setErreur(null);
     try {
-      const donnees = { numero: numero.trim(), type: type.trim(), prixParNuit: prixNombre, devise };
+      const donnees = { numero: numero.trim(), type: type.trim(), prixParNuit: prixNombre, devise, photos };
       if (formulaire === "creation") {
         await client.creerChambre(donnees);
       } else if (chambreEnEdition) {
         await client.modifierChambre(chambreEnEdition.id, donnees);
       }
+      // Enregistré : on ne garde dans le stockage que les photos conservées.
+      void nettoyerImages(client, photosAvant, photosEnvoyees, photos);
       setFormulaire("ferme");
       await synchroniserApresAction();
     } catch (e) {
@@ -233,7 +253,7 @@ export function EcranChambres() {
 
       <FeuilleModale
         visible={formulaire !== "ferme"}
-        onFermer={() => setFormulaire("ferme")}
+        onFermer={fermerFormulaire}
         titre={formulaire === "creation" ? "Nouvelle chambre" : `Chambre ${chambreEnEdition?.numero ?? ""}`}
       >
         <Text style={styles.champLabel}>Numéro</Text>
@@ -242,6 +262,15 @@ export function EcranChambres() {
         <TextInput style={styles.champ} value={type} onChangeText={setType} placeholder="Ex. Standard, Suite…" placeholderTextColor={couleurs.encreFaible} />
         <Text style={styles.champLabel}>Prix par nuit</Text>
         <TextInput style={styles.champ} value={prix} onChangeText={setPrix} placeholder="Ex. 45" placeholderTextColor={couleurs.encreFaible} keyboardType="numeric" />
+        <SelecteurPhotos
+          client={client}
+          usage="chambre"
+          photos={photos}
+          max={MAX_PHOTOS_CHAMBRE}
+          onChange={setPhotos}
+          onEnvoyee={(url) => setPhotosEnvoyees((liste) => [...liste, url])}
+          libelle="Photos (visibles sur le site de l'hôtel)"
+        />
         <Text style={styles.champLabel}>Devise</Text>
         <View style={styles.selecteurDevise}>
           {[Devise.USD, Devise.CDF].map((d) => (

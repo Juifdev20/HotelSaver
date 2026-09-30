@@ -403,7 +403,7 @@ export default function App() {
               <CoquilleOnglets />
             </NavigationContainer>
           </FournisseurSession>
-          <StatusBar style="dark" />
+          <StatusBar style="light" />
         </SafeAreaProvider>
       )}
       {(ecran === "chargement" || (ecran === "application" && !applicationPrete)) && (

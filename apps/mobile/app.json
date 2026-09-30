@@ -29,6 +29,12 @@
       "expo-secure-store",
       "expo-sqlite",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "HotelSaver accède à vos photos pour illustrer vos chambres et le site de votre hôtel."
+        }
+      ],
+      [
         "expo-system-ui",
         {
           "backgroundColor": "#053483"

@@ -14,6 +14,7 @@ import {
   Settings,
   ShoppingCart,
   UserCog,
+  Globe,
   Users,
   UtensilsCrossed,
 } from "lucide-react-native";
@@ -31,6 +32,7 @@ import { EcranCompteCafeteria } from "./EcranCompteCafeteria";
 import { EcranSynchronisation } from "./EcranSynchronisation";
 import { EcranImprimante } from "./EcranImprimante";
 import { EcranUtilisateurs } from "./EcranUtilisateurs";
+import { EcranSiteHotel } from "./EcranSiteHotel";
 import { EcranReservations } from "./EcranReservations";
 import { EcranClients } from "./EcranClients";
 import { EcranTauxChange } from "./EcranTauxChange";
@@ -56,6 +58,7 @@ type VuePlus =
   | { id: "caisse" }
   | { id: "compte"; compteId: string }
   | { id: "utilisateurs" }
+  | { id: "site-hotel" }
   | { id: "arrivees-departs" }
   | { id: "clients" }
   | { id: "taux-de-change" }
@@ -74,6 +77,7 @@ const ICONES_MENU: Record<string, LucideIcon> = {
   stock: Package,
   "journal-recus": ReceiptText,
   utilisateurs: UserCog,
+  "site-hotel": Globe,
   "taux-de-change": Coins,
 };
 
@@ -163,6 +167,9 @@ export function EcranPlus() {
       <EcranCompteCafeteria client={client} compteId={vue.compteId} onRetour={() => setVue({ id: "comptes-ouverts" })} />
     );
   }
+  if (vue.id === "site-hotel") {
+    return <EcranSiteHotel client={client} onRetour={() => setVue(VUE_LISTE)} />;
+  }
   if (vue.id === "utilisateurs") {
     return <EcranUtilisateurs client={client} onRetour={() => setVue(VUE_LISTE)} />;
   }
@@ -219,6 +226,7 @@ export function EcranPlus() {
                       | "menu"
                       | "stock"
                       | "utilisateurs"
+                      | "site-hotel"
                       | "arrivees-departs"
                       | "clients"
                       | "taux-de-change"

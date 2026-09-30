@@ -100,6 +100,7 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
     // PATRON uniquement, matrice 9.3.
     titre: "Administration",
     entrees: [
+      { id: "site-hotel", libelle: "Site de l'hôtel", roles: [Role.PATRON], disponible: true },
       { id: "utilisateurs", libelle: "Utilisateurs", roles: [Role.PATRON], disponible: true },
       { id: "taux-de-change", libelle: "Taux de change", roles: [Role.PATRON], disponible: true },
     ],

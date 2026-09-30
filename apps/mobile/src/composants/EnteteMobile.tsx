@@ -55,7 +55,7 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
             <Text style={styles.marqueTexte}>HotelSaver</Text>
           </View>
           <Pressable style={styles.boutonIcone} onPress={() => setNotifOuvertes(true)} hitSlop={8}>
-            <Bell size={20} color={couleurs.encre} />
+            <Bell size={20} color="#fff" />
             <View style={[styles.pointSync, { backgroundColor: couleurPointSync(etatSync) }]} />
           </Pressable>
         </View>
@@ -87,10 +87,10 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
 }
 
 const styles = StyleSheet.create({
+  // Navy comme la maquette : la barre d'état (horloge, réseau, batterie)
+  // prend la même couleur, icônes claires (StatusBar style="light" dans App.tsx).
   barreConteneur: {
-    backgroundColor: couleurs.surface200,
-    borderBottomWidth: 1,
-    borderBottomColor: couleurs.bordure,
+    backgroundColor: couleurs.navy,
   },
   barre: {
     flexDirection: "row",
@@ -108,11 +108,11 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: rayons.pill,
     borderWidth: 1,
-    borderColor: couleurs.surface200,
+    borderColor: couleurs.navy,
   },
   marque: { flexDirection: "row", alignItems: "center", gap: espacements.s1 },
   logo: { width: 22, height: 22 },
-  marqueTexte: { fontWeight: "700", fontSize: 15, color: couleurs.encre },
+  marqueTexte: { fontWeight: "700", fontSize: 15, color: "#fff" },
   ligneAccueil: {
     flexDirection: "row",
     alignItems: "center",
