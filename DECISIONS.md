@@ -2626,3 +2626,17 @@ Vérifié avec la clé `anon` : 0 ligne lisible sur les 18 tables ; INSERT `Clie
 `Reservation` refusés (42501) ; UPDATE `Hotel` sans effet (0 ligne) ; aucune ligne
 parasite en base ; `/public/hotel`, `/public/chambres-disponibles` et `/public/menu`
 répondent toujours 200 (l'API passe par le rôle `postgres`, hors RLS).
+
+### CORS : les sites d'hôtels (sous-domaines et domaines personnalisés) — 01/10/2026
+
+Trouvé en testant `hotel-test.localhost:5175` dans un vrai navigateur : le site affichait
+la vitrine HotelSaver au lieu de l'hôtel, car la liste `CORS_ORIGIN` n'autorisait que
+`localhost:<port>` et le navigateur bloquait l'appel à `/public/hotel` (le site retombait
+alors, par conception, sur la vitrine). **En production le même défaut aurait bloqué
+chaque `x.hotelsaver.com` et chaque domaine personnalisé**, en nombre illimité.
+`main.ts` décide maintenant le CORS requête par requête : `/public/*` (anonyme, sans
+cookie ni jeton) accepte toute origine ; le reste (jeton Bearer) garde la liste
+`CORS_ORIGIN`, plus `*.localhost` hors production. Vérifié : origine `*.localhost` et
+`*.hotelsaver.com` acceptées sur `/public/*`, `evil.example.com` refusée sur `/chambres`.
+Test navigateur : `hotel-test.localhost:5175` → site de l'hôtel (3 chambres, services) ;
+`?hotel=hotel-test` idem ; sous-domaine inconnu et `localhost` nu → vitrine HotelSaver.

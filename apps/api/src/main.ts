@@ -16,8 +16,27 @@ async function bootstrap() {
     .map((origine) => origine.trim())
     .filter(Boolean);
 
-  app.enableCors({
-    origin: originesAutorisees && originesAutorisees.length > 0 ? originesAutorisees : true,
+  const enDeveloppement = process.env.NODE_ENV !== "production";
+
+  // Deux régimes (CorsOptionsDelegate, décidé requête par requête) :
+  // - `/public/*` : routes anonymes, sans cookie ni jeton, servies au site de
+  //   CHAQUE hôtel — sous-domaine `x.hotelsaver.com` ou domaine personnalisé
+  //   (Phase 13), en nombre illimité et inconnus de la configuration. Toute
+  //   origine y est acceptée : une liste blanche bloquerait chaque nouvel hôtel.
+  // - le reste (API authentifiée par jeton Bearer) : liste CORS_ORIGIN, plus
+  //   `*.localhost` en développement pour tester un sous-domaine d'hôtel.
+  app.enableCors((requete: { url?: string }, callback: (err: Error | null, options: object) => void) => {
+    const publique = requete.url?.startsWith("/public/") ?? false;
+    if (publique) return callback(null, { origin: true });
+    callback(null, {
+      origin: (origine: string | undefined, rappel: (err: Error | null, autorise?: boolean) => void) => {
+        if (!origine) return rappel(null, true);
+        if (!originesAutorisees || originesAutorisees.length === 0) return rappel(null, true);
+        if (originesAutorisees.includes(origine)) return rappel(null, true);
+        if (enDeveloppement && /^https?:\/\/[a-z0-9-]+\.localhost(:\d+)?$/i.test(origine)) return rappel(null, true);
+        rappel(null, false);
+      },
+    });
   });
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
