@@ -68,14 +68,13 @@ create policy "utilisateur_update_patron" on "Utilisateur"
 
 -- ============================================================================
 -- Chambre — Réceptionniste : lecture + modification du statut uniquement.
--- Patron : accès total. Client web (anon) : lecture (disponibilité, section 13).
+-- Patron : accès total. Aucun accès anon : le site public passe par l'API (/public/*).
 -- Cafétaria : aucun accès (matrice 9.3).
 -- ============================================================================
 create policy "chambre_select" on "Chambre"
   for select
   using (
     public.role_utilisateur_courant() in ('RECEPTIONNISTE', 'PATRON')
-    or auth.role() = 'anon'
   );
 
 create policy "chambre_insert_patron" on "Chambre"
@@ -146,7 +145,6 @@ create policy "client_insert" on "Client"
   for insert
   with check (
     public.role_utilisateur_courant() in ('RECEPTIONNISTE', 'PATRON')
-    or auth.role() = 'anon'
   );
 
 create policy "client_update" on "Client"
@@ -156,7 +154,8 @@ create policy "client_update" on "Client"
 
 -- ============================================================================
 -- Reservation — Réceptionniste + Patron gèrent tout. Cafétaria : aucun accès.
--- Le site public (anon) peut uniquement créer une demande EN_ATTENTE.
+-- Les demandes du site public passent par l'API (POST /public/reservations), jamais
+-- par un accès direct anon.
 -- ============================================================================
 create policy "reservation_select" on "Reservation"
   for select
@@ -165,14 +164,6 @@ create policy "reservation_select" on "Reservation"
 create policy "reservation_insert_staff" on "Reservation"
   for insert
   with check (public.role_utilisateur_courant() in ('RECEPTIONNISTE', 'PATRON'));
-
-create policy "reservation_insert_public" on "Reservation"
-  for insert
-  with check (
-    auth.role() = 'anon'
-    and statut = 'EN_ATTENTE'
-    and origine = 'SITE_PUBLIC'
-  );
 
 create policy "reservation_update" on "Reservation"
   for update
@@ -203,13 +194,12 @@ create policy "facture_update" on "Facture"
 
 -- ============================================================================
 -- Produit (menu) — Réceptionniste : aucun accès. Cafétaria : lecture seule.
--- Patron : accès total. Site public (anon) : lecture (menu, section 13).
+-- Patron : accès total. Aucun accès anon : le menu public passe par l'API.
 -- ============================================================================
 create policy "produit_select" on "Produit"
   for select
   using (
     public.role_utilisateur_courant() in ('CAFETARIA', 'PATRON')
-    or auth.role() = 'anon'
   );
 
 create policy "produit_insert_patron" on "Produit"
@@ -234,7 +224,6 @@ create policy "tauxchange_select" on "TauxChange"
   for select
   using (
     public.role_utilisateur_courant() in ('RECEPTIONNISTE', 'CAFETARIA', 'PATRON')
-    or auth.role() = 'anon'
   );
 
 create policy "tauxchange_insert_patron" on "TauxChange"
