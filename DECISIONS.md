@@ -2419,3 +2419,210 @@ Retour du patron après un vrai passage sur le téléphone, quatre sujets :
    retour embarqué d'EcranReservations, jugé trop petit).
 5. **Paramètres** : « Tester la connexion » supprimé (le statut de
    connexion du bandeau EnteteMobile suffit).
+
+## 30/09/2026 — Site web : landing page professionnelle animée
+
+`apps/web` : `/` devient une vraie vitrine HotelSaver, le formulaire
+d'inscription est sur `/inscription`. Sections : barre collante (burger
+mobile), hero avec maquette de téléphone en CSS, chiffres animés, six
+fonctionnalités, trois blocs détaillés (réception, cafétaria, hors ligne),
+étapes, **hôtels partenaires**, tarifs, FAQ, appel final, pied de page. Tout
+le contenu éditorial (textes, prix, FAQ) est dans `src/accueil/donnees.ts`.
+
+- **Framer Motion** introduit (seule nouvelle dépendance de `apps/web`) :
+  apparitions au défilement, compteurs, parallaxe, accordéon. Tout est
+  désactivé si `prefers-reduced-motion` (hook `useReducedMotion` + media
+  query CSS). Maquettes en CSS/SVG, aucune image lourde.
+- **Hôtels partenaires** : `GET /public/hotels-partenaires` (sans guard,
+  comme le reste de `/public`) ne renvoie que les hôtels `ACTIF` (abonnement
+  payé) et des champs minimaux — nom, sous-domaine, logo, adresse, couleur de
+  marque, jamais de contact ni de données de licence. Choix assumé : pas
+  d'opt-in explicite (aucune migration) ; un hôtel `ESSAI` n'apparaît pas. Si
+  un hôtel refuse d'être montré, il faudra ajouter un champ « visible sur la
+  vitrine ». Liste vide ou API injoignable → repli « Soyez parmi les
+  premiers », jamais d'erreur affichée. Les cartes pointent vers
+  `/chambres?hotel=<sousDomaine>` (le domaine de base de production n'est
+  toujours pas choisi).
+- **Tarifs = placeholders à valider** : Essentiel 29 $, Pro 59 $, Premium
+  99 $ par mois, et leurs périmètres (nombre de chambres, domaine
+  personnalisé…), sont indicatifs. Aucune limite de chambres n'est appliquée
+  par l'API : ces limites ne sont que du texte marketing tant qu'elles ne
+  sont pas implémentées.
+- Français seulement. `BarreMarketing` sur `/` et `/inscription`,
+  `BarreNavigation` d'origine sur les pages d'un hôtel.
+
+**Hors scope** : vraies captures d'écran, témoignages, SEO avancé
+(sitemap, rendu serveur), version anglaise, thème sombre.
+
+## 01/10/2026 — Refonte connexion / inscription (web, desktop, mobile)
+
+Suite à la maquette fournie par le patron : même langage visuel partout.
+
+- **Web** (`/inscription`) et **desktop** (connexion) : fond pleine page, carte
+  **centrée au milieu de l'écran** (correction du 01/10 après relecture de la
+  maquette : pas de colonnes séparées), photo qui se fond dans la page (à
+  droite sur le web, à gauche sur le desktop). Photo
+  d'une chambre bleue et blanche (Unsplash, libre d'usage, embarquée
+  en local : `apps/web/public/hotel-chambre-bleue.jpg` et
+  `apps/desktop/src/renderer/src/assets/`) avec voile navy et trois arguments,
+  carte blanche à droite. Sous 960 px (web) / 900 px (desktop) le panneau photo
+  disparaît. Champs avec icône, coche de validation, œil sur les mots de passe
+  (`lucide-react`, ajouté à `apps/web`, déjà utilisé par le desktop). Le
+  sous-domaine se propose tout seul depuis le nom de l'hôtel tant qu'on n'y a pas
+  touché. Les libellés `Email` / `Mot de passe` et le titre `HotelSaver` sont
+  conservés pour les tests e2e desktop (le bouton œil ne contient donc pas
+  « mot de passe » dans son `aria-label`).
+- **Mobile** : bandeau navy (logo + nom) sous la barre d'état, feuille blanche
+  aux coins arrondis, stepper 1–2 à l'inscription (`EnteteAuth`, `ChampAuth`,
+  `EtapesAuth` dans `src/composants/`). **La barre d'état est navy dans toute
+  l'app** : `EnteteMobile` passe en navy avec texte/cloche blancs et
+  `StatusBar style="light"` (App.tsx).
+- **Non repris de la maquette, volontairement** : « Mot de passe oublié ? » et
+  « Se souvenir de moi » (aucun des deux n'existe côté API/Supabase ; un lien
+  mort serait pire que rien), « Se connecter » sur le site web (le web n'a
+  pas de session par décision Phase 8 : le personnel se connecte depuis
+  mobile/desktop), inscription sur desktop (elle se fait sur web/mobile).
+- Le suffixe `.hotelsaver.com` du sous-domaine vient de la maquette ; le domaine
+  de base de production n'est toujours pas choisi (voir Phase 9).
+
+### Après l'inscription web : l'application est obligatoire (01/10/2026)
+
+Décision du patron : une fois l'hôtel créé, le propriétaire doit installer
+l'application pour se connecter et créer les comptes de son équipe (réception,
+cafétaria) — le web n'ouvre aucune session. `EcranSucces` devient un parcours
+en trois points (confirmer l'e-mail, installer l'app, créer les comptes dans
+« Plus › Utilisateurs ») avec deux boutons de téléchargement Android / Windows.
+Les liens viennent de `VITE_URL_PLAY_STORE` / `VITE_URL_APP_STORE` / `VITE_URL_WINDOWS` (`apps/web/.env`, voir le 01/10 ci-dessous) ;
+**aucun build n'est encore publié**, donc tant que ces variables sont vides les
+boutons affichent « Lien bientôt disponible ». À renseigner dès qu'un APK et un
+installateur Windows sont hébergés.
+
+## 01/10/2026 — Photos de chambres + site public de chaque hôtel défini par le patron
+
+Retour du patron : impossible d'ajouter des images aux chambres, alors que les
+clients les voient sur le sous-domaine de l'hôtel ; et ce site doit être
+professionnel et entièrement piloté depuis le compte du patron.
+
+### Images (API)
+
+- **`POST /media/images?usage=chambre|couverture|galerie`** (PATRON,
+  multipart, champ `fichier`, 10 Mo max en entrée) et **`DELETE /media/images`**.
+  Le serveur **redimensionne puis convertit en WebP qualité 80** (`sharp`, nouvelle
+  dépendance de l'API) : chambre/galerie tiennent dans 1280×960, couverture dans
+  1920×1080, jamais agrandies, métadonnées (GPS compris) retirées. Mesuré : une
+  photo bruitée de 8,6 Mo devient ~250 Ko ; une vraie photo finit autour de
+  60–150 Ko. C'est la réponse à « pas trop grandes, sans surcharger la base ».
+- **Stockage : Supabase Storage**, un bucket public `hotel-media` créé par l'API
+  au premier envoi (clé service_role, comme `SupabaseAdminService` pour Auth), un
+  dossier par hôtel. Le bucket n'accepte que du WebP ≤ 2 Mo (filet de sécurité).
+- **Une URL n'est acceptée que si elle pointe dans le dossier de l'hôtel**
+  (`verifierUrlsHotel`) : sans ça, un patron pourrait afficher une image externe ou
+  celle d'un autre hôtel en forgeant une requête. Vaut pour `Chambre.photos` et le
+  site.
+- **2 photos maximum par chambre** (`@ArrayMaxSize(2)`, décision du patron : ne pas
+  surcharger la base) ; `photos: []` est désormais autorisé pour tout retirer
+  (l'ancien `@ArrayNotEmpty` l'interdisait). La première photo sert de couverture.
+  Galerie du site : 6 photos max.
+- Nettoyage du stockage : `HotelSiteService` supprime les images retirées du site ;
+  pour les chambres, ce sont les apps qui appellent `DELETE /media/images` après
+  l'enregistrement (et à l'annulation pour les envois abandonnés) — évite d'ajouter
+  le stockage au constructeur de `ChambresService`, aussi utilisé par la synchro.
+
+### Contenu du site (API)
+
+- Nouveau modèle **`HotelSite`** (migration `20261001090000_hotel_site`, appliquée) :
+  slogan, présentation, couverture, galerie, services (JSON : icône/titre/
+  description, 12 max), WhatsApp, horaires d'arrivée/départ, réception 24 h/24,
+  lien de carte, réseaux sociaux (facebook, instagram, tiktok, youtube, x).
+  Nom, adresse, téléphone, e-mail restent sur `Hotel`. **RLS activée sur la table**
+  (le schéma public est exposé par PostgREST : sans RLS la clé anon pourrait la lire
+  et l'écrire) — aucune policy, l'API passe par le rôle postgres.
+- **`GET/PUT /hotel-site`** (PATRON) : coordonnées + contenu à plat.
+  `GET /public/hotel` renvoie maintenant aussi ce contenu (public par nature).
+
+### Site public de l'hôtel (`apps/web`)
+
+- Un même site, deux visages : si l'adresse correspond à un hôtel (sous-domaine,
+  domaine personnalisé ou `?hotel=`), `App.tsx` affiche **son** site ; sinon (ou si
+  l'API répond 404, ex. le domaine de la vitrine HotelSaver) la vitrine HotelSaver.
+  En mode `?hotel=`, `cheminHotel()` ajoute le paramètre à chaque lien.
+- Accueil : hero plein écran avec la photo de couverture (zoom lent) et barre de
+  recherche de dates, à-propos, aperçu des chambres avec photos, services (icônes),
+  galerie avec lightbox, contact (téléphone, WhatsApp, e-mail, horaires, itinéraire,
+  réseaux), pied de page. Chaque section disparaît si le patron ne l'a pas remplie ;
+  un hôtel sans contenu garde un site correct (hero dégradé, chambres, contact).
+  Couleurs = la palette de l'hôtel (variables `--hc-*`). Page Chambres : cartes avec
+  mini-diaporama des 2 photos, dates pré-remplies depuis l'accueil.
+- Les icônes de marques (Facebook, Instagram, YouTube) sont des SVG maison :
+  `lucide-react` v1 ne les fournit plus.
+
+### Côté patron
+
+- **Desktop** : photos dans le formulaire de chambre ; nouvelle entrée « Mon hôtel ›
+  Site de l'hôtel » (PATRON) — `EcranSiteHotel`.
+- **Mobile** : photos dans le formulaire de chambre ; Plus › Administration › Site de
+  l'hôtel. Nouvelle dépendance native **`expo-image-picker`** : **un nouveau build
+  Android est nécessaire** (`pnpm --filter mobile android`). Compression JPEG
+  à 0,7 sur l'appareil avant envoi.
+
+### Vérifié
+
+226/226 tests API (nouveaux : traitement d'image réel avec sharp, vérification des
+URLs, `HotelSiteService`), 43 tests api-client, builds web et desktop, `tsc` mobile.
+**Test réel authentifié** contre Supabase (jeton du patron d'un hôtel de test) :
+upload, WebP 1280×914, 400 sur fichier invalide / usage invalide / 3e photo / URL
+externe / horaire invalide, PUT du site puis lecture publique, suppression, 401 sans
+jeton. Rendu vérifié par captures à 1440 px et 390 px.
+
+### Reste à faire / limites
+
+- L'UI mobile n'a pas été exécutée sur téléphone (pas de build) — seulement typée.
+- L'hôtel `hotel-test` (contenu de démonstration + chambres T-101..103) garde
+  des données de démo.
+- Images envoyées puis abandonnées en quittant l'écran sans annuler : restent dans le
+  stockage (rare, pas de ménage périodique).
+- Pas de mode hors ligne pour ces écrans (configuration, en ligne uniquement).
+
+## 01/10/2026 — Téléchargement de l'application (Play Store / App Store) + RLS
+
+### Boutons de stores sur le site
+
+- Nouvelle section **« Téléchargez notre application mobile »** sur l'accueil
+  (`accueil/Stores.tsx` : badges Google Play / App Store, atouts, maquette de
+  téléphone), lien « Application » dans la barre et le pied de page. Les mêmes
+  badges servent sur l'écran de succès d'inscription (Windows reste un lien à part).
+- **Les liens se règlent dans `apps/web/.env`** : `VITE_URL_PLAY_STORE`,
+  `VITE_URL_APP_STORE`, `VITE_URL_WINDOWS` (modèle dans `.env.example`). Une fois
+  renseignés et le site rebuildé, les badges deviennent de vrais liens (nouvel
+  onglet) — vérifié en injectant des URLs dans un build. Tant qu'une variable est
+  vide, le badge reste cliquable et affiche « Bientôt disponible sur … » au lieu de
+  pointer vers une page vide. Variable remplacée : `VITE_URL_ANDROID` n'existe plus.
+
+### Sécurité — RLS manquante (corrigée)
+
+Constat vérifié avec la clé `anon` (publique, embarquée dans les apps) : les tables
+`Hotel`, `HotelBranding`, `PaiementLicence`, `SuperAdmin` et `_prisma_migrations`
+n'avaient **aucune RLS** et les droits complets d'`anon` sur le schéma exposé par
+PostgREST — n'importe qui pouvait les **lire, modifier et supprimer** (comptes
+Super-Admin et paiements de licence compris). Migration
+`20261001100000_rls_tables_sensibles` : RLS activée sans policy. L'API n'est pas
+touchée (rôle `postgres`, `rolbypassrls = true`). Avant/après : `anon` lisait 7/7/1/1/11
+lignes, il en lit 0 ; `/public/hotel` et `/public/hotels-partenaires` répondent
+toujours. `SuperAdmin` et `_prisma_migrations` ajoutées au périmètre demandé
+(mêmes défaut et même correctif).
+
+### Sécurité — plus aucun accès direct pour `anon` (01/10/2026, suite)
+
+Les policies `… OR auth.role() = 'anon'` de `rls-policies.sql` (conçues quand le site
+public devait interroger Supabase directement) ne servaient plus depuis que tout passe
+par `/public/*`. Migration `20261001110000_retirer_acces_anon` : `Chambre`, `Produit` et
+`TauxChange` ne sont plus lisibles par `anon` (les chambres, le stock des produits et
+le taux de tous les hôtels étaient exposés) ; `client_insert` ne l'autorise plus, et la
+policy `reservation_insert_public` est supprimée — elle laissait n'importe qui insérer
+un client ou une réservation **en contournant les contrôles de l'API** (disponibilité,
+hôtel résolu). `rls-policies.sql` mis à jour pour rester la référence.
+
+Vérifié avec la clé `anon` : 0 ligne lisible sur les 18 tables ; INSERT `Client` et
+`Reservation` refusés (42501) ; UPDATE `Hotel` sans effet (0 ligne) ; aucune ligne
+parasite en base ; `/public/hotel`, `/public/chambres-disponibles` et `/public/menu`
+répondent toujours 200 (l'API passe par le rôle `postgres`, hors RLS).
