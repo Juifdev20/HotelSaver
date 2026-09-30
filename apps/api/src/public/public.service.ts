@@ -74,19 +74,61 @@ export class PublicService {
   async obtenirInfoPublique(query: FindHotelPublicQueryDto) {
     const hotel = await this.prisma.hotel.findFirst({
       where: this.construireFiltreHote(query.sousDomaine),
-      include: { branding: true },
+      include: { branding: true, site: true },
     });
     if (!hotel || hotel.statutLicence === "SUSPENDU" || hotel.statutLicence === "RESILIE") {
       throw new NotFoundException(`Aucun hôtel disponible pour "${query.sousDomaine}".`);
     }
+    const site = hotel.site;
     return {
       nom: hotel.nom,
+      // Coordonnées et contenu définis par le patron (HotelSite) : publics par
+      // nature, c'est la vitrine de l'hôtel. Jamais de donnée de licence ici.
+      adresse: hotel.adresse ?? null,
+      telephoneContact: hotel.telephoneContact ?? null,
+      emailContact: hotel.emailContact ?? null,
+      slogan: site?.slogan ?? null,
+      presentation: site?.presentation ?? null,
+      couvertureUrl: site?.couvertureUrl ?? null,
+      galerie: site?.galerie ?? [],
+      services: site?.services ?? [],
+      whatsapp: site?.whatsapp ?? null,
+      horaireArrivee: site?.horaireArrivee ?? null,
+      horaireDepart: site?.horaireDepart ?? null,
+      reception24h: site?.reception24h ?? false,
+      lienCarte: site?.lienCarte ?? null,
+      reseaux: site?.reseaux ?? {},
       logoUrl: hotel.branding?.logoUrl ?? null,
       policeAffichage: hotel.branding?.policeAffichage ?? "Fraunces",
       policeCorps: hotel.branding?.policeCorps ?? "Public Sans",
       policeMono: hotel.branding?.policeMono ?? "IBM Plex Mono",
       palette: hotel.branding?.palette ?? null,
     };
+  }
+
+  /**
+   * Vitrine de la page d'accueil : hôtels clients de la plateforme. Seuls les
+   * hôtels `ACTIF` (abonnement payé) apparaissent — un hôtel en `ESSAI` n'a
+   * pas encore choisi d'être montré publiquement. Champs minimaux, jamais de
+   * contact ni de données de licence.
+   */
+  async listerHotelsPartenaires() {
+    const hotels = await this.prisma.hotel.findMany({
+      where: { statutLicence: "ACTIF" },
+      include: { branding: true },
+      orderBy: { createdAt: "asc" },
+      take: 24,
+    });
+    return hotels.map((h) => {
+      const palette = h.branding?.palette as { light?: { bleu?: string } } | null | undefined;
+      return {
+        nom: h.nom,
+        sousDomaine: h.sousDomaine,
+        logoUrl: h.branding?.logoUrl ?? null,
+        adresse: h.adresse ?? null,
+        couleur: palette?.light?.bleu ?? null,
+      };
+    });
   }
 
   async findChambresDisponibles(query: FindChambresDisponiblesQueryDto) {

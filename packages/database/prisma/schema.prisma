@@ -87,6 +87,7 @@ model Hotel {
   domaineAjouteLe       DateTime?
 
   branding         HotelBranding?
+  site             HotelSite?
 
   utilisateurs     Utilisateur[]
   chambres         Chambre[]
@@ -120,6 +121,30 @@ model HotelBranding {
   palette         Json
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+/// Contenu du site public de l'hôtel (sous-domaine), défini par le PATRON
+/// depuis son compte. Séparé de `HotelBranding` (charte graphique) : ici le
+/// contenu éditorial. Les coordonnées (nom, adresse, téléphone, e-mail) restent
+/// sur `Hotel`. `services` = [{ icone, titre, description }], `reseaux` =
+/// { facebook?, instagram?, tiktok?, youtube?, x? } — JSON, jamais filtrés en SQL.
+model HotelSite {
+  id             String   @id @default(uuid())
+  hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  hotelId        String   @unique
+  slogan         String?
+  presentation   String?
+  couvertureUrl  String?
+  galerie        String[]
+  services       Json     @default("[]")
+  whatsapp       String?
+  horaireArrivee String?
+  horaireDepart  String?
+  reception24h   Boolean  @default(false)
+  lienCarte      String?
+  reseaux        Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 /// Administrateur de la plateforme HotelSaver, indépendant de tout hôtel —

@@ -30,6 +30,11 @@ export class PublicController {
     return this.publicService.obtenirInfoPublique(query);
   }
 
+  @Get("hotels-partenaires")
+  listerHotelsPartenaires() {
+    return this.publicService.listerHotelsPartenaires();
+  }
+
   @Post("reservations")
   creerDemandeReservation(@Body() dto: CreerDemandeReservationDto) {
     return this.publicService.creerDemandeReservation(dto);

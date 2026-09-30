@@ -12,10 +12,12 @@ import {
   RecetteDuJour,
   Reservation,
   Role,
+  SiteHotelEditable,
   SousCompte,
   StatutChambre,
   StatutCompte,
   StatutReservation,
+  UsageImage,
   UtilisateurAuthentifie,
   VenteCafeteria,
   VentesRecentes,
@@ -300,6 +302,31 @@ export class ClientApi {
     return this.requete<void>(`/chambres/${id}`, { method: "DELETE" });
   }
 
+  /**
+   * PATRON — envoie une image (le serveur la redimensionne et la convertit en
+   * WebP) et renvoie son URL publique. `corps` est un `FormData` avec le champ
+   * `fichier` : un `File` côté navigateur/Electron, `{ uri, name, type }` côté
+   * React Native — c'est l'appelant qui le construit, ce paquet reste neutre.
+   */
+  async televerserImage(corps: FormData, usage: UsageImage): Promise<{ url: string }> {
+    return this.requete<{ url: string }>(`/media/images?usage=${usage}`, { method: "POST", body: corps });
+  }
+
+  /** PATRON — retire une image du stockage (URL de son propre hôtel seulement). */
+  async supprimerImage(url: string): Promise<void> {
+    await this.requete<unknown>("/media/images", { method: "DELETE", body: JSON.stringify({ url }) });
+  }
+
+  /** PATRON — coordonnées + contenu du site public de l'hôtel. */
+  async obtenirSiteHotel(): Promise<SiteHotelEditable> {
+    return this.requete<SiteHotelEditable>("/hotel-site");
+  }
+
+  /** PATRON — n'envoyer que les champs modifiés. */
+  async modifierSiteHotel(donnees: Partial<SiteHotelEditable>): Promise<SiteHotelEditable> {
+    return this.requete<SiteHotelEditable>("/hotel-site", { method: "PUT", body: JSON.stringify(donnees) });
+  }
+
   /** Vrai si le serveur de l'hôtel répond — et c'est bien lui (pas un autre
    * service sur la même adresse, ex. un autre projet sur le port 3000). */
   async estJoignable(): Promise<boolean> {
@@ -561,12 +588,14 @@ export class ClientApi {
 
   private async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {
     const token = this.getAccessToken();
+    // Un FormData fixe lui-même son Content-Type (avec la frontière multipart).
+    const estFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
     let reponse: Response;
     try {
       reponse = await fetch(`${this.baseUrl}${chemin}`, {
         ...options,
         headers: {
-          "Content-Type": "application/json",
+          ...(estFormData ? {} : { "Content-Type": "application/json" }),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers,
         },

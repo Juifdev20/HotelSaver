@@ -1,7 +1,7 @@
 import { Devise, StatutChambre } from "@hotel-chicago/database";
 import { Type } from "class-transformer";
 import {
-  ArrayNotEmpty,
+  ArrayMaxSize,
   IsArray,
   IsEnum,
   IsNotEmpty,
@@ -43,7 +43,7 @@ export class UpdateChambreDto {
 
   @IsOptional()
   @IsArray()
-  @ArrayNotEmpty()
+  @ArrayMaxSize(2, { message: "Une chambre accepte 2 photos au maximum." })
   @IsUrl({}, { each: true, message: "Chaque photo doit être une URL valide (Supabase Storage)." })
   photos?: string[];
 }

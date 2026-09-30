@@ -2,6 +2,7 @@ import type {
   Chambre,
   DemandeReservationPayload,
   HotelCree,
+  HotelPartenairePublic,
   InfoHotelPublique,
   InscriptionHotelPayload,
   Produit,
@@ -66,4 +67,9 @@ export function creerDemandeReservationPublique(config: ConfigApiPublique, dto: 
 export function obtenirInfoPublique(config: ConfigApiPublique, sousDomaine: string): Promise<InfoHotelPublique> {
   const params = new URLSearchParams({ sousDomaine }).toString();
   return requetePublique(config, `/public/hotel?${params}`);
+}
+
+/** GET /public/hotels-partenaires — vitrine de la page d'accueil. */
+export function listerHotelsPartenaires(config: ConfigApiPublique): Promise<HotelPartenairePublic[]> {
+  return requetePublique(config, "/public/hotels-partenaires");
 }

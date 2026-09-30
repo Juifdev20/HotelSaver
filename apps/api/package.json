@@ -25,12 +25,14 @@
     "jwks-rsa": "^3.2.2",
     "node-vibrant": "^4.0.4",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@nestjs/testing": "^10.4.4",
     "@types/jest": "^29.5.13",
     "@types/jsonwebtoken": "^9.0.7",
+    "@types/multer": "^2.3.0",
     "@types/node": "^20.16.10",
     "@types/supertest": "^6.0.2",
     "jest": "^29.7.0",

@@ -1,3 +1,4 @@
+import { verifierUrlsHotel } from "../common/supabase-storage/urls-hotel";
 import {
   ConflictException,
   ForbiddenException,
@@ -41,6 +42,7 @@ export class ChambresService {
   }
 
   async create(dto: CreateChambreDto, hotelId: string) {
+    verifierUrlsHotel(dto.photos ?? [], hotelId);
     try {
       return await this.prisma.chambre.create({ data: { ...dto, hotelId } });
     } catch (error) {
@@ -53,6 +55,7 @@ export class ChambresService {
 
   async update(id: string, dto: UpdateChambreDto, currentUser: UtilisateurAuthentifie) {
     await this.findOne(id, currentUser.hotelId);
+    verifierUrlsHotel(dto.photos ?? [], currentUser.hotelId);
 
     if (currentUser.role === Role.RECEPTIONNISTE) {
       const champsRefuses = CHAMPS_RESERVES_PATRON.filter((champ) => dto[champ] !== undefined);

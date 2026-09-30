@@ -18,6 +18,8 @@ import { SuperAdminModule } from "./super-admin/super-admin.module";
 import { UtilisateursModule } from "./utilisateurs/utilisateurs.module";
 import { ClientsModule } from "./clients/clients.module";
 import { TauxChangeModule } from "./taux-change/taux-change.module";
+import { MediaModule } from "./media/media.module";
+import { HotelSiteModule } from "./hotel-site/hotel-site.module";
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { TauxChangeModule } from "./taux-change/taux-change.module";
     UtilisateursModule,
     ClientsModule,
     TauxChangeModule,
+    MediaModule,
+    HotelSiteModule,
   ],
   providers: [
     {

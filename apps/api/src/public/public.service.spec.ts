@@ -12,6 +12,7 @@ function creerPrismaMock() {
   return {
     hotel: {
       findFirst: jest.fn().mockResolvedValue({ id: HOTEL_ID, statutLicence: "ACTIF" }),
+      findMany: jest.fn().mockResolvedValue([]),
       create: jest.fn(),
     },
     chambre: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -180,10 +181,24 @@ describe("PublicService", () => {
 
       expect(prisma.hotel.findFirst).toHaveBeenCalledWith({
         where: { OR: [{ domainePersonnalise: "chicago" }, { sousDomaine: "chicago" }] },
-        include: { branding: true },
+        include: { branding: true, site: true },
       });
       expect(resultat).toEqual({
         nom: "Hôtel Chicago",
+        adresse: null,
+        telephoneContact: null,
+        emailContact: null,
+        slogan: null,
+        presentation: null,
+        couvertureUrl: null,
+        galerie: [],
+        services: [],
+        whatsapp: null,
+        horaireArrivee: null,
+        horaireDepart: null,
+        reception24h: false,
+        lienCarte: null,
+        reseaux: {},
         logoUrl: "https://exemple.com/logo.png",
         policeAffichage: "Fraunces",
         policeCorps: "Public Sans",
@@ -200,6 +215,27 @@ describe("PublicService", () => {
     it("lève NotFoundException si l'hôtel est SUSPENDU", async () => {
       prisma.hotel.findFirst.mockResolvedValue({ id: HOTEL_ID, statutLicence: "SUSPENDU" });
       await expect(service.obtenirInfoPublique({ sousDomaine: "chicago" } as any)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("listerHotelsPartenaires", () => {
+    it("ne liste que les hôtels ACTIF, avec des champs publics minimaux", async () => {
+      prisma.hotel.findMany.mockResolvedValue([
+        {
+          nom: "Hôtel Chicago",
+          sousDomaine: "chicago",
+          adresse: "Goma",
+          emailContact: "secret@exemple.com",
+          branding: { logoUrl: null, palette: { light: { bleu: "#1769E0" } } },
+        },
+      ]);
+
+      const resultat = await service.listerHotelsPartenaires();
+
+      expect(prisma.hotel.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { statutLicence: "ACTIF" } }));
+      expect(resultat).toEqual([
+        { nom: "Hôtel Chicago", sousDomaine: "chicago", logoUrl: null, adresse: "Goma", couleur: "#1769E0" },
+      ]);
     });
   });
 

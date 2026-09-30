@@ -339,13 +339,101 @@ export interface DemandeReservationPayload {
 /** Réponse de GET /public/hotel — charte graphique publique d'un hôtel
  * (Phase 11), volontairement minimale (ni statutLicence, ni emailContact,
  * etc., qui n'ont rien à faire côté public). */
-export interface InfoHotelPublique {
+export interface InfoHotelPublique extends ContenuSiteHotel {
   nom: string;
   logoUrl: string | null;
   policeAffichage: string;
   policeCorps: string;
   policeMono: string;
   palette: unknown;
+  adresse: string | null;
+  telephoneContact: string | null;
+  emailContact: string | null;
+}
+
+/** Icônes de service proposées au patron — synchronisé avec
+ * `ICONES_SERVICE` de apps/api/src/hotel-site/dto/modifier-site.dto.ts. */
+export const ICONES_SERVICE = [
+  "restaurant",
+  "piscine",
+  "wifi",
+  "parking",
+  "navette",
+  "climatisation",
+  "salle-conference",
+  "bar",
+  "spa",
+  "securite",
+  "blanchisserie",
+  "petit-dejeuner",
+  "autre",
+] as const;
+export type IconeService = (typeof ICONES_SERVICE)[number];
+
+export const LIBELLE_ICONE_SERVICE: Record<IconeService, string> = {
+  restaurant: "Restaurant",
+  piscine: "Piscine",
+  wifi: "Wi-Fi",
+  parking: "Parking",
+  navette: "Navette",
+  climatisation: "Climatisation",
+  "salle-conference": "Salle de conférence",
+  bar: "Bar",
+  spa: "Spa",
+  securite: "Sécurité 24 h/24",
+  blanchisserie: "Blanchisserie",
+  "petit-dejeuner": "Petit-déjeuner",
+  autre: "Autre",
+};
+
+export interface ServiceHotel {
+  icone: IconeService;
+  titre: string;
+  description?: string;
+}
+
+/** Réseaux sociaux connus (clés de `ContenuSiteHotel.reseaux`). */
+export const RESEAUX_SOCIAUX = ["facebook", "instagram", "tiktok", "youtube", "x"] as const;
+export type ReseauSocial = (typeof RESEAUX_SOCIAUX)[number];
+
+/** Contenu éditorial du site public d'un hôtel (modèle HotelSite). */
+export interface ContenuSiteHotel {
+  slogan: string | null;
+  presentation: string | null;
+  couvertureUrl: string | null;
+  galerie: string[];
+  services: ServiceHotel[];
+  whatsapp: string | null;
+  horaireArrivee: string | null;
+  horaireDepart: string | null;
+  reception24h: boolean;
+  lienCarte: string | null;
+  reseaux: Partial<Record<ReseauSocial, string>>;
+}
+
+/** GET /hotel-site (PATRON) : coordonnées + contenu du site, à plat. */
+export interface SiteHotelEditable extends ContenuSiteHotel {
+  nom: string;
+  /** Lecture seule (défini à l'inscription). */
+  sousDomaine: string;
+  adresse: string | null;
+  telephoneContact: string | null;
+  emailContact: string | null;
+}
+
+export type UsageImage = "chambre" | "couverture" | "galerie";
+
+/** Nombre maximal de photos par chambre (imposé aussi par l'API). */
+export const MAX_PHOTOS_CHAMBRE = 2;
+export const MAX_PHOTOS_GALERIE = 6;
+
+/** GET /public/hotels-partenaires — hôtels ACTIF affichés sur la page d'accueil. */
+export interface HotelPartenairePublic {
+  nom: string;
+  sousDomaine: string;
+  logoUrl: string | null;
+  adresse: string | null;
+  couleur: string | null;
 }
 
 /** Doit rester synchronisé avec l'enum `MethodePaiementLicence` du schéma
