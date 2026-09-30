@@ -1,5 +1,7 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { MAX_PHOTOS_CHAMBRE } from "@hotel-chicago/types";
+import { SelecteurPhotos, nettoyerImages } from "../components/SelecteurPhotos";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Chambre, Devise, Reservation, Role, StatutChambre, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button, RoomCard, StatusBadge, StatusTone, formatMontant } from "@hotel-chicago/ui";
@@ -145,6 +147,9 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
   const [type, setType] = useState("");
   const [prix, setPrix] = useState("");
   const [devise, setDevise] = useState<Devise>(Devise.USD);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [photosAvant, setPhotosAvant] = useState<string[]>([]);
+  const [photosEnvoyees, setPhotosEnvoyees] = useState<string[]>([]);
   const [enCours, setEnCours] = useState(false);
 
   useEffect(() => {
@@ -199,7 +204,17 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
     setType("");
     setPrix("");
     setDevise(Devise.USD);
+    setPhotos([]);
+    setPhotosAvant([]);
+    setPhotosEnvoyees([]);
     setErreur(null);
+  }
+
+  /** Fermer sans enregistrer : les images envoyées pendant l'édition n'auront
+   * servi à rien, on les retire du stockage. */
+  function fermerFormulaire() {
+    void nettoyerImages(client, [], photosEnvoyees, photosAvant);
+    setChambreEdit(null);
   }
 
   function ouvrirEdition(chambre: Chambre) {
@@ -208,6 +223,9 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
     setType(chambre.type);
     setPrix(chambre.prixParNuit);
     setDevise(chambre.devise);
+    setPhotos(chambre.photos ?? []);
+    setPhotosAvant(chambre.photos ?? []);
+    setPhotosEnvoyees([]);
     setErreur(null);
   }
 
@@ -224,9 +242,11 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
     setEnCours(true);
     setErreur(null);
     try {
-      const donnees = { numero: numero.trim(), type: type.trim(), prixParNuit: prixNombre, devise };
+      const donnees = { numero: numero.trim(), type: type.trim(), prixParNuit: prixNombre, devise, photos };
       if (chambreEdit === "creation") await client.creerChambre(donnees);
       else if (chambreEdit) await client.modifierChambre(chambreEdit.id, donnees);
+      // Enregistré : on ne garde dans le stockage que les photos conservées.
+      void nettoyerImages(client, photosAvant, photosEnvoyees, photos);
       setChambreEdit(null);
       recharger();
     } catch (e) {
@@ -328,6 +348,15 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
             Prix par nuit
           </label>
           <input id="chambre-prix" type="text" inputMode="decimal" value={prix} onChange={(e) => setPrix(e.target.value)} placeholder="Ex. 45" />
+          <SelecteurPhotos
+            client={client}
+            usage="chambre"
+            photos={photos}
+            max={MAX_PHOTOS_CHAMBRE}
+            onChange={setPhotos}
+            onEnvoyee={(url) => setPhotosEnvoyees((liste) => [...liste, url])}
+            libelle="Photos de la chambre (visibles sur le site de l'hôtel)"
+          />
           <p className="hc-text-label texte-discret">Devise</p>
           <div className="puces" role="group" aria-label="Devise">
             {[Devise.USD, Devise.CDF].map((d) => (
@@ -340,7 +369,7 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
             <Button type="button" onClick={enregistrerChambre} disabled={enCours}>
               {enCours ? "…" : "Enregistrer"}
             </Button>
-            <Button type="button" variant="secondary" onClick={() => setChambreEdit(null)}>
+            <Button type="button" variant="secondary" onClick={fermerFormulaire}>
               Annuler
             </Button>
           </div>

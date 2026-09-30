@@ -13,7 +13,8 @@ export type IdPage =
   | "stock"
   | "parametres"
   | "imprimante"
-  | "utilisateurs";
+  | "utilisateurs"
+  | "site-hotel";
 
 export interface EntreeNavigation {
   id: IdPage;
@@ -58,6 +59,10 @@ export const SECTIONS: SectionNavigation[] = [
       { id: "menu", libelle: "Menu", libelleCourt: "Menu", roles: CAFETARIA, disponible: true },
       { id: "stock", libelle: "Stock", libelleCourt: "Stock", roles: CAFETARIA, disponible: true },
     ],
+  },
+  {
+    titre: "Mon hôtel",
+    entrees: [{ id: "site-hotel", libelle: "Site de l'hôtel", libelleCourt: "Site", roles: [Role.PATRON], disponible: true }],
   },
   // Pas de section "Administration" séparée : Utilisateurs et Taux de change
   // (PATRON uniquement) vivent dans l'écran Paramètres pour garder la barre

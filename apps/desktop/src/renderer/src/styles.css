@@ -61,6 +61,244 @@ p {
   gap: var(--hc-space-3);
 }
 
+/* ---------- Connexion : fond pleine page, carte centrée ---------- */
+
+.hc-auth {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: var(--hc-space-5);
+  background: linear-gradient(135deg, var(--hc-blue-very-light) 0%, var(--hc-blue-light) 100%);
+}
+
+/* Photo à gauche, qui se fond dans la page vers le centre. */
+.hc-auth__photo {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 60%;
+  background: #0f2742 center / cover no-repeat;
+  -webkit-mask-image: linear-gradient(to right, #000 35%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 35%, transparent 100%);
+}
+
+.hc-auth__voile {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(10, 26, 46, 0.55) 0%, rgba(23, 105, 224, 0.15) 70%, transparent 100%);
+}
+
+.hc-auth__texte {
+  position: absolute;
+  left: 4vw;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 300px;
+  color: #fff;
+  text-shadow: 0 1px 12px rgba(10, 26, 46, 0.45);
+}
+
+.hc-auth__accroche {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: var(--hc-space-3);
+}
+
+.hc-auth__description {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: var(--hc-space-4);
+}
+
+.hc-auth__texte ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--hc-space-3);
+}
+
+.hc-auth__texte li {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hc-auth__texte li svg {
+  color: #8ff0bd;
+}
+
+.hc-auth__carte {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  padding: var(--hc-space-6) var(--hc-space-5);
+  background: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(15, 39, 66, 0.12);
+  color: var(--hc-ink);
+}
+
+.hc-auth__logo {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--hc-space-2);
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.hc-auth__marque {
+  font-size: 18px;
+  text-align: center;
+  color: var(--hc-navy);
+  margin-bottom: var(--hc-space-4);
+}
+
+.hc-auth__titre {
+  font-size: 26px;
+  color: var(--hc-navy);
+  margin-bottom: 4px;
+}
+
+.hc-auth__sous-titre {
+  margin-bottom: var(--hc-space-4);
+}
+
+.hc-auth__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hc-navy);
+  margin: var(--hc-space-3) 0 6px;
+}
+
+.hc-auth__boite {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding-left: 14px;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-surface-200);
+  color: var(--hc-ink-faint);
+}
+
+.hc-auth__boite:focus-within {
+  border-color: var(--hc-blue);
+  box-shadow: 0 0 0 3px var(--hc-blue-light);
+}
+
+.hc-auth__boite input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0 12px;
+  font-family: var(--hc-font-body);
+  font-size: 15px;
+  color: var(--hc-ink);
+}
+
+.hc-auth__oeil {
+  width: 44px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--hc-ink-muted);
+  cursor: pointer;
+}
+
+.hc-auth__oeil:hover {
+  color: var(--hc-blue);
+}
+
+.hc-auth__erreur {
+  margin-top: var(--hc-space-3);
+  padding: 10px 12px;
+  border-radius: var(--hc-radius-sm);
+  background: var(--hc-danger-light);
+  color: #b42318;
+  font-size: 13px;
+}
+
+.hc-auth__bouton {
+  width: 100%;
+  height: 50px;
+  margin-top: var(--hc-space-4);
+  border: none;
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-blue);
+  color: #fff;
+  font-family: var(--hc-font-body);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(23, 105, 224, 0.3);
+}
+
+.hc-auth__bouton:hover:not(:disabled) {
+  background: var(--hc-blue-hover);
+}
+
+.hc-auth__bouton:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.hc-auth__parametres {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: var(--hc-space-4);
+  padding: 10px;
+  background: none;
+  border: none;
+  font-family: var(--hc-font-body);
+  font-size: 13px;
+  color: var(--hc-ink-muted);
+  cursor: pointer;
+}
+
+.hc-auth__parametres:hover {
+  color: var(--hc-blue);
+}
+
+.hc-auth__bouton:focus-visible,
+.hc-auth__oeil:focus-visible,
+.hc-auth__parametres:focus-visible {
+  outline: 3px solid var(--hc-info);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1099px) {
+  .hc-auth__texte {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .hc-auth__photo {
+    display: none;
+  }
+}
+
 .hc-ecran-connexion__logo {
   align-self: center;
   width: 120px;
@@ -766,4 +1004,174 @@ p {
 .menu-actions__titre {
   padding: var(--hc-space-1) var(--hc-space-3) var(--hc-space-2);
   color: var(--hc-ink-faint);
+}
+
+.hc-auth > main {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* ---------- Photos (chambres, site de l'hôtel) ---------- */
+.selecteur-photos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+}
+
+.selecteur-photos__grille {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-3);
+}
+
+.selecteur-photos__vignette,
+.selecteur-photos__ajouter {
+  position: relative;
+  width: 132px;
+  height: 100px;
+  border-radius: var(--hc-radius-md);
+  overflow: hidden;
+}
+
+.selecteur-photos__vignette {
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-100);
+}
+
+.selecteur-photos__vignette img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.selecteur-photos__badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 8px;
+  border-radius: var(--hc-radius-pill);
+  background: rgba(10, 26, 46, 0.78);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.selecteur-photos__retirer {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(10, 26, 46, 0.78);
+  color: #fff;
+  cursor: pointer;
+}
+
+.selecteur-photos__ajouter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px dashed var(--hc-border);
+  background: var(--hc-surface-100);
+  color: var(--hc-blue);
+  font-family: var(--hc-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.selecteur-photos__ajouter:hover:not(:disabled) {
+  border-color: var(--hc-blue);
+  background: var(--hc-blue-light);
+}
+
+.selecteur-photos__tourne {
+  animation: selecteur-tourne 0.8s linear infinite;
+}
+
+@keyframes selecteur-tourne {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Écran « Site de l'hôtel » ---------- */
+.site-hotel .carte-formulaire {
+  max-width: 820px;
+}
+
+.site-hotel textarea,
+.site-hotel select {
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  border: 1px solid var(--hc-border);
+  background-color: var(--hc-surface-100);
+  color: var(--hc-ink);
+  font-family: var(--hc-font-body);
+  font-size: 14px;
+}
+
+.site-hotel input,
+.site-hotel textarea,
+.site-hotel select {
+  width: 100%;
+}
+
+.site-hotel input[type="checkbox"] {
+  width: auto;
+  height: auto;
+}
+
+.ligne-service {
+  display: grid;
+  grid-template-columns: 170px 1fr 1.4fr 36px;
+  gap: var(--hc-space-2);
+  align-items: center;
+}
+
+.ligne-horaires {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--hc-space-3);
+}
+
+.case-a-cocher {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  margin-top: var(--hc-space-2);
+  font-size: 14px;
+}
+
+.bouton-icone {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-sm);
+  background: var(--hc-surface-200);
+  color: var(--hc-danger);
+  cursor: pointer;
+}
+
+@media (max-width: 899px) {
+  .ligne-service {
+    grid-template-columns: 1fr 36px;
+  }
+
+  .ligne-service select,
+  .ligne-service input {
+    grid-column: 1;
+  }
 }

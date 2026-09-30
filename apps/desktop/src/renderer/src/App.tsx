@@ -15,6 +15,7 @@ import { EcranImprimante } from "./screens/EcranImprimante";
 import { EcranParametres } from "./screens/EcranParametres";
 import { EcranTableauDeBord } from "./screens/EcranTableauDeBord";
 import { EcranUtilisateurs } from "./screens/EcranUtilisateurs";
+import { EcranSiteHotel } from "./screens/EcranSiteHotel";
 import { EcranCaisse } from "./screens/EcranCaisse";
 import { EcranComptesOuverts } from "./screens/EcranComptesOuverts";
 import { EcranCompteCafeteria } from "./screens/EcranCompteCafeteria";
@@ -239,6 +240,8 @@ export function App() {
           onRetour={() => naviguer("parametres")}
         />
       );
+    } else if (page === "site-hotel") {
+      contenu = <EcranSiteHotel client={client} />;
     } else if (page === "utilisateurs") {
       contenu = <EcranUtilisateurs client={client} />;
     } else if (page === "parametres") {

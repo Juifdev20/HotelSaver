@@ -21,6 +21,7 @@ import {
   ShoppingCart,
   Sun,
   UserRound,
+  Globe,
   Users,
   UtensilsCrossed,
   X,
@@ -45,6 +46,7 @@ const ICONES: Record<IdPage, LucideIcon> = {
   parametres: Settings,
   imprimante: Printer,
   utilisateurs: UserRound,
+  "site-hotel": Globe,
 };
 
 const LIBELLE_ROLE: Record<Role, string> = {
