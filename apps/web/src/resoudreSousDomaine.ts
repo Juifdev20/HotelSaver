@@ -14,10 +14,12 @@
  * résout nativement vers 127.0.0.1 (RFC 6761, aucune configuration DNS
  * nécessaire). `?hotel=` reste un secours explicite (pratique pour
  * re-tester plusieurs hôtels sans changer d'URL).
+ *
+ * Si l'hôte ressemble à un tenant mais que l'API répond 404 (ex. le domaine
+ * de la vitrine HotelSaver elle-même), App.tsx retombe sur la vitrine.
  */
 export function resoudreSousDomaine(): string | null {
-  const parametres = new URLSearchParams(window.location.search);
-  const parSecours = parametres.get("hotel");
+  const parSecours = parametreHotel();
   if (parSecours) return parSecours;
 
   const hote = window.location.hostname;
@@ -29,4 +31,18 @@ export function resoudreSousDomaine(): string | null {
   if (labels.length < 2 || estAdresseIp) return null;
 
   return hote;
+}
+
+/** Valeur de `?hotel=` si présente (mode secours / tests). */
+export function parametreHotel(): string | null {
+  return new URLSearchParams(window.location.search).get("hotel");
+}
+
+/** Chemin interne du site d'un hôtel. En mode `?hotel=`, le paramètre doit
+ * suivre chaque lien : sinon un rechargement de page perdrait l'hôtel. */
+export function cheminHotel(chemin: string): string {
+  const hotel = parametreHotel();
+  if (!hotel) return chemin;
+  const separateur = chemin.includes("?") ? "&" : "?";
+  return `${chemin}${separateur}hotel=${encodeURIComponent(hotel)}`;
 }

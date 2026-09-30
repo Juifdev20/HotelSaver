@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
-import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { inscrireHotel, obtenirInfoPublique } from "@hotel-chicago/api-client";
 import type { InfoHotelPublique, InscriptionHotelPayload } from "@hotel-chicago/types";
 import { configuration } from "./config";
@@ -8,8 +8,9 @@ import { resoudreSousDomaine } from "./resoudreSousDomaine";
 import { appliquerPalette } from "./appliquerPalette";
 import { EcranInscription } from "./EcranInscription";
 import { EcranSucces } from "./EcranSucces";
-import { EcranChambresPubliques } from "./EcranChambresPubliques";
-import { EcranMenuPublique } from "./EcranMenuPublique";
+import { EcranAccueil } from "./EcranAccueil";
+import { BarreMarketing } from "./accueil/BarreMarketing";
+import { SiteHotel } from "./hotel/SiteHotel";
 
 function EcranInscriptionAvecEtat() {
   const [erreur, setErreur] = useState<string | null>(null);
@@ -33,60 +34,42 @@ function EcranInscriptionAvecEtat() {
   return <EcranInscription erreur={erreur} enCours={enCours} onSoumettre={sInscrire} />;
 }
 
-/** Pas de sous-domaine résolvable (ex. "localhost" nu, sans ?hotel=) : les
- * pages propres à un hôtel n'ont rien à afficher — voir resoudreSousDomaine.ts. */
-function PageSansHotel() {
+/** Vitrine HotelSaver (plateforme) : accueil marketing + inscription d'un hôtel. */
+function SiteMarketing() {
+  const { pathname } = useLocation();
+  const surVitrine = pathname === "/" || pathname === "/inscription";
   return (
-    <div className="page">
-      <p>
-        Aucun hôtel identifié. Ajoutez <code>?hotel=&lt;sous-domaine&gt;</code> à l'URL, ou visitez cette page depuis
-        le sous-domaine de l'hôtel.
-      </p>
+    <>
+      {surVitrine && <BarreMarketing />}
+      <Routes>
+        <Route path="/" element={<EcranAccueil />} />
+        <Route path="/inscription" element={<EcranInscriptionAvecEtat />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
+  );
+}
+
+type EtatSite = { type: "chargement" } | { type: "marketing" } | { type: "hotel"; info: InfoHotelPublique; sousDomaine: string };
+
+function Chargement() {
+  return (
+    <div className="chargement-site" role="status" aria-label="Chargement">
+      <span />
     </div>
   );
 }
 
-function BarreNavigation() {
-  return (
-    <nav className="barre-navigation">
-      {/* Marque de l'application — le logo/nom de l'hôtel visité est affiché
-          à part, dans BandeauHotel, uniquement sur les pages d'un tenant. */}
-      <Link to="/" className="marque-nav">
-        <img className="marque-nav__logo" src="/logo-hotelsaver.png" alt="HotelSaver" />
-        <span className="marque-nav__nom">HotelSaver</span>
-      </Link>
-      <span className="barre-navigation__liens">
-        <Link to="/">Créer un compte hôtel</Link>
-        <Link to="/chambres">Chambres</Link>
-        <Link to="/menu">Menu</Link>
-      </span>
-    </nav>
-  );
-}
-
-/** Branding de l'hôtel visité (tenant) — HotelBranding via /public/hotel,
- * jamais le logo HotelSaver : chaque marque à sa place. */
-function BandeauHotel({ info }: { info: InfoHotelPublique | null }) {
-  if (!info) return null;
-  return (
-    <div className="bandeau-hotel">
-      {info.logoUrl && <img className="bandeau-hotel__logo" src={info.logoUrl} alt="" />}
-      <span className="bandeau-hotel__nom">{info.nom}</span>
-    </div>
-  );
-}
-
-/** react-router-dom introduit ici volontairement (Phase 9, voir
- * DECISIONS.md) : contrairement à mobile/desktop/super-admin (un flux
- * séquentiel, aiguillage par état suffisant), ce site a plusieurs pages
- * indépendantes et partageables par URL. */
+/** Un même site, deux visages : si l'adresse correspond à un hôtel (sous-domaine,
+ * domaine personnalisé ou `?hotel=`), on affiche SON site, à sa charte ; sinon
+ * (ou si l'API ne connaît pas cet hôte) la vitrine HotelSaver.
+ *
+ * react-router-dom est introduit ici volontairement (Phase 9, voir
+ * DECISIONS.md) : plusieurs pages indépendantes et partageables par URL. */
 export default function App() {
   const sousDomaine = resoudreSousDomaine();
-  const [infoHotel, setInfoHotel] = useState<InfoHotelPublique | null>(null);
+  const [etat, setEtat] = useState<EtatSite>(sousDomaine ? { type: "chargement" } : { type: "marketing" });
 
-  // Charte graphique dynamique par hôtel (Phase 11) : ne bloque jamais le
-  // rendu de la page — le thème générique de packages/ui reste un repli
-  // correct tant que la palette n'est pas (ou pas encore) appliquée.
   useEffect(() => {
     if (!sousDomaine) return;
     let annule = false;
@@ -95,9 +78,11 @@ export default function App() {
         const info = await obtenirInfoPublique({ url: configuration.apiUrl }, sousDomaine);
         if (annule) return;
         appliquerPalette(info.palette);
-        setInfoHotel(info);
+        setEtat({ type: "hotel", info, sousDomaine });
       } catch {
-        // Repli silencieux sur le thème générique.
+        // Hôte inconnu, suspendu ou API injoignable : on montre la vitrine
+        // HotelSaver plutôt qu'une page blanche.
+        if (!annule) setEtat({ type: "marketing" });
       }
     })();
     return () => {
@@ -107,36 +92,9 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <BarreNavigation />
-      <Routes>
-        <Route path="/" element={<EcranInscriptionAvecEtat />} />
-        <Route
-          path="/chambres"
-          element={
-            sousDomaine ? (
-              <>
-                <BandeauHotel info={infoHotel} />
-                <EcranChambresPubliques sousDomaine={sousDomaine} />
-              </>
-            ) : (
-              <PageSansHotel />
-            )
-          }
-        />
-        <Route
-          path="/menu"
-          element={
-            sousDomaine ? (
-              <>
-                <BandeauHotel info={infoHotel} />
-                <EcranMenuPublique sousDomaine={sousDomaine} />
-              </>
-            ) : (
-              <PageSansHotel />
-            )
-          }
-        />
-      </Routes>
+      {etat.type === "chargement" && <Chargement />}
+      {etat.type === "marketing" && <SiteMarketing />}
+      {etat.type === "hotel" && <SiteHotel info={etat.info} sousDomaine={etat.sousDomaine} />}
     </BrowserRouter>
   );
 }
