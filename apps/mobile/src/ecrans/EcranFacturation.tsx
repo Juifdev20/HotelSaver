@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
-import { Devise, Facture, ModePaiement, Reservation, VenteCafeteria } from "@hotel-chicago/types";
+import { Devise, Facture, ModePaiement, Reservation, VenteCafeteria, peutOperer } from "@hotel-chicago/types";
 import type { TauxChange } from "@hotel-chicago/api-client";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -334,9 +334,13 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
             </View>
           )}
 
-          <Pressable style={[styles.bouton, bloquerPaiement && styles.boutonInactif]} onPress={facturerEtCheckOut} disabled={enCours || bloquerPaiement}>
-            <Text style={styles.boutonTexte}>{enCours ? "…" : "Facturer et check-out"}</Text>
-          </Pressable>
+          {peutOperer(utilisateur) ? (
+            <Pressable style={[styles.bouton, bloquerPaiement && styles.boutonInactif]} onPress={facturerEtCheckOut} disabled={enCours || bloquerPaiement}>
+              <Text style={styles.boutonTexte}>{enCours ? "…" : "Facturer et check-out"}</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.monnaie}>Lecture seule — la facturation est réservée au personnel de la réception.</Text>
+          )}
         </ConteneurFormulaire>
       )}
     </View>

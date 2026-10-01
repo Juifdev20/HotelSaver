@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
-import { Chambre, Devise, Role, StatutChambre } from "@hotel-chicago/types";
+import { Chambre, Devise, Role, StatutChambre, peutOperer } from "@hotel-chicago/types";
 import { BedDouble } from "lucide-react-native";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -238,12 +238,13 @@ export function EcranChambres() {
         onFermer={() => setChambreChoisie(null)}
         titre={chambreChoisie ? `Chambre ${chambreChoisie.numero}` : undefined}
       >
-        {TOUS_LES_STATUTS.map((statut) => (
-          <Pressable key={statut} style={styles.optionStatut} onPress={() => choisirStatut(statut)}>
-            <View style={[styles.pastilleStatut, { backgroundColor: COULEUR_PAR_STATUT[statut].texte }]} />
-            <Text style={styles.optionStatutTexte}>{LABEL_PAR_STATUT[statut]}</Text>
-          </Pressable>
-        ))}
+        {peutOperer(utilisateur) &&
+          TOUS_LES_STATUTS.map((statut) => (
+            <Pressable key={statut} style={styles.optionStatut} onPress={() => choisirStatut(statut)}>
+              <View style={[styles.pastilleStatut, { backgroundColor: COULEUR_PAR_STATUT[statut].texte }]} />
+              <Text style={styles.optionStatutTexte}>{LABEL_PAR_STATUT[statut]}</Text>
+            </Pressable>
+          ))}
         {estPatron && chambreChoisie && (
           <Pressable style={styles.optionModifier} onPress={() => ouvrirEdition(chambreChoisie)} disabled={!etatSync.enLigne}>
             <Text style={styles.optionModifierTexte}>Modifier la chambre (numéro, type, prix)</Text>

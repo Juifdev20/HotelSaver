@@ -16,6 +16,8 @@ import {
   ecrireJetonRafraichissement,
   enregistrerProfil,
   lireDernierUtilisateur,
+  lireProfilCache,
+  ecrireProfilCache,
   lireJetonRafraichissement,
   listerProfils,
   oublierProfil,
@@ -39,9 +41,9 @@ type Ecran = "chargement" | "selection-profil" | "connexion" | "inscription" | "
  * une session déjà valide (vérification quasi instantanée, stockage local)
  * fait passer l'écran de chargement directement au tableau de bord PENDANT
  * qu'il est encore caché sous le voile — l'utilisateur ne le voit alors
- * jamais. 2500 ms garantit qu'il reste visible ~1 s de plus une fois le
+ * jamais. 900 ms (réduit de 2500 ms le 01/10/2026 : l attente fixe ralentissait le démarrage de ~2 s) suffit à garder l écran visible un instant une fois le
  * voile retiré, quelle que soit la rapidité de la vérification réelle. */
-const DUREE_MINIMALE_CHARGEMENT_MS = 2500;
+const DUREE_MINIMALE_CHARGEMENT_MS = 900;
 
 /** Seul écran de démarrage côté JS : logo à taille réduite + widget de
  * chargement, affiché pendant la vérification réelle de la session
@@ -101,7 +103,17 @@ export default function App() {
   const [connexionEnCours, setConnexionEnCours] = useState(false);
   const [erreurInscription, setErreurInscription] = useState<string | null>(null);
   const [inscriptionEnCours, setInscriptionEnCours] = useState(false);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  // Session ouverte ? Le jeton d'accès vit dans une référence : il se RENOUVELLE (au démarrage en arrière-plan,
+  // puis toutes les 40 min) sans recréer le client ni redémarrer la synchronisation.
+  const [sessionActive, setSessionActive] = useState(false);
+  const jetonRef = useRef<string | null>(null);
+  const renouvellementEnCours = useRef(false);
+  /** Démarrage instantané : une requête lancée avant l'arrivée du jeton l'attend (8 s au plus) au lieu d'échouer. */
+  const attendreJeton = async (): Promise<string | null> => {
+    const limite = Date.now() + 8_000;
+    while (jetonRef.current === null && Date.now() < limite) await new Promise((r) => setTimeout(r, 100));
+    return jetonRef.current;
+  };
   const [utilisateur, setUtilisateur] = useState<ProfilConnecte | null>(null);
 
   // Lien profond « Ouvrir l'application » du site web (hotelsaver://connexion?email=…) : on
@@ -135,8 +147,8 @@ export default function App() {
   }, [lienRecu, ecran]);
 
   const client = useMemo(
-    () => (configuration && accessToken ? new ClientApi(configuration.apiUrl, () => accessToken) : null),
-    [configuration, accessToken]
+    () => (configuration && sessionActive ? new ClientApi(configuration.apiUrl, () => jetonRef.current ?? attendreJeton()) : null),
+    [configuration, sessionActive]
   );
 
   const [moteurSync, setMoteurSync] = useState<MoteurSync | null>(null);
@@ -228,13 +240,26 @@ export default function App() {
       const profil = liste.find((p) => p.utilisateurId === dernierId);
       if (profil && profil.role !== Role.PATRON) {
         const jeton = await lireJetonRafraichissement(profil.utilisateurId);
+        const cache = jeton ? await lireProfilCache(profil.utilisateurId) : null;
+        if (jeton && cache) {
+          // DÉMARRAGE INSTANTANÉ : l'application s'ouvre tout de suite sur les données enregistrées dans le
+          // téléphone (profil en copie locale, base locale) ; le jeton et le profil sont renouvelés en arrière-plan.
+          // Hors ligne, on travaille quand même (c'est le principe de l'application) et on réessaie toutes les 30 s.
+          await attendreDureeMinimale();
+          setUtilisateur(cache);
+          setSessionActive(true);
+          setEcran("application");
+          void renouvelerEnArrierePlan(config, profil.utilisateurId, true);
+          return;
+        }
         if (jeton) {
           try {
-            const session = await rafraichirSession(
-              { url: config.supabaseUrl, anonKey: config.supabaseAnonKey },
-              jeton
-            );
-            await attendreDureeMinimale();
+            // Le renouvellement de session et la durée minimale d'affichage courent EN MÊME TEMPS
+            // (avant : l'un après l'autre, donc leurs durées s'additionnaient).
+            const [session] = await Promise.all([
+              rafraichirSession({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, jeton),
+              attendreDureeMinimale(),
+            ]);
             await terminerConnexion(session, config, profil.email);
             return;
           } catch {
@@ -257,16 +282,88 @@ export default function App() {
     const donnees = await Promise.race([
       clientTemporaire.moi(),
       new Promise<never>((_, rejette) =>
-        setTimeout(() => rejette(new Error("Serveur injoignable")), 10_000)
+        setTimeout(() => rejette(new Error("Serveur injoignable")), 6_000)
       ),
     ]);
     await enregistrerProfil({ utilisateurId: donnees.userId, nom: donnees.nom, role: donnees.role, email });
     await ecrireJetonRafraichissement(donnees.userId, session.refreshToken);
     await ecrireDernierUtilisateur(donnees.userId);
+    await ecrireProfilCache(donnees.userId, donnees);
+    jetonRef.current = session.accessToken;
     setUtilisateur(donnees);
-    setAccessToken(session.accessToken);
+    setSessionActive(true);
     setEcran("application");
   }
+
+  /**
+   * Renouvelle le jeton d'accès avec le jeton de rafraîchissement mémorisé. Renvoie « ok », « hors-ligne »
+   * (réessayer plus tard) ou « expiree » (reconnexion nécessaire). Jamais deux renouvellements en même temps :
+   * un jeton de rafraîchissement ne sert qu'une fois, un doublon ferait croire à une session expirée.
+   */
+  async function renouvelerJeton(config: ConfigurationApp, utilisateurId: string): Promise<"ok" | "hors-ligne" | "expiree" | "en-cours"> {
+    if (renouvellementEnCours.current) return "en-cours";
+    renouvellementEnCours.current = true;
+    try {
+      const jeton = await lireJetonRafraichissement(utilisateurId);
+      if (!jeton) return "expiree";
+      const session = await rafraichirSession({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, jeton);
+      jetonRef.current = session.accessToken;
+      await ecrireJetonRafraichissement(utilisateurId, session.refreshToken);
+      return "ok";
+    } catch (erreur) {
+      return erreur instanceof Error && erreur.message.startsWith("Impossible de joindre") ? "hors-ligne" : "expiree";
+    } finally {
+      renouvellementEnCours.current = false;
+    }
+  }
+
+  /** Session irrécupérable (refus du serveur) : retour à la sélection de profil, comme une déconnexion. */
+  function sessionExpiree() {
+    jetonRef.current = null;
+    setSessionActive(false);
+    setUtilisateur(null);
+    retourSelectionProfil();
+  }
+
+  /** Après un démarrage instantané : renouvelle le jeton puis rafraîchit le profil (nom, hôtel, réglages…). */
+  async function renouvelerEnArrierePlan(config: ConfigurationApp, utilisateurId: string, rafraichirProfil: boolean) {
+    const etat = await renouvelerJeton(config, utilisateurId);
+    if (etat === "expiree") return sessionExpiree();
+    if (etat !== "ok" || !rafraichirProfil) return;
+    try {
+      const frais = await new ClientApi(config.apiUrl, () => jetonRef.current).moi();
+      await ecrireProfilCache(frais.userId, frais);
+      setUtilisateur((courant) => (courant && courant.userId === frais.userId ? frais : courant));
+    } catch {
+      // Profil non rafraîchi : la copie locale reste utilisée, on réessaiera au prochain démarrage.
+    }
+  }
+
+  // Tant que la session est ouverte : renouvellement toutes les 40 min (le jeton d'accès vit ~1 h) ; si le jeton
+  // n'a pas pu être obtenu (téléphone hors ligne au démarrage), nouvelle tentative toutes les 30 s.
+  useEffect(() => {
+    if (!sessionActive || !utilisateur || !configuration) return;
+    const config = configuration;
+    const utilisateurId = utilisateur.userId;
+    let arrete = false;
+    let minuteur: ReturnType<typeof setTimeout>;
+    const planifier = () => {
+      minuteur = setTimeout(async () => {
+        const avait = jetonRef.current !== null;
+        const etat = await renouvelerJeton(config, utilisateurId);
+        if (arrete) return;
+        if (etat === "expiree") return sessionExpiree();
+        if (etat === "ok" && !avait) void renouvelerEnArrierePlan(config, utilisateurId, true);
+        planifier();
+      }, jetonRef.current ? 40 * 60_000 : 30_000);
+    };
+    planifier();
+    return () => {
+      arrete = true;
+      clearTimeout(minuteur);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionActive, utilisateur?.userId, configuration]);
 
   async function choisirProfil(profil: ProfilEnregistre) {
     if (!configuration) return;
@@ -343,7 +440,8 @@ export default function App() {
    * Réservé au PATRON dans l'UI — les employés passent par seDeconnecter. */
   function changerDeProfil() {
     void retirerAppareil(client);
-    setAccessToken(null);
+    jetonRef.current = null;
+    setSessionActive(false);
     setUtilisateur(null);
     retourSelectionProfil();
   }
@@ -354,7 +452,8 @@ export default function App() {
   async function seDeconnecter() {
     const id = utilisateur?.userId;
     await retirerAppareil(client);
-    setAccessToken(null);
+    jetonRef.current = null;
+    setSessionActive(false);
     setUtilisateur(null);
     if (id) await oublierProfil(id);
     retourSelectionProfil();
@@ -438,7 +537,7 @@ export default function App() {
     <View style={styles.racine}>
       {contenuPret && (
         <SafeAreaProvider>
-          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync }}>
+          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync, rechargerProfil: async () => setUtilisateur(await client.moi()) }}>
             <FournisseurNotifications client={client} role={utilisateur.role}>
               <NavigationContainer ref={navigationRef}>
                 <CoquilleOnglets />

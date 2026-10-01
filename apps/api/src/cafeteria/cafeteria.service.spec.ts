@@ -9,8 +9,8 @@ function creerPrismaMock() {
       create: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
-    sousCompte: { create: jest.fn() },
-    ligneCommande: { create: jest.fn() },
+    sousCompte: { create: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    ligneCommande: { create: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
     mouvementStock: { create: jest.fn().mockResolvedValue({}) },
     venteCafeteria: {
       create: jest.fn(),
@@ -135,9 +135,84 @@ describe("CafeteriaService", () => {
         id: "c1",
         statut: "OUVERT",
         tableOuNom: "Table 4",
-        sousComptes: lignesParSousCompte.map((lignes, i) => ({ id: `sc${i}`, lignes })),
+        sousComptes: lignesParSousCompte.map((lignes, i) => ({ id: `sc${i}`, nom: `P${i}`, payeLe: null, lignes })),
       };
     }
+
+    describe("UNE_PERSONNE (encaissement par consommateur)", () => {
+      const dtoPersonne = (sousCompteId: string) => ({ mode: "UNE_PERSONNE", modePaiement: "CASH", sousCompteId }) as any;
+      const deuxPersonnes = () =>
+        compteAvecLignes([
+          [{ devise: "USD", prixUnitaire: 3, quantite: 2 }], // sc0 : 6 $
+          [{ devise: "USD", prixUnitaire: 5, quantite: 1 }], // sc1 : 5 $
+        ]);
+
+      beforeEach(() => {
+        prisma.venteCafeteria.create.mockImplementation(({ data }: any) => Promise.resolve(data));
+      });
+
+      it("règle SA part seulement, marque la personne payée et laisse le compte OUVERT pour l'autre", async () => {
+        prisma.compteCafeteria.findUnique.mockResolvedValue(deuxPersonnes());
+        const [vente] = await service.encaisser("c1", dtoPersonne("sc0"), currentUser);
+
+        expect(vente.montantTotalUSD).toBe(6);
+        expect(vente.sousCompteId).toBe("sc0");
+        expect(prisma.sousCompte.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: "sc0", hotelId: HOTEL_ID, payeLe: null } })
+        );
+        expect(prisma.compteCafeteria.updateMany).not.toHaveBeenCalled();
+      });
+
+      it("ferme le compte quand la dernière personne règle sa part", async () => {
+        const compte = deuxPersonnes();
+        compte.sousComptes[0].payeLe = new Date() as any; // sc0 a déjà payé
+        prisma.compteCafeteria.findUnique.mockResolvedValue(compte);
+        const [vente] = await service.encaisser("c1", dtoPersonne("sc1"), currentUser);
+
+        expect(vente.montantTotalUSD).toBe(5);
+        expect(prisma.compteCafeteria.updateMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: "c1", hotelId: HOTEL_ID, statut: "OUVERT" } })
+        );
+      });
+
+      it("refuse une personne déjà payée (409) et un sousCompteId manquant ou inconnu", async () => {
+        const compte = deuxPersonnes();
+        compte.sousComptes[0].payeLe = new Date() as any;
+        prisma.compteCafeteria.findUnique.mockResolvedValue(compte);
+        await expect(service.encaisser("c1", dtoPersonne("sc0"), currentUser)).rejects.toThrow(ConflictException);
+        await expect(service.encaisser("c1", dtoPersonne("inconnu"), currentUser)).rejects.toThrow(NotFoundException);
+        await expect(
+          service.encaisser("c1", { mode: "UNE_PERSONNE", modePaiement: "CASH" } as any, currentUser)
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it("refuse un double encaissement concurrent de la même personne (compare-and-swap)", async () => {
+        prisma.compteCafeteria.findUnique.mockResolvedValue(deuxPersonnes());
+        prisma.sousCompte.updateMany.mockResolvedValueOnce({ count: 0 });
+        await expect(service.encaisser("c1", dtoPersonne("sc0"), currentUser)).rejects.toThrow(ConflictException);
+        expect(prisma.venteCafeteria.create).not.toHaveBeenCalled();
+      });
+
+      it("« Tout encaisser » (GROUPE) ne reprend PAS les lignes d'une personne déjà payée", async () => {
+        const compte = deuxPersonnes();
+        compte.sousComptes[0].payeLe = new Date() as any;
+        prisma.compteCafeteria.findUnique.mockResolvedValue(compte);
+        const [vente] = await service.encaisser("c1", { mode: "GROUPE", modePaiement: "CASH" } as any, currentUser);
+        expect(vente.montantTotalUSD).toBe(5);
+        expect(vente.sousCompteId).toBeUndefined();
+      });
+    });
+
+    it("refuse d'ajouter une ligne à une personne qui a déjà réglé sa part", async () => {
+      prisma.compteCafeteria.findUnique.mockResolvedValue({
+        id: "c1",
+        statut: "OUVERT",
+        sousComptes: [{ id: "sc0", nom: "Alex", payeLe: new Date(), lignes: [] }],
+      });
+      await expect(
+        service.ajouterLigne("c1", { sousCompteId: "sc0", produitId: "p1", quantite: 1 } as any, currentUser)
+      ).rejects.toThrow(ConflictException);
+    });
 
     it("refuse d'encaisser un compte sans aucune ligne", async () => {
       prisma.compteCafeteria.findUnique.mockResolvedValue(compteAvecLignes([[]]));
@@ -297,6 +372,22 @@ describe("CafeteriaService", () => {
     it("refuse d'annuler une vente déjà annulée", async () => {
       prisma.venteCafeteria.findUnique.mockResolvedValue({ id: "v1", annuleLe: new Date() });
       await expect(service.annulerVente("v1", "erreur", HOTEL_ID)).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe("produitsPopulaires", () => {
+    it("agrège les lignes de CET hôtel depuis minuit (heure de Lubumbashi, UTC+2) et classe par quantité", async () => {
+      prisma.ligneCommande.groupBy.mockResolvedValue([
+        { produitId: "p1", _sum: { quantite: "12" } },
+        { produitId: "p2", _sum: { quantite: "3.5" } },
+      ]);
+      // 01/10/2026 23:30 UTC = 02/10 01:30 à Lubumbashi → le « jour » commence le 01/10 à 22:00 UTC.
+      const resultat = await service.produitsPopulaires(HOTEL_ID, new Date("2026-10-01T23:30:00Z"));
+
+      expect(resultat).toEqual([{ produitId: "p1", quantite: 12 }, { produitId: "p2", quantite: 3.5 }]);
+      const appel = prisma.ligneCommande.groupBy.mock.calls[0][0];
+      expect(appel.where).toEqual({ hotelId: HOTEL_ID, createdAt: { gte: new Date("2026-10-01T22:00:00Z") } });
+      expect(appel.orderBy).toEqual({ _sum: { quantite: "desc" } });
     });
   });
 });

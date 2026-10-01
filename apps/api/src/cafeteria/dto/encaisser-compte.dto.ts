@@ -2,7 +2,7 @@ import { Devise, ModePaiement } from "@hotel-chicago/database";
 import { Type } from "class-transformer";
 import { IsEnum, IsIn, IsInt, IsOptional, IsPositive, IsUUID, Min } from "class-validator";
 
-export const MODES_ENCAISSEMENT = ["GROUPE", "PAR_SOUS_COMPTE", "PARTAGE_EGAL"] as const;
+export const MODES_ENCAISSEMENT = ["GROUPE", "PAR_SOUS_COMPTE", "PARTAGE_EGAL", "UNE_PERSONNE"] as const;
 export type ModeEncaissement = (typeof MODES_ENCAISSEMENT)[number];
 
 export class EncaisserCompteDto {
@@ -11,6 +11,11 @@ export class EncaisserCompteDto {
 
   @IsEnum(ModePaiement, { message: "modePaiement doit être CASH, MOBILE_MONEY ou FACTURE_CHAMBRE." })
   modePaiement!: ModePaiement;
+
+  /** Requis uniquement pour mode = UNE_PERSONNE : la personne (sous-compte) qui règle sa part. */
+  @IsOptional()
+  @IsUUID()
+  sousCompteId?: string;
 
   /** Requis uniquement pour mode = PARTAGE_EGAL. */
   @IsOptional()

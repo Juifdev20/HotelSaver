@@ -11,6 +11,8 @@ export interface EcranArriveesDepartsProps {
   client: ClientApi;
   onNaviguer: (page: IdPage) => void;
   onFacturer: (reservationId: string) => void;
+  /** Faux : lecture seule pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer ». */
+  peutOperer?: boolean;
 }
 
 function memeJour(iso: string, jour: Date): boolean {
@@ -26,7 +28,7 @@ function memeJour(iso: string, jour: Date): boolean {
  * (EN_COURS à facturer/check-out). Les actions passent par les mêmes
  * endpoints transactionnels que le détail de réservation.
  */
-export function EcranArriveesDeparts({ client, onFacturer }: EcranArriveesDepartsProps) {
+export function EcranArriveesDeparts({ client, onFacturer, peutOperer = true }: EcranArriveesDepartsProps) {
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState<string | null>(null);
@@ -114,7 +116,7 @@ export function EcranArriveesDeparts({ client, onFacturer }: EcranArriveesDepart
                       <StatusBadge tone={TONE_STATUT[r.statut]} label={LABEL_STATUT[r.statut]} />
                     </td>
                     <td style={{ whiteSpace: "nowrap" }}>
-                      {r.statut === "EN_ATTENTE" && (
+                      {peutOperer && r.statut === "EN_ATTENTE" && (
                         <Button
                           type="button"
                           variant="secondary"
@@ -125,7 +127,7 @@ export function EcranArriveesDeparts({ client, onFacturer }: EcranArriveesDepart
                           {enCours === `confirmer-${r.id}` ? "…" : "Confirmer"}
                         </Button>
                       )}{" "}
-                      {r.statut === "CONFIRMEE" && (
+                      {peutOperer && r.statut === "CONFIRMEE" && (
                         <Button
                           type="button"
                           size="sm"
@@ -168,9 +170,11 @@ export function EcranArriveesDeparts({ client, onFacturer }: EcranArriveesDepart
                     <td className="texte-discret">{dateCourte(r.dateArrivee)}</td>
                     <td className="hc-text-price">{formatMontant(r.acompte, r.chambre.devise)}</td>
                     <td>
-                      <Button type="button" size="sm" onClick={() => onFacturer(r.id)}>
-                        Facturer
-                      </Button>
+                      {peutOperer && (
+                        <Button type="button" size="sm" onClick={() => onFacturer(r.id)}>
+                          Facturer
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -203,9 +207,11 @@ export function EcranArriveesDeparts({ client, onFacturer }: EcranArriveesDepart
                     <td className="texte-discret">{r.chambre.numero}</td>
                     <td className="texte-discret">{dateCourte(r.dateDepart)}</td>
                     <td>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => onFacturer(r.id)}>
-                        Facturer
-                      </Button>
+                      {peutOperer && (
+                        <Button type="button" variant="secondary" size="sm" onClick={() => onFacturer(r.id)}>
+                          Facturer
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}

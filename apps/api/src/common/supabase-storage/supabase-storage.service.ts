@@ -1,16 +1,20 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { BUCKET_MEDIA, prefixeUrlHotel } from "./urls-hotel";
+import { BUCKET_MEDIA, BUCKET_RAPPORTS, prefixeUrlHotel } from "./urls-hotel";
 
 /**
- * Stockage des images via l'API Storage de Supabase (clé service_role), comme
- * SupabaseAdminService le fait pour Auth. Un seul bucket public `hotel-media`,
- * un dossier par hôtel. Le bucket est créé à la demande au premier envoi : pas
- * de geste manuel dans le tableau de bord Supabase.
+ * Stockage via l'API Storage de Supabase (clé service_role), comme
+ * SupabaseAdminService le fait pour Auth. Deux buckets, créés à la demande au
+ * premier envoi (pas de geste manuel dans le tableau de bord Supabase) :
+ * - `hotel-media` : public, images WebP ≤ 2 Mo, un dossier par hôtel ;
+ * - `rapports` : PRIVÉ, PDF mensuels des départements — lecture uniquement
+ *   par URL signée délivrée après contrôle du hotelId du JWT (voir
+ *   RapportsController), jamais d'URL publique.
  */
 @Injectable()
 export class SupabaseStorageService {
   private bucketPret = false;
+  private bucketRapportsPret = false;
 
   private config() {
     const cle = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -44,6 +48,74 @@ export class SupabaseStorageService {
       }
     }
     this.bucketPret = true;
+  }
+
+  private async assurerBucketRapports(): Promise<void> {
+    if (this.bucketRapportsPret) return;
+    const { cle, url } = this.config();
+    const reponse = await fetch(`${url}/storage/v1/bucket`, {
+      method: "POST",
+      headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: BUCKET_RAPPORTS,
+        name: BUCKET_RAPPORTS,
+        // PRIVÉ : un rapport mensuel contient les chiffres de l'hôtel — jamais public.
+        public: false,
+        file_size_limit: 10 * 1024 * 1024,
+        allowed_mime_types: ["application/pdf"],
+      }),
+    });
+    if (!reponse.ok && reponse.status !== 409) {
+      const corps = await reponse.text().catch(() => "");
+      if (!/already exists|Duplicate/i.test(corps)) {
+        throw new InternalServerErrorException(`Création du bucket rapports refusée (${reponse.status}).`);
+      }
+    }
+    this.bucketRapportsPret = true;
+  }
+
+  /**
+   * Enregistre un PDF dans le bucket privé `rapports` sous `chemin`
+   * ({hotelId}/{periode}/{numero}.pdf). En cas de régénération du même
+   * numéro — impossible par construction (version+1 → nouveau numero), mais
+   * l'upload refuse l'écrasement par sécurité (`upsert: false`).
+   */
+  async envoyerRapportPdf(chemin: string, contenu: Buffer): Promise<void> {
+    await this.assurerBucketRapports();
+    const { cle, url } = this.config();
+    const reponse = await fetch(`${url}/storage/v1/object/${BUCKET_RAPPORTS}/${chemin}`, {
+      method: "POST",
+      headers: {
+        apikey: cle,
+        Authorization: `Bearer ${cle}`,
+        "Content-Type": "application/pdf",
+        "x-upsert": "false",
+      },
+      body: contenu,
+    });
+    if (!reponse.ok) {
+      const corps = await reponse.text().catch(() => "");
+      throw new InternalServerErrorException(`Envoi du rapport refusé (${reponse.status}) : ${corps.slice(0, 200)}`);
+    }
+  }
+
+  /** URL signée à durée courte pour ouvrir un PDF du bucket privé. */
+  async urlSigneeRapport(chemin: string, secondes = 300): Promise<string> {
+    const { cle, url } = this.config();
+    const reponse = await fetch(`${url}/storage/v1/object/sign/${BUCKET_RAPPORTS}/${chemin}`, {
+      method: "POST",
+      headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: secondes }),
+    });
+    if (!reponse.ok) {
+      const corps = await reponse.text().catch(() => "");
+      throw new InternalServerErrorException(`Signature du lien refusée (${reponse.status}) : ${corps.slice(0, 200)}`);
+    }
+    const corps = (await reponse.json()) as { signedURL?: string };
+    if (!corps.signedURL) {
+      throw new InternalServerErrorException("Réponse de signature sans URL.");
+    }
+    return `${url}/storage/v1${corps.signedURL}`;
   }
 
   /** Enregistre un WebP et renvoie son URL publique. */

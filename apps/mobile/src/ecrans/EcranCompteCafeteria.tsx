@@ -1,54 +1,37 @@
 import * as React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Devise, ModePaiement, Produit, StatutCompte, VenteCafeteria } from "@hotel-chicago/types";
+import { Devise, ModePaiement, Produit, StatutCompte, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
-import { Plus, UserPlus } from "lucide-react-native";
+import { Check, Plus, UserPlus } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { FeuilleModale } from "../composants/FeuilleModale";
-import { SelecteurProduit } from "../composants/SelecteurProduit";
+import { ApercuRecu } from "../composants/ApercuRecu";
+import { CarteBalayable } from "../composants/CarteBalayable";
+import { EcranAjoutConsommation } from "./EcranAjoutConsommation";
+import { nombreArticles, totalCompte, totalSousCompte } from "../totauxCafeteria";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { imprimerLignes } from "../impression/imprimante";
 import {
   CompteCafeteriaMiroir,
   SousCompteMiroir,
-  creerLigneLocal,
   creerSousCompteLocal,
   listerProduitsMiroir,
+  marquerPersonnePayeeLocal,
   obtenirCompteMiroir,
+  produitsPopulairesAujourdhuiMiroir,
 } from "../stockage/cafeteriaMirroir";
 
 export interface EcranCompteCafeteriaProps {
   client: ClientApi;
   compteId: string;
   onRetour: () => void;
-}
-
-function totalSousCompte(sousCompte: SousCompteMiroir): { usd: number; cdf: number } {
-  let usd = 0;
-  let cdf = 0;
-  for (const ligne of sousCompte.lignes) {
-    const montant = Number(ligne.prixUnitaire) * Number(ligne.quantite);
-    if (ligne.devise === Devise.USD) usd += montant;
-    else cdf += montant;
-  }
-  return { usd, cdf };
-}
-
-function totalCompte(compte: CompteCafeteriaMiroir): { usd: number; cdf: number } {
-  return compte.sousComptes.reduce(
-    (acc, sc) => {
-      const t = totalSousCompte(sc);
-      return { usd: acc.usd + t.usd, cdf: acc.cdf + t.cdf };
-    },
-    { usd: 0, cdf: 0 }
-  );
 }
 
 /**
@@ -76,20 +59,38 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
   const [modalePersonne, setModalePersonne] = useState(false);
   const [nomPersonne, setNomPersonne] = useState("");
 
-  const [modaleLigne, setModaleLigne] = useState(false);
-  const [sousCompteChoisi, setSousCompteChoisi] = useState<string | null>(null);
-  const [produitChoisi, setProduitChoisi] = useState<Produit | null>(null);
-  const [selecteurProduitOuvert, setSelecteurProduitOuvert] = useState(false);
-  const [quantiteLigne, setQuantiteLigne] = useState("1");
+  // Niveau 2 : id de la personne pour qui on ajoute des consommations (null = vue d'ensemble).
+  const [personneEnAjout, setPersonneEnAjout] = useState<string | null>(null);
+  const [populaires, setPopulaires] = useState<Map<string, number>>(new Map());
 
   const [modaleEncaissement, setModaleEncaissement] = useState(false);
+  // Qui l'on encaisse : une personne (son id local) ou « tout » ce qui reste à régler.
+  const [cibleEncaissement, setCibleEncaissement] = useState<string>("tout");
+  // Ce que le reçu détaille (figé au moment de l'encaissement, le compte se recharge ensuite).
+  const [recuCompte, setRecuCompte] = useState<CompteCafeteriaMiroir | null>(null);
+  const [compteSolde, setCompteSolde] = useState(false);
   const [modePaiement, setModePaiement] = useState<ModePaiement>(ModePaiement.CASH);
   const [venteEncaissee, setVenteEncaissee] = useState<VenteCafeteria | null>(null);
   const [enImpression, setEnImpression] = useState(false);
   const [messageImpression, setMessageImpression] = useState<string | null>(null);
 
+  // Personnes payées : écartées à la main (balayage) ou effacées d'elles-mêmes 1 minute après leur paiement.
+  const [masquees, setMasquees] = useState<Set<string>>(new Set());
+  const [voirPayees, setVoirPayees] = useState(false);
+  const [maintenant, setMaintenant] = useState(() => Date.now());
+  useEffect(() => {
+    const minuteur = setInterval(() => setMaintenant(Date.now()), 5000);
+    return () => clearInterval(minuteur);
+  }, []);
+
   const [enEnvoi, setEnEnvoi] = useState(false);
   const [erreurAction, setErreurAction] = useState<string | null>(null);
+
+  // Le MÊME reçu sert à l'aperçu et à l'impression : ce qu'on voit est ce qui sort imprimé.
+  const lignesRecu = useMemo(
+    () => (venteEncaissee && (recuCompte ?? compte) ? construireRecuVente(venteEncaissee, (recuCompte ?? compte)!, utilisateur.nom, enteteHotel(utilisateur)) : null),
+    [venteEncaissee, recuCompte, compte, utilisateur]
+  );
 
   const rechargerCompte = useCallback(() => {
     obtenirCompteMiroir(compteId)
@@ -100,6 +101,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
   useEffect(() => {
     rechargerCompte();
     listerProduitsMiroir().then(setProduits).catch(() => {});
+    produitsPopulairesAujourdhuiMiroir().then(setPopulaires).catch(() => {});
     moteurSync.forcerSynchronisation();
   }, [rechargerCompte, moteurSync]);
 
@@ -175,55 +177,37 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
     }
   }
 
-  function ouvrirModaleLigne() {
-    setSousCompteChoisi(compte?.sousComptes[0]?.id ?? null);
-    setProduitChoisi(null);
-    setQuantiteLigne("1");
-    setErreurAction(null);
-    setModaleLigne(true);
-  }
-
-  async function ajouterLigne() {
-    const quantiteNombre = Number(quantiteLigne);
-    if (!compte || !sousCompteChoisi || !produitChoisi || !Number.isFinite(quantiteNombre) || quantiteNombre <= 0) {
-      setErreurAction("Choisissez une personne, un produit et une quantité positive.");
-      return;
-    }
-    const sousCompte = compte.sousComptes.find((sc) => sc.id === sousCompteChoisi);
-    if (!sousCompte || sousCompte.remoteId === null || idsSousCompteEnAttente.has(sousCompte.id)) {
+  /** Ouvre la page d'ajout pour une personne (bloqué tant qu'elle n'est pas synchronisée). */
+  function ouvrirAjout(sousCompte: SousCompteMiroir) {
+    if (sousCompte.remoteId === null || idsSousCompteEnAttente.has(sousCompte.id)) {
       setErreurAction("Cette personne est en cours de synchronisation, réessayez dans un instant.");
+      moteurSync.forcerSynchronisation();
       return;
     }
-    setEnEnvoi(true);
     setErreurAction(null);
-    try {
-      const ligne = await creerLigneLocal(sousCompteChoisi, produitChoisi, quantiteNombre);
-      await moteurSync.mettreEnFile({
-        entiteType: "LigneCommande",
-        localId: ligne.id,
-        operation: "CREATE",
-        payload: {
-          compteId: compte.remoteId ?? compte.id,
-          sousCompteId: sousCompte.remoteId ?? sousCompte.id,
-          produitId: produitChoisi.id,
-          quantite: quantiteNombre,
-        },
-      });
-      setModaleLigne(false);
-      rechargerCompte();
-    } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Erreur inconnue.");
-    } finally {
-      setEnEnvoi(false);
-    }
+    produitsPopulairesAujourdhuiMiroir().then(setPopulaires).catch(() => {});
+    setPersonneEnAjout(sousCompte.id);
   }
 
-  function ouvrirModaleEncaissement() {
-    if (compteEtSesEnfantsEnAttente) {
+  /** Une personne est « en attente » tant qu'elle ou ses lignes n'ont pas atteint le serveur. */
+  function personneEnAttente(sc: SousCompteMiroir): boolean {
+    return sc.remoteId === null || idsSousCompteEnAttente.has(sc.id) || sc.lignes.some((l) => idsLigneEnAttente.has(l.id));
+  }
+
+  /** Personnes qui ont encore quelque chose à régler (pas déjà payées, au moins une ligne). */
+  const personnesARegler = compte ? compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0) : [];
+
+  function personnesCibles(cible: string): SousCompteMiroir[] {
+    return cible === "tout" ? personnesARegler : personnesARegler.filter((sc) => sc.id === cible);
+  }
+
+  function ouvrirEncaissement(cible: string) {
+    if (compteEnAttente || personnesCibles(cible).some(personneEnAttente)) {
       setErreurAction("Synchronisation des commandes en cours — réessayez dans un instant.");
       moteurSync.forcerSynchronisation();
       return;
     }
+    setCibleEncaissement(cible);
     setModePaiement(ModePaiement.CASH);
     setVenteEncaissee(null);
     setMessageImpression(null);
@@ -233,11 +217,26 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
 
   async function encaisser() {
     if (!compte) return;
+    const concernes = personnesCibles(cibleEncaissement);
+    if (concernes.length === 0) return;
     setEnEnvoi(true);
     setErreurAction(null);
     try {
-      const ventes = await client.encaisserCompte(compte.remoteId ?? compte.id, { mode: "GROUPE", modePaiement });
+      const idCompte = compte.remoteId ?? compte.id;
+      const ventes =
+        cibleEncaissement === "tout"
+          ? await client.encaisserCompte(idCompte, { mode: "GROUPE", modePaiement })
+          : await client.encaisserCompte(idCompte, {
+              mode: "UNE_PERSONNE",
+              modePaiement,
+              sousCompteId: concernes[0].remoteId ?? concernes[0].id,
+            });
       setVenteEncaissee(ventes[0]);
+      setRecuCompte({ ...compte, sousComptes: concernes });
+      // Plus personne à régler après celle(s)-ci → le compte est fermé côté serveur.
+      setCompteSolde(personnesARegler.every((sc) => concernes.some((c) => c.id === sc.id)));
+      await Promise.all(concernes.map((sc) => marquerPersonnePayeeLocal(sc.id)));
+      rechargerCompte();
     } catch (e) {
       setErreurAction(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
@@ -246,11 +245,11 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
   }
 
   async function imprimerRecuVente() {
-    if (!venteEncaissee || !compte) return;
+    if (!lignesRecu) return;
     setEnImpression(true);
     setMessageImpression(null);
     try {
-      await imprimerLignes(construireRecuVente(venteEncaissee, compte, utilisateur.nom, enteteHotel(utilisateur)));
+      await imprimerLignes(lignesRecu);
       setMessageImpression("Reçu envoyé à l'imprimante.");
     } catch (e) {
       setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
@@ -259,13 +258,47 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
     }
   }
 
+  /** Reçu terminé : on quitte le compte seulement s'il est soldé, sinon on reste pour les autres personnes. */
   function terminerEncaissement() {
     setModaleEncaissement(false);
-    onRetour();
+    if (venteEncaissee && compteSolde) onRetour();
   }
 
   const total = compte ? totalCompte(compte) : { usd: 0, cdf: 0 };
   const compteOuvert = compte?.statut === StatutCompte.OUVERT;
+  // Séparation des tâches : le patron (sauf réglage de l'hôtel) consulte le compte mais n'y ajoute ni n'y encaisse rien.
+  const operer = peutOperer(utilisateur);
+  const { visibles: personnesVisibles, revoyables } = compte
+    ? sousComptesVisibles(compte.sousComptes, maintenant, masquees)
+    : { visibles: [] as SousCompteMiroir[], revoyables: [] as SousCompteMiroir[] };
+  // « Afficher » ne ramène que les personnes payées depuis moins de 5 minutes ; au-delà, l'écran est propre.
+  const voirPayeesActif = voirPayees && revoyables.length > 0;
+  const personnesAffichees = compte
+    ? voirPayeesActif
+      ? compte.sousComptes.filter((sc) => personnesVisibles.includes(sc) || revoyables.includes(sc))
+      : personnesVisibles
+    : [];
+  const unePersonneAPaye = compte ? compte.sousComptes.some((sc) => sc.payeLe) : false;
+  const reste = compte ? totalCompte({ ...compte, sousComptes: personnesARegler }) : { usd: 0, cdf: 0 };
+  const totalCible = totalCompte({ ...(compte as CompteCafeteriaMiroir), sousComptes: personnesCibles(cibleEncaissement) });
+
+  const personneChoisie = compte?.sousComptes.find((sc) => sc.id === personneEnAjout);
+  if (compte && personneChoisie && compteOuvert) {
+    return (
+      <EcranAjoutConsommation
+        compte={compte}
+        personne={personneChoisie}
+        produits={produits}
+        populaires={populaires}
+        onRetour={() => setPersonneEnAjout(null)}
+        onAjoute={() => {
+          setPersonneEnAjout(null);
+          rechargerCompte();
+          produitsPopulairesAujourdhuiMiroir().then(setPopulaires).catch(() => {});
+        }}
+      />
+    );
+  }
 
   return (
     <View style={styles.page}>
@@ -284,40 +317,108 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
               </View>
             )}
 
-            {compte.sousComptes.map((sousCompte) => {
+            {compteOuvert && !operer && (
+              <Text style={styles.aide}>Lecture seule — ajouter des consommations et encaisser sont réservés au personnel de la cafétaria.</Text>
+            )}
+            {compteOuvert && operer && compte.sousComptes.length > 0 && (
+              <Text style={styles.aide}>Touchez une personne pour lui ajouter des consommations.</Text>
+            )}
+
+            {personnesAffichees.map((sousCompte) => {
               const totalPersonne = totalSousCompte(sousCompte);
               const enAttenteSync = idsSousCompteEnAttente.has(sousCompte.id);
-              return (
-                <View key={sousCompte.id} style={styles.carteSousCompte}>
+              const nbArticles = nombreArticles(sousCompte);
+              const contenu = (
+                <>
                   <View style={styles.enteteSousCompte}>
-                    <Text style={styles.nomSousCompte}>{sousCompte.nom}</Text>
-                    {enAttenteSync && <Text style={styles.badgeEnAttente}>Synchronisation…</Text>}
-                  </View>
-                  {sousCompte.lignes.length === 0 ? (
-                    <Text style={styles.vide}>Aucune ligne.</Text>
-                  ) : (
-                    sousCompte.lignes.map((ligne) => (
-                      <View key={ligne.id} style={styles.ligneCommande}>
-                        <Text style={styles.ligneTexte}>
-                          {ligne.quantite}x {ligne.produit.nom}
-                        </Text>
-                        <Text style={styles.ligneMontant}>
-                          {formatMontant(Number(ligne.prixUnitaire) * Number(ligne.quantite), ligne.devise)}
-                        </Text>
+                    <View style={styles.identite}>
+                      <Text style={styles.nomSousCompte}>{sousCompte.nom}</Text>
+                      <Text style={styles.resume}>
+                        {nbArticles === 0 ? "Aucun article" : `${nbArticles} article${nbArticles > 1 ? "s" : ""}`}
+                        {enAttenteSync ? " · Synchronisation…" : ""}
+                      </Text>
+                    </View>
+                    {sousCompte.payeLe ? (
+                      <View style={styles.badgePaye}>
+                        <Check size={14} color={couleurs.succes} />
+                        <Text style={styles.badgePayeTexte}>Payé</Text>
                       </View>
-                    ))
-                  )}
+                    ) : (
+                      compteOuvert && operer && (
+                        <View style={[styles.boutonPersonne, enAttenteSync && styles.boutonDesactive]}>
+                          <Plus size={16} color="#fff" />
+                          <Text style={styles.boutonPersonneTexte}>Ajouter</Text>
+                        </View>
+                      )
+                    )}
+                  </View>
+                  {sousCompte.lignes.map((ligne) => (
+                    <View key={ligne.id} style={styles.ligneCommande}>
+                      <Text style={styles.ligneTexte}>
+                        {ligne.quantite}x {ligne.produit.nom}
+                      </Text>
+                      <Text style={styles.ligneMontant}>
+                        {formatMontant(Number(ligne.prixUnitaire) * Number(ligne.quantite), ligne.devise)}
+                      </Text>
+                    </View>
+                  ))}
                   {(totalPersonne.usd > 0 || totalPersonne.cdf > 0) && (
                     <View style={styles.totauxSousCompte}>
                       {totalPersonne.usd > 0 && <Text style={styles.totalSousCompteTexte}>{formatMontant(totalPersonne.usd, Devise.USD)}</Text>}
                       {totalPersonne.cdf > 0 && <Text style={styles.totalSousCompteTexte}>{formatMontant(totalPersonne.cdf, Devise.CDF)}</Text>}
                     </View>
                   )}
+                  {compteOuvert && sousCompte.payeLe && !voirPayeesActif && <Text style={styles.indiceBalayage}>Balayez vers la droite pour masquer →</Text>}
+                  {compteOuvert && operer && !sousCompte.payeLe && sousCompte.lignes.length > 0 && (
+                    <Pressable
+                      style={[styles.boutonEncaisserPersonne, personneEnAttente(sousCompte) && styles.boutonDesactive]}
+                      onPress={() => ouvrirEncaissement(sousCompte.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Encaisser ${sousCompte.nom}`}
+                    >
+                      <Text style={styles.boutonEncaisserTexte}>
+                        {personneEnAttente(sousCompte) ? "Synchronisation…" : `Encaisser ${sousCompte.nom}`}
+                      </Text>
+                    </Pressable>
+                  )}
+                </>
+              );
+              return compteOuvert && operer && !sousCompte.payeLe ? (
+                <Pressable
+                  key={sousCompte.id}
+                  style={styles.carteSousCompte}
+                  onPress={() => ouvrirAjout(sousCompte)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ajouter des consommations pour ${sousCompte.nom}`}
+                >
+                  {contenu}
+                </Pressable>
+              ) : compteOuvert && sousCompte.payeLe && !voirPayeesActif ? (
+                <CarteBalayable
+                  key={sousCompte.id}
+                  onMasquer={() => setMasquees((courant) => new Set(courant).add(sousCompte.id))}
+                  libelle={`Masquer ${sousCompte.nom}`}
+                >
+                  <View style={styles.carteSousCompte}>{contenu}</View>
+                </CarteBalayable>
+              ) : (
+                <View key={sousCompte.id} style={styles.carteSousCompte}>
+                  {contenu}
                 </View>
               );
             })}
 
-            {compteOuvert && (
+            {compteOuvert && revoyables.length > 0 && (
+              <Pressable onPress={() => setVoirPayees((v) => !v)} accessibilityRole="button">
+                <Text style={styles.lienPayees}>
+                  {voirPayeesActif
+                    ? "Masquer les personnes payées"
+                    : `${revoyables.length} personne${revoyables.length > 1 ? "s" : ""} payée${revoyables.length > 1 ? "s" : ""} masquée${revoyables.length > 1 ? "s" : ""} · Afficher`}
+                </Text>
+              </Pressable>
+            )}
+
+            {compteOuvert && operer && (
               <Pressable
                 style={[styles.boutonSecondaire, compteEnAttente && styles.boutonDesactive]}
                 onPress={ouvrirModalePersonne}
@@ -331,35 +432,32 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
             )}
 
             <View style={styles.carteTotal}>
-              <Text style={styles.labelTotal}>Total</Text>
-              {total.usd === 0 && total.cdf === 0 ? (
-                <Text style={styles.vide}>Aucune ligne pour l'instant.</Text>
+              <Text style={styles.labelTotal}>{unePersonneAPaye && compteOuvert ? "Reste à payer" : "Total"}</Text>
+              {(unePersonneAPaye && compteOuvert ? reste : total).usd === 0 && (unePersonneAPaye && compteOuvert ? reste : total).cdf === 0 ? (
+                <Text style={styles.vide}>{unePersonneAPaye && compteOuvert ? "Rien à payer pour l'instant." : "Aucune ligne pour l'instant."}</Text>
               ) : (
                 <>
-                  {total.usd > 0 && <Text style={styles.montantTotal}>{formatMontant(total.usd, Devise.USD)}</Text>}
-                  {total.cdf > 0 && <Text style={styles.montantTotal}>{formatMontant(total.cdf, Devise.CDF)}</Text>}
+                  {(unePersonneAPaye && compteOuvert ? reste : total).usd > 0 && (
+                    <Text style={styles.montantTotal}>{formatMontant((unePersonneAPaye && compteOuvert ? reste : total).usd, Devise.USD)}</Text>
+                  )}
+                  {(unePersonneAPaye && compteOuvert ? reste : total).cdf > 0 && (
+                    <Text style={styles.montantTotal}>{formatMontant((unePersonneAPaye && compteOuvert ? reste : total).cdf, Devise.CDF)}</Text>
+                  )}
                 </>
               )}
             </View>
           </ConteneurFormulaire>
 
-          {compteOuvert && (
+          {compteOuvert && operer && personnesARegler.length > 1 && (
             <View style={styles.barreActions}>
-              <Pressable style={styles.boutonAjouterLigne} onPress={ouvrirModaleLigne}>
-                <Plus size={18} color={couleurs.bleu} />
-                <Text style={styles.boutonAjouterLigneTexte}>Ajouter une ligne</Text>
-              </Pressable>
               <Pressable
-                style={[
-                  styles.boutonEncaisser,
-                  (total.usd === 0 && total.cdf === 0 || compteEtSesEnfantsEnAttente) && styles.boutonDesactive,
-                ]}
-                onPress={ouvrirModaleEncaissement}
-                disabled={total.usd === 0 && total.cdf === 0}
+                style={[styles.boutonToutEncaisser, compteEtSesEnfantsEnAttente && styles.boutonDesactive]}
+                onPress={() => ouvrirEncaissement("tout")}
               >
-                <Text style={styles.boutonEncaisserTexte}>
-                  {compteEtSesEnfantsEnAttente ? "Synchronisation…" : "Encaisser"}
+                <Text style={styles.boutonToutEncaisserTexte}>
+                  {compteEtSesEnfantsEnAttente ? "Synchronisation…" : "Tout encaisser"}
                 </Text>
+                <Text style={styles.aideToutEncaisser}>Quand une personne règle pour tout le monde</Text>
               </Pressable>
             </View>
           )}
@@ -382,73 +480,15 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
         </Pressable>
       </FeuilleModale>
 
-      {/* Ajouter une ligne */}
-      <FeuilleModale visible={modaleLigne} onFermer={() => setModaleLigne(false)} titre="Ajouter une ligne">
-        {compte && compte.sousComptes.length > 1 && (
-          <>
-            <Text style={styles.label}>Personne</Text>
-            <View style={styles.selecteurPersonne}>
-              {compte.sousComptes.map((sc) => {
-                const enAttenteSync = idsSousCompteEnAttente.has(sc.id);
-                return (
-                  <Pressable
-                    key={sc.id}
-                    style={[
-                      styles.optionPersonne,
-                      sousCompteChoisi === sc.id && styles.optionPersonneActive,
-                      enAttenteSync && styles.optionPersonneDesactivee,
-                    ]}
-                    onPress={() => !enAttenteSync && setSousCompteChoisi(sc.id)}
-                    disabled={enAttenteSync}
-                  >
-                    <Text style={[styles.optionPersonneTexte, sousCompteChoisi === sc.id && styles.optionPersonneTexteActif]}>
-                      {enAttenteSync ? `${sc.nom} (…)` : sc.nom}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        <Text style={styles.label}>Produit</Text>
-        <Pressable style={styles.champProduit} onPress={() => setSelecteurProduitOuvert(true)}>
-          <Text style={produitChoisi ? styles.champProduitTexte : styles.champProduitPlaceholder}>
-            {produitChoisi ? produitChoisi.nom : "Choisir un produit"}
-          </Text>
-        </Pressable>
-
-        <Text style={styles.label}>Quantité</Text>
-        <TextInput
-          style={styles.champ}
-          value={quantiteLigne}
-          onChangeText={setQuantiteLigne}
-          keyboardType="number-pad"
-          placeholder="1"
-          placeholderTextColor={couleurs.encreFaible}
-        />
-
-        {erreurAction && <Text style={styles.erreurFormulaire}>{erreurAction}</Text>}
-
-        <Pressable style={styles.bouton} onPress={ajouterLigne} disabled={enEnvoi}>
-          <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Ajouter"}</Text>
-        </Pressable>
-      </FeuilleModale>
-
-      <SelecteurProduit
-        visible={selecteurProduitOuvert}
-        produits={produits ?? []}
-        onFermer={() => setSelecteurProduitOuvert(false)}
-        onChoisir={(p) => {
-          setProduitChoisi(p);
-          setSelecteurProduitOuvert(false);
-        }}
-      />
-
       {/* Encaisser */}
-      <FeuilleModale visible={modaleEncaissement} onFermer={terminerEncaissement} titre="Encaisser">
+      <FeuilleModale
+        visible={modaleEncaissement}
+        onFermer={terminerEncaissement}
+        titre={cibleEncaissement === "tout" ? "Tout encaisser" : `Encaisser ${recuCompte?.sousComptes[0]?.nom ?? personnesCibles(cibleEncaissement)[0]?.nom ?? ""}`}
+      >
         {venteEncaissee ? (
           <>
+            {lignesRecu && <ApercuRecu lignes={lignesRecu} />}
             <View style={styles.carteTotal}>
               <Text style={styles.labelTotal}>Reçu {venteEncaissee.numeroRecu}</Text>
               {Number(venteEncaissee.montantTotalUSD) > 0 && (
@@ -463,7 +503,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
               <Text style={styles.boutonSecondaireTexte}>{enImpression ? "…" : "Imprimer le reçu"}</Text>
             </Pressable>
             <Pressable style={styles.bouton} onPress={terminerEncaissement}>
-              <Text style={styles.boutonTexte}>Terminer</Text>
+              <Text style={styles.boutonTexte}>{compteSolde ? "Terminer" : "Retour au compte"}</Text>
             </Pressable>
           </>
         ) : (
@@ -483,17 +523,10 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
               ))}
             </View>
 
-            <View style={styles.ligneBientot}>
-              <Text style={styles.ligneBientotTexte}>Répartition par personne / part égale</Text>
-              <View style={styles.badgeBientot}>
-                <Text style={styles.badgeBientotTexte}>Bientôt</Text>
-              </View>
-            </View>
-
             <View style={styles.carteTotal}>
               <Text style={styles.labelTotal}>À encaisser</Text>
-              {total.usd > 0 && <Text style={styles.montantTotal}>{formatMontant(total.usd, Devise.USD)}</Text>}
-              {total.cdf > 0 && <Text style={styles.montantTotal}>{formatMontant(total.cdf, Devise.CDF)}</Text>}
+              {totalCible.usd > 0 && <Text style={styles.montantTotal}>{formatMontant(totalCible.usd, Devise.USD)}</Text>}
+              {totalCible.cdf > 0 && <Text style={styles.montantTotal}>{formatMontant(totalCible.cdf, Devise.CDF)}</Text>}
             </View>
 
             {erreurAction && <Text style={styles.erreurFormulaire}>{erreurAction}</Text>}
@@ -523,7 +556,20 @@ const styles = StyleSheet.create({
     padding: espacements.s4,
     gap: 6,
   },
-  enteteSousCompte: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  enteteSousCompte: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: espacements.s3 },
+  identite: { flex: 1 },
+  resume: { fontSize: 12, color: couleurs.encreAttenuee, marginTop: 2 },
+  aide: { fontSize: 12, color: couleurs.encreAttenuee },
+  boutonPersonne: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: couleurs.bleu, borderRadius: rayons.pill, paddingHorizontal: espacements.s3, height: 34 },
+  badgePaye: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: couleurs.succesClair, borderRadius: rayons.pill, paddingHorizontal: espacements.s3, height: 30 },
+  badgePayeTexte: { color: couleurs.succes, fontWeight: "700", fontSize: 13 },
+  boutonEncaisserPersonne: { height: 44, borderRadius: rayons.sm, backgroundColor: couleurs.succes, alignItems: "center", justifyContent: "center", marginTop: espacements.s2 },
+  boutonToutEncaisser: { flex: 1, minHeight: 56, paddingVertical: 6, borderRadius: rayons.sm, borderWidth: 1, borderColor: couleurs.succes, alignItems: "center", justifyContent: "center" },
+  aideToutEncaisser: { color: couleurs.encreAttenuee, fontSize: 11, marginTop: 1 },
+  indiceBalayage: { fontSize: 11, color: couleurs.encreFaible, textAlign: "right", marginTop: 2 },
+  lienPayees: { fontSize: 13, fontWeight: "600", color: couleurs.bleu, textAlign: "center", paddingVertical: espacements.s2 },
+  boutonToutEncaisserTexte: { color: couleurs.succes, fontWeight: "700", fontSize: 14 },
+  boutonPersonneTexte: { color: "#fff", fontWeight: "700", fontSize: 13 },
   nomSousCompte: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
   badgeEnAttente: { fontSize: 11, fontWeight: "600", color: couleurs.encreAttenuee, fontStyle: "italic" },
   vide: { fontSize: 13, color: couleurs.encreAttenuee, fontStyle: "italic" },

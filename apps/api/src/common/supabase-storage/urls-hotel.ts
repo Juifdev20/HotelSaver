@@ -2,6 +2,9 @@ import { BadRequestException } from "@nestjs/common";
 
 export const BUCKET_MEDIA = "hotel-media";
 
+/** Bucket PRIVÉ des rapports mensuels PDF — lecture uniquement par URL signée. */
+export const BUCKET_RAPPORTS = "rapports";
+
 /** Début de toute URL publique d'un fichier appartenant à cet hôtel. Les
  * fichiers sont rangés sous `<hotelId>/…` dans le bucket, ce qui permet de
  * vérifier l'appartenance d'une URL sans table de médias. */

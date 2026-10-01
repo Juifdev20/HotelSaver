@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardList,
   Coins,
+  FileText,
   LucideIcon,
   Package,
   Printer,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
+import { peutOperer } from "@hotel-chicago/types";
 import { useSession } from "../contexteSession";
 import { useNotifications } from "../notifications/ContexteNotifications";
 import { useSyncEtat } from "../hooks/useSyncEtat";
@@ -38,6 +40,7 @@ import { EcranReservations } from "./EcranReservations";
 import { EcranClients } from "./EcranClients";
 import { EcranTauxChange } from "./EcranTauxChange";
 import { EcranJournalRecus } from "./EcranJournalRecus";
+import { EcranRapports } from "./EcranRapports";
 
 function initiales(nom: string): string {
   return nom
@@ -63,7 +66,8 @@ type VuePlus =
   | { id: "arrivees-departs" }
   | { id: "clients" }
   | { id: "taux-de-change" }
-  | { id: "journal-recus" };
+  | { id: "journal-recus" }
+  | { id: "rapports" };
 
 const VUE_LISTE: VuePlus = { id: "liste" };
 
@@ -80,6 +84,7 @@ const ICONES_MENU: Record<string, LucideIcon> = {
   utilisateurs: UserCog,
   "site-hotel": Globe,
   "taux-de-change": Coins,
+  rapports: FileText,
 };
 
 /** Ligne de menu standardisée : icône, libellé, chevron (ou badge « Bientôt »). */
@@ -119,8 +124,8 @@ function LigneMenu({
  * et son retour à cette liste sont gérés par un état local ici, même
  * principe que le swap d'écrans déjà utilisé au niveau de App.tsx. */
 export function EcranPlus() {
-  const { client, utilisateur, changerDeProfil, seDeconnecter } = useSession();
-  const sections = sectionsPlusPourRole(utilisateur.role);
+  const { client, utilisateur, changerDeProfil, seDeconnecter, rechargerProfil } = useSession();
+  const sections = sectionsPlusPourRole(utilisateur.role, peutOperer(utilisateur));
   const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
   const etatSync = useSyncEtat();
   const { demandePlus, consommerDemandePlus } = useNotifications();
@@ -138,6 +143,7 @@ export function EcranPlus() {
         client={client}
         utilisateur={utilisateur}
         onChangerProfil={changerDeProfil}
+        onProfilModifie={() => void rechargerProfil()}
         onSeDeconnecter={seDeconnecter}
         onRetour={() => setVue(VUE_LISTE)}
       />
@@ -194,6 +200,9 @@ export function EcranPlus() {
   if (vue.id === "journal-recus") {
     return <EcranJournalRecus onRetour={() => setVue(VUE_LISTE)} />;
   }
+  if (vue.id === "rapports") {
+    return <EcranRapports onRetour={() => setVue(VUE_LISTE)} />;
+  }
 
   return (
     <View style={styles.page}>
@@ -239,7 +248,8 @@ export function EcranPlus() {
                       | "arrivees-departs"
                       | "clients"
                       | "taux-de-change"
-                      | "journal-recus",
+                      | "journal-recus"
+                      | "rapports",
                   })
                 }
               />

@@ -8,10 +8,14 @@ import {
   ModePaiement,
   MouvementStock,
   ListeNotifications,
+  ProduitPopulaire,
   Occupation,
   Produit,
   ProfilConnecte,
+  RapportMensuel,
+  DepartementRapport,
   RecetteDuJour,
+  RecetteDuMois,
   Reservation,
   Role,
   SiteHotelEditable,
@@ -88,12 +92,12 @@ export interface DonneesAjouterLigne {
   quantite: number;
 }
 
-/** PAR_SOUS_COMPTE/PARTAGE_EGAL existent côté API mais pas encore ici — voir
- * le plan (UI de répartition non construite dans cette passe). */
-export interface DonneesEncaissement {
-  mode: "GROUPE";
-  modePaiement: ModePaiement;
-}
+/** UNE_PERSONNE : règle la part d'une seule personne (reçu individuel), le compte reste ouvert pour les
+ * autres. GROUPE : règle tout ce qui reste à payer. PAR_SOUS_COMPTE/PARTAGE_EGAL existent côté API
+ * mais pas encore ici. */
+export type DonneesEncaissement =
+  | { mode: "GROUPE"; modePaiement: ModePaiement }
+  | { mode: "UNE_PERSONNE"; modePaiement: ModePaiement; sousCompteId: string };
 
 export interface FiltresReservations {
   statut?: StatutReservation;
@@ -266,7 +270,9 @@ export type ReponsePull = Partial<Record<EntitePull, unknown[]>>;
 export class ClientApi {
   constructor(
     private readonly baseUrl: string,
-    private readonly getAccessToken: () => string | null
+    /** Peut renvoyer une promesse : au démarrage instantané de l'app mobile, le jeton d'accès arrive quelques
+     * instants après l'ouverture ; les requêtes l'attendent au lieu d'échouer. */
+    private readonly getAccessToken: () => string | null | Promise<string | null>
   ) {}
 
   async moi(): Promise<ProfilConnecte> {
@@ -385,6 +391,39 @@ export class ClientApi {
     return this.requete<VentesRecentes>(`/dashboard/ventes-recentes?limite=${limite}`);
   }
 
+  /** Recette d'un mois « AAAA-MM » — mêmes agrégats que le rapport PDF du mois. */
+  async recetteDuMois(mois: string): Promise<RecetteDuMois> {
+    return this.requete<RecetteDuMois>(`/dashboard/recette-du-mois?mois=${mois}`);
+  }
+
+  // ---------------------------------------------------------------------
+  // Rapports mensuels PDF (cafétaria, réception) — remis au patron
+  // ---------------------------------------------------------------------
+
+  /** Génère (ou régénère) le rapport d'un département pour un mois.
+   * Réservé au personnel de ce département — ou au patron si l'hôtel a
+   * activé « le patron peut aussi opérer ». */
+  async genererRapport(departement: DepartementRapport, mois: string): Promise<RapportMensuel> {
+    return this.requete<RapportMensuel>("/rapports", {
+      method: "POST",
+      body: JSON.stringify({ departement, mois }),
+    });
+  }
+
+  async listerRapports(mois?: string, departement?: DepartementRapport): Promise<RapportMensuel[]> {
+    const params = new URLSearchParams();
+    if (mois) params.set("mois", mois);
+    if (departement) params.set("departement", departement);
+    const requete = params.toString();
+    return this.requete<RapportMensuel[]>(`/rapports${requete ? `?${requete}` : ""}`);
+  }
+
+  /** URL signée courte (5 min) pour ouvrir le PDF — visionneuse du téléphone
+   * ou `shell.openExternal` côté desktop. */
+  async urlRapport(id: string): Promise<{ url: string }> {
+    return this.requete<{ url: string }>(`/rapports/${id}/telecharger`);
+  }
+
   // ---------------------------------------------------------------------
   // Cafétaria — comptes et ventes
   // ---------------------------------------------------------------------
@@ -409,6 +448,16 @@ export class ClientApi {
       method: "POST",
       body: JSON.stringify({ nom }),
     });
+  }
+
+  /** PATRON : autorise (ou non) le patron à réaliser lui-même les opérations du quotidien (séparation des tâches). */
+  async modifierReglagesHotel(donnees: { patronPeutOperer: boolean }): Promise<{ patronPeutOperer: boolean }> {
+    return this.requete<{ patronPeutOperer: boolean }>("/hotel/reglages", { method: "PATCH", body: JSON.stringify(donnees) });
+  }
+
+  /** Produits les plus ajoutés aux comptes aujourd'hui (du plus au moins demandé). */
+  async produitsPopulaires(): Promise<ProduitPopulaire[]> {
+    return this.requete<ProduitPopulaire[]>("/cafeteria/produits-populaires");
   }
 
   async ajouterLigne(compteId: string, donnees: DonneesAjouterLigne): Promise<LigneCommande> {
@@ -618,7 +667,7 @@ export class ClientApi {
   }
 
   private async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {
-    const token = this.getAccessToken();
+    const token = await this.getAccessToken();
     // Un FormData fixe lui-même son Content-Type (avec la frontière multipart).
     const estFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
     let reponse: Response;

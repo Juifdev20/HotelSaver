@@ -93,7 +93,12 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
     // Un seul écran pour les deux métiers : les segments Séjours/Cafétaria
     // sont filtrés par rôle dans EcranJournalRecus (PATRON voit les deux).
     titre: "Reçus",
-    entrees: [{ id: "journal-recus", libelle: "Journal des reçus", roles: TOUS, disponible: true }],
+    entrees: [
+      { id: "journal-recus", libelle: "Journal des reçus", roles: TOUS, disponible: true },
+      // Rapports mensuels PDF : le personnel voit/génère son département,
+      // le patron consulte les deux (filtrage dans EcranRapports + API).
+      { id: "rapports", libelle: "Rapports mensuels", roles: TOUS, disponible: true },
+    ],
   },
   {
     // Comme sur desktop (EcranParametres) : Utilisateurs et Taux de change,
@@ -107,9 +112,10 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
   },
 ];
 
-export function sectionsPlusPourRole(role: Role): SectionMenuPlus[] {
+/** `operer` = `peutOperer(utilisateur)` : faux pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer ». */
+export function sectionsPlusPourRole(role: Role, operer = true): SectionMenuPlus[] {
   return SECTIONS_PLUS.map((section) => ({
     ...section,
-    entrees: section.entrees.filter((entree) => entree.roles.includes(role)),
+    entrees: section.entrees.filter((entree) => entree.roles.includes(role) && (operer || entree.id !== "caisse")),
   })).filter((section) => section.entrees.length > 0);
 }

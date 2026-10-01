@@ -3,6 +3,7 @@ import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
+import { Operationnel } from "../common/decorators/operationnel.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ReservationsService } from "./reservations.service";
 import { CreateReservationDto } from "./dto/create-reservation.dto";
@@ -32,16 +33,19 @@ export class ReservationsController {
     return this.reservationsService.findOne(id, currentUser.hotelId);
   }
 
+  @Operationnel()
   @Post()
   create(@Body() dto: CreateReservationDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.reservationsService.create(dto, currentUser);
   }
 
+  @Operationnel()
   @Patch(":id")
   update(@Param("id") id: string, @Body() dto: UpdateReservationDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.reservationsService.update(id, dto, currentUser.hotelId);
   }
 
+  @Operationnel()
   @Post(":id/confirmer")
   confirmer(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.reservationsService.confirmer(id, currentUser.hotelId);
@@ -52,11 +56,13 @@ export class ReservationsController {
     return this.reservationsService.annuler(id, dto, currentUser.hotelId, currentUser);
   }
 
+  @Operationnel()
   @Post(":id/check-in")
   checkIn(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.reservationsService.checkIn(id, currentUser.hotelId);
   }
 
+  @Operationnel()
   @Post(":id/check-out")
   checkOut(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.reservationsService.checkOut(id, currentUser.hotelId);

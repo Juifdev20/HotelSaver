@@ -62,6 +62,7 @@ export class SupabaseAuthGuard implements CanActivate {
       role: utilisateur.role as unknown as Role,
       nom: utilisateur.nom,
       hotelId: utilisateur.hotelId,
+      patronPeutOperer: utilisateur.hotel.patronPeutOperer,
     };
 
     request.user = user;

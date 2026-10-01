@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Devise, Facture, ModePaiement, Reservation, Role, ProfilConnecte, VenteCafeteria } from "@hotel-chicago/types";
+import { Devise, Facture, ModePaiement, Reservation, Role, ProfilConnecte, VenteCafeteria, peutOperer } from "@hotel-chicago/types";
 import type { TauxChange } from "@hotel-chicago/api-client";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
@@ -383,14 +383,20 @@ function DetailFacturation({
               </div>
             )}
 
-            <Button
-              type="button"
-              onClick={facturerEtCheckOut}
-              disabled={enCours || bloquerPaiement}
-              style={{ marginTop: "var(--hc-space-3)" }}
-            >
-              {enCours ? "…" : "Facturer et check-out"}
-            </Button>
+            {peutOperer(utilisateur) ? (
+              <Button
+                type="button"
+                onClick={facturerEtCheckOut}
+                disabled={enCours || bloquerPaiement}
+                style={{ marginTop: "var(--hc-space-3)" }}
+              >
+                {enCours ? "…" : "Facturer et check-out"}
+              </Button>
+            ) : (
+              <p className="hc-text-caption texte-discret bandeau-lecture-seule" role="note">
+                Lecture seule — la facturation est réservée au personnel de la réception.
+              </p>
+            )}
           </div>
         </>
       )}
@@ -682,9 +688,11 @@ export function EcranFacturation({ client, utilisateur, interfaceImprimante, res
                   <td className="texte-discret">{r.client.nom}</td>
                   <td className="texte-discret">{nombreDeNuits(r.dateArrivee, r.dateDepart)}</td>
                   <td>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => setVue({ id: "detail", reservationId: r.id })}>
-                      Facturer
-                    </Button>
+                    {peutOperer(utilisateur) && (
+                      <Button type="button" variant="secondary" size="sm" onClick={() => setVue({ id: "detail", reservationId: r.id })}>
+                        Facturer
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}

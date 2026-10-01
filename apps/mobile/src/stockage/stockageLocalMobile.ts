@@ -40,6 +40,7 @@ interface SousCompteBrute {
   id: string;
   compteId: string;
   nom: string;
+  payeLe?: string | null;
   updatedAt: string;
   syncVersion: number;
 }
@@ -337,13 +338,13 @@ async function upsertSousCompte(db: Awaited<ReturnType<typeof obtenirBase>>, bru
   );
   if (existant) {
     await db.runAsync(
-      `UPDATE sous_comptes SET remoteId = ?, compteId = ?, nom = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
-      [brute.id, brute.compteId, brute.nom, brute.updatedAt, brute.syncVersion, existant.id]
+      `UPDATE sous_comptes SET remoteId = ?, compteId = ?, nom = ?, payeLe = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
+      [brute.id, brute.compteId, brute.nom, brute.payeLe ?? null, brute.updatedAt, brute.syncVersion, existant.id]
     );
   } else {
     await db.runAsync(
-      `INSERT INTO sous_comptes (id, remoteId, compteId, nom, updatedAt, syncVersion) VALUES (?, ?, ?, ?, ?, ?)`,
-      [brute.id, brute.id, brute.compteId, brute.nom, brute.updatedAt, brute.syncVersion]
+      `INSERT INTO sous_comptes (id, remoteId, compteId, nom, payeLe, updatedAt, syncVersion) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [brute.id, brute.id, brute.compteId, brute.nom, brute.payeLe ?? null, brute.updatedAt, brute.syncVersion]
     );
   }
 }

@@ -20,7 +20,9 @@ import { ClientsModule } from "./clients/clients.module";
 import { TauxChangeModule } from "./taux-change/taux-change.module";
 import { MediaModule } from "./media/media.module";
 import { HotelSiteModule } from "./hotel-site/hotel-site.module";
+import { ReglagesHotelModule } from "./reglages-hotel/reglages-hotel.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { RapportsModule } from "./rapports/rapports.module";
 
 @Module({
   imports: [
@@ -49,7 +51,9 @@ import { NotificationsModule } from "./notifications/notifications.module";
     TauxChangeModule,
     MediaModule,
     HotelSiteModule,
+    ReglagesHotelModule,
     NotificationsModule,
+    RapportsModule,
   ],
   providers: [
     {

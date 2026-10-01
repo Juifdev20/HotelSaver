@@ -72,6 +72,28 @@ describe("ChambresService", () => {
     });
   });
 
+  describe("update — séparation des tâches : le STATUT est un geste de réception", () => {
+    beforeEach(() => {
+      prisma.chambre.findUnique.mockResolvedValue({ id: "c1", numero: "101" });
+      prisma.chambre.update.mockResolvedValue({ id: "c1" });
+    });
+
+    it("refuse au patron de changer le statut d'une chambre par défaut", async () => {
+      await expect(service.update("c1", { statut: "LIBRE" } as any, patron)).rejects.toThrow(ForbiddenException);
+      expect(prisma.chambre.update).not.toHaveBeenCalled();
+    });
+
+    it("l'autorise quand l'hôtel a activé « le patron peut aussi opérer »", async () => {
+      await service.update("c1", { statut: "LIBRE" } as any, { ...patron, patronPeutOperer: true });
+      expect(prisma.chambre.update).toHaveBeenCalled();
+    });
+
+    it("le patron garde l'administration : prix et type restent modifiables sans le réglage", async () => {
+      await service.update("c1", { prixParNuit: 80, type: "Suite" } as any, patron);
+      expect(prisma.chambre.update).toHaveBeenCalled();
+    });
+  });
+
   describe("remove", () => {
     beforeEach(() => {
       prisma.chambre.findUnique.mockResolvedValue({ id: "c1" });

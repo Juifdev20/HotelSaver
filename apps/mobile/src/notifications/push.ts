@@ -64,26 +64,34 @@ let jetonEnregistre: string | null = null;
 /**
  * Enregistre ce téléphone au nom de l'utilisateur CONNECTÉ. Ne lève jamais : sans Firebase configuré
  * (pas de google-services.json) ou sans permission, l'application marche, simplement sans push.
- * Renvoie une fonction d'arrêt (écoute du renouvellement du jeton).
+ * Renvoie `arreter` (écoute du renouvellement du jeton) et `enregistre` : faux si le serveur n'a pas pu être
+ * joint (démarrage instantané sans jeton d'accès encore, ou hors ligne) — l'appelant réessaie alors.
  */
-export async function enregistrerAppareil(client: ClientApi): Promise<() => void> {
+export async function enregistrerAppareil(client: ClientApi): Promise<{ arreter: () => void; enregistre: boolean }> {
+  const rien = { arreter: () => undefined, enregistre: true };
   try {
-    if (Platform.OS !== "android" || !Device.isDevice) return () => undefined;
+    if (Platform.OS !== "android" || !Device.isDevice) return rien;
     await creerCanaux();
-    if (!(await permissionAccordee())) return () => undefined;
+    if (!(await permissionAccordee())) return rien;
 
     const envoyer = async (jeton: string) => {
       await client.enregistrerAppareilPush(jeton, "android");
       jetonEnregistre = jeton;
     };
     const jeton = (await Notifications.getDevicePushTokenAsync()).data;
-    if (typeof jeton === "string" && jeton) await envoyer(jeton);
+    let enregistre = true;
+    if (typeof jeton === "string" && jeton) {
+      enregistre = await envoyer(jeton).then(
+        () => true,
+        () => false
+      );
+    }
     const abonnement = Notifications.addPushTokenListener((nouveau) => {
       if (typeof nouveau.data === "string") void envoyer(nouveau.data).catch(() => undefined);
     });
-    return () => abonnement.remove();
+    return { arreter: () => abonnement.remove(), enregistre };
   } catch {
-    return () => undefined;
+    return rien;
   }
 }
 

@@ -37,6 +37,7 @@ interface SousCompteLigneBrute {
   remoteId: string | null;
   compteId: string;
   nom: string;
+  payeLe: string | null;
   updatedAt: string;
   syncVersion: number;
 }
@@ -116,6 +117,7 @@ async function assemblerComptes(db: Awaited<ReturnType<typeof obtenirBase>>, com
       remoteId: brut.remoteId,
       compteId: brut.compteId,
       nom: brut.nom,
+      payeLe: brut.payeLe ?? null,
       lignes,
     };
     const liste = sousComptesParCompte.get(brut.compteId) ?? [];
@@ -263,4 +265,28 @@ export async function creerLigneLocal(sousCompteId: string, produit: Produit, qu
     [id, sousCompteId, produit.id, quantiteTexte, produit.prix, produit.devise, maintenant, maintenant]
   );
   return { id, sousCompteId, produitId: produit.id, quantite: quantiteTexte, prixUnitaire: produit.prix, devise: produit.devise, produit };
+}
+
+/**
+ * Quantité ajoutée par produit depuis le début de la journée (heure de l'hôtel : Africa/Lubumbashi,
+ * UTC+2 sans heure d'été), tous comptes confondus, y compris déjà encaissés — sert à mettre les
+ * produits les plus demandés en tête de l'écran « Ajouter ». Lu dans le miroir : marche hors ligne.
+ */
+export async function produitsPopulairesAujourdhuiMiroir(maintenant: Date = new Date()): Promise<Map<string, number>> {
+  const decalage = 2 * 60 * 60 * 1000;
+  const jour = 24 * 60 * 60 * 1000;
+  const local = maintenant.getTime() + decalage;
+  const debut = new Date(local - (local % jour) - decalage).toISOString();
+  const db = await obtenirBase();
+  const lignes = await db.getAllAsync<{ produitId: string; total: number }>(
+    "SELECT produitId, SUM(CAST(quantite AS REAL)) AS total FROM lignes_commande WHERE createdAt >= ? GROUP BY produitId",
+    [debut]
+  );
+  return new Map(lignes.map((l) => [l.produitId, Number(l.total)]));
+}
+
+/** Marque une personne comme ayant réglé sa part dans le miroir, sans attendre le prochain pull. */
+export async function marquerPersonnePayeeLocal(sousCompteId: string): Promise<void> {
+  const db = await obtenirBase();
+  await db.runAsync("UPDATE sous_comptes SET payeLe = ? WHERE id = ?", [new Date().toISOString(), sousCompteId]);
 }

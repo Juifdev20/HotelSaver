@@ -14,7 +14,8 @@ export type IdPage =
   | "parametres"
   | "imprimante"
   | "utilisateurs"
-  | "site-hotel";
+  | "site-hotel"
+  | "rapports";
 
 export interface EntreeNavigation {
   id: IdPage;
@@ -61,6 +62,10 @@ export const SECTIONS: SectionNavigation[] = [
     ],
   },
   {
+    titre: "Rapports",
+    entrees: [{ id: "rapports", libelle: "Rapports mensuels", libelleCourt: "Rapports", roles: TOUS, disponible: true }],
+  },
+  {
     titre: "Mon hôtel",
     entrees: [{ id: "site-hotel", libelle: "Site de l'hôtel", libelleCourt: "Site", roles: [Role.PATRON], disponible: true }],
   },
@@ -69,17 +74,21 @@ export const SECTIONS: SectionNavigation[] = [
   // latérale courte (demande du client du 25/09/2026).
 ];
 
-export function sectionsPourRole(role: Role): SectionNavigation[] {
+/** Pages purement opérationnelles : le patron n'y a accès que s'il a le droit d'opérer (séparation des tâches). */
+const PAGES_OPERATIONNELLES: IdPage[] = ["caisse"];
+
+/** `operer` = `peutOperer(utilisateur)` : faux pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer ». */
+export function sectionsPourRole(role: Role, operer = true): SectionNavigation[] {
   return SECTIONS.map((section) => ({
     ...section,
-    entrees: section.entrees.filter((entree) => entree.roles.includes(role)),
+    entrees: section.entrees.filter((entree) => entree.roles.includes(role) && (operer || !PAGES_OPERATIONNELLES.includes(entree.id))),
   })).filter((section) => section.entrees.length > 0);
 }
 
 /** Barre du bas : les 3 premières entrées du rôle (disponibles d'abord) + « Plus »
  * (ajouté par l'appelant) = 4 icônes au total, comme la maquette mobile. */
-export function entreesBarreDuBas(role: Role): EntreeNavigation[] {
-  const toutes = sectionsPourRole(role).flatMap((section) => section.entrees);
+export function entreesBarreDuBas(role: Role, operer = true): EntreeNavigation[] {
+  const toutes = sectionsPourRole(role, operer).flatMap((section) => section.entrees);
   return [...toutes.filter((e) => e.disponible), ...toutes.filter((e) => !e.disponible)].slice(0, 3);
 }
 

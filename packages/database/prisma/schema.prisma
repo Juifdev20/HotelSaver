@@ -54,6 +54,19 @@ enum StatutLicence {
   RESILIE
 }
 
+/// Département auquel appartient un rapport mensuel PDF.
+enum DepartementRapport {
+  CAFETERIA
+  RECEPTION
+}
+
+/// ACTIF = révision courante ; REMPLACE = ancienne révision conservée pour
+/// la traçabilité (on n'écrase jamais un rapport déjà remis au patron).
+enum StatutRapport {
+  ACTIF
+  REMPLACE
+}
+
 /// Un hôtel client de la plateforme HotelSaver. Hôtel Chicago est le premier
 /// (tenant #1), migré avec statutLicence = ACTIF — voir migration
 /// 20260927120000_multi_tenant_foundations. `statutLicence` évolue dans le
@@ -65,6 +78,9 @@ model Hotel {
   nom              String
   sousDomaine      String        @unique
   statutLicence    StatutLicence @default(ESSAI)
+  // Séparation des tâches : false (défaut) = le patron ne réalise PAS les opérations du quotidien
+  // (réserver, check-in/out, facturer, ouvrir/encaisser un compte cafétaria) ; il peut l'activer s'il travaille seul.
+  patronPeutOperer Boolean @default(false)
   emailContact     String?
   telephoneContact String?
   adresse          String?
@@ -104,6 +120,7 @@ model Hotel {
   lignesCommande   LigneCommande[]
   ventesCafeteria  VenteCafeteria[]
   paiementsLicence PaiementLicence[]
+  rapportsMensuels RapportMensuel[]
 }
 
 /// Charte graphique d'un hôtel. Un seul JSON pour toute la palette
@@ -443,6 +460,9 @@ model SousCompte {
   compte      CompteCafeteria @relation(fields: [compteId], references: [id])
   compteId    String
   nom         String // "Personne 1", ou un nom donné par le serveur
+  // Renseigné quand cette personne a réglé SA part (encaissement par personne) : ses lignes sont
+  // alors verrouillées, le compte reste ouvert pour les autres et se ferme au dernier règlement.
+  payeLe      DateTime?
   lignes      LigneCommande[]
   updatedAt   DateTime        @updatedAt
   syncVersion Int             @default(1)
@@ -493,6 +513,8 @@ model VenteCafeteria {
   deviseMonnaieRendue   Devise?
   montantMonnaieRendue  Decimal?
   reservationLieeId     String? // si facturé sur le séjour d'une chambre (Reservation.id)
+  // Renseigné pour un encaissement « une personne » (reçu individuel), vide pour un règlement groupé.
+  sousCompteId          String?
   numeroRecu            String
   imprimeLe             DateTime?
   annuleLe              DateTime?
@@ -505,4 +527,42 @@ model VenteCafeteria {
   @@unique([hotelId, numeroRecu])
   @@index([compteId])
   @@index([hotelId])
+}
+
+/// Rapport mensuel PDF officiel remis au patron par chaque département
+/// (cafétaria, réception). Une ligne = une révision : « régénérer » crée
+/// une nouvelle version (version+1) et marque l'ancienne REMPLACE — le
+/// fichier et les chiffres figés dans `chiffres` restent consultables,
+/// jamais écrasés (traçabilité d'un document comptable remis).
+model RapportMensuel {
+  id           String             @id @default(uuid())
+  hotel        Hotel              @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  hotelId      String
+  departement  DepartementRapport
+  /// Période « AAAA-MM » en fuseau Africa/Lubumbashi (ex. « 2026-09 »).
+  periode      String
+  /// Révision : 1 pour la première génération du mois, +1 à chaque « Régénérer ».
+  version      Int                @default(1)
+  /// Numéro officiel unique dans l'hôtel : RAP-CAF-202609-001.
+  numero       String
+  /// true = généré avant la fin du mois (filigrane « PROVISOIRE » dans le PDF).
+  provisoire   Boolean            @default(false)
+  statut       StatutRapport      @default(ACTIF)
+  /// Chemin du PDF dans le bucket privé `rapports` : {hotelId}/{periode}/{numero}.pdf.
+  fichier      String
+  /// Instantanés de l'auteur — lisibles même si le compte est renommé plus tard.
+  genereParId  String
+  genereParNom String
+  genereLe     DateTime           @default(now())
+  /// Instantané JSON des totaux et du contrôle de concordance (comparé au
+  /// tableau de bord calculé par la même fonction d'agrégation).
+  chiffres     Json
+  /// true si les totaux du rapport concordent avec le tableau de bord du mois.
+  concordant   Boolean            @default(true)
+  /// SHA-256 abrégé (16 car.) des chiffres — pied de page « intégrité » du document.
+  empreinte    String
+
+  @@unique([hotelId, departement, periode, version])
+  @@unique([hotelId, numero])
+  @@index([hotelId, periode])
 }

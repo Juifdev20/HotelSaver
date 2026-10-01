@@ -13,6 +13,8 @@ export interface EcranReservationsProps {
   onNaviguer: (page: IdPage) => void;
   /** Ouvre l'écran Facturation directement sur ce séjour. */
   onFacturer: (reservationId: string) => void;
+  /** Faux pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer » : lecture seule. */
+  peutOperer?: boolean;
 }
 
 type Vue = { id: "liste" } | { id: "detail"; reservationId: string } | { id: "nouvelle" };
@@ -57,7 +59,7 @@ function nombreDeNuits(dateArrivee: string, dateDepart: string): number {
  * direct API comme le reste du desktop — le miroir hors-ligne n'existe
  * que sur mobile.
  */
-export function EcranReservations({ client, onNaviguer, onFacturer }: EcranReservationsProps) {
+export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer = true }: EcranReservationsProps) {
   const [vue, setVue] = useState<Vue>({ id: "liste" });
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -94,6 +96,7 @@ export function EcranReservations({ client, onNaviguer, onFacturer }: EcranReser
           charger();
         }}
         onFacturer={onFacturer}
+        peutOperer={peutOperer}
       />
     );
   }
@@ -120,11 +123,18 @@ export function EcranReservations({ client, onNaviguer, onFacturer }: EcranReser
             {reservations ? `${liste.length} séjour${liste.length > 1 ? "s" : ""}` : "Chargement…"}
           </p>
         </div>
-        <Button type="button" onClick={() => setVue({ id: "nouvelle" })}>
-          <Plus size={18} aria-hidden="true" />
-          Nouvelle réservation
-        </Button>
+        {peutOperer && (
+          <Button type="button" onClick={() => setVue({ id: "nouvelle" })}>
+            <Plus size={18} aria-hidden="true" />
+            Nouvelle réservation
+          </Button>
+        )}
       </header>
+      {!peutOperer && (
+        <p className="hc-text-caption texte-discret bandeau-lecture-seule" role="note">
+          Lecture seule — cette opération est réservée au personnel (réception / caisse). Le réglage se trouve dans Paramètres.
+        </p>
+      )}
 
       {erreur && (
         <p role="alert" className="hc-text-body texte-erreur">

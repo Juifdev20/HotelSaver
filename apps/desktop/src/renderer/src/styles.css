@@ -1460,3 +1460,234 @@ button {
   font-weight: 700;
   cursor: pointer;
 }
+
+/* --- Compte cafétaria : vue d'ensemble par personne + page « Ajouter » ---------------------- */
+.personne-carte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+  width: 100%;
+  text-align: left;
+}
+
+.personne-carte__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hc-space-3);
+}
+
+.personne-carte__bouton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border-radius: var(--hc-radius-pill);
+  background-color: var(--hc-blue);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ajout-conso {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--hc-space-4);
+  align-items: start;
+}
+
+.ajout-conso__catalogue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+  min-width: 0;
+}
+
+.ajout-conso__grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: var(--hc-space-2);
+}
+
+.ajout-conso__panier {
+  position: sticky;
+  top: var(--hc-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+}
+
+.champ-recherche__effacer {
+  display: inline-flex;
+  border: none;
+  background: none;
+  color: var(--hc-ink-faint);
+  cursor: pointer;
+  padding: 0;
+}
+
+.produit-carte {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hc-space-2);
+  padding: var(--hc-space-3);
+  border: 1px solid var(--hc-border);
+  border-radius: 10px;
+  background-color: var(--hc-surface-200);
+}
+
+.produit-carte--choisi {
+  border-color: var(--hc-blue);
+  background-color: var(--hc-blue-light);
+}
+
+.produit-carte--epuise {
+  opacity: 0.5;
+}
+
+.produit-carte__etat--epuise {
+  color: #d92d20;
+  font-weight: 700;
+}
+
+.produit-carte__etat--bas {
+  color: #b54708;
+  font-weight: 700;
+}
+
+.produit-carte__ajout,
+.produit-carte__stepper button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--hc-radius-pill);
+  border: 1px solid var(--hc-blue);
+  background-color: var(--hc-blue);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.produit-carte__stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  font-weight: 800;
+}
+
+.produit-carte__stepper button {
+  background-color: var(--hc-surface-200);
+  color: var(--hc-blue);
+}
+
+@media (max-width: 900px) {
+  .ajout-conso {
+    grid-template-columns: 1fr;
+  }
+  .ajout-conso__panier {
+    position: static;
+  }
+}
+
+.personne-carte__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2);
+  margin-top: var(--hc-space-2);
+}
+
+.personne-carte__paye {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--hc-radius-pill);
+  background-color: #dcfae6;
+  color: #067647;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.personne-carte--payee {
+  opacity: 0.75;
+}
+
+.personne-carte__masquer {
+  margin-left: 8px;
+  padding: 0 0 0 8px;
+  border: none;
+  border-left: 1px solid currentColor;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.lien-payees {
+  align-self: center;
+  border: none;
+  background: none;
+  color: var(--hc-blue);
+  font-family: var(--hc-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--hc-space-1) var(--hc-space-2);
+}
+
+/* Aperçu de reçu : du papier, donc toujours blanc sur noir, même en thème sombre. */
+.apercu-recu {
+  width: 100%;
+  max-width: 340px;
+  align-self: center;
+  margin: 0 auto var(--hc-space-3);
+  padding: 16px 18px;
+  background-color: #ffffff;
+  color: #111111;
+  border: 1px solid #d9dee5;
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.apercu-recu p {
+  margin: 0;
+  color: inherit;
+}
+
+.apercu-recu__centre {
+  text-align: center;
+}
+
+.apercu-recu__gras {
+  font-weight: 700;
+}
+
+.apercu-recu__titre {
+  font-size: 14px;
+}
+
+.apercu-recu__separateur {
+  margin: 6px 0;
+  border: none;
+  border-top: 1px dashed #111111;
+}
+
+.apercu-recu__montant {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bandeau-lecture-seule {
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border: 1px dashed var(--hc-border);
+  border-radius: var(--hc-radius-sm);
+  background-color: var(--hc-surface-200);
+}

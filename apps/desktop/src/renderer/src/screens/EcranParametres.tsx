@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { Devise, Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
-import { Bell, Coins, Moon, Printer, Sun, Users } from "lucide-react";
+import { Bell, Coins, Moon, Printer, ShieldCheck, Sun, Users } from "lucide-react";
 import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 
@@ -18,6 +18,8 @@ export interface EcranParametresProps {
    * (maquette mobile du 25/09/2026), donc toujours accessible ici. */
   themeSombre: boolean;
   onBasculerTheme: () => void;
+  /** Appelé après modification d'un réglage de l'hôtel : l'app relit le profil pour mettre ses écrans à jour. */
+  onProfilModifie?: () => void;
 }
 
 /** Taux de change USD/CDF (PATRON, section 9.4) : taux en vigueur, saisie
@@ -119,7 +121,26 @@ export function EcranParametres({
   onNaviguer,
   themeSombre,
   onBasculerTheme,
+  onProfilModifie,
 }: EcranParametresProps) {
+  const [enregistrementReglage, setEnregistrementReglage] = useState(false);
+  const [erreurReglage, setErreurReglage] = useState<string | null>(null);
+  const patronOpere = utilisateur?.patronPeutOperer === true;
+
+  async function basculerPatronOpere() {
+    if (!client) return;
+    setEnregistrementReglage(true);
+    setErreurReglage(null);
+    try {
+      await client.modifierReglagesHotel({ patronPeutOperer: !patronOpere });
+      onProfilModifie?.();
+    } catch (e) {
+      setErreurReglage(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnregistrementReglage(false);
+    }
+  }
+
   const [lancerAuDemarrage, setLancerAuDemarrage] = useState(false);
   useEffect(() => {
     void window.hotelChicago.lireLancerAuDemarrage().then(setLancerAuDemarrage, () => undefined);
@@ -210,6 +231,27 @@ export function EcranParametres({
               </Button>
             )}
           </div>
+          <div className="parametres-ligne">
+            <span className="parametres-ligne__icone">
+              <ShieldCheck size={18} aria-hidden="true" />
+            </span>
+            <span className="hc-text-body">{patronOpere ? "Le patron peut aussi opérer" : "Le patron n'opère pas"}</span>
+            {client && (
+              <Button type="button" variant="secondary" size="sm" onClick={() => void basculerPatronOpere()} disabled={enregistrementReglage}>
+                {enregistrementReglage ? "…" : patronOpere ? "Désactiver" : "Activer"}
+              </Button>
+            )}
+          </div>
+          <p className="hc-text-caption texte-discret">
+            Réserver, faire les check-in/out, facturer et tenir la caisse sont réservés au personnel (réception, cafétaria) pour éviter toute
+            confusion. Activez ce réglage seulement si vous travaillez seul : le patron garde dans tous les cas l'administration, les rapports
+            et les annulations avec motif.
+          </p>
+          {erreurReglage && (
+            <p role="alert" className="hc-text-body texte-erreur">
+              {erreurReglage}
+            </p>
+          )}
           {client ? (
             <GestionTauxChange client={client} />
           ) : (

@@ -2801,3 +2801,47 @@ serveur de dev (`server.fs.strict: false`, développement uniquement, sans effet
 - Desktop : interrogation toutes les 15 s, zone de notification (fermer = masquer, « Quitter » = fermer), renouvellement du jeton Supabase toutes les 40 min.
 - Alertes stock au franchissement du seuil (point unique `decrementerStock`) ; crons à `Africa/Lubumbashi` (07:00 arrivées, horaire départs dépassés, 20:00 récap, 08:00 licence).
 - Guide : FIREBASE.md.
+
+## Compte cafétaria en deux niveaux (01/10/2026)
+
+- Niveau 1 : une carte cliquable par personne (articles, total, lignes) ; toucher une personne ouvre le niveau 2.
+- Niveau 2 « Ajouter pour {personne} » : recherche (sans accents), catégories, produits populaires du jour en tête, stepper +/- et panier validé en une fois. Stock épuisé non sélectionnable ; quantité plafonnée au stock connu (le serveur recontrôle).
+- Populaires du jour : mobile = agrégation SQL du miroir local (marche hors ligne) ; desktop = GET /cafeteria/produits-populaires (scopé hôtel, jour à Africa/Lubumbashi).
+- Le panier est écrit ligne par ligne (miroir + file de synchro sur mobile, API sur desktop) ; échec partiel desktop : seules les lignes non ajoutées restent dans le panier.
+
+## Encaissement par personne (01/10/2026)
+
+- `SousCompte.payeLe` et `VenteCafeteria.sousCompteId` (migration 20261001150000, colonnes nullables). Nouveau mode `UNE_PERSONNE` (+ `sousCompteId`) sur `POST /cafeteria/comptes/:id/encaisser` : un reçu individuel, la personne est verrouillée (plus de ligne ajoutable), le compte reste OUVERT et ne se ferme qu au règlement de la dernière personne ayant des lignes.
+- Anti double encaissement : compare-and-swap sur `payeLe` (comme pour la fermeture du compte). `GROUPE` / `PAR_SOUS_COMPTE` / `PARTAGE_EGAL` ne portent plus que sur les personnes pas encore payées ; « Tout encaisser » = `GROUPE` sur le reste.
+- Mobile : colonne `payeLe` ajoutée au SQLite local par `ALTER TABLE` si absente (téléphones déjà installés), tirée par la synchro ; l encaissement reste en ligne.
+
+## Aperçu du reçu et masquage des personnes payées (01/10/2026)
+
+- L aperçu du reçu (composant ApercuRecu mobile + desktop) affiche le MÊME `LigneRecu[]` que l impression : un seul calcul (`useMemo`), donc l aperçu est exactement ce qui sort imprimé.
+- Une personne payée s efface de l écran du compte 1 minute après `payeLe` (`sousComptesVisibles` dans packages/types, testé) ou dès qu elle est écartée : balayage vers la droite sur mobile (PanResponder + Animated, aucune dépendance ajoutée), bouton « Masquer » sur desktop. Purement visuel : totaux, reçus et journal inchangés ; lien « N personnes payées masquées · Afficher » pour les revoir.
+- « Tout encaisser » est conservé : cas d une personne qui règle pour toute la table (un seul reçu).
+
+## Séparation des tâches (01/10/2026)
+
+Cette décision **remplace** l interprétation « PATRON : accès total » de la phase 2 pour les opérations du quotidien (voir plus haut).
+
+- Réserver/modifier/confirmer/check-in/check-out une réservation, créer une facture séjour, ouvrir/alimenter/encaisser un compte cafétaria et changer le **statut** d une chambre sont réservés au personnel (réception, cafétaria). Le patron les voit en lecture seule, sauf si l hôtel a activé `Hotel.patronPeutOperer` (défaut false, modifiable par le patron seul via `PATCH /hotel/reglages`, lu dans `/auth/me`).
+- Le patron garde : lecture/rapports, administration (chambres : création/prix/type/suppression ; produits, taux, stock, utilisateurs, site, images) et **annulation avec motif** (hypothèse : la vente cafétaria n est annulable que par lui). 
+- Double verrou : décorateur `@Operationnel()` lu par `RolesGuard` (403 clair) + même règle dans la synchro (`ENTITES_OPERATIONNELLES`, résultat ERROR) pour qu aucune écriture hors ligne ne la contourne ; une seule règle partagée `peutOperer()` (packages/types) côté API, desktop et mobile qui masquent les boutons et affichent « Lecture seule ».
+- Notifications inchangées : le patron reste destinataire à titre de supervision.
+- Le lien « N personnes payées masquées · Afficher » disparaît à son tour 5 minutes après le paiement (`DELAI_LIEN_PAYES_MS`) : l écran redevient propre ; le journal des reçus reste la référence pour retrouver un règlement.
+
+## Rapports mensuels PDF par département (01–02/10/2026)
+
+Demande du patron : chaque mois, la cafétaria et la réception remettent un rapport PDF officiel — personnalisé (hôtel, département, période, numéro unique), comparé au tableau de bord du même mois, signatures en bas, mention « Document généré par HotelSaver App ».
+
+- **Qui génère** : le personnel du département seulement (`@Operationnel` + contrôle département↔rôle dans `RapportsService`). Le patron consulte tout et ne génère que si l'hôtel a activé `patronPeutOperer`.
+- **Numérotation** : `RAP-{CAF|REC}-{AAAAMM}-{NNN}`, NNN = version. « Régénérer » crée une nouvelle version et marque l'ancienne `REMPLACE` — jamais d'écrasement (traçabilité d'un document remis). `RapportMensuel` fige `chiffres` (instantané des totaux) et `empreinte` (SHA-256 abrégé, imprimée en pied de page).
+- **Fuseau** : bornes du mois en Africa/Lubumbashi (UTC+2 fixe) via `bornesDuMois()` ; `debutJournee()` du dashboard a été corrigé sur le même fuseau pour que « jour » et « mois » parlent pareil.
+- **Concordance** : le tableau de bord du mois (`GET /dashboard/recette-du-mois`) appelle les MÊMES fonctions d'agrégation que le rapport — la comparaison affichée dans le PDF est réelle par construction (écart 0, ✓).
+- **Double comptage évité** : `Facture.montantTotal` inclut les ventes cafétaria `FACTURE_CHAMBRE` liées au séjour ; le rapport cafétaria les isole dans `factureChambre`, le rapport réception dans `dontCafeteriaLiee`.
+- **Stock** : ouverture/clôture reconstitués à rebours depuis `stockActuel` et `MouvementStock` (pas de snapshot historique) — limites signalées en pied de document.
+- **PDF** : `pdfkit` (JS pur, aucun postinstall natif — compatible Render), Helvetica suffisante pour le français ; logo téléchargé puis converti en PNG par `sharp`. Filigrane « PROVISOIRE » pour le mois en cours.
+- **Stockage** : bucket privé `rapports` (créé à la demande, PDF ≤ 10 Mo), lecture par URL signée 5 min après contrôle du `hotelId` du JWT — jamais d'URL publique pour les chiffres de l'hôtel.
+- **Limites assumées (imprimées dans le document)** : occupation calculée sur les dates prévues (pas d'horodatage réel de check-in/out) ; annulation de vente sans retour de stock automatique.
+- **Rappels** : cron le 1er du mois 08:00 (Lubumbashi) « rapport à générer » aux deux rôles ; notification au patron à chaque génération.

@@ -7,7 +7,8 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
-import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Role, UtilisateurAuthentifie, peutOperer } from "@hotel-chicago/types";
+import { MESSAGE_PATRON_NON_OPERANT } from "../common/guards/roles.guard";
 import { PRISMA } from "../prisma/prisma.module";
 import { CreateChambreDto } from "./dto/create-chambre.dto";
 import { UpdateChambreDto } from "./dto/update-chambre.dto";
@@ -56,6 +57,12 @@ export class ChambresService {
   async update(id: string, dto: UpdateChambreDto, currentUser: UtilisateurAuthentifie) {
     await this.findOne(id, currentUser.hotelId);
     verifierUrlsHotel(dto.photos ?? [], currentUser.hotelId);
+
+    // Séparation des tâches : changer le statut d'une chambre (propre, occupée…) est un geste de réception ;
+    // le patron garde prix, type, photos, numéro (administration).
+    if (dto.statut !== undefined && !peutOperer(currentUser)) {
+      throw new ForbiddenException(MESSAGE_PATRON_NON_OPERANT);
+    }
 
     if (currentUser.role === Role.RECEPTIONNISTE) {
       const champsRefuses = CHAMPS_RESERVES_PATRON.filter((champ) => dto[champ] !== undefined);

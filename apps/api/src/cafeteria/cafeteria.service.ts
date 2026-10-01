@@ -29,6 +29,25 @@ export class CafeteriaService {
     private readonly notifications: NotificationsService
   ) {}
 
+  /**
+   * Produits les plus ajoutés aux comptes depuis le début de la journée (fuseau de l'hôtel,
+   * Africa/Lubumbashi = UTC+2 sans heure d'été) : l'écran « Ajouter » les met en tête.
+   */
+  async produitsPopulaires(hotelId: string, maintenant: Date = new Date()): Promise<{ produitId: string; quantite: number }[]> {
+    const DECALAGE_MS = 2 * 60 * 60 * 1000;
+    const jourMs = 24 * 60 * 60 * 1000;
+    const local = maintenant.getTime() + DECALAGE_MS;
+    const debut = new Date(local - (local % jourMs) - DECALAGE_MS);
+    const lignes = await this.prisma.ligneCommande.groupBy({
+      by: ["produitId"],
+      where: { hotelId, createdAt: { gte: debut } },
+      _sum: { quantite: true },
+      orderBy: { _sum: { quantite: "desc" } },
+      take: 30,
+    });
+    return lignes.map((l) => ({ produitId: l.produitId, quantite: Number(l._sum.quantite ?? 0) }));
+  }
+
   findAllComptes(query: FindComptesQueryDto, hotelId: string) {
     return this.prisma.compteCafeteria.findMany({
       where: { hotelId, statut: query.statut },
@@ -82,6 +101,9 @@ export class CafeteriaService {
     const sousCompte = compte.sousComptes.find((sc) => sc.id === dto.sousCompteId);
     if (!sousCompte) {
       throw new NotFoundException(`Le sous-compte ${dto.sousCompteId} n'appartient pas au compte ${compteId}.`);
+    }
+    if (sousCompte.payeLe) {
+      throw new ConflictException(`${sousCompte.nom} a déjà réglé sa part : on ne peut plus lui ajouter de consommation.`);
     }
 
     if (!produit) {
@@ -138,12 +160,29 @@ export class CafeteriaService {
   }
 
   async encaisser(compteId: string, dto: EncaisserCompteDto, currentUser: UtilisateurAuthentifie) {
-    const compte = await this.findOneCompte(compteId, currentUser.hotelId);
-    this.verifierCompteOuvert(compte);
+    const compteComplet = await this.findOneCompte(compteId, currentUser.hotelId);
+    this.verifierCompteOuvert(compteComplet);
 
+    // Une personne qui a déjà réglé SA part (encaissement individuel) n'est plus à encaisser :
+    // GROUPE / PAR_SOUS_COMPTE / PARTAGE_EGAL ne portent que sur ce qui reste dû.
+    const compte = { ...compteComplet, sousComptes: compteComplet.sousComptes.filter((sc) => !sc.payeLe) };
     const toutesLesLignes = compte.sousComptes.flatMap((sc) => sc.lignes);
     if (toutesLesLignes.length === 0) {
-      throw new BadRequestException("Impossible d'encaisser un compte sans aucune ligne de commande.");
+      throw new BadRequestException("Impossible d'encaisser un compte sans aucune ligne de commande à régler.");
+    }
+
+    let personne: (typeof compte.sousComptes)[number] | undefined;
+    if (dto.mode === "UNE_PERSONNE") {
+      if (!dto.sousCompteId) throw new BadRequestException("sousCompteId est obligatoire pour un encaissement UNE_PERSONNE.");
+      personne = compte.sousComptes.find((sc) => sc.id === dto.sousCompteId);
+      if (!personne) {
+        const dejaPayee = compteComplet.sousComptes.find((sc) => sc.id === dto.sousCompteId)?.payeLe;
+        if (dejaPayee) throw new ConflictException("Cette personne a déjà réglé sa part.");
+        throw new NotFoundException(`Le sous-compte ${dto.sousCompteId} n'appartient pas au compte ${compteId}.`);
+      }
+      if (personne.lignes.length === 0) {
+        throw new BadRequestException(`${personne.nom} n'a aucune consommation à régler.`);
+      }
     }
 
     if (dto.modePaiement === "FACTURE_CHAMBRE" && !dto.reservationLieeId) {
@@ -159,40 +198,58 @@ export class CafeteriaService {
     }
 
     const paiementCroiseDemande = dto.deviseRegleeParClient !== undefined || dto.montantRegleParClient !== undefined;
-    if (paiementCroiseDemande && dto.mode !== "GROUPE") {
+    if (paiementCroiseDemande && dto.mode !== "GROUPE" && dto.mode !== "UNE_PERSONNE") {
       throw new BadRequestException(
-        "Le paiement croisé n'est calculé que pour le mode d'encaissement GROUPE dans cette version. " +
+        "Le paiement croisé n'est calculé que pour les modes d'encaissement GROUPE et UNE_PERSONNE dans cette version. " +
           "Encaissez chaque vente séparément pour PAR_SOUS_COMPTE ou PARTAGE_EGAL."
       );
+    }
+
+    if (dto.mode === "PARTAGE_EGAL" && !dto.nombrePersonnes) {
+      throw new BadRequestException("nombrePersonnes est obligatoire pour un encaissement PARTAGE_EGAL.");
     }
 
     const { hotelId, userId } = currentUser;
 
     return this.prisma.$transaction(async (tx) => {
-      // Compare-and-swap atomique : ferme le compte SEULEMENT s'il est encore
-      // OUVERT, dans la même transaction que la création des ventes. Nécessaire
-      // car la vérification verifierCompteOuvert() ci-dessus est faite AVANT
-      // cette transaction, sur une lecture qui peut être périmée — deux appels
-      // concurrents à /encaisser sur le même compte (double-clic, deux postes)
-      // passeraient sinon tous les deux cette vérification et généreraient des
-      // ventes en double. Trouvé en testant contre la vraie base (une requête
-      // dont la réponse HTTP a été interrompue continuait de s'exécuter côté
-      // serveur, chevauchant une nouvelle tentative manuelle sur le même compte
-      // encore marqué OUVERT, provoquant une violation de contrainte unique sur
-      // numeroRecu au lieu d'un 409 propre).
-      const fermeture = await tx.compteCafeteria.updateMany({
-        where: { id: compteId, hotelId, statut: "OUVERT" },
-        data: { statut: "FERME", fermeLe: new Date(), syncVersion: { increment: 1 } },
-      });
-      if (fermeture.count === 0) {
-        throw new ConflictException(
-          "Ce compte cafétaria est déjà fermé (encaissé) — probablement encaissé entre-temps depuis un autre poste."
-        );
+      // Les personnes réglées par cet encaissement : une seule (UNE_PERSONNE) ou toutes celles qui ont des lignes.
+      const reglees = personne ? [personne] : compte.sousComptes.filter((sc) => sc.lignes.length > 0);
+      // Même compare-and-swap que pour le compte, au niveau de la personne : deux postes qui encaissent
+      // la même personne en même temps ne génèrent pas deux reçus.
+      const maintenant = new Date();
+      for (const sc of reglees) {
+        const marque = await tx.sousCompte.updateMany({
+          where: { id: sc.id, hotelId, payeLe: null },
+          data: { payeLe: maintenant, syncVersion: { increment: 1 } },
+        });
+        if (marque.count === 0) {
+          throw new ConflictException(`${sc.nom} a déjà réglé sa part — probablement encaissée entre-temps depuis un autre poste.`);
+        }
+      }
+
+      // Le compte se ferme quand plus personne n'a de consommation à régler (compare-and-swap atomique : ferme
+      // le compte SEULEMENT s'il est encore OUVERT, dans la même transaction que la création des ventes —
+      // deux appels concurrents à /encaisser passeraient sinon la vérification faite AVANT la transaction
+      // et généreraient des ventes en double ; trouvé en testant contre la vraie base).
+      const idsRegles = new Set(reglees.map((sc) => sc.id));
+      const resteADevoir = compte.sousComptes.some((sc) => sc.lignes.length > 0 && !idsRegles.has(sc.id));
+      if (!resteADevoir) {
+        const fermeture = await tx.compteCafeteria.updateMany({
+          where: { id: compteId, hotelId, statut: "OUVERT" },
+          data: { statut: "FERME", fermeLe: maintenant, syncVersion: { increment: 1 } },
+        });
+        if (fermeture.count === 0) {
+          throw new ConflictException(
+            "Ce compte cafétaria est déjà fermé (encaissé) — probablement encaissé entre-temps depuis un autre poste."
+          );
+        }
       }
 
       switch (dto.mode) {
         case "GROUPE":
           return [await this.creerVenteGroupe(tx, compte, toutesLesLignes, dto, hotelId, userId)];
+        case "UNE_PERSONNE":
+          return [await this.creerVenteGroupe(tx, compte, personne!.lignes, dto, hotelId, userId, personne!.id)];
         case "PAR_SOUS_COMPTE":
           return this.creerVentesParSousCompte(tx, compte, dto, hotelId, userId);
         case "PARTAGE_EGAL":
@@ -288,7 +345,8 @@ export class CafeteriaService {
     lignes: LigneAvecProduit[],
     dto: EncaisserCompteDto,
     hotelId: string,
-    createdBy: string
+    createdBy: string,
+    sousCompteId?: string
   ) {
     const { usd, cdf } = this.sommerParDevise(lignes);
 
@@ -315,6 +373,7 @@ export class CafeteriaService {
       data: {
         hotelId,
         compteId: compte.id,
+        sousCompteId,
         montantTotalUSD: usd,
         montantTotalCDF: cdf,
         modePaiement: dto.modePaiement,

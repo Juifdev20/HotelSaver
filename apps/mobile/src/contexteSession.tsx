@@ -18,6 +18,8 @@ export interface Session {
   seDeconnecter: () => void;
   /** Démarré après connexion, arrêté dans changerDeProfil() — voir App.tsx. */
   moteurSync: MoteurSync;
+  /** Relit GET /auth/me (ex. après un changement de réglage de l'hôtel) pour mettre les écrans à jour. */
+  rechargerProfil: () => Promise<void>;
 }
 
 const ContexteSession = createContext<Session | null>(null);

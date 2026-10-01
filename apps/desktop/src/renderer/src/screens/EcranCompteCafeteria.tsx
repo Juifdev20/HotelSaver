@@ -1,9 +1,12 @@
 import * as React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { CompteCafeteria, Devise, ModePaiement, Produit, StatutCompte, ProfilConnecte, VenteCafeteria } from "@hotel-chicago/types";
+import { CompteCafeteria, Devise, ModePaiement, Produit, StatutCompte, ProfilConnecte, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
+import { Check, Plus } from "lucide-react";
+import { EcranAjoutConsommation } from "./EcranAjoutConsommation";
+import { ApercuRecu } from "../components/ApercuRecu";
 
 export interface EcranCompteCafeteriaProps {
   client: ClientApi;
@@ -47,31 +50,54 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
   const [nomPersonne, setNomPersonne] = useState("");
   const [enAjoutPersonne, setEnAjoutPersonne] = useState(false);
 
-  const [sousCompteChoisi, setSousCompteChoisi] = useState("");
-  const [produitChoisi, setProduitChoisi] = useState("");
-  const [quantiteLigne, setQuantiteLigne] = useState("1");
-  const [enAjoutLigne, setEnAjoutLigne] = useState(false);
+  // Niveau 2 : id de la personne pour qui on ajoute des consommations (null = vue d'ensemble).
+  const [personneEnAjout, setPersonneEnAjout] = useState<string | null>(null);
+  const [populaires, setPopulaires] = useState<Map<string, number>>(new Map());
 
   const [modePaiement, setModePaiement] = useState<ModePaiement>(ModePaiement.CASH);
   const [venteEncaissee, setVenteEncaissee] = useState<VenteCafeteria | null>(null);
   const [enEncaissement, setEnEncaissement] = useState(false);
+  // Qui l'on encaisse : null = rien en cours, "tout" = tout ce qui reste, sinon l'id d'une personne.
+  const [cible, setCible] = useState<string | null>(null);
+  // Ce que le reçu détaille (figé au moment de l'encaissement, le compte se recharge ensuite).
+  const [recuCompte, setRecuCompte] = useState<CompteCafeteria | null>(null);
+  const [compteSolde, setCompteSolde] = useState(false);
+  // Personnes payées : écartées à la main (« Masquer ») ou effacées d'elles-mêmes 1 minute après leur paiement.
+  const [masquees, setMasquees] = useState<Set<string>>(new Set());
+  const [voirPayees, setVoirPayees] = useState(false);
+  const [maintenant, setMaintenant] = useState(() => Date.now());
+  useEffect(() => {
+    const minuteur = setInterval(() => setMaintenant(Date.now()), 5000);
+    return () => clearInterval(minuteur);
+  }, []);
   const [enImpression, setEnImpression] = useState(false);
   const [messageImpression, setMessageImpression] = useState<string | null>(null);
+
+  // Le MÊME reçu sert à l'aperçu et à l'impression : ce qu'on voit est ce qui sort imprimé.
+  const lignesRecu = useMemo(() => {
+    const source = recuCompte ?? compte;
+    return venteEncaissee && source ? construireRecuVente(venteEncaissee, source, utilisateur.nom, enteteHotel(utilisateur)) : null;
+  }, [venteEncaissee, recuCompte, compte, utilisateur]);
 
   const rechargerCompte = useCallback(() => {
     client
       .obtenirCompteCafeteria(compteId)
-      .then((c) => {
-        setCompte(c);
-        setSousCompteChoisi((precedent) => precedent || c.sousComptes[0]?.id || "");
-      })
+      .then(setCompte)
       .catch((e: Error) => setErreur(e.message));
   }, [client, compteId]);
 
+  const chargerCatalogue = useCallback(() => {
+    client.listerProduits().then(setProduits).catch(() => {});
+    client
+      .produitsPopulaires()
+      .then((liste) => setPopulaires(new Map(liste.map((l) => [l.produitId, l.quantite]))))
+      .catch(() => {});
+  }, [client]);
+
   useEffect(() => {
     rechargerCompte();
-    client.listerProduits().then(setProduits).catch(() => {});
-  }, [rechargerCompte, client]);
+    chargerCatalogue();
+  }, [rechargerCompte, chargerCatalogue]);
 
   async function ajouterPersonne() {
     if (!nomPersonne.trim()) {
@@ -91,31 +117,23 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
     }
   }
 
-  async function ajouterLigne() {
-    const quantiteNombre = Number(quantiteLigne);
-    if (!sousCompteChoisi || !produitChoisi || !Number.isFinite(quantiteNombre) || quantiteNombre <= 0) {
-      setErreur("Choisissez une personne, un produit et une quantité positive.");
-      return;
-    }
-    setEnAjoutLigne(true);
-    setErreur(null);
-    try {
-      await client.ajouterLigne(compteId, { sousCompteId: sousCompteChoisi, produitId: produitChoisi, quantite: quantiteNombre });
-      setQuantiteLigne("1");
-      rechargerCompte();
-    } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
-    } finally {
-      setEnAjoutLigne(false);
-    }
-  }
-
   async function encaisser() {
+    if (!compte || cible === null) return;
+    const aRegler = compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0);
+    const concernes = cible === "tout" ? aRegler : aRegler.filter((sc) => sc.id === cible);
+    if (concernes.length === 0) return;
     setEnEncaissement(true);
     setErreur(null);
     try {
-      const ventes = await client.encaisserCompte(compteId, { mode: "GROUPE", modePaiement });
+      const ventes =
+        cible === "tout"
+          ? await client.encaisserCompte(compteId, { mode: "GROUPE", modePaiement })
+          : await client.encaisserCompte(compteId, { mode: "UNE_PERSONNE", modePaiement, sousCompteId: cible });
       setVenteEncaissee(ventes[0]);
+      setRecuCompte({ ...compte, sousComptes: concernes });
+      // Plus personne à régler après celle(s)-ci : le compte est fermé côté serveur.
+      setCompteSolde(aRegler.every((sc) => concernes.some((c) => c.id === sc.id)));
+      setCible(null);
       rechargerCompte();
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
@@ -124,8 +142,19 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
     }
   }
 
+  /** Reçu terminé : on quitte le compte seulement s'il est soldé, sinon on revient aux autres personnes. */
+  function terminerRecu() {
+    if (compteSolde) {
+      onRetour();
+      return;
+    }
+    setVenteEncaissee(null);
+    setRecuCompte(null);
+    setMessageImpression(null);
+  }
+
   async function imprimerRecu() {
-    if (!venteEncaissee || !compte) return;
+    if (!lignesRecu) return;
     if (!interfaceImprimante) {
       setMessageImpression("Aucune imprimante configurée — réglez-la depuis Paramètres > Imprimante.");
       return;
@@ -133,7 +162,7 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
     setEnImpression(true);
     setMessageImpression(null);
     try {
-      await window.hotelChicago.imprimer(interfaceImprimante, construireRecuVente(venteEncaissee, compte, utilisateur.nom, enteteHotel(utilisateur)));
+      await window.hotelChicago.imprimer(interfaceImprimante, lignesRecu);
       setMessageImpression("Reçu envoyé à l'imprimante.");
     } catch (e) {
       setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
@@ -158,6 +187,38 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
 
   const total = totalCompte(compte);
   const compteOuvert = compte.statut === StatutCompte.OUVERT;
+  // Séparation des tâches : le patron (sauf réglage de l'hôtel) consulte le compte mais n'y ajoute ni n'y encaisse rien.
+  const operer = peutOperer(utilisateur);
+  const personnesARegler = compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0);
+  const { visibles: personnesVisibles, revoyables } = sousComptesVisibles(compte.sousComptes, maintenant, masquees);
+  // « Afficher » ne ramène que les personnes payées depuis moins de 5 minutes ; au-delà, l'écran est propre.
+  const voirPayeesActif = voirPayees && revoyables.length > 0;
+  const personnesAffichees = voirPayeesActif
+    ? compte.sousComptes.filter((sc) => personnesVisibles.includes(sc) || revoyables.includes(sc))
+    : personnesVisibles;
+  const unePersonneAPaye = compte.sousComptes.some((sc) => sc.payeLe);
+  const reste = totalCompte({ ...compte, sousComptes: personnesARegler });
+  const cibles = cible === "tout" ? personnesARegler : personnesARegler.filter((sc) => sc.id === cible);
+  const totalCible = totalCompte({ ...compte, sousComptes: cibles });
+
+  const personneChoisie = compte.sousComptes.find((sc) => sc.id === personneEnAjout);
+  if (personneChoisie && compteOuvert && !venteEncaissee) {
+    return (
+      <EcranAjoutConsommation
+        client={client}
+        compte={compte}
+        personne={personneChoisie}
+        produits={produits}
+        populaires={populaires}
+        onRetour={() => setPersonneEnAjout(null)}
+        onAjoute={() => {
+          setPersonneEnAjout(null);
+          rechargerCompte();
+          chargerCatalogue();
+        }}
+      />
+    );
+  }
 
   if (venteEncaissee) {
     return (
@@ -168,6 +229,7 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
           </div>
         </header>
         <div className="carte-formulaire">
+          {lignesRecu && <ApercuRecu lignes={lignesRecu} />}
           {Number(venteEncaissee.montantTotalUSD) > 0 && (
             <p className="hc-text-price">{formatMontant(venteEncaissee.montantTotalUSD, Devise.USD)}</p>
           )}
@@ -183,8 +245,8 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
             <Button type="button" variant="secondary" onClick={imprimerRecu} disabled={enImpression}>
               {enImpression ? "…" : "Imprimer le reçu"}
             </Button>
-            <Button type="button" onClick={onRetour}>
-              Terminer
+            <Button type="button" onClick={terminerRecu}>
+              {compteSolde ? "Terminer" : "Retour au compte"}
             </Button>
           </div>
         </div>
@@ -210,23 +272,52 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
         </p>
       )}
 
-      {compte.sousComptes.map((sousCompte) => {
+      {compteOuvert && !operer && (
+        <p className="hc-text-caption texte-discret bandeau-lecture-seule" role="note">
+          Lecture seule — ajouter des consommations et encaisser sont réservés au personnel de la cafétaria. Le réglage se trouve dans Paramètres.
+        </p>
+      )}
+
+      {compteOuvert && operer && compte.sousComptes.length > 0 && (
+        <p className="hc-text-caption texte-discret">Ajoutez des consommations à une personne, puis encaissez-la quand elle part : chacun règle sa part.</p>
+      )}
+
+      {personnesAffichees.map((sousCompte) => {
         const totalPersonne = totalSousCompte(sousCompte);
-        return (
-          <div key={sousCompte.id} className="carte-formulaire">
-            <p className="hc-text-label texte-discret">{sousCompte.nom}</p>
-            {sousCompte.lignes.length === 0 ? (
-              <p className="hc-text-body texte-discret">Aucune ligne.</p>
-            ) : (
-              sousCompte.lignes.map((ligne) => (
-                <div className="parametres-ligne" key={ligne.id}>
-                  <span className="hc-text-body">
-                    {ligne.quantite}x {ligne.produit.nom}
-                  </span>
-                  <span className="hc-text-price">{formatMontant(Number(ligne.prixUnitaire) * Number(ligne.quantite), ligne.devise)}</span>
-                </div>
-              ))
-            )}
+        const nbArticles = sousCompte.lignes.reduce((n, l) => n + Number(l.quantite), 0);
+        const contenu = (
+          <>
+            <div className="personne-carte__entete">
+              <div>
+                <p className="hc-text-body-strong">{sousCompte.nom}</p>
+                <p className="hc-text-caption texte-discret">
+                  {nbArticles === 0 ? "Aucun article" : `${nbArticles} article${nbArticles > 1 ? "s" : ""}`}
+                </p>
+              </div>
+              {sousCompte.payeLe && (
+                <span className="personne-carte__paye">
+                  <Check size={14} aria-hidden="true" /> Payé
+                  {compteOuvert && !voirPayeesActif && (
+                    <button
+                      type="button"
+                      className="personne-carte__masquer"
+                      onClick={() => setMasquees((courant) => new Set(courant).add(sousCompte.id))}
+                      aria-label={`Masquer ${sousCompte.nom}`}
+                    >
+                      Masquer
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
+            {sousCompte.lignes.map((ligne) => (
+              <div className="parametres-ligne" key={ligne.id}>
+                <span className="hc-text-body">
+                  {ligne.quantite}x {ligne.produit.nom}
+                </span>
+                <span className="hc-text-price">{formatMontant(Number(ligne.prixUnitaire) * Number(ligne.quantite), ligne.devise)}</span>
+              </div>
+            ))}
             {(totalPersonne.usd > 0 || totalPersonne.cdf > 0) && (
               <p className="hc-text-body-strong" style={{ marginTop: "var(--hc-space-2)" }}>
                 {totalPersonne.usd > 0 && formatMontant(totalPersonne.usd, Devise.USD)}
@@ -234,23 +325,53 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
                 {totalPersonne.cdf > 0 && formatMontant(totalPersonne.cdf, Devise.CDF)}
               </p>
             )}
+          </>
+        );
+        const modifiable = compteOuvert && !sousCompte.payeLe && operer;
+        return (
+          <div key={sousCompte.id} className={`carte-formulaire personne-carte${sousCompte.payeLe ? " personne-carte--payee" : ""}`}>
+            {contenu}
+            {modifiable && (
+              <div className="personne-carte__actions">
+                <Button type="button" variant="secondary" onClick={() => setPersonneEnAjout(sousCompte.id)}>
+                  <Plus size={16} aria-hidden="true" /> Ajouter
+                </Button>
+                {sousCompte.lignes.length > 0 && (
+                  <Button type="button" onClick={() => { setErreur(null); setModePaiement(ModePaiement.CASH); setCible(sousCompte.id); }}>
+                    Encaisser {sousCompte.nom}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
 
+      {compteOuvert && revoyables.length > 0 && (
+        <button type="button" className="lien-payees" onClick={() => setVoirPayees((v) => !v)}>
+          {voirPayeesActif
+            ? "Masquer les personnes payées"
+            : `${revoyables.length} personne${revoyables.length > 1 ? "s" : ""} payée${revoyables.length > 1 ? "s" : ""} masquée${revoyables.length > 1 ? "s" : ""} · Afficher`}
+        </button>
+      )}
+
       <div className="carte-formulaire">
-        <p className="hc-text-label texte-discret">Total</p>
-        {total.usd === 0 && total.cdf === 0 ? (
-          <p className="hc-text-body texte-discret">Aucune ligne pour l'instant.</p>
+        <p className="hc-text-label texte-discret">{unePersonneAPaye && compteOuvert ? "Reste à payer" : "Total"}</p>
+        {(unePersonneAPaye && compteOuvert ? reste : total).usd === 0 && (unePersonneAPaye && compteOuvert ? reste : total).cdf === 0 ? (
+          <p className="hc-text-body texte-discret">{unePersonneAPaye && compteOuvert ? "Rien à payer pour l'instant." : "Aucune ligne pour l'instant."}</p>
         ) : (
           <>
-            {total.usd > 0 && <p className="hc-text-price">{formatMontant(total.usd, Devise.USD)}</p>}
-            {total.cdf > 0 && <p className="hc-text-price">{formatMontant(total.cdf, Devise.CDF)}</p>}
+            {(unePersonneAPaye && compteOuvert ? reste : total).usd > 0 && (
+              <p className="hc-text-price">{formatMontant((unePersonneAPaye && compteOuvert ? reste : total).usd, Devise.USD)}</p>
+            )}
+            {(unePersonneAPaye && compteOuvert ? reste : total).cdf > 0 && (
+              <p className="hc-text-price">{formatMontant((unePersonneAPaye && compteOuvert ? reste : total).cdf, Devise.CDF)}</p>
+            )}
           </>
         )}
       </div>
 
-      {compteOuvert && (
+      {compteOuvert && operer && (
         <>
           <div className="carte-formulaire formulaire">
             <p className="hc-text-label texte-discret">Ajouter une personne</p>
@@ -262,71 +383,43 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
             </div>
           </div>
 
-          <div className="carte-formulaire formulaire">
-            <p className="hc-text-label texte-discret">Ajouter une ligne</p>
-            <div className="puces" role="group" aria-label="Personne">
-              {compte.sousComptes.map((sc) => (
-                <button
-                  key={sc.id}
-                  type="button"
-                  className="puce"
-                  aria-pressed={sousCompteChoisi === sc.id}
-                  onClick={() => setSousCompteChoisi(sc.id)}
-                >
-                  {sc.nom}
-                </button>
-              ))}
+          {cible === null && personnesARegler.length > 1 && (
+            <div className="carte-formulaire">
+              <p className="hc-text-label texte-discret">Règlement groupé</p>
+              <p className="hc-text-caption texte-discret">Quand une personne règle pour tout le monde : une seule note pour tout ce qui reste à payer.</p>
+              <Button type="button" variant="secondary" onClick={() => { setErreur(null); setModePaiement(ModePaiement.CASH); setCible("tout"); }}>
+                Tout encaisser
+              </Button>
             </div>
-            <label className="hc-text-label" htmlFor="champ-produit">
-              Produit
-            </label>
-            <select id="champ-produit" value={produitChoisi} onChange={(e) => setProduitChoisi(e.target.value)}>
-              <option value="">Choisir un produit</option>
-              {produits.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nom} — {formatMontant(p.prix, p.devise)}
-                </option>
-              ))}
-            </select>
-            <label className="hc-text-label" htmlFor="champ-quantite">
-              Quantité
-            </label>
-            <input
-              id="champ-quantite"
-              type="number"
-              min="1"
-              value={quantiteLigne}
-              onChange={(e) => setQuantiteLigne(e.target.value)}
-            />
-            <Button type="button" onClick={ajouterLigne} disabled={enAjoutLigne} style={{ marginTop: "var(--hc-space-2)" }}>
-              {enAjoutLigne ? "…" : "Ajouter la ligne"}
-            </Button>
-          </div>
+          )}
 
-          <div className="carte-formulaire">
-            <p className="hc-text-label texte-discret">Encaisser</p>
-            <div className="puces" role="group" aria-label="Mode de paiement">
-              {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className="puce"
-                  aria-pressed={modePaiement === m}
-                  onClick={() => setModePaiement(m)}
-                >
-                  {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
-                </button>
-              ))}
+          {cible !== null && (
+            <div className="carte-formulaire">
+              <p className="hc-text-label texte-discret">
+                {cible === "tout" ? "Tout encaisser" : `Encaisser ${cibles[0]?.nom ?? ""}`}
+              </p>
+              <p className="hc-text-price">
+                {totalCible.usd > 0 && formatMontant(totalCible.usd, Devise.USD)}
+                {totalCible.usd > 0 && totalCible.cdf > 0 && " + "}
+                {totalCible.cdf > 0 && formatMontant(totalCible.cdf, Devise.CDF)}
+              </p>
+              <div className="puces" role="group" aria-label="Mode de paiement">
+                {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
+                  <button key={m} type="button" className="puce" aria-pressed={modePaiement === m} onClick={() => setModePaiement(m)}>
+                    {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-3)" }}>
+                <Button type="button" onClick={encaisser} disabled={enEncaissement || cibles.length === 0}>
+                  {enEncaissement ? "…" : "Confirmer l'encaissement"}
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setCible(null)} disabled={enEncaissement}>
+                  Annuler
+                </Button>
+              </div>
             </div>
-            <Button
-              type="button"
-              onClick={encaisser}
-              disabled={enEncaissement || (total.usd === 0 && total.cdf === 0)}
-              style={{ marginTop: "var(--hc-space-3)" }}
-            >
-              {enEncaissement ? "…" : "Encaisser"}
-            </Button>
-          </div>
+          )}
         </>
       )}
     </div>

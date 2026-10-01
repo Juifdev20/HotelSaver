@@ -137,4 +137,22 @@ export const messages = {
       lien: { ecran: "tableau-de-bord" },
     };
   },
+
+  rapportAGenerer(p: { departement: string; mois: string }): MessageNotification {
+    return {
+      type: "RAPPORT_A_GENERER",
+      titre: `Rapport ${p.departement} à générer`,
+      corps: `Le rapport ${p.departement.toLowerCase()} de ${p.mois} est à remettre au patron.`,
+      lien: { ecran: "rapports" },
+    };
+  },
+
+  rapportDisponible(p: { departement: string; mois: string; numero: string }): MessageNotification {
+    return {
+      type: "RAPPORT_DISPONIBLE",
+      titre: `Rapport ${p.departement} de ${p.mois} disponible`,
+      corps: `${p.numero} — prêt à consulter et à signer.`,
+      lien: { ecran: "rapports" },
+    };
+  },
 };

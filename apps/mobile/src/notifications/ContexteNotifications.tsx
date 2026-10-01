@@ -12,7 +12,7 @@ const INTERVALLE_MS = 30_000;
 
 /** Vue de l'onglet « Plus » à ouvrir (les écrans qui n'ont pas leur propre onglet). */
 export interface DemandePlus {
-  vue: "stock" | "arrivees-departs";
+  vue: "stock" | "arrivees-departs" | "rapports";
   cle: number;
 }
 
@@ -45,7 +45,9 @@ export function cibleDeLien(lien: LienNotification, role: Role): { onglet: IdOng
           ? si("plus", "stock")
           : lien.ecran === "arrivees-departs"
             ? si("plus", "arrivees-departs")
-            : null;
+            : lien.ecran === "rapports"
+              ? si("plus", "rapports")
+              : null;
   return cible ?? { onglet: "tableau-de-bord" };
 }
 
@@ -99,15 +101,26 @@ export function FournisseurNotifications({
   }, [charger]);
 
   // Enregistrement du téléphone au nom de CET utilisateur (retiré à la déconnexion, voir App.tsx).
+  // Réessaye (toutes les 15 s, 20 fois) tant que le serveur n'a pas pu être joint : au démarrage instantané le
+  // jeton d'accès arrive quelques instants après l'ouverture de l'application.
   useEffect(() => {
     let arreter: (() => void) | undefined;
     let annule = false;
-    void enregistrerAppareil(client).then((fn) => {
-      if (annule) fn();
-      else arreter = fn;
-    });
+    let minuteur: ReturnType<typeof setTimeout> | undefined;
+    const essayer = async (tentative: number) => {
+      const resultat = await enregistrerAppareil(client);
+      if (annule) {
+        resultat.arreter();
+        return;
+      }
+      arreter?.();
+      arreter = resultat.arreter;
+      if (!resultat.enregistre && tentative < 20) minuteur = setTimeout(() => void essayer(tentative + 1), 15_000);
+    };
+    void essayer(0);
     return () => {
       annule = true;
+      if (minuteur) clearTimeout(minuteur);
       arreter?.();
     };
   }, [client]);

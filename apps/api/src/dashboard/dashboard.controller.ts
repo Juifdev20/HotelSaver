@@ -24,6 +24,13 @@ export class DashboardController {
     return this.dashboardService.recetteDuJour(currentUser);
   }
 
+  /** Recette d'un mois « AAAA-MM » — mêmes agrégats que les rapports PDF. */
+  @Get("recette-du-mois")
+  @Roles(Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON)
+  recetteDuMois(@CurrentUser() currentUser: UtilisateurAuthentifie, @Query("mois") mois: string) {
+    return this.dashboardService.recetteDuMois(currentUser, mois);
+  }
+
   @Get("occupation")
   @Roles(Role.RECEPTIONNISTE, Role.PATRON)
   occupation(@CurrentUser() currentUser: UtilisateurAuthentifie) {

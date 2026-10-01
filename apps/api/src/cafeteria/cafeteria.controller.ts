@@ -3,6 +3,7 @@ import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
+import { Operationnel } from "../common/decorators/operationnel.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { CafeteriaService } from "./cafeteria.service";
 import { OuvrirCompteDto } from "./dto/ouvrir-compte.dto";
@@ -30,6 +31,11 @@ import { AnnulerVenteDto } from "./dto/annuler-vente.dto";
 export class CafeteriaController {
   constructor(private readonly cafeteriaService: CafeteriaService) {}
 
+  @Get("produits-populaires")
+  produitsPopulaires(@CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.produitsPopulaires(currentUser.hotelId);
+  }
+
   @Get("comptes")
   findAllComptes(@Query() query: FindComptesQueryDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.cafeteriaService.findAllComptes(query, currentUser.hotelId);
@@ -40,11 +46,13 @@ export class CafeteriaController {
     return this.cafeteriaService.findOneCompte(id, currentUser.hotelId);
   }
 
+  @Operationnel()
   @Post("comptes")
   ouvrirCompte(@Body() dto: OuvrirCompteDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.cafeteriaService.ouvrirCompte(dto, currentUser);
   }
 
+  @Operationnel()
   @Post("comptes/:id/sous-comptes")
   ajouterSousCompte(
     @Param("id") id: string,
@@ -54,6 +62,7 @@ export class CafeteriaController {
     return this.cafeteriaService.ajouterSousCompte(id, dto, currentUser.hotelId);
   }
 
+  @Operationnel()
   @Post("comptes/:id/lignes")
   ajouterLigne(
     @Param("id") id: string,
@@ -63,6 +72,7 @@ export class CafeteriaController {
     return this.cafeteriaService.ajouterLigne(id, dto, currentUser);
   }
 
+  @Operationnel()
   @Post("comptes/:id/encaisser")
   encaisser(
     @Param("id") id: string,

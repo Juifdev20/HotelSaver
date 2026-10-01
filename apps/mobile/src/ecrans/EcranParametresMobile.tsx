@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { LogOut, UserRound } from "lucide-react-native";
@@ -17,6 +18,8 @@ export interface EcranParametresMobileProps {
   utilisateur?: UtilisateurAuthentifie;
   onChangerProfil?: () => void;
   onSeDeconnecter?: () => void;
+  /** Après modification d'un réglage de l'hôtel : relit le profil pour mettre les écrans à jour. */
+  onProfilModifie?: () => void;
 }
 
 /**
@@ -27,7 +30,22 @@ export interface EcranParametresMobileProps {
  * thème (pas de mode sombre mobile), pas de bloc Administration (Utilisateurs et
  * Taux de change vivent dans « Plus »).
  */
-export function EcranParametresMobile({ onRetour, utilisateur, onChangerProfil, onSeDeconnecter }: EcranParametresMobileProps) {
+export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie }: EcranParametresMobileProps) {
+  const [enregistrement, setEnregistrement] = useState(false);
+  const patronOpere = utilisateur?.patronPeutOperer === true;
+
+  async function basculerPatronOpere(valeur: boolean) {
+    setEnregistrement(true);
+    try {
+      await client.modifierReglagesHotel({ patronPeutOperer: valeur });
+      onProfilModifie?.();
+    } catch (e) {
+      Alert.alert("Réglage non enregistré", e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
   /** Confirmation avant de fermer la session — un tap par inadvertance ne
    * doit pas faire perdre la session en cours (retour du patron 28/09). */
   function confirmerDeconnexion() {
@@ -48,6 +66,21 @@ export function EcranParametresMobile({ onRetour, utilisateur, onChangerProfil, 
               l'écran Plus) — un employé cherchant « sortir » dans les
               réglages la trouve sans fouiller. « Changer de profil » reste
               réservé au PATRON, comme dans EcranPlus/App.tsx. */}
+          {utilisateur?.role === Role.PATRON && (
+            <View style={styles.carte}>
+              <View style={styles.compteLigne}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compteNom}>Le patron peut aussi opérer</Text>
+                  <Text style={styles.compteRole}>
+                    Réserver, check-in/out, facturer et caisse sont réservés au personnel pour éviter toute confusion. Activez seulement si vous
+                    travaillez seul. Administration, rapports et annulations restent au patron.
+                  </Text>
+                </View>
+                <Switch value={patronOpere} onValueChange={(v) => void basculerPatronOpere(v)} disabled={enregistrement} />
+              </View>
+            </View>
+          )}
+
           {utilisateur && (
             <View style={[styles.carte, styles.carteCompte]}>
               <View style={styles.compteLigne}>

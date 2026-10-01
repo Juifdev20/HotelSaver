@@ -7,6 +7,7 @@ import { PRISMA } from "../prisma/prisma.module";
 import { calculerFinValidite } from "../super-admin/calculer-validite";
 import { messages } from "./messages";
 import { NotificationsService } from "./notifications.service";
+import { libelleMois } from "../rapports/agregats/bornes";
 
 const FUSEAU = "Africa/Lubumbashi";
 /** Lubumbashi est à UTC+2 toute l'année (pas d'heure d'été). */
@@ -124,6 +125,39 @@ export class NotificationsSchedulerService {
       }
     } catch (erreur) {
       this.logger.error(`Récap du soir : ${(erreur as Error).message}`);
+    }
+  }
+
+  /** 08:00 le 1er du mois — rappel aux deux départements : le rapport PDF du
+   * mois écoulé est à générer et à remettre au patron. */
+  @Cron("0 8 1 * *", { timeZone: FUSEAU })
+  async rappelRapportsMensuels(maintenant = new Date()): Promise<void> {
+    try {
+      // Le mois écoulé à Lubumbashi (le 1er octobre → « 2026-09 », le 1er
+      // janvier → décembre de l'année passée).
+      const local = new Date(maintenant.getTime() + DECALAGE_HEURES * 3600_000);
+      const m = local.getUTCMonth(); // 0 = janvier : le mois écoulé est m (1-12), décembre si m = 0
+      const periode = `${m === 0 ? local.getUTCFullYear() - 1 : local.getUTCFullYear()}-${String(m === 0 ? 12 : m).padStart(2, "0")}`;
+      const libelle = libelleMois(periode);
+      for (const hotel of await this.hotelsActifs()) {
+        for (const [departement, role] of [
+          ["Cafétaria", Role.CAFETARIA],
+          ["Réception", Role.RECEPTIONNISTE],
+        ] as const) {
+          try {
+            await this.notifications.emettre({
+              hotelId: hotel.id,
+              roles: [role],
+              cleDedup: `rapport-a-generer:${hotel.id}:${periode}:${departement}`,
+              ...messages.rapportAGenerer({ departement, mois: libelle }),
+            });
+          } catch (erreur) {
+            this.logger.error(`Rappel rapport ${departement} (hôtel ${hotel.id}) : ${(erreur as Error).message}`);
+          }
+        }
+      }
+    } catch (erreur) {
+      this.logger.error(`Rappel rapports mensuels : ${(erreur as Error).message}`);
     }
   }
 

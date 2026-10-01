@@ -111,6 +111,47 @@ describe("SyncService", () => {
     });
   });
 
+  describe("push — séparation des tâches (le patron n'opère pas par défaut)", () => {
+    const operation = (entiteType: string, operation = "CREATE", extra: object = {}) =>
+      ({ operations: [{ entiteType, localId: "l1", operation, payload: { compteId: "c1" }, ...extra }] }) as any;
+
+    it.each(["Reservation", "CompteCafeteria", "SousCompte", "LigneCommande"])(
+      "refuse un CREATE %s par le patron par défaut (ERROR, aucun service appelé)",
+      async (entite) => {
+        const { resultats } = await service.push(operation(entite), patron);
+        expect(resultats[0].statut).toBe("ERROR");
+        expect(resultats[0].message).toMatch(/Le patron ne réalise pas les opérations du quotidien/);
+        expect(reservationsService.create).not.toHaveBeenCalled();
+        expect(cafeteriaService.ouvrirCompte).not.toHaveBeenCalled();
+        expect(cafeteriaService.ajouterLigne).not.toHaveBeenCalled();
+      }
+    );
+
+    it("refuse aussi la MODIFICATION d'une réservation par le patron par défaut", async () => {
+      const { resultats } = await service.push(operation("Reservation", "UPDATE", { remoteId: "r1", baseSyncVersion: 1 }), patron);
+      expect(resultats[0].statut).toBe("ERROR");
+      expect(reservationsService.update).not.toHaveBeenCalled();
+    });
+
+    it("accepte quand l'hôtel a autorisé le patron à opérer", async () => {
+      cafeteriaService.ajouterLigne.mockResolvedValue({ id: "ligne-1", syncVersion: 1 });
+      const { resultats } = await service.push(
+        { operations: [{ entiteType: "LigneCommande", localId: "l1", operation: "CREATE", payload: { compteId: "c1", sousCompteId: "s1", produitId: "p1", quantite: 1 } }] } as any,
+        { ...patron, patronPeutOperer: true }
+      );
+      expect(resultats[0].statut).toBe("SYNCED");
+    });
+
+    it("la cafétaria et la réception synchronisent comme avant, et le patron garde l'administration (Produit)", async () => {
+      cafeteriaService.ouvrirCompte.mockResolvedValue({ id: "c-remote", syncVersion: 1, sousComptes: [] });
+      produitsService.create.mockResolvedValue({ id: "p-remote", syncVersion: 1 });
+      const caf = await service.push(operation("CompteCafeteria"), cafetaria);
+      expect(caf.resultats[0].statut).toBe("SYNCED");
+      const prod = await service.push({ operations: [{ entiteType: "Produit", localId: "l2", operation: "CREATE", payload: { nom: "Fanta" } }] } as any, patron);
+      expect(prod.resultats[0].statut).toBe("SYNCED");
+    });
+  });
+
   describe("push — UPDATE et détection de conflit (section 10.4)", () => {
     it("applique la mise à jour quand baseSyncVersion correspond à la version serveur actuelle", async () => {
       prisma.chambre.findUnique.mockResolvedValue({ id: "remote-1", syncVersion: 3 });

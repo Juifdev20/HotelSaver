@@ -69,8 +69,8 @@ export class PushService {
           data,
           android: {
             priority: "high",
-            // Le canal (créé par l'app) détermine le son et l'importance ; regroupe par catégorie.
-            notification: { channelId: CATEGORIE_PAR_TYPE[notification.type], tag: notification.type },
+            // Le canal (créé par l app) détermine le son et l importance. Une étiquette UNIQUE par notification : avec une étiquette par type, la 2e demande de réservation remplaçait la 1re sur le téléphone.
+            notification: { channelId: CATEGORIE_PAR_TYPE[notification.type], tag: notification.id },
           },
         },
         aBlanc

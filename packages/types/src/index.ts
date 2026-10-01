@@ -23,6 +23,19 @@ export interface UtilisateurAuthentifie {
   role: Role;
   nom: string;
   hotelId: string;
+  /** Réglage de l'hôtel (séparation des tâches) : le patron peut-il aussi réaliser les opérations du
+   * quotidien ? Absent/false = non. Lire via `peutOperer`, jamais directement. */
+  patronPeutOperer?: boolean;
+}
+
+/**
+ * Séparation des tâches : réserver, faire un check-in/out, facturer un séjour, ouvrir/alimenter/encaisser
+ * un compte cafétaria sont réservés au personnel concerné (réception, cafétaria). Le patron ne le fait
+ * que si l'hôtel l'a explicitement autorisé (`patronPeutOperer`). UNE seule règle, partagée par l'API
+ * (verrou serveur) et les apps (boutons masqués).
+ */
+export function peutOperer(utilisateur: { role: Role; patronPeutOperer?: boolean }): boolean {
+  return utilisateur.role !== Role.PATRON || utilisateur.patronPeutOperer === true;
 }
 
 /** Réponse de GET /auth/me : l'utilisateur + l'hôtel auquel il appartient (affichés dans les
@@ -178,6 +191,8 @@ export interface SousCompte {
   id: string;
   compteId: string;
   nom: string;
+  /** Date de règlement de SA part (encaissement par personne) ; null = pas encore payé. */
+  payeLe?: string | null;
   lignes: LigneCommande[];
 }
 
@@ -185,6 +200,8 @@ export interface SousCompte {
 export interface VenteCafeteria {
   id: string;
   compteId: string;
+  /** Renseigné pour un reçu individuel (encaissement d'une seule personne). */
+  sousCompteId?: string | null;
   montantTotalUSD: string;
   montantTotalCDF: string;
   modePaiement: ModePaiement;
@@ -479,6 +496,8 @@ export const TYPES_NOTIFICATION = [
   "RECAP_QUOTIDIEN",
   "LICENCE_BIENTOT_EXPIREE",
   "LICENCE_SUSPENDUE",
+  "RAPPORT_A_GENERER",
+  "RAPPORT_DISPONIBLE",
 ] as const;
 export type TypeNotification = (typeof TYPES_NOTIFICATION)[number];
 
@@ -497,10 +516,12 @@ export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification>
   RECU_ANNULE: "securite",
   LICENCE_BIENTOT_EXPIREE: "securite",
   LICENCE_SUSPENDUE: "securite",
+  RAPPORT_A_GENERER: "quotidien",
+  RAPPORT_DISPONIBLE: "quotidien",
 };
 
 /** Écrans que le clic sur une notification peut ouvrir (mêmes ids que la navigation des apps). */
-export type EcranNotification = "reservations" | "arrivees-departs" | "chambres" | "stock" | "facturation" | "tableau-de-bord";
+export type EcranNotification = "reservations" | "arrivees-departs" | "chambres" | "stock" | "facturation" | "tableau-de-bord" | "rapports";
 
 export interface LienNotification {
   ecran: EcranNotification;
@@ -523,4 +544,77 @@ export interface ListeNotifications {
   notifications: NotificationApp[];
   /** Nombre total de notifications non lues de cet utilisateur (pas seulement dans la liste renvoyée). */
   nonLues: number;
+}
+/** GET /cafeteria/produits-populaires — quantités ajoutées aux comptes depuis le début de la journée. */
+export interface ProduitPopulaire {
+  produitId: string;
+  quantite: number;
+}
+
+/** Une personne payée disparaît de l'écran du compte 1 minute après son règlement (affichage seulement). */
+export const DELAI_MASQUAGE_PAYES_MS = 60_000;
+
+/** Le lien « N personnes payées masquées · Afficher » disparaît à son tour 5 minutes après le règlement. */
+export const DELAI_LIEN_PAYES_MS = 5 * 60_000;
+
+/**
+ * Personnes à afficher sur l'écran d'un compte cafétaria : celles qui n'ont pas encore payé restent
+ * toujours visibles ; une personne payée s'efface après `DELAI_MASQUAGE_PAYES_MS` ou dès que
+ * l'utilisateur l'écarte (`masquees`). Une personne masquée reste « revoyable » (lien « Afficher »)
+ * jusqu'à `DELAI_LIEN_PAYES_MS` après son règlement, puis l'écran redevient totalement propre.
+ * Purement visuel : rien n'est supprimé, les totaux et le journal des reçus restent exacts.
+ */
+export function sousComptesVisibles<T extends { id: string; payeLe?: string | null }>(
+  sousComptes: T[],
+  maintenant: number,
+  masquees: ReadonlySet<string>
+): { visibles: T[]; nbMasquees: number; revoyables: T[] } {
+  const visibles: T[] = [];
+  const revoyables: T[] = [];
+  let nbMasquees = 0;
+  for (const sc of sousComptes) {
+    const payeDepuis = sc.payeLe ? maintenant - new Date(sc.payeLe).getTime() : null;
+    const masquee = payeDepuis !== null && (masquees.has(sc.id) || payeDepuis >= DELAI_MASQUAGE_PAYES_MS);
+    if (!masquee) {
+      visibles.push(sc);
+      continue;
+    }
+    nbMasquees++;
+    if (payeDepuis !== null && payeDepuis < DELAI_LIEN_PAYES_MS) revoyables.push(sc);
+  }
+  return { visibles, nbMasquees, revoyables };
+}
+
+// ---------------------------------------------------------------------------
+// Rapports mensuels PDF par département (cafétaria, réception) — remis au patron.
+// ---------------------------------------------------------------------------
+
+export type DepartementRapport = "CAFETERIA" | "RECEPTION";
+export type StatutRapport = "ACTIF" | "REMPLACE";
+
+/** Une ligne de GET /rapports — le PDF lui-même vit dans le stockage privé,
+ * ouvert via `urlRapport` (URL signée de 5 min). */
+export interface RapportMensuel {
+  id: string;
+  departement: DepartementRapport;
+  /** « 2026-09 » — fuseau Africa/Lubumbashi. */
+  periode: string;
+  version: number;
+  numero: string; // RAP-CAF-202609-001
+  provisoire: boolean; // mois pas encore terminé
+  statut: StatutRapport;
+  genereParNom: string;
+  genereLe: string;
+  concordant: boolean;
+  empreinte: string;
+}
+
+/** GET /dashboard/recette-du-mois — même fonction d'agrégation que le rapport
+ * PDF : la « concordance » affichée dans le document est une vraie comparaison. */
+export interface RecetteDuMois {
+  periode: string;
+  enCours: boolean;
+  chambres?: MontantsParDevise & { nombreFactures: number; nuitees: number; tauxOccupationPourcent: number };
+  cafeteria?: MontantsParDevise & { nombreVentes: number; panierMoyenUSD: number; panierMoyenCDF: number };
+  total: MontantsParDevise;
 }

@@ -8,6 +8,7 @@ import {
   inscrireHotel,
   rafraichirSession,
 } from "@hotel-chicago/api-client";
+import { peutOperer } from "@hotel-chicago/types";
 import type { InscriptionHotelPayload, LienNotification, NotificationApp, ProfilConnecte } from "@hotel-chicago/types";
 import type { ConfigurationApp } from "../../main/config-store";
 import { IdPage, libellePage, sectionsPourRole } from "./navigation";
@@ -30,6 +31,7 @@ import { EcranComptesOuverts } from "./screens/EcranComptesOuverts";
 import { EcranCompteCafeteria } from "./screens/EcranCompteCafeteria";
 import { EcranMenu } from "./screens/EcranMenu";
 import { EcranStock } from "./screens/EcranStock";
+import { EcranRapports } from "./screens/EcranRapports";
 import { EcranBientot } from "./screens/EcranBientot";
 
 type Ecran = "chargement" | "connexion" | "inscription" | "application";
@@ -169,7 +171,7 @@ export function App() {
   /** Clic sur une notification (cloche ou notification Windows) → l'écran concerné, si mon rôle y a droit. */
   const ouvrirLien = (lien: LienNotification) => {
     if (!utilisateur) return;
-    const autorisees = sectionsPourRole(utilisateur.role).flatMap((section) => section.entrees.map((entree) => entree.id as string));
+    const autorisees = sectionsPourRole(utilisateur.role, peutOperer(utilisateur)).flatMap((section) => section.entrees.map((entree) => entree.id as string));
     const cible = autorisees.includes(lien.ecran) ? (lien.ecran as IdPage) : "tableau-de-bord";
     setCompteCafeteriaOuvert(null);
     setReservationAFacturer(null);
@@ -293,9 +295,9 @@ export function App() {
     } else if (page === "chambres") {
       contenu = <EcranChambres client={client} utilisateur={utilisateur} rechercheInitiale={rechercheChambres} onNaviguer={naviguer} />;
     } else if (page === "reservations") {
-      contenu = <EcranReservations client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} />;
+      contenu = <EcranReservations client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} peutOperer={peutOperer(utilisateur)} />;
     } else if (page === "arrivees-departs") {
-      contenu = <EcranArriveesDeparts client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} />;
+      contenu = <EcranArriveesDeparts client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} peutOperer={peutOperer(utilisateur)} />;
     } else if (page === "clients") {
       contenu = <EcranClients client={client} />;
     } else if (page === "facturation") {
@@ -342,6 +344,8 @@ export function App() {
       );
     } else if (page === "site-hotel") {
       contenu = <EcranSiteHotel client={client} />;
+    } else if (page === "rapports") {
+      contenu = <EcranRapports client={client} utilisateur={utilisateur} />;
     } else if (page === "utilisateurs") {
       contenu = <EcranUtilisateurs client={client} />;
     } else if (page === "parametres") {
@@ -353,6 +357,7 @@ export function App() {
           onNaviguer={naviguer}
           themeSombre={themeSombre}
           onBasculerTheme={() => setThemeSombre((v) => !v)}
+          onProfilModifie={() => void client.moi().then(setUtilisateur).catch(() => undefined)}
         />
       );
     } else {

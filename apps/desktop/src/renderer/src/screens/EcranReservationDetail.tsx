@@ -12,6 +12,8 @@ export interface EcranReservationDetailProps {
   reservationId: string;
   onRetour: () => void;
   onFacturer: (reservationId: string) => void;
+  /** Faux : le patron ne réalise pas confirmation / check-in / modification / facturation (annulation et lecture restent). */
+  peutOperer?: boolean;
   /** Pour la réimpression du reçu (séjour terminé). */
   utilisateur?: ProfilConnecte;
   interfaceImprimante?: string | null;
@@ -38,6 +40,7 @@ export function EcranReservationDetail({
   reservationId,
   onRetour,
   onFacturer,
+  peutOperer = true,
   utilisateur,
   interfaceImprimante,
 }: EcranReservationDetailProps) {
@@ -207,17 +210,17 @@ export function EcranReservationDetail({
 
           {!edition && (
             <div style={{ display: "flex", gap: "var(--hc-space-2)", flexWrap: "wrap" }}>
-              {statut === "EN_ATTENTE" && (
+              {peutOperer && statut === "EN_ATTENTE" && (
                 <Button type="button" onClick={() => void action(() => client.confirmerReservation(reservationId))} disabled={enCours}>
                   Confirmer la demande
                 </Button>
               )}
-              {statut === "CONFIRMEE" && (
+              {peutOperer && statut === "CONFIRMEE" && (
                 <Button type="button" onClick={() => void action(() => client.checkIn(reservationId))} disabled={enCours}>
                   Check-in
                 </Button>
               )}
-              {(statut === "CONFIRMEE" || statut === "EN_COURS") && (
+              {peutOperer && (statut === "CONFIRMEE" || statut === "EN_COURS") && (
                 <Button
                   type="button"
                   variant="secondary"
@@ -232,7 +235,7 @@ export function EcranReservationDetail({
                   Modifier dates / acompte
                 </Button>
               )}
-              {statut === "EN_COURS" && (
+              {peutOperer && statut === "EN_COURS" && (
                 <Button type="button" onClick={() => onFacturer(reservationId)}>
                   Facturer et check-out
                 </Button>

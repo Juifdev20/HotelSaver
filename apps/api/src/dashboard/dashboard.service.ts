@@ -2,11 +2,20 @@ import { Inject, Injectable } from "@nestjs/common";
 import { PrismaClient, StatutChambre } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
+import { bornesDuMois } from "../rapports/agregats/bornes";
+import { agregatCafeteria } from "../rapports/agregats/cafeteria";
+import { agregatReception } from "../rapports/agregats/reception";
+
+/** Lubumbashi = UTC+2 toute l'année. La « journée » du tableau de bord est la
+ * journée LOCALE de l'hôtel, pas celle du serveur — sinon un déploiement UTC
+ * décale les totaux de deux heures (fix du 01/10 : recette-du-jour et
+ * recette-du-mois doivent parler du même fuseau que les rapports). */
+const DECALAGE_LUBUMBASHI_MS = 2 * 3600_000;
 
 function debutJournee(): Date {
-  const debut = new Date();
-  debut.setHours(0, 0, 0, 0);
-  return debut;
+  const maintenant = new Date();
+  const local = new Date(maintenant.getTime() + DECALAGE_LUBUMBASHI_MS);
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - DECALAGE_LUBUMBASHI_MS);
 }
 
 function sommerParDevise(lignes: { montantTotalUSD: unknown; montantTotalCDF: unknown }[]) {
@@ -72,6 +81,47 @@ export class DashboardService {
     };
 
     return { chambres, cafeteria, total };
+  }
+
+  /**
+   * Recette du MOIS « AAAA-MM » (à Lubumbashi) — les mêmes fonctions
+   * d'agrégation que les rapports mensuels PDF (agregatCafeteria /
+   * agregatReception) : la concordance affichée dans le rapport est une
+   * comparaison réelle, pas deux calculs parallèles. Filtrage par rôle
+   * identique à recetteDuJour.
+   */
+  async recetteDuMois(currentUser: UtilisateurAuthentifie, mois: string) {
+    const bornes = bornesDuMois(mois);
+    const voitChambres = currentUser.role !== Role.CAFETARIA;
+    const voitCafeteria = currentUser.role !== Role.RECEPTIONNISTE;
+
+    const cafeteria = voitCafeteria ? await agregatCafeteria(this.prisma, currentUser.hotelId, bornes) : undefined;
+    const reception = voitChambres ? await agregatReception(this.prisma, currentUser.hotelId, bornes) : undefined;
+
+    const chambres = reception && {
+      montantUSD: reception.recetteChambres.usd,
+      montantCDF: reception.recetteChambres.cdf,
+    };
+    const ventesCafeteria = cafeteria && {
+      montantUSD: cafeteria.recetteNette.usd,
+      montantCDF: cafeteria.recetteNette.cdf,
+    };
+    const total = {
+      montantUSD: (chambres?.montantUSD ?? 0) + (ventesCafeteria?.montantUSD ?? 0),
+      montantCDF: (chambres?.montantCDF ?? 0) + (ventesCafeteria?.montantCDF ?? 0),
+    };
+
+    return {
+      periode: bornes.libelle,
+      enCours: bornes.enCours,
+      chambres: reception
+        ? { ...chambres, nombreFactures: reception.nombreFactures, nuitees: reception.nuitees, tauxOccupationPourcent: reception.tauxOccupationPourcent }
+        : undefined,
+      cafeteria: cafeteria
+        ? { ...ventesCafeteria, nombreVentes: cafeteria.nombreVentes, panierMoyenUSD: cafeteria.panierMoyen.usd, panierMoyenCDF: cafeteria.panierMoyen.cdf }
+        : undefined,
+      total,
+    };
   }
 
   /** RECEPTIONNISTE + PATRON uniquement (section 9.3, "Chambres"/"Statut chambre"). */

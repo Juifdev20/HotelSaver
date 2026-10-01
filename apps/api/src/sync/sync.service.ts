@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { PrismaClient } from "@hotel-chicago/database";
-import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Role, UtilisateurAuthentifie, peutOperer } from "@hotel-chicago/types";
+import { MESSAGE_PATRON_NON_OPERANT } from "../common/guards/roles.guard";
 import { PRISMA } from "../prisma/prisma.module";
 import { ChambresService } from "../chambres/chambres.service";
 import { ReservationsService } from "../reservations/reservations.service";
@@ -56,6 +57,10 @@ const ROLES_LECTURE: Record<EntitePull, Role[]> = {
   LigneCommande: [Role.CAFETARIA, Role.PATRON],
   VenteCafeteria: [Role.CAFETARIA, Role.PATRON],
 };
+
+/** Opérations du quotidien (séparation des tâches) : la synchronisation applique la même règle que les routes
+ * HTTP marquées @Operationnel — sinon le patron les contournerait en passant par l'écriture hors ligne. */
+const ENTITES_OPERATIONNELLES: ReadonlySet<EntitePush> = new Set<EntitePush>(["Reservation", "CompteCafeteria", "SousCompte", "LigneCommande"]);
 
 @Injectable()
 export class SyncService {
@@ -173,6 +178,10 @@ export class SyncService {
     currentUser: UtilisateurAuthentifie
   ): Promise<ResultatOperation> {
     const config = this.config[operation.entiteType];
+
+    if (ENTITES_OPERATIONNELLES.has(operation.entiteType) && !peutOperer(currentUser)) {
+      return this.erreur(operation, MESSAGE_PATRON_NON_OPERANT);
+    }
 
     try {
       if (operation.operation === "CREATE") {

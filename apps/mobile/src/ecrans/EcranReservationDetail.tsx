@@ -2,7 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
-import { Devise, ModePaiement, StatutChambre } from "@hotel-chicago/types";
+import { Devise, ModePaiement, StatutChambre, peutOperer } from "@hotel-chicago/types";
 import type { StatutReservation } from "@hotel-chicago/types";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -297,11 +297,11 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
           </View>
 
           <View style={styles.actions}>
-            {statut === "EN_ATTENTE" &&
+            {peutOperer(utilisateur) && statut === "EN_ATTENTE" &&
               bouton("confirmer", "Confirmer la demande", confirmer, actionsEnLignePossibles)}
-            {statut === "CONFIRMEE" &&
+            {peutOperer(utilisateur) && statut === "CONFIRMEE" &&
               bouton("checkin", "Check-in", checkIn, actionsEnLignePossibles)}
-            {(statut === "CONFIRMEE" || statut === "EN_COURS") &&
+            {peutOperer(utilisateur) && (statut === "CONFIRMEE" || statut === "EN_COURS") &&
               bouton(
                 "modifier",
                 "Modifier dates / acompte",
@@ -315,7 +315,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
                 estSynchronisee,
                 true
               )}
-            {statut === "EN_COURS" &&
+            {peutOperer(utilisateur) && statut === "EN_COURS" &&
               bouton("facturer", "Facturer et check-out", () => onFacturer(idServeur), actionsEnLignePossibles)}
             {(statut === "EN_ATTENTE" ||
               statut === "CONFIRMEE" ||

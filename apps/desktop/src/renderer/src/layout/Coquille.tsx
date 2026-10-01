@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
-import { Role, UtilisateurAuthentifie, type NotificationApp } from "@hotel-chicago/types";
+import { Role, UtilisateurAuthentifie, peutOperer, type NotificationApp } from "@hotel-chicago/types";
 import {
   ArrowLeftRight,
   Bell,
@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  FileText,
   LayoutDashboard,
   LogOut,
   LucideIcon,
@@ -60,6 +61,7 @@ const ICONES: Record<IdPage, LucideIcon> = {
   imprimante: Printer,
   utilisateurs: UserRound,
   "site-hotel": Globe,
+  rapports: FileText,
 };
 
 const LIBELLE_ROLE: Record<Role, string> = {
@@ -172,8 +174,8 @@ export function Coquille({
   const [notificationsOuvertes, setNotificationsOuvertes] = useState(false);
   const [recherche, setRecherche] = useState("");
   const [barreReduite, setBarreReduite] = useState(barreReduitePreferee);
-  const sections = sectionsPourRole(utilisateur.role);
-  const barreDuBas = entreesBarreDuBas(utilisateur.role);
+  const sections = sectionsPourRole(utilisateur.role, peutOperer(utilisateur));
+  const barreDuBas = entreesBarreDuBas(utilisateur.role, peutOperer(utilisateur));
 
   const refProfil = useFermetureExterne(menuProfilOuvert, () => setMenuProfilOuvert(false));
   const refNotifications = useFermetureExterne(notificationsOuvertes, () => setNotificationsOuvertes(false));

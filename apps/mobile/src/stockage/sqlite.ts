@@ -98,7 +98,8 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       compteId TEXT NOT NULL,
       nom TEXT NOT NULL,
       updatedAt TEXT NOT NULL,
-      syncVersion INTEGER NOT NULL
+      syncVersion INTEGER NOT NULL,
+      payeLe TEXT
     );
 
     CREATE TABLE IF NOT EXISTS lignes_commande (
@@ -147,4 +148,11 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       syncVersion INTEGER NOT NULL
     );
   `);
+
+  // Évolutions de schéma pour les téléphones déjà installés (CREATE TABLE IF NOT EXISTS ne modifie
+  // pas une table existante) : colonne ajoutée seulement si elle manque.
+  const colonnes = await db.getAllAsync<{ name: string }>("PRAGMA table_info(sous_comptes)", []);
+  if (!colonnes.some((c) => c.name === "payeLe")) {
+    await db.execAsync("ALTER TABLE sous_comptes ADD COLUMN payeLe TEXT");
+  }
 }

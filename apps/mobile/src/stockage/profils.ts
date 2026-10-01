@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
-import type { Role } from "@hotel-chicago/types";
+import type { ProfilConnecte, Role } from "@hotel-chicago/types";
 
 /**
  * Section 5 : "sélection de profil au démarrage" — un même téléphone est
@@ -20,6 +20,7 @@ export interface ProfilEnregistre {
 const CLE_PROFILS = "hotel-chicago:profils";
 const CLE_JETON = (utilisateurId: string) => `hotel-chicago-jeton-${utilisateurId}`;
 const CLE_DERNIER_UTILISATEUR = "hotel-chicago:dernier-utilisateur";
+const CLE_PROFIL_CACHE = (utilisateurId: string) => `hotel-chicago:profil-cache:${utilisateurId}`;
 
 export async function listerProfils(): Promise<ProfilEnregistre[]> {
   try {
@@ -42,6 +43,25 @@ export async function oublierProfil(utilisateurId: string): Promise<void> {
   const profils = await listerProfils();
   await AsyncStorage.setItem(CLE_PROFILS, JSON.stringify(profils.filter((p) => p.utilisateurId !== utilisateurId)));
   await SecureStore.deleteItemAsync(CLE_JETON(utilisateurId)).catch(() => {});
+  await AsyncStorage.removeItem(CLE_PROFIL_CACHE(utilisateurId)).catch(() => {});
+}
+
+/**
+ * Copie locale du profil complet (nom, rôle, hôtel, réglages…) : permet d'ouvrir l'application TOUT DE SUITE
+ * au démarrage, sans attendre le réseau — le profil et le jeton sont renouvelés en arrière-plan. Aucune donnée
+ * sensible (le jeton reste dans le coffre chiffré) ; le serveur reste juge de chaque action.
+ */
+export async function ecrireProfilCache(utilisateurId: string, profil: ProfilConnecte): Promise<void> {
+  await AsyncStorage.setItem(CLE_PROFIL_CACHE(utilisateurId), JSON.stringify(profil)).catch(() => {});
+}
+
+export async function lireProfilCache(utilisateurId: string): Promise<ProfilConnecte | null> {
+  try {
+    const brut = await AsyncStorage.getItem(CLE_PROFIL_CACHE(utilisateurId));
+    return brut ? (JSON.parse(brut) as ProfilConnecte) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function lireJetonRafraichissement(utilisateurId: string): Promise<string | null> {

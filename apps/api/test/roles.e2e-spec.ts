@@ -20,7 +20,9 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
 
   const HOTEL_ID = "hotel-1";
 
-  const HOTEL_ACTIF = { id: HOTEL_ID, statutLicence: "ACTIF" };
+  const HOTEL_ACTIF = { id: HOTEL_ID, statutLicence: "ACTIF", patronPeutOperer: false };
+  // Hôtel où le patron travaille seul : il a activé « le patron peut aussi opérer ».
+  const HOTEL_PATRON_OPERANT = { id: HOTEL_ID, statutLicence: "ACTIF", patronPeutOperer: true };
 
   const utilisateurs: Record<
     string,
@@ -34,6 +36,15 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
       supabaseAuthId: "auth-patron",
       hotelId: HOTEL_ID,
       hotel: HOTEL_ACTIF,
+    },
+    "auth-patron-operant": {
+      id: "u-patron-operant",
+      nom: "Patron Opérant",
+      role: "PATRON",
+      actif: true,
+      supabaseAuthId: "auth-patron-operant",
+      hotelId: HOTEL_ID,
+      hotel: HOTEL_PATRON_OPERANT,
     },
     "auth-receptionniste": {
       id: "u-receptionniste",
@@ -231,6 +242,73 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
         .get("/dashboard/stock-bas")
         .set("Authorization", bearer("auth-receptionniste"))
         .expect(403);
+    });
+  });
+
+  describe("Séparation des tâches — le patron ne réalise pas les opérations du quotidien", () => {
+    const OPERATIONS: Array<[string, string]> = [
+      ["POST", "/reservations"],
+      ["PATCH", "/reservations/r1"],
+      ["POST", "/reservations/r1/confirmer"],
+      ["POST", "/reservations/r1/check-in"],
+      ["POST", "/reservations/r1/check-out"],
+      ["POST", "/factures"],
+      ["POST", "/cafeteria/comptes"],
+      ["POST", "/cafeteria/comptes/c1/sous-comptes"],
+      ["POST", "/cafeteria/comptes/c1/lignes"],
+      ["POST", "/cafeteria/comptes/c1/encaisser"],
+    ];
+    const appeler = (methode: string, route: string, compte: string): Promise<{ status: number; body: any }> =>
+      (request(app.getHttpServer()) as any)[methode.toLowerCase()](route).set("Authorization", bearer(compte)).send({});
+
+    it.each(OPERATIONS)("PATRON par défaut → 403 sur %s %s, avec le message de la règle", async (methode, route) => {
+      const reponse = await appeler(methode, route, "auth-patron");
+      expect(reponse.status).toBe(403);
+      expect(reponse.body.message).toMatch(/Le patron ne réalise pas les opérations du quotidien/);
+    });
+
+    it.each(OPERATIONS)("PATRON qui a activé le réglage → jamais 403 sur %s %s (la requête atteint la validation)", async (methode, route) => {
+      const reponse = await appeler(methode, route, "auth-patron-operant");
+      expect(reponse.status).not.toBe(403);
+      expect(reponse.status).not.toBe(401);
+    });
+
+    it("la lecture reste ouverte au patron par défaut (rapports, listes)", async () => {
+      await request(app.getHttpServer()).get("/reservations").set("Authorization", bearer("auth-patron")).expect(200);
+      await request(app.getHttpServer()).get("/cafeteria/comptes").set("Authorization", bearer("auth-patron")).expect(200);
+    });
+
+    it("l'annulation avec motif et l'administration restent ouvertes au patron par défaut (jamais 403)", async () => {
+      for (const [methode, route] of [
+        ["POST", "/reservations/r1/annuler"],
+        ["POST", "/cafeteria/ventes/v1/annuler"],
+        ["POST", "/produits"],
+        ["POST", "/taux-change"],
+      ]) {
+        const reponse = await appeler(methode, route, "auth-patron");
+        expect(reponse.status).not.toBe(403);
+      }
+    });
+
+    it("le patron seul peut modifier le réglage ; la réception reçoit 403", async () => {
+      expect((await appeler("PATCH", "/hotel/reglages", "auth-receptionniste")).status).toBe(403);
+      const refus = await (request(app.getHttpServer()) as any)
+        .patch("/hotel/reglages")
+        .set("Authorization", bearer("auth-patron"))
+        .send({ patronPeutOperer: "oui" });
+      expect(refus.status).toBe(400); // validé : un booléen est exigé
+    });
+
+    it("la réception et la cafétaria font toujours leurs opérations (jamais 403)", async () => {
+      expect((await appeler("POST", "/reservations/r1/check-in", "auth-receptionniste")).status).not.toBe(403);
+      expect((await appeler("POST", "/cafeteria/comptes", "auth-cafeteria")).status).not.toBe(403);
+    });
+
+    it("/auth/me expose le réglage de l'hôtel pour que les apps adaptent leurs écrans", async () => {
+      const defaut = await request(app.getHttpServer()).get("/auth/me").set("Authorization", bearer("auth-patron")).expect(200);
+      expect(defaut.body.patronPeutOperer).toBe(false);
+      const operant = await request(app.getHttpServer()).get("/auth/me").set("Authorization", bearer("auth-patron-operant")).expect(200);
+      expect(operant.body.patronPeutOperer).toBe(true);
     });
   });
 

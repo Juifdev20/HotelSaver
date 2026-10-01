@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { peutOperer } from "@hotel-chicago/types";
 import type { StatutReservation } from "@hotel-chicago/types";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -102,7 +103,7 @@ const VIDE_PAR_SEGMENT: Record<SegmentId, string> = {
  * EcranOngletCaisse, sans stack de navigation.
  */
 export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: EcranReservationsProps) {
-  const { moteurSync } = useSession();
+  const { moteurSync, utilisateur } = useSession();
   const etatSync = useSyncEtat();
   const [vue, setVue] = useState<Vue>({ id: "liste" });
   const [segment, setSegment] = useState<SegmentId>(segmentInitial);
@@ -242,7 +243,9 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: E
 
       {/* « + » flottant bas-droite — sous le pouce, standard Android
           (remplace l'ancien bouton d'en-tête). */}
-      <BoutonAjouterFlottant onPress={() => setVue({ id: "nouveau" })} accessibilityLabel="Nouvelle réservation" />
+      {peutOperer(utilisateur) && (
+        <BoutonAjouterFlottant onPress={() => setVue({ id: "nouveau" })} accessibilityLabel="Nouvelle réservation" />
+      )}
     </View>
   );
 }

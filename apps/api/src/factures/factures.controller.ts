@@ -3,6 +3,7 @@ import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
+import { Operationnel } from "../common/decorators/operationnel.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { FacturesService } from "./factures.service";
 import { CreateFactureDto } from "./dto/create-facture.dto";
@@ -29,6 +30,7 @@ export class FacturesController {
     return this.facturesService.findOne(id, currentUser.hotelId);
   }
 
+  @Operationnel()
   @Post()
   create(@Body() dto: CreateFactureDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.facturesService.create(dto, currentUser.hotelId);

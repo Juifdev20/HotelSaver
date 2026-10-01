@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MAX_PHOTOS_CHAMBRE } from "@hotel-chicago/types";
 import { SelecteurPhotos, nettoyerImages } from "../components/SelecteurPhotos";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Chambre, Devise, Reservation, Role, StatutChambre, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Chambre, Devise, Reservation, Role, StatutChambre, UtilisateurAuthentifie, peutOperer } from "@hotel-chicago/types";
 import { Button, RoomCard, StatusBadge, StatusTone, formatMontant } from "@hotel-chicago/ui";
 import { BedDouble, MoreVertical, Plus, Search } from "lucide-react";
 import type { IdPage } from "../navigation";
@@ -57,12 +57,15 @@ export interface EcranChambresProps {
 function MenuActionsChambre({
   chambre,
   estPatron,
+  peutChangerStatut,
   onChangerStatut,
   onModifier,
   onSupprimer,
 }: {
   chambre: Chambre;
   estPatron: boolean;
+  /** Changer le statut est un geste de réception : retiré au patron dont l'hôtel n'a pas activé « le patron peut aussi opérer ». */
+  peutChangerStatut: boolean;
   onChangerStatut: (statut: StatutChambre) => void;
   onModifier: () => void;
   onSupprimer: () => void;
@@ -83,23 +86,27 @@ function MenuActionsChambre({
       </button>
       {ouvert && (
         <div className="menu-actions__panneau" role="menu">
-          <p className="hc-text-label menu-actions__titre">Changer le statut</p>
-          {Object.values(StatutChambre)
-            .filter((statut) => statut !== chambre.statut)
-            .map((statut) => (
-              <button
-                key={statut}
-                type="button"
-                role="menuitem"
-                className="coquille__item-menu"
-                onClick={() => {
-                  setOuvert(false);
-                  onChangerStatut(statut);
-                }}
-              >
-                {LABEL_PAR_STATUT[statut]}
-              </button>
-            ))}
+          {peutChangerStatut && (
+            <>
+              <p className="hc-text-label menu-actions__titre">Changer le statut</p>
+              {Object.values(StatutChambre)
+                .filter((statut) => statut !== chambre.statut)
+                .map((statut) => (
+                  <button
+                    key={statut}
+                    type="button"
+                    role="menuitem"
+                    className="coquille__item-menu"
+                    onClick={() => {
+                      setOuvert(false);
+                      onChangerStatut(statut);
+                    }}
+                  >
+                    {LABEL_PAR_STATUT[statut]}
+                  </button>
+                ))}
+            </>
+          )}
           {estPatron && (
             <>
               <button
@@ -141,6 +148,7 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
   const etroit = useEtroit(860);
 
   const estPatron = utilisateur.role === Role.PATRON;
+  const operer = peutOperer(utilisateur);
   // Formulaire de gestion PATRON : null = fermé, "creation" ou la chambre éditée.
   const [chambreEdit, setChambreEdit] = useState<Chambre | "creation" | null>(null);
   const [numero, setNumero] = useState("");
@@ -293,9 +301,11 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
               Nouvelle chambre
             </Button>
           )}
-          <Button type="button" onClick={() => onNaviguer("reservations")}>
-            Nouvelle réservation
-          </Button>
+          {operer && (
+            <Button type="button" onClick={() => onNaviguer("reservations")}>
+              Nouvelle réservation
+            </Button>
+          )}
         </div>
       </header>
 
@@ -429,6 +439,7 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
                     <MenuActionsChambre
                       chambre={chambre}
                       estPatron={estPatron}
+                      peutChangerStatut={operer}
                       onChangerStatut={(statut) => changerStatut(chambre, statut)}
                       onModifier={() => ouvrirEdition(chambre)}
                       onSupprimer={() => void supprimerChambre(chambre)}
