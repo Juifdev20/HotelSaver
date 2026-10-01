@@ -2,7 +2,7 @@ import * as React from "react";
 import { Download, MailCheck, Monitor, Smartphone, UserPlus } from "lucide-react";
 import { configuration } from "./config";
 import { MiseEnPageAuth } from "./auth/MiseEnPageAuth";
-import { BoutonsStores } from "./accueil/Stores";
+import { OuvrirApplication } from "./accueil/OuvrirApplication";
 
 function BoutonTelechargement({ url, icone: Icone, libelle }: { url: string | null; icone: typeof Smartphone; libelle: string }) {
   if (!url) {
@@ -30,14 +30,15 @@ function BoutonTelechargement({ url, icone: Icone, libelle }: { url: string | nu
 
 /** Le site n'a pas de session (DECISIONS.md, Phase 8) : après l'inscription, la
  * suite — se connecter, créer les comptes réception et cafétaria — se passe
- * obligatoirement dans l'application. Cet écran l'explique et la fait installer. */
+ * obligatoirement dans l'application. Cet écran propose de l'ouvrir si elle est déjà
+ * installée, sinon de la télécharger. */
 export function EcranSucces({ email }: { email: string }) {
   return (
     <MiseEnPageAuth>
       <div className="carte-auth">
         <img className="carte-auth__logo" src="/logo-hotelsaver.png" alt="" />
         <h1 className="carte-auth__titre">Votre hôtel est créé 🎉</h1>
-        <p className="carte-auth__sous-titre">Une dernière étape : installez l'application HotelSaver pour gérer votre hôtel.</p>
+        <p className="carte-auth__sous-titre">Dernière étape : ouvrez l'application HotelSaver pour vous connecter et gérer votre hôtel.</p>
 
         <ol className="parcours">
           <li>
@@ -50,8 +51,8 @@ export function EcranSucces({ email }: { email: string }) {
           <li>
             <Smartphone size={20} aria-hidden="true" />
             <span>
-              <strong>Installez l'application</strong>
-              <small>La connexion se fait uniquement depuis l'application.</small>
+              <strong>Ouvrez l'application</strong>
+              <small>La connexion se fait dans l'application, sur téléphone ou sur ordinateur.</small>
             </span>
           </li>
           <li>
@@ -64,7 +65,7 @@ export function EcranSucces({ email }: { email: string }) {
         </ol>
 
         <div className="telechargements">
-          <BoutonsStores />
+          <OuvrirApplication email={email} />
           <BoutonTelechargement url={configuration.urlWindows} icone={Monitor} libelle="Application Windows (ordinateur)" />
         </div>
       </div>

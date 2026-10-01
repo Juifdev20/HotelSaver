@@ -1,24 +1,24 @@
 import * as React from "react";
 import { useState } from "react";
-import { ArrowLeft, CheckCircle2, Eye, EyeOff, Lock, Mail, MailCheck, Settings } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Lock, Mail, MailCheck } from "lucide-react";
 // Logo de l'APPLICATION HotelSaver — distinct du logo de l'hôtel
 // (HotelBranding.logoUrl), voir DECISIONS.md « branding application vs hôtel ».
+import { MiseEnPageAuth } from "../components/MiseEnPageAuth";
 import logo from "../../../../../../assets/icons/hotelsaver-icone.png";
-import photo from "../assets/hotel-chambre-bleue.jpg";
 
 export interface EcranConnexionProps {
   onConnexion: (email: string, motDePasse: string) => void;
   /** Envoie l'e-mail « mot de passe oublié » ; rejette avec un message lisible en cas d'échec. */
   onMotDePasseOublie: (email: string) => Promise<void>;
-  /** Adresse de la page d'inscription du site web (ouverte dans le navigateur). */
-  urlInscription: string;
-  /** Réglage de l'adresse de l'API : discret, hors de la carte (voir DECISIONS.md). */
-  onOuvrirParametres: () => void;
+  /** Ouvre le formulaire d'inscription, dans l'application (jamais sur le site web). */
+  onCreerCompte: () => void;
+  /** E-mail à pré-remplir (ex. venu d'un lien « Ouvrir l'application » du site). */
+  emailInitial?: string;
+  /** Message d'information affiché au-dessus du formulaire (ex. « Compte créé ! »). */
+  message?: string | null;
   erreur: string | null;
   enCours: boolean;
 }
-
-const ATOUTS = ["Gestion centralisée", "Plus de réservations", "Un support réactif"];
 
 /** Fond pleine page comme la maquette : photo à gauche qui se fond dans la page,
  * carte au centre. L'inscription d'un hôtel se fait sur le site web (lien
@@ -27,13 +27,14 @@ const ATOUTS = ["Gestion centralisée", "Plus de réservations", "Un support ré
 export function EcranConnexion({
   onConnexion,
   onMotDePasseOublie,
-  urlInscription,
-  onOuvrirParametres,
+  onCreerCompte,
+  emailInitial,
+  message,
   erreur,
   enCours,
 }: EcranConnexionProps) {
   const [mode, setMode] = useState<"connexion" | "oubli">("connexion");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailInitial ?? "");
   const [motDePasse, setMotDePasse] = useState("");
   const [visible, setVisible] = useState(false);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -61,31 +62,8 @@ export function EcranConnexion({
   }
 
   return (
-    <div className="hc-auth">
-      <div className="hc-auth__photo" aria-hidden="true">
-        <div className="hc-auth__image" style={{ backgroundImage: `url(${photo})` }} />
-        <div className="hc-auth__voile" />
-      </div>
-      <aside className="hc-auth__texte">
-        <p className="hc-auth__accroche">Bienvenue sur HotelSaver</p>
-        <p className="hc-auth__description">
-          La plateforme qui simplifie la gestion de votre hôtel et booste vos réservations.
-        </p>
-        <ul>
-          {ATOUTS.map((a) => (
-            <li key={a}>
-              <CheckCircle2 size={20} aria-hidden="true" />
-              {a}
-            </li>
-          ))}
-        </ul>
-      </aside>
-
-      <button type="button" className="hc-auth__reglages" onClick={onOuvrirParametres} aria-label="Paramètres de connexion" title="Paramètres de connexion">
-        <Settings size={16} aria-hidden="true" />
-      </button>
-
-      <main>
+    <MiseEnPageAuth>
+      <div className="hc-auth__conteneur">
         <div className="hc-auth__carte">
           <img className="hc-auth__logo" src={logo} alt="" />
           <h1 className="hc-auth__marque">HotelSaver</h1>
@@ -94,6 +72,12 @@ export function EcranConnexion({
             <>
               <h2 className="hc-auth__titre">Bon retour 👋</h2>
               <p className="hc-auth__sous-titre">Connectez-vous à votre espace hôtelier.</p>
+
+              {message && (
+                <p className="hc-auth__info" role="status">
+                  {message}
+                </p>
+              )}
 
               <form
                 onSubmit={(evenement) => {
@@ -163,9 +147,9 @@ export function EcranConnexion({
               </div>
               <p className="hc-auth__pas-de-compte">
                 Vous n'avez pas encore de compte ?{" "}
-                <a href={urlInscription} target="_blank" rel="noopener noreferrer">
+                <button type="button" onClick={onCreerCompte}>
                   Créer un compte
-                </a>
+                </button>
               </p>
             </>
           )}
@@ -224,7 +208,7 @@ export function EcranConnexion({
             </>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </MiseEnPageAuth>
   );
 }

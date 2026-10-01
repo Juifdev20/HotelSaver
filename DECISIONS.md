@@ -2679,3 +2679,52 @@ compte ? Se connecter » sur la page de création, et « Mot de passe oublié ? 
 navigateur réel avec un jeton de récupération généré côté admin (aucun e-mail envoyé) : lien expiré,
 mots de passe différents, enregistrement, jeton retiré de l'URL, reconnexion avec le nouveau mot de
 passe. **L'envoi de l'e-mail lui-même n'a pas été testé** (voir les points ci-dessus).
+## 01/10/2026 — Inscription dans l'application, « Ouvrir l'application », fin du réglage d'API
+
+Retour du patron sur l'application Windows :
+
+1. **Inscription dans l'application, jamais renvoyée vers le web.** Le desktop avait un lien
+   « Créer un compte » qui ouvrait le site. Il ouvre désormais un **formulaire d'inscription
+   dans l'application** (`screens/EcranInscription.tsx`, mêmes 2 étapes et même validation que
+   le mobile et le web) avec « Avez-vous déjà un compte ? Se connecter ». Enchaînement calqué sur
+   le mobile : `inscrireHotel`, puis connexion immédiate ; si le compte n'est pas encore
+   utilisable (e-mail non confirmé), retour à la connexion avec « Compte créé ! Vérifiez votre
+   boîte mail… » et l'e-mail pré-rempli. Le mobile le faisait déjà. L'inscription **web** reste
+   pour les gens qui découvrent HotelSaver sur le site.
+2. **Plus aucun réglage de l'adresse de l'API dans l'interface.** Le bouton Paramètres de la
+   connexion (et l'écran « paramètres hors connexion ») disparaît, ainsi que le champ « URL de
+   l'API » des Paramètres desktop et mobile : c'était un héritage du développement (pointer
+   l'app vers un serveur), incompréhensible et dangereux pour un utilisateur. L'adresse est
+   **fixée à la compilation** : `MAIN_VITE_API_URL` (desktop, `apps/desktop/.env.example`) et
+   `EXPO_PUBLIC_API_URL` (mobile, `apps/mobile/.env.example`), `http://localhost:3001` par
+   défaut en développement. Un `apiUrl` mémorisé par une ancienne version est **ignoré**
+   (sinon il masquerait celle du build installé). Vérifié : une valeur témoin passée au build se
+   retrouve dans `out/main/index.js`. **Avant de distribuer l'app, compiler avec l'adresse de
+   production**, sinon elle pointera sur `localhost`.
+3. **« Ouvrir l'application » après l'inscription web.** Le site ne peut pas savoir si
+   l'application est installée : la page de succès (et `/connexion`) propose « Ouvrir
+   l'application » (`hotelsaver://connexion?email=…`, ou `intent://…` avec repli sur le Play Store
+   sous Android/Chrome) et, juste dessous, « Pas encore installée ? » avec les badges des
+   stores ; si la page reste visible ~2,5 s, un message l'explique.
+   - **Mobile** : `Linking` (le schéma `hotelsaver` était déjà dans `app.json` et
+     `AndroidManifest.xml` : pas de rebuild natif) ; l'e-mail est gardé en attente puis appliqué
+     quand l'écran de départ est connu (la reconnexion silencieuse ne l'écrase pas) ; ignoré si
+     déjà connecté.
+   - **Desktop** : `app.setAsDefaultProtocolClient("hotelsaver")` (clé HKCU, sans droits
+     administrateur), instance unique (`requestSingleInstanceLock` : un 2e lien ramène la
+     fenêtre au premier plan), lien lu à froid via `lien:en-attente` ou en direct via
+     `lien:ouvert` (preload `lireLienEnAttente` / `surLienOuvert`). **Sans installateur, le
+     protocole n'est enregistré qu'après un premier lancement** de l'application ; un futur
+     installateur devra faire la même déclaration.
+
+**Vérifié** : tests navigateur du renderer desktop (plus d'engrenage ; « Créer un compte » ouvre le
+formulaire dans l'app ; validations ; requête d'inscription ; retour à la connexion avec message et
+e-mail pré-remplis ; « Se connecter » depuis l'inscription), test d'Electron réel en instance
+isolée (lancement à froid par `hotelsaver://connexion?email=…` → e-mail pré-rempli ; second lien →
+fenêtre existante mise à jour, une seule fenêtre), page de succès du web, 43 tests api-client,
+23 tests `PublicService`, `tsc` desktop/mobile/web, builds web et desktop. **Non testé** : l'ouverture
+réelle depuis un navigateur mobile et le comportement sur téléphone (pas de build).
+
+**Limites** : une inscription dans l'app n'ouvre la session tout de suite que si l'e-mail est
+confirmé — le **SMTP Supabase** doit être configuré (déjà signalé pour « mot de passe oublié »).
+iOS : `hotelsaver://` ne fonctionnera qu'une fois l'app publiée sur l'App Store.

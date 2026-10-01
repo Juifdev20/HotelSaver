@@ -4,7 +4,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
-import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Linking, StyleSheet, Text, View } from "react-native";
 import { ClientApi, ErreurApi, connecterAvecMotDePasse, demanderReinitialisationMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
 import { MoteurSync } from "@hotel-chicago/sync-engine";
 import { Role, type InscriptionHotelPayload, type UtilisateurAuthentifie } from "@hotel-chicago/types";
@@ -82,7 +82,7 @@ function EcranChargement({ onPret }: { onPret?: () => void }) {
 /** 404 sur /auth/me = l'adresse répond mais ce n'est pas le serveur de l'hôtel. */
 function messageErreurProfil(erreur: Error): string {
   if (erreur instanceof ErreurApi && erreur.statusCode === 404) {
-    return "L'adresse de l'API ne correspond pas au serveur de l'hôtel. Vérifiez les Paramètres.";
+    return "Le serveur HotelSaver est momentanément indisponible. Réessayez dans un instant.";
   }
   return erreur.message;
 }
@@ -99,6 +99,36 @@ export default function App() {
   const [inscriptionEnCours, setInscriptionEnCours] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [utilisateur, setUtilisateur] = useState<UtilisateurAuthentifie | null>(null);
+
+  // Lien profond « Ouvrir l'application » du site web (hotelsaver://connexion?email=…) : on
+  // garde l'e-mail en attente puis on l'applique dès que l'écran de départ est connu, pour
+  // que la logique de démarrage (profils, reconnexion silencieuse) ne l'écrase pas.
+  const lienEnAttente = useRef<{ email?: string } | null>(null);
+  const [lienRecu, setLienRecu] = useState(0);
+
+  useEffect(() => {
+    function traiter(url: string | null) {
+      const m = url ? /^hotelsaver:\/\/connexion(?:\?(.*))?$/i.exec(url) : null;
+      if (!m) return;
+      lienEnAttente.current = { email: new URLSearchParams(m[1] ?? "").get("email") ?? undefined };
+      setLienRecu((n) => n + 1);
+    }
+    void Linking.getInitialURL().then(traiter);
+    const abonnement = Linking.addEventListener("url", (evenement) => traiter(evenement.url));
+    return () => abonnement.remove();
+  }, []);
+
+  useEffect(() => {
+    const lien = lienEnAttente.current;
+    if (!lien || ecran === "chargement") return;
+    lienEnAttente.current = null;
+    // Déjà connecté : rien à faire. Sinon : écran de connexion, e-mail pré-rempli.
+    if (ecran === "application") return;
+    setEmailPreRempli(lien.email);
+    setMessageConnexion("Connectez-vous avec le compte que vous venez de créer.");
+    setErreurConnexion(null);
+    setEcran("connexion");
+  }, [lienRecu, ecran]);
 
   const client = useMemo(
     () => (configuration && accessToken ? new ClientApi(configuration.apiUrl, () => accessToken) : null),

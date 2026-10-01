@@ -4,16 +4,11 @@ import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { Devise, Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { Coins, Moon, Printer, Sun, Users } from "lucide-react";
-import type { ConfigurationApp } from "../../../main/config-store";
 import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 
 export interface EcranParametresProps {
-  configuration: ConfigurationApp;
-  onEnregistrer: (partielle: Partial<ConfigurationApp>) => void;
-  /** Absent quand l'écran est affiché dans la coquille (la navigation latérale sert de retour). */
-  onRetour?: () => void;
-  /** Présent seulement une fois connecté : l'écran de connexion n'a pas encore de jeton pour appeler l'API. */
+  /** Présent seulement une fois connecté. */
   client?: ClientApi;
   /** Présent seulement une fois connecté — conditionne le bloc Administration (PATRON uniquement). */
   utilisateur?: UtilisateurAuthentifie;
@@ -114,23 +109,17 @@ function GestionTauxChange({ client }: { client: ClientApi }) {
 }
 
 /**
- * Section 6 : "les apps mobile et desktop stockent l'URL de l'API dans une
- * configuration modifiable depuis un écran Paramètres, pas un .env, pour
- * pouvoir être reconfigurées sans recompiler."
+ * Paramètres de ce poste (apparence, impression, administration). L'adresse de
+ * l'API n'est plus réglable ici : elle est fixée à la compilation (voir
+ * DECISIONS.md, 01/10/2026) — un utilisateur n'a pas à manipuler une URL technique.
  */
 export function EcranParametres({
-  configuration,
-  onEnregistrer,
-  onRetour,
   client,
   utilisateur,
   onNaviguer,
   themeSombre,
   onBasculerTheme,
 }: EcranParametresProps) {
-  const [apiUrl, setApiUrl] = useState(configuration.apiUrl);
-  const [enregistre, setEnregistre] = useState(false);
-
   return (
     <div className="page">
       <header className="page__entete">
@@ -140,52 +129,12 @@ export function EcranParametres({
         </div>
       </header>
 
-      <div className="carte-formulaire formulaire">
-        <label className="hc-text-label" htmlFor="champ-api-url">
-          URL de l'API
-        </label>
-        <input
-          id="champ-api-url"
-          type="url"
-          value={apiUrl}
-          onChange={(e) => {
-            setApiUrl(e.target.value);
-            setEnregistre(false);
-          }}
-        />
-        <p className="hc-text-caption texte-discret">Adresse du serveur de l'hôtel, par exemple http://localhost:3001.</p>
-
-        {client && (
-          <div>
-            <p className="hc-text-label texte-discret">État du serveur</p>
-            <IndicateurConnexion client={client} />
-          </div>
-        )}
-
-        {enregistre && (
-          <p className="hc-text-body" role="status">
-            Paramètres enregistrés.
-          </p>
-        )}
-
-        <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
-          <Button
-            type="button"
-            onClick={() => {
-              onEnregistrer({ apiUrl });
-              if (onRetour) onRetour();
-              else setEnregistre(true);
-            }}
-          >
-            Enregistrer
-          </Button>
-          {onRetour && (
-            <Button type="button" variant="secondary" onClick={onRetour}>
-              Retour
-            </Button>
-          )}
+      {client && (
+        <div className="carte-formulaire">
+          <p className="hc-text-label texte-discret">État du serveur</p>
+          <IndicateurConnexion client={client} />
         </div>
-      </div>
+      )}
 
       <div className="carte-formulaire">
         <p className="hc-text-label texte-discret">Apparence</p>

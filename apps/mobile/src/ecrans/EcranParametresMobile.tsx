@@ -1,6 +1,5 @@
 import * as React from "react";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { LogOut, UserRound } from "lucide-react-native";
@@ -9,7 +8,6 @@ import { LIBELLE_ROLE } from "../navigation";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
-import { ecrireConfiguration, lireConfiguration } from "../stockage/configuration";
 
 export interface EcranParametresMobileProps {
   client: ClientApi;
@@ -22,29 +20,14 @@ export interface EcranParametresMobileProps {
 }
 
 /**
- * Même principe que EcranParametres du desktop (apps/desktop/src/renderer/src/screens/EcranParametres.tsx) :
- * l'URL de l'API + la carte Compte. Pas de test de connexion — retiré
- * (retour du patron 28/09 : « je ne trouve pas ça professionnel »), pas de
- * bascule de thème (pas de mode sombre mobile), pas de bloc Administration
- * (Utilisateurs/Taux de change vivent déjà dans "Plus", inchangés).
+ * Paramètres du poste : la carte Compte (déconnexion / changement de profil).
+ * L'adresse de l'API n'est plus réglable ici — elle est fixée à la compilation
+ * (voir DECISIONS.md, 01/10/2026) : un utilisateur n'a pas à manipuler une URL
+ * technique. Pas de test de connexion (retour du patron 28/09), pas de bascule de
+ * thème (pas de mode sombre mobile), pas de bloc Administration (Utilisateurs et
+ * Taux de change vivent dans « Plus »).
  */
-export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter }: EcranParametresMobileProps) {
-  const [apiUrl, setApiUrl] = useState("");
-  const [chargement, setChargement] = useState(true);
-  const [enregistre, setEnregistre] = useState(false);
-
-  useEffect(() => {
-    lireConfiguration().then((config) => {
-      setApiUrl(config.apiUrl);
-      setChargement(false);
-    });
-  }, []);
-
-  async function enregistrer() {
-    await ecrireConfiguration({ apiUrl: apiUrl.trim() });
-    setEnregistre(true);
-  }
-
+export function EcranParametresMobile({ onRetour, utilisateur, onChangerProfil, onSeDeconnecter }: EcranParametresMobileProps) {
   /** Confirmation avant de fermer la session — un tap par inadvertance ne
    * doit pas faire perdre la session en cours (retour du patron 28/09). */
   function confirmerDeconnexion() {
@@ -60,40 +43,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
       <EnteteMobile />
       <EnteteRetour titre="Paramètres" onRetour={onRetour} />
 
-      {chargement ? (
-        <ActivityIndicator style={styles.chargement} color={couleurs.bleu} />
-      ) : (
-        <ConteneurFormulaire>
-          <View style={styles.carte}>
-            <Text style={styles.label}>URL de l'API</Text>
-            <TextInput
-              style={styles.champ}
-              value={apiUrl}
-              onChangeText={(texte) => {
-                setApiUrl(texte);
-                setEnregistre(false);
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              placeholder="http://localhost:3001"
-              placeholderTextColor={couleurs.encreFaible}
-            />
-            <Text style={styles.aide}>Adresse du serveur de l'hôtel, par exemple http://localhost:3001.</Text>
-
-            {enregistre && (
-              <Text style={styles.confirmation} accessibilityRole="alert">
-                Paramètres enregistrés.
-              </Text>
-            )}
-
-            <View style={styles.boutons}>
-              <Pressable style={styles.bouton} onPress={enregistrer}>
-                <Text style={styles.boutonTexte}>Enregistrer</Text>
-              </Pressable>
-            </View>
-          </View>
-
+      <ConteneurFormulaire>
           {/* Carte « Compte » : la déconnexion vit aussi ici (et en bas de
               l'écran Plus) — un employé cherchant « sortir » dans les
               réglages la trouve sans fouiller. « Changer de profil » reste
@@ -125,8 +75,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
               )}
             </View>
           )}
-        </ConteneurFormulaire>
-      )}
+      </ConteneurFormulaire>
     </View>
   );
 }

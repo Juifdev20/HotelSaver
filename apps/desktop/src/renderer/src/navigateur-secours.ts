@@ -22,6 +22,7 @@ const VALEURS_PAR_DEFAUT: ConfigurationApp = {
   supabaseAnonKey:
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqcGxjcW9jbWtjdGJmeG54aGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NTg0MzgsImV4cCI6MjEwNjAzNDQzOH0.fkgb9UjnDKQ956wWrv73EAGbBcJly_NrfS-pwKibMSI",
   refreshToken: null,
+  imprimanteInterface: null,
 };
 
 function lire(): ConfigurationApp {
@@ -49,6 +50,11 @@ export function installerFilSecoursNavigateur(): void {
   const api: ApiPreload = {
     lireConfiguration: () => Promise.resolve(lire()),
     ecrireConfiguration: (partielle) => Promise.resolve(ecrire(partielle)),
+    // Pas d'imprimante, ni de lien profond, hors Electron.
+    imprimer: () => Promise.reject(new Error("L'impression n'est disponible que dans l'application Windows.")),
+    imprimerTicketDeTest: () => Promise.reject(new Error("L'impression n'est disponible que dans l'application Windows.")),
+    lireLienEnAttente: () => Promise.resolve(null),
+    surLienOuvert: () => () => undefined,
   };
   window.hotelChicago = api;
 }

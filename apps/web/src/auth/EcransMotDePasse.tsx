@@ -5,6 +5,7 @@ import { ArrowLeft, Lock, Mail, MailCheck, ShieldCheck } from "lucide-react";
 import { demanderReinitialisationMotDePasse, reinitialiserMotDePasse } from "@hotel-chicago/api-client";
 import { configuration } from "../config";
 import { BoutonsStores } from "../accueil/Stores";
+import { OuvrirApplication } from "../accueil/OuvrirApplication";
 import { MiseEnPageAuth } from "./MiseEnPageAuth";
 import { ChampAuth } from "./ChampAuth";
 
@@ -24,8 +25,7 @@ export function EcranConnexionWeb() {
         </p>
 
         <div className="telechargements">
-          <p className="auth-aide">Pas encore installée ?</p>
-          <BoutonsStores />
+          <OuvrirApplication />
         </div>
 
         <Link to="/mot-de-passe-oublie" className="lien-auth">

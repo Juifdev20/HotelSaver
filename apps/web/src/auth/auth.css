@@ -518,3 +518,33 @@
 .carte-auth .badges-stores {
   justify-content: center;
 }
+
+/* « Ouvrir l'application » + téléchargement */
+.ouvrir-app {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--hc-space-2);
+}
+
+.ouvrir-app .bouton-auth {
+  margin-top: 0;
+}
+
+.ouvrir-app__aide {
+  margin-top: var(--hc-space-3);
+}
+
+.ouvrir-app__introuvable {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--hc-radius-sm);
+  background: var(--hc-warning-light);
+  color: #b54708;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ouvrir-app .badges-stores {
+  justify-content: center;
+}
