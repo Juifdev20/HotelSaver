@@ -9,6 +9,7 @@ import {
   MouvementStock,
   Occupation,
   Produit,
+  ProfilConnecte,
   RecetteDuJour,
   Reservation,
   Role,
@@ -267,8 +268,8 @@ export class ClientApi {
     private readonly getAccessToken: () => string | null
   ) {}
 
-  async moi(): Promise<UtilisateurAuthentifie> {
-    return this.requete<UtilisateurAuthentifie>("/auth/me");
+  async moi(): Promise<ProfilConnecte> {
+    return this.requete<ProfilConnecte>("/auth/me");
   }
 
   async listerChambres(filtres: FiltresChambres = {}): Promise<Chambre[]> {

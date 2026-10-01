@@ -2728,3 +2728,29 @@ réelle depuis un navigateur mobile et le comportement sur téléphone (pas de b
 **Limites** : une inscription dans l'app n'ouvre la session tout de suite que si l'e-mail est
 confirmé — le **SMTP Supabase** doit être configuré (déjà signalé pour « mot de passe oublié »).
 iOS : `hotelsaver://` ne fonctionnera qu'une fois l'app publiée sur l'App Store.
+## 01/10/2026 — Nom de l'hôtel connecté, barre latérale claire, barres de défilement discrètes
+
+Retour du patron sur le tableau de bord desktop :
+
+1. **« Hôtel Chicago » en dur dans le bandeau de bienvenue** alors qu'un autre hôtel (Hôtel Test) était
+   connecté. Le nom (et le slogan défini par le patron, sinon « Gestion simple. Séjour
+   exceptionnel. ») vient maintenant de l'API : `GET /auth/me` renvoie en plus `hotelNom` et
+   `hotelSlogan` (type partagé `ProfilConnecte`, `ClientApi.moi()`), donc **le même nom pour chaque
+   rôle** (patron, réception, cafétaria) et sur le **mobile** aussi (`EcranTableauDeBord`). La photo du
+   bandeau reste celle par défaut (la couverture du site de l'hôtel pourrait servir plus tard).
+2. **Barre latérale claire en thème clair** : blanc cassé légèrement plus sombre que la page
+   (`#e9eef5` contre `#f6f8fc`) avec un liseré, texte foncé, lien actif bleu ; **bleu nuit en thème
+   sombre**. Elle passe par des variables `--sb-*` (`layout/coquille.css`) qui suivent
+   `data-theme`, au lieu de couleurs blanches codées en dur sur fond `--hc-navy`.
+3. **Barres de défilement fines et discrètes** : invisibles au repos, elles n'apparaissent que pendant
+   le défilement puis disparaissent après ~0,9 s (`barres-defilement.ts` pose `data-defile` ; CSS
+   `scrollbar-width: thin` + `scrollbar-color` transparent par défaut). Un gabarit fin reste réservé à
+   droite (Chromium n'a pas de barre « overlay » sous Windows).
+4. En passant : un `<button>` sans couleur propre est noir par défaut — illisible en thème sombre
+   (nom de l'utilisateur en haut, chiffres des cartes). `button { color: inherit }`.
+
+**Vérifié** (Electron réel en instance isolée, connexion avec le compte de test) : le bandeau affiche
+« Hôtel Test » et son slogan ; fond de la barre latérale `rgb(233,238,245)` contre `rgb(246,248,252)` pour
+la page ; thème sombre → `rgb(15,39,66)` ; la page reçoit `data-defile` pendant un défilement et le
+perd ensuite ; 232 tests API (3 nouveaux pour `/auth/me`), 43 tests api-client, `tsc` desktop/mobile/api.
+**Non testé** : le rendu du bandeau sur téléphone (pas de build mobile).

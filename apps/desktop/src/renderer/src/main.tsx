@@ -12,9 +12,11 @@ import "@hotel-chicago/ui/dist/tokens.css";
 import "@hotel-chicago/ui/dist/typography.css";
 import "./styles.css";
 import { installerFilSecoursNavigateur } from "./navigateur-secours";
+import { installerBarresDefilementDiscretes } from "./barres-defilement";
 import { App } from "./App";
 
 installerFilSecoursNavigateur();
+installerBarresDefilementDiscretes();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

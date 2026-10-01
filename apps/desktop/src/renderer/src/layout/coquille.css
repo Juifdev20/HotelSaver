@@ -1,12 +1,23 @@
-/* Coquille de l'app : barre latérale bleu nuit, barre du haut blanche, barre
- * du bas (fenêtre étroite). Palette et hiérarchie : voir DECISIONS.md
- * (refonte navy/bleu du 24/09/2026). La barre latérale reste bleu nuit dans
- * les deux thèmes clair/sombre — --hc-navy n'est pas redéfini par le thème. */
+/* Coquille de l'app : barre latérale, barre du haut blanche, barre du bas (fenêtre
+ * étroite). Palette et hiérarchie : voir DECISIONS.md (refonte navy/bleu du 24/09/2026).
+ * La barre latérale suit le thème : blanc cassé légèrement plus sombre que la page en
+ * mode clair (pour s'en distinguer), bleu nuit en mode sombre — voir les variables
+ * --sb-* ci-dessous (DECISIONS.md, 01/10/2026). */
 
 .coquille {
   --coquille-largeur-laterale: 264px;
   --coquille-hauteur-haut: 70px;
   --coquille-hauteur-bas: 64px;
+
+  /* Barre latérale — thème clair : blanc cassé un peu plus sombre que la page. */
+  --sb-fond: #e9eef5;
+  --sb-bordure: #d8e0ec;
+  --sb-texte: #475467;
+  --sb-texte-fort: #0f2742;
+  --sb-texte-faible: #667085;
+  --sb-titre: #98a2b3;
+  --sb-survol: rgba(15, 39, 66, 0.07);
+  --sb-pastille: rgba(15, 39, 66, 0.08);
 
   display: flex;
   min-height: 100vh;
@@ -16,6 +27,18 @@
 
 /* ---------- Barre latérale ---------- */
 
+/* Thème sombre : la barre latérale redevient bleu nuit (--hc-navy n'est pas redéfini par le thème). */
+:root[data-theme="dark"] .coquille {
+  --sb-fond: var(--hc-navy);
+  --sb-bordure: rgba(255, 255, 255, 0.08);
+  --sb-texte: rgba(255, 255, 255, 0.72);
+  --sb-texte-fort: #ffffff;
+  --sb-texte-faible: rgba(255, 255, 255, 0.55);
+  --sb-titre: rgba(255, 255, 255, 0.4);
+  --sb-survol: rgba(255, 255, 255, 0.08);
+  --sb-pastille: rgba(255, 255, 255, 0.12);
+}
+
 .coquille__laterale {
   position: sticky;
   top: 0;
@@ -23,7 +46,8 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: var(--hc-navy);
+  background-color: var(--sb-fond);
+  border-right: 1px solid var(--sb-bordure);
 }
 
 .coquille__marque {
@@ -43,6 +67,7 @@
   border-radius: var(--hc-radius-md);
   background-color: #ffffff;
   color: var(--hc-navy);
+  box-shadow: 0 1px 3px rgba(15, 39, 66, 0.15);
 }
 
 .coquille__logo-img {
@@ -65,12 +90,12 @@
 }
 
 .coquille__nom-hotel {
-  color: #ffffff;
+  color: var(--sb-texte-fort);
 }
 
 .coquille__slogan {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--sb-texte-faible);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -93,12 +118,12 @@
 
 .nav-section__titre {
   margin: 0 var(--hc-space-3) var(--hc-space-1);
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--sb-titre);
 }
 
 .coquille__pied-laterale {
   padding: var(--hc-space-3);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--sb-bordure);
 }
 
 /* ---------- Liens de navigation ---------- */
@@ -126,12 +151,12 @@
 .lien-nav--laterale {
   min-height: 40px;
   padding: 0 var(--hc-space-3);
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--sb-texte);
 }
 
 .lien-nav--laterale:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  background-color: var(--sb-survol);
+  color: var(--sb-texte-fort);
 }
 
 .lien-nav__libelle {
@@ -152,8 +177,8 @@
   font-weight: 600;
   padding: 2px var(--hc-space-2);
   border-radius: var(--hc-radius-pill);
-  background-color: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.6);
+  background-color: var(--sb-pastille);
+  color: var(--sb-texte-faible);
   flex-shrink: 0;
 }
 
@@ -445,7 +470,7 @@
 
 .coquille__pied-tiroir {
   padding: var(--hc-space-3);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--sb-bordure);
 }
 
 /* Ligne « Bonjour, {nom} » affichée sous la barre du haut en fenêtre étroite,

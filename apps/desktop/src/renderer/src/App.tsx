@@ -8,7 +8,7 @@ import {
   inscrireHotel,
   rafraichirSession,
 } from "@hotel-chicago/api-client";
-import type { InscriptionHotelPayload, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import type { InscriptionHotelPayload, ProfilConnecte } from "@hotel-chicago/types";
 import type { ConfigurationApp } from "../../main/config-store";
 import { IdPage, libellePage } from "./navigation";
 import { Coquille } from "./layout/Coquille";
@@ -54,7 +54,7 @@ function messageErreurProfil(erreur: Error): string {
 export function App() {
   const [configuration, setConfiguration] = useState<ConfigurationApp | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [utilisateur, setUtilisateur] = useState<UtilisateurAuthentifie | null>(null);
+  const [utilisateur, setUtilisateur] = useState<ProfilConnecte | null>(null);
   const [ecran, setEcran] = useState<Ecran>("chargement");
   const [page, setPage] = useState<IdPage>("tableau-de-bord");
   const [rechercheChambres, setRechercheChambres] = useState("");

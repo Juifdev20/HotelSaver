@@ -7,7 +7,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { ActivityIndicator, Image, Linking, StyleSheet, Text, View } from "react-native";
 import { ClientApi, ErreurApi, connecterAvecMotDePasse, demanderReinitialisationMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
 import { MoteurSync } from "@hotel-chicago/sync-engine";
-import { Role, type InscriptionHotelPayload, type UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Role, type InscriptionHotelPayload, type ProfilConnecte } from "@hotel-chicago/types";
 import { lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
 import { creerStockageLocalMobile } from "./src/stockage/stockageLocalMobile";
 import {
@@ -98,7 +98,7 @@ export default function App() {
   const [erreurInscription, setErreurInscription] = useState<string | null>(null);
   const [inscriptionEnCours, setInscriptionEnCours] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [utilisateur, setUtilisateur] = useState<UtilisateurAuthentifie | null>(null);
+  const [utilisateur, setUtilisateur] = useState<ProfilConnecte | null>(null);
 
   // Lien profond « Ouvrir l'application » du site web (hotelsaver://connexion?email=…) : on
   // garde l'e-mail en attente puis on l'applique dès que l'écran de départ est connu, pour

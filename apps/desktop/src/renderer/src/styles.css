@@ -1398,3 +1398,27 @@ p {
 .hc-auth__carte .hc-auth__pas-de-compte {
   margin-top: var(--hc-space-3);
 }
+
+/* ---------- Barres de défilement discrètes ---------- */
+/* Fines et invisibles au repos ; `data-defile` est posé par barres-defilement.ts pendant le
+ * défilement seulement. Chaque élément a sa propre valeur (la propriété est héritée : sans
+ * le sélecteur universel, une barre visible sur la page rendrait toutes celles des enfants
+ * visibles aussi). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+[data-defile] {
+  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+}
+
+:root[data-theme="dark"] [data-defile] {
+  scrollbar-color: rgba(203, 213, 225, 0.45) transparent;
+}
+
+/* Un <button> sans couleur propre est noir par défaut (buttontext) : illisible en thème sombre
+ * (nom de l'utilisateur en haut, chiffres des cartes du tableau de bord). Il hérite du texte. */
+button {
+  color: inherit;
+}

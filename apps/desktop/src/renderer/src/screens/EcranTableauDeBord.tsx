@@ -7,7 +7,7 @@ import {
   Produit,
   RecetteDuJour,
   Role,
-  UtilisateurAuthentifie,
+  ProfilConnecte,
   VentesRecentes,
 } from "@hotel-chicago/types";
 import { DashboardStat, Donut, formatMontant } from "@hotel-chicago/ui";
@@ -34,7 +34,7 @@ import heroChambre from "../assets/hero-chambre.jpg";
 
 export interface EcranTableauDeBordProps {
   client: ClientApi;
-  utilisateur: UtilisateurAuthentifie;
+  utilisateur: ProfilConnecte;
   onNaviguer: (page: IdPage) => void;
 }
 
@@ -106,6 +106,9 @@ function fusionnerActivite(donnees: VentesRecentes | null, limite: number): Even
   return [...factures, ...ventes].sort((a, b) => b.cle - a.cle).slice(0, limite);
 }
 
+/** Affiché quand le patron n'a pas défini de slogan pour son hôtel. */
+const SLOGAN_PAR_DEFAUT = "Gestion simple. Séjour exceptionnel.";
+
 const REPARTITION_LIMITE_INITIALE = 6;
 const REPARTITION_LIMITE_ETENDUE = 20;
 
@@ -136,8 +139,8 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
         <div className="hero__desktop">
           <div className="hero__contenu">
             <p className="hero__salutation">Bienvenue 👋</p>
-            <h1 className="hero__titre">Hôtel Chicago</h1>
-            <p className="hero__soustitre">Gestion simple. Séjour exceptionnel.</p>
+            <h1 className="hero__titre">{utilisateur.hotelNom}</h1>
+            <p className="hero__soustitre">{utilisateur.hotelSlogan ?? SLOGAN_PAR_DEFAUT}</p>
           </div>
           <div className="hero__horloge">
             <span className="hero__horloge-ligne">
@@ -159,7 +162,7 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
               <Building2 size={20} strokeWidth={2} />
             </span>
             <span className="hero__marque-mobile-textes">
-              <h1 className="hero__nom-mobile">Hôtel Chicago</h1>
+              <h1 className="hero__nom-mobile">{utilisateur.hotelNom}</h1>
               <span className="hero__slogan-mobile" data-testid="hero-slogan-mobile">
                 Confort · Élégance · Service
               </span>

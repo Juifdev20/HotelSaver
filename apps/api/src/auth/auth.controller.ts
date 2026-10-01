@@ -1,7 +1,9 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
+import { Controller, Get, Inject, UseGuards } from "@nestjs/common";
+import { PrismaClient } from "@hotel-chicago/database";
 import { UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
+import { PRISMA } from "../prisma/prisma.module";
 
 /**
  * Toute app cliente (Electron, mobile, futur tableau de bord) s'authentifie
@@ -15,8 +17,23 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 @Controller("auth")
 @UseGuards(SupabaseAuthGuard)
 export class AuthController {
+  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+
+  /**
+   * Identité + hôtel de l'utilisateur : les apps affichent le nom (et le slogan défini par
+   * le patron) de SON hôtel — jamais un nom codé en dur — pour chaque rôle (patron,
+   * réception, cafétaria).
+   */
   @Get("me")
-  moi(@CurrentUser() currentUser: UtilisateurAuthentifie) {
-    return currentUser;
+  async moi(@CurrentUser() currentUser: UtilisateurAuthentifie) {
+    const hotel = await this.prisma.hotel.findUnique({
+      where: { id: currentUser.hotelId },
+      select: { nom: true, site: { select: { slogan: true } } },
+    });
+    return {
+      ...currentUser,
+      hotelNom: hotel?.nom ?? "",
+      hotelSlogan: hotel?.site?.slogan?.trim() || null,
+    };
   }
 }

@@ -25,6 +25,13 @@ export interface UtilisateurAuthentifie {
   hotelId: string;
 }
 
+/** Réponse de GET /auth/me : l'utilisateur + l'hôtel auquel il appartient (affichés dans les
+ * apps : jamais un nom d'hôtel codé en dur). `hotelSlogan` = celui défini par le patron. */
+export interface ProfilConnecte extends UtilisateurAuthentifie {
+  hotelNom: string;
+  hotelSlogan: string | null;
+}
+
 /** Super-admin authentifié attaché à la requête par SuperAdminAuthGuard
  * (apps/api) — indépendant de tout hôtel, voir SuperAdmin dans le schéma
  * Prisma et DECISIONS.md (Phase 3). */

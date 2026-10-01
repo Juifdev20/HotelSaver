@@ -8,7 +8,7 @@ import {
   Produit,
   RecetteDuJour,
   Role,
-  UtilisateurAuthentifie,
+  ProfilConnecte,
   VentesRecentes,
 } from "@hotel-chicago/types";
 import { Banknote, BedDouble, Calendar, Clock, Coffee, CreditCard, Package, ReceiptText, Wallet } from "lucide-react-native";
@@ -20,7 +20,7 @@ import { useDonnee } from "../hooks/useDonnee";
 
 export interface EcranTableauDeBordProps {
   client: ClientApi;
-  utilisateur: UtilisateurAuthentifie;
+  utilisateur: ProfilConnecte;
   onAllerAuxChambres: () => void;
 }
 
@@ -108,7 +108,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
           />
         }
       >
-        <ImageBackgroundHero />
+        <ImageBackgroundHero utilisateur={utilisateur} />
 
         {recette.erreur && <Text style={styles.erreur}>{recette.erreur}</Text>}
         <View style={styles.grilleKpi}>
@@ -232,7 +232,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
 
 /** Photo temporaire (voir DECISIONS.md, même fichier que le desktop) en
  * attendant une vraie photo de l'hôtel fournie par le client. */
-function ImageBackgroundHero() {
+function ImageBackgroundHero({ utilisateur }: { utilisateur: ProfilConnecte }) {
   const maintenant = useHorlogeVivante();
   return (
     <View style={styles.hero}>
@@ -261,8 +261,12 @@ function ImageBackgroundHero() {
       <View style={styles.heroTexteZone}>
         <View style={styles.heroContenu}>
           <Text style={styles.heroSalutation}>Bienvenue 👋</Text>
-          <Text style={styles.heroTitre}>Hôtel Chicago</Text>
-          <Text style={styles.heroSousTitre}>Gestion simple. Séjour exceptionnel.</Text>
+          <Text style={styles.heroTitre} numberOfLines={1} adjustsFontSizeToFit>
+            {utilisateur.hotelNom}
+          </Text>
+          <Text style={styles.heroSousTitre} numberOfLines={1}>
+            {utilisateur.hotelSlogan ?? "Gestion simple. Séjour exceptionnel."}
+          </Text>
         </View>
         <View style={styles.heroHorloge}>
           <View style={styles.heroHorlogeLigne}>

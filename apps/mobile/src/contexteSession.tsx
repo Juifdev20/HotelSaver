@@ -2,14 +2,14 @@ import * as React from "react";
 import { createContext, useContext } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import type { MoteurSync } from "@hotel-chicago/sync-engine";
-import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
+import type { ProfilConnecte } from "@hotel-chicago/types";
 
 /** Évite de faire passer `client`/`utilisateur` en props à travers chaque
  * écran de la navigation par onglets — react-navigation ne les transmet
  * pas nativement à ses écrans. */
 export interface Session {
   client: ClientApi;
-  utilisateur: UtilisateurAuthentifie;
+  utilisateur: ProfilConnecte;
   /** Retour à l'écran de sélection de profil (garde le profil enregistré,
    * jeton compris, pour un retour rapide) — PATRON uniquement côté UI. */
   changerDeProfil: () => void;
