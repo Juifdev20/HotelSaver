@@ -175,12 +175,8 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
     }
   }
 
-  // Personne visée par « Ajouter une consommation » : celle touchée dans la liste, sinon la première.
-  const personneActive =
-    compte?.sousComptes.find((sc) => sc.id === sousCompteChoisi)?.id ?? compte?.sousComptes[0]?.id ?? null;
-
   function ouvrirModaleLigne() {
-    setSousCompteChoisi(personneActive);
+    setSousCompteChoisi(compte?.sousComptes[0]?.id ?? null);
     setProduitChoisi(null);
     setQuantiteLigne("1");
     setErreurAction(null);
@@ -292,18 +288,9 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
               const totalPersonne = totalSousCompte(sousCompte);
               const enAttenteSync = idsSousCompteEnAttente.has(sousCompte.id);
               return (
-                <Pressable
-                  key={sousCompte.id}
-                  style={[styles.carteSousCompte, compte.sousComptes.length > 1 && personneActive === sousCompte.id && styles.carteSousCompteActive]}
-                  onPress={() => setSousCompteChoisi(sousCompte.id)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: personneActive === sousCompte.id }}
-                >
+                <View key={sousCompte.id} style={styles.carteSousCompte}>
                   <View style={styles.enteteSousCompte}>
                     <Text style={styles.nomSousCompte}>{sousCompte.nom}</Text>
-                    {compte.sousComptes.length > 1 && personneActive === sousCompte.id && (
-                      <Text style={styles.badgeSelection}>Sélectionnée</Text>
-                    )}
                     {enAttenteSync && <Text style={styles.badgeEnAttente}>Synchronisation…</Text>}
                   </View>
                   {sousCompte.lignes.length === 0 ? (
@@ -326,7 +313,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
                       {totalPersonne.cdf > 0 && <Text style={styles.totalSousCompteTexte}>{formatMontant(totalPersonne.cdf, Devise.CDF)}</Text>}
                     </View>
                   )}
-                </Pressable>
+                </View>
               );
             })}
 
@@ -360,7 +347,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
             <View style={styles.barreActions}>
               <Pressable style={styles.boutonAjouterLigne} onPress={ouvrirModaleLigne}>
                 <Plus size={18} color={couleurs.bleu} />
-                <Text style={styles.boutonAjouterLigneTexte} numberOfLines={1}>Ajouter une consommation</Text>
+                <Text style={styles.boutonAjouterLigneTexte}>Ajouter une ligne</Text>
               </Pressable>
               <Pressable
                 style={[
@@ -396,7 +383,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
       </FeuilleModale>
 
       {/* Ajouter une ligne */}
-      <FeuilleModale visible={modaleLigne} onFermer={() => setModaleLigne(false)} titre="Ajouter une consommation">
+      <FeuilleModale visible={modaleLigne} onFermer={() => setModaleLigne(false)} titre="Ajouter une ligne">
         {compte && compte.sousComptes.length > 1 && (
           <>
             <Text style={styles.label}>Personne</Text>
@@ -536,8 +523,6 @@ const styles = StyleSheet.create({
     padding: espacements.s4,
     gap: 6,
   },
-  carteSousCompteActive: { backgroundColor: couleurs.bleuClair, borderColor: couleurs.bleu, borderWidth: 2 },
-  badgeSelection: { fontSize: 11, fontWeight: "700", color: "#fff", backgroundColor: couleurs.bleu, borderRadius: rayons.pill, paddingHorizontal: 8, paddingVertical: 2, overflow: "hidden" },
   enteteSousCompte: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   nomSousCompte: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
   badgeEnAttente: { fontSize: 11, fontWeight: "600", color: couleurs.encreAttenuee, fontStyle: "italic" },
@@ -579,7 +564,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: couleurs.bleu,
   },
-  boutonAjouterLigneTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 12.5, flexShrink: 1 },
+  boutonAjouterLigneTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 14 },
   boutonEncaisser: { flex: 1, height: 48, borderRadius: rayons.sm, backgroundColor: couleurs.succes, alignItems: "center", justifyContent: "center" },
   boutonDesactive: { opacity: 0.5 },
   boutonEncaisserTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },

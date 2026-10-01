@@ -263,7 +263,7 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
           </div>
 
           <div className="carte-formulaire formulaire">
-            <p className="hc-text-label texte-discret">Ajouter une consommation</p>
+            <p className="hc-text-label texte-discret">Ajouter une ligne</p>
             <div className="puces" role="group" aria-label="Personne">
               {compte.sousComptes.map((sc) => (
                 <button
