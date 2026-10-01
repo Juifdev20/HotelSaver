@@ -483,6 +483,95 @@
   border-bottom: 1px solid var(--hc-border);
 }
 
+/* ---------- Barre latérale réduite (icônes seules) ---------- */
+/* La colonne principale est en `flex: 1` : en réduisant la barre, l'écran s'élargit tout seul. */
+
+.coquille {
+  --coquille-largeur-reduite: 76px;
+}
+
+.coquille--reduite {
+  --coquille-largeur-laterale: var(--coquille-largeur-reduite);
+}
+
+.coquille__laterale {
+  /* Au-dessus de la barre du haut (z-index 10) : le bouton de réduction déborde de 14 px. */
+  z-index: 15;
+  transition: flex-basis 0.2s ease;
+}
+
+.coquille__bascule {
+  position: absolute;
+  top: 26px;
+  right: -14px;
+  z-index: 20;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--sb-bordure);
+  border-radius: 50%;
+  background-color: var(--hc-surface-200);
+  color: var(--hc-ink-muted);
+  box-shadow: 0 2px 8px rgba(15, 39, 66, 0.15);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.coquille__bascule:hover {
+  background-color: var(--hc-blue);
+  border-color: var(--hc-blue);
+  color: #ffffff;
+}
+
+.coquille__bascule:focus-visible {
+  outline: 2px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+
+.coquille--reduite .coquille__marque {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.coquille--reduite .coquille__marque-textes,
+.coquille--reduite .lien-nav__libelle,
+.coquille--reduite .lien-nav__bientot {
+  display: none;
+}
+
+/* Les titres de section laissent place à un simple filet. */
+.coquille--reduite .nav-section__titre {
+  height: 1px;
+  margin: var(--hc-space-2) var(--hc-space-3);
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
+  background-color: var(--sb-bordure);
+}
+
+.coquille--reduite .coquille__nav {
+  padding-left: var(--hc-space-2);
+  padding-right: var(--hc-space-2);
+}
+
+.coquille--reduite .lien-nav--laterale {
+  justify-content: center;
+  padding: 0;
+}
+
+.coquille--reduite .coquille__pied-laterale {
+  padding-left: var(--hc-space-2);
+  padding-right: var(--hc-space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coquille__laterale {
+    transition: none;
+  }
+}
 @media (max-width: 900px) {
   .coquille__laterale,
   .coquille__masque-etroit {

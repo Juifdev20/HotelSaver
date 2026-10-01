@@ -7,6 +7,8 @@ import {
   BedDouble,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   LayoutDashboard,
   LogOut,
@@ -31,6 +33,17 @@ import { EntreeNavigation, IdPage, entreesBarreDuBas, sectionsPourRole } from ".
 // de chaque hôtel — voir DECISIONS.md « branding application vs hôtel »).
 import logoHotelSaver from "../../../../../../assets/icons/hotelsaver-icone.png";
 import "./coquille.css";
+
+const CLE_BARRE_REDUITE = "hotel-chicago:barre-laterale-reduite";
+
+/** Barre latérale réduite (icônes seules) : préférence mémorisée entre deux lancements. */
+function barreReduitePreferee(): boolean {
+  try {
+    return localStorage.getItem(CLE_BARRE_REDUITE) === "true";
+  } catch {
+    return false;
+  }
+}
 
 const ICONES: Record<IdPage, LucideIcon> = {
   "tableau-de-bord": LayoutDashboard,
@@ -116,6 +129,9 @@ function LienNavigation({
       className={`lien-nav lien-nav--${variante}${actif ? " lien-nav--actif" : ""}`}
       onClick={() => onNaviguer(entree.id)}
       aria-current={actif ? "page" : undefined}
+      // Barre réduite : le libellé est masqué, l'infobulle et le nom accessible le remplacent.
+      title={variante === "laterale" ? entree.libelle : undefined}
+      aria-label={variante === "laterale" ? entree.libelle : undefined}
     >
       <Icone size={variante === "bas" ? 22 : 19} strokeWidth={1.9} aria-hidden="true" />
       <span className="lien-nav__libelle">{variante === "bas" ? entree.libelleCourt : entree.libelle}</span>
@@ -138,6 +154,7 @@ export function Coquille({
   const [menuProfilOuvert, setMenuProfilOuvert] = useState(false);
   const [notificationsOuvertes, setNotificationsOuvertes] = useState(false);
   const [recherche, setRecherche] = useState("");
+  const [barreReduite, setBarreReduite] = useState(barreReduitePreferee);
   const sections = sectionsPourRole(utilisateur.role);
   const barreDuBas = entreesBarreDuBas(utilisateur.role);
 
@@ -154,6 +171,17 @@ export function Coquille({
     document.addEventListener("keydown", surEchap);
     return () => document.removeEventListener("keydown", surEchap);
   }, [menuMobileOuvert]);
+
+  const basculerBarre = () => {
+    setBarreReduite((valeur) => {
+      try {
+        localStorage.setItem(CLE_BARRE_REDUITE, String(!valeur));
+      } catch {
+        // Stockage indisponible : la préférence vaut pour la session en cours seulement.
+      }
+      return !valeur;
+    });
+  };
 
   const naviguer = (page: IdPage) => {
     setMenuMobileOuvert(false);
@@ -186,8 +214,18 @@ export function Coquille({
   );
 
   return (
-    <div className="coquille">
+    <div className={`coquille${barreReduite ? " coquille--reduite" : ""}`}>
       <aside className="coquille__laterale" aria-label="Navigation principale">
+        <button
+          type="button"
+          className="coquille__bascule"
+          onClick={basculerBarre}
+          aria-label={barreReduite ? "Agrandir la barre latérale" : "Réduire la barre latérale"}
+          aria-expanded={!barreReduite}
+          title={barreReduite ? "Agrandir la barre latérale" : "Réduire la barre latérale"}
+        >
+          {barreReduite ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronLeft size={16} aria-hidden="true" />}
+        </button>
         <div className="coquille__marque">
           <img className="coquille__logo coquille__logo-img" src={logoHotelSaver} alt="" />
           <span className="coquille__marque-textes">

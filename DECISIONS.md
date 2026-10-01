@@ -2754,3 +2754,12 @@ Retour du patron sur le tableau de bord desktop :
 la page ; thème sombre → `rgb(15,39,66)` ; la page reçoit `data-defile` pendant un défilement et le
 perd ensuite ; 232 tests API (3 nouveaux pour `/auth/me`), 43 tests api-client, `tsc` desktop/mobile/api.
 **Non testé** : le rendu du bandeau sur téléphone (pas de build mobile).
+### Barre latérale réductible (desktop, 01/10/2026)
+
+Un bouton rond sur le bord de la barre latérale la réduit en **colonne d'icônes** (264 px → 76 px) ; la
+colonne principale étant en `flex: 1`, l'écran principal **s'élargit tout seul** (+188 px mesurés). Réduite :
+logo seul, libellés et pastilles « Bientôt » masqués, titres de section remplacés par un filet, infobulle
+et `aria-label` sur chaque lien pour garder un nom accessible. Le choix est mémorisé
+(`localStorage`, clé `hotel-chicago:barre-laterale-reduite`) entre deux lancements. En fenêtre étroite
+(< 900 px) la barre reste masquée comme avant (tiroir mobile), le bouton n'y apparaît pas. Vérifié dans un
+Electron réel : réduire, naviguer barre réduite, relancer (préférence conservée), ré-étendre.
