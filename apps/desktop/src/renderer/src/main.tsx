@@ -14,12 +14,15 @@ import "./styles.css";
 import { installerFilSecoursNavigateur } from "./navigateur-secours";
 import { installerBarresDefilementDiscretes } from "./barres-defilement";
 import { App } from "./App";
+import { FrontiereErreur } from "./components/FrontiereErreur";
 
 installerFilSecoursNavigateur();
 installerBarresDefilementDiscretes();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <FrontiereErreur>
+      <App />
+    </FrontiereErreur>
   </React.StrictMode>
 );

@@ -16,5 +16,8 @@ export default defineConfig({
       },
     },
     plugins: [react()],
+    // Serveur de développement local uniquement : les paquets (ex. la police Inter) vivent dans le
+    // magasin pnpm, hors du dossier de l'app, et Vite répondait 403. Sans effet sur le build.
+    server: { fs: { strict: false } },
   },
 });

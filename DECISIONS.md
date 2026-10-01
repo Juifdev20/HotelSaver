@@ -2782,3 +2782,14 @@ ne compilait plus depuis la phase 16 (`Client.updatedAt/syncVersion`) : corrigé
 **Vérifié** : reçu construit avec le vrai profil de l'hôtel de test puis encodé en ESC/POS — le texte envoyé
 à l'imprimante contient « Hôtel Test - Cafétaria », son adresse et son téléphone, ni « Chicago » ni « ? ».
 **Non testé** : une impression physique sur imprimante thermique.
+### Écran blanc du desktop : filet de sécurité (01/10/2026)
+
+Retour du patron : fenêtre desktop entièrement **blanche**. Le serveur de développement et l'API
+répondaient, et une fenêtre neuve branchée sur le même serveur s'affichait normalement : la cause exacte
+de cette fenêtre-là n'a pas pu être isolée (probablement une exception d'affichage après une série de
+rechargements à chaud pendant que je reconstruisais les paquets partagés). Constat de fond : **sans
+frontière d'erreur, toute exception pendant l'affichage démonte l'arbre React et laisse une page blanche
+sans explication.** `FrontiereErreur` (autour de `<App />`, `components/FrontiereErreur.tsx`) affiche
+maintenant « Un problème est survenu », le message d'erreur et un bouton « Recharger l'application ».
+En passant : la police Inter, installée dans le magasin pnpm hors du dossier de l'app, recevait un 403 du
+serveur de dev (`server.fs.strict: false`, développement uniquement, sans effet sur le build).
