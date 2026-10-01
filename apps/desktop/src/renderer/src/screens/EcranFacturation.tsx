@@ -1,15 +1,15 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Devise, Facture, ModePaiement, Reservation, Role, UtilisateurAuthentifie, VenteCafeteria } from "@hotel-chicago/types";
+import { Devise, Facture, ModePaiement, Reservation, Role, ProfilConnecte, VenteCafeteria } from "@hotel-chicago/types";
 import type { TauxChange } from "@hotel-chicago/api-client";
-import { construireRecuFacture } from "@hotel-chicago/receipts";
+import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { CalendarCheck } from "lucide-react";
 
 export interface EcranFacturationProps {
   client: ClientApi;
-  utilisateur: UtilisateurAuthentifie;
+  utilisateur: ProfilConnecte;
   /** Connexion imprimante configurée (Paramètres > Imprimante) — null tant
    * qu'aucune n'est réglée, le bouton d'impression le signale alors. */
   interfaceImprimante: string | null;
@@ -57,7 +57,7 @@ function DetailFacturation({
   onRetour,
 }: {
   client: ClientApi;
-  utilisateur: UtilisateurAuthentifie;
+  utilisateur: ProfilConnecte;
   interfaceImprimante: string | null;
   reservationId: string;
   onRetour: () => void;
@@ -169,7 +169,7 @@ function DetailFacturation({
     try {
       await window.hotelChicago.imprimer(
         interfaceImprimante,
-        construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees)
+        construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur))
       );
       setMessageImpression("Reçu envoyé à l'imprimante.");
     } catch (e) {
@@ -407,7 +407,7 @@ function JournalRecus({
   interfaceImprimante,
 }: {
   client: ClientApi;
-  utilisateur: UtilisateurAuthentifie;
+  utilisateur: ProfilConnecte;
   interfaceImprimante: string | null;
 }) {
   const [factures, setFactures] = useState<Facture[] | null>(null);
@@ -444,7 +444,7 @@ function JournalRecus({
       ]);
       await window.hotelChicago.imprimer(
         interfaceImprimante,
-        construireRecuFacture(facture, reservation, utilisateur.nom, ventes)
+        construireRecuFacture(facture, reservation, utilisateur.nom, ventes, enteteHotel(utilisateur))
       );
       setMessage(`Reçu ${facture.numeroRecu} envoyé à l'imprimante.`);
     } catch (e) {

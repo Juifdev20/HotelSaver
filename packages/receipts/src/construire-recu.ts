@@ -1,4 +1,4 @@
-import { CompteCafeteria, Devise, Facture, ModePaiement, Reservation, VenteCafeteria } from "@hotel-chicago/types";
+import { CompteCafeteria, Devise, Facture, ModePaiement, ProfilConnecte, Reservation, VenteCafeteria } from "@hotel-chicago/types";
 import { formatMontant } from "./format-montant";
 import { LigneRecu } from "./types";
 
@@ -21,14 +21,28 @@ function nombreDeNuits(dateArrivee: string, dateDepart: string): number {
   return Math.max(1, Math.round((new Date(dateDepart).getTime() - new Date(dateArrivee).getTime()) / millisecondesParJour));
 }
 
-/** En-tête commun aux deux types de reçu (section 11.2/11.3). */
-function enTete(sousTitre?: string): LigneRecu[] {
-  return [
-    { type: "titre", texte: sousTitre ? `HOTEL CHICAGO — ${sousTitre}` : "HOTEL CHICAGO" },
-    { type: "soustitre", texte: "Quartier Congo ya Sika" },
-    { type: "soustitre", texte: "Kasindi, Nord-Kivu, RDC" },
-    { type: "separateur" },
-  ];
+/** Identité de l'hôtel imprimée en tête de chaque reçu (section 11.2/11.3). */
+export interface EnteteHotel {
+  nom: string;
+  adresse?: string | null;
+  telephone?: string | null;
+}
+
+/** L'en-tête du reçu d'après le profil connecté (`GET /auth/me`) : toujours l'hôtel de
+ * l'utilisateur, jamais un nom codé en dur. */
+export function enteteHotel(profil: Pick<ProfilConnecte, "hotelNom" | "hotelAdresse" | "hotelTelephone">): EnteteHotel {
+  return { nom: profil.hotelNom, adresse: profil.hotelAdresse, telephone: profil.hotelTelephone };
+}
+
+/** En-tête commun aux deux types de reçu (section 11.2/11.3). Le tiret est un « - » ASCII :
+ * le « — » n'existe pas dans la table CP850 de l'imprimante et s'imprimait « ? ». */
+function enTete(hotel: EnteteHotel, sousTitre?: string): LigneRecu[] {
+  const nom = hotel.nom.trim() || "HOTEL";
+  const lignes: LigneRecu[] = [{ type: "titre", texte: sousTitre ? `${nom} - ${sousTitre}` : nom }];
+  if (hotel.adresse?.trim()) lignes.push({ type: "soustitre", texte: hotel.adresse.trim() });
+  if (hotel.telephone?.trim()) lignes.push({ type: "soustitre", texte: `Tél. ${hotel.telephone.trim()}` });
+  lignes.push({ type: "separateur" });
+  return lignes;
 }
 
 function piedDePage(): LigneRecu[] {
@@ -88,11 +102,12 @@ export function construireRecuFacture(
   facture: Facture,
   reservation: Reservation,
   nomReceptionniste: string,
-  ventesCafeteriaLiees: VenteCafeteria[]
+  ventesCafeteriaLiees: VenteCafeteria[],
+  hotel: EnteteHotel
 ): LigneRecu[] {
   const maintenant = new Date().toISOString();
   const lignes: LigneRecu[] = [
-    ...enTete(),
+    ...enTete(hotel),
     { type: "champ", label: "Reçu n°", valeur: facture.numeroRecu },
     { type: "champ", label: "Date", valeur: `${formaterDate(maintenant)} ${formaterHeure(maintenant)}` },
     { type: "champ", label: "Reçu par", valeur: nomReceptionniste },
@@ -139,9 +154,14 @@ export function construireRecuFacture(
  * celles du compte, correct uniquement pour un encaissement en mode
  * GROUPE (seul mode construit côté Caisse mobile à ce jour ; voir le plan).
  */
-export function construireRecuVente(vente: VenteCafeteria, compte: CompteCafeteria, nomServeur: string): LigneRecu[] {
+export function construireRecuVente(
+  vente: VenteCafeteria,
+  compte: CompteCafeteria,
+  nomServeur: string,
+  hotel: EnteteHotel
+): LigneRecu[] {
   const lignes: LigneRecu[] = [
-    ...enTete("Cafétaria"),
+    ...enTete(hotel, "Cafétaria"),
     { type: "champ", label: "Reçu n°", valeur: vente.numeroRecu },
     { type: "champ", label: "Date", valeur: `${formaterDate(vente.createdAt)} ${formaterHeure(vente.createdAt)}` },
     { type: "champ", label: "Servi par", valeur: nomServeur },

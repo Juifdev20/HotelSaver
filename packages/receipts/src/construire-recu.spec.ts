@@ -1,6 +1,8 @@
 import { Devise, ModePaiement, StatutChambre } from "@hotel-chicago/types";
 import type { Chambre, Client, Facture, Reservation, VenteCafeteria } from "@hotel-chicago/types";
-import { construireRecuFacture } from "./construire-recu";
+import { construireRecuFacture, construireRecuVente, enteteHotel } from "./construire-recu";
+
+const HOTEL = { nom: "Hôtel Test", adresse: "Avenue du Lac 12, Goma", telephone: "+243 970 000 000" };
 
 function creerChambre(surcharge: Partial<Chambre> = {}): Chambre {
   return {
@@ -18,7 +20,7 @@ function creerChambre(surcharge: Partial<Chambre> = {}): Chambre {
 }
 
 function creerClient(surcharge: Partial<Client> = {}): Client {
-  return { id: "cl1", nom: "Jean Dupont", telephone: null, email: null, ...surcharge };
+  return { id: "cl1", nom: "Jean Dupont", telephone: null, email: null, updatedAt: new Date().toISOString(), syncVersion: 1, ...surcharge };
 }
 
 function creerReservation(surcharge: Partial<Reservation> = {}): Reservation {
@@ -66,26 +68,27 @@ function creerFacture(surcharge: Partial<Facture> = {}): Facture {
 
 describe("construireRecuFacture", () => {
   it("n'imprime jamais une ligne de total à zéro", () => {
-    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", []);
+    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [], HOTEL);
     const totaux = lignes.filter((l) => l.type === "montant" && l.libelle.startsWith("TOTAL À PAYER"));
     expect(totaux).toEqual([{ type: "montant", libelle: "TOTAL À PAYER EN USD", valeur: "135.00 $" }]);
   });
 
   it("calcule le nombre de nuits à partir des dates d'arrivée/départ", () => {
-    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", []);
+    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [], HOTEL);
     const champ = lignes.find((l) => l.type === "champ" && l.label === "Nombre de nuits");
     expect(champ).toEqual({ type: "champ", label: "Nombre de nuits", valeur: "3" });
   });
 
   it("ajoute une ligne de paiement croisé seulement si présent", () => {
-    const sansCroise = construireRecuFacture(creerFacture(), creerReservation(), "Alice", []);
+    const sansCroise = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [], HOTEL);
     expect(sansCroise.some((l) => l.type === "montant" && l.libelle.startsWith("Réglé en"))).toBe(false);
 
     const avecCroise = construireRecuFacture(
       creerFacture({ deviseRegleeParClient: Devise.CDF, montantRegleParClient: "270000" }),
       creerReservation(),
       "Alice",
-      []
+      [],
+      HOTEL
     );
     expect(avecCroise).toContainEqual({ type: "montant", libelle: "Réglé en CDF", valeur: "270 000 FC" });
   });
@@ -109,7 +112,36 @@ describe("construireRecuFacture", () => {
       motifAnnulation: null,
       createdAt: new Date().toISOString(),
     };
-    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [vente]);
+    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [vente], HOTEL);
     expect(lignes).toContainEqual({ type: "montant", libelle: "Reçu CAF-20260925-0002", valeur: "5.00 $" });
+  });
+});
+
+describe("en-tête du reçu : l'hôtel de l'utilisateur, jamais un nom en dur", () => {
+  const texteTitre = (lignes: ReturnType<typeof construireRecuFacture>) => lignes.find((l) => l.type === "titre");
+
+  it("reçu de facturation : nom, adresse et téléphone de l'hôtel fournis", () => {
+    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [], HOTEL);
+    expect(texteTitre(lignes)).toEqual({ type: "titre", texte: "Hôtel Test" });
+    expect(lignes).toContainEqual({ type: "soustitre", texte: "Avenue du Lac 12, Goma" });
+    expect(lignes).toContainEqual({ type: "soustitre", texte: "Tél. +243 970 000 000" });
+    expect(JSON.stringify(lignes)).not.toMatch(/CHICAGO|Kasindi|Congo ya Sika/i);
+  });
+
+  it("reçu cafétaria : le nom de l'hôtel puis « - Cafétaria » en ASCII (le « — » s'imprimait « ? »)", () => {
+    const vente = { numeroRecu: "V-1", createdAt: "2026-09-20T14:00:00.000Z", montantTotalUSD: "5", montantTotalCDF: "0", modePaiement: ModePaiement.CASH, deviseRegleeParClient: null, montantRegleParClient: null, deviseMonnaieRendue: null, montantMonnaieRendue: null } as unknown as VenteCafeteria;
+    const compte = { tableOuNom: "Table 4", sousComptes: [] } as any;
+    const lignes = construireRecuVente(vente, compte, "Bob", HOTEL);
+    expect(texteTitre(lignes)).toEqual({ type: "titre", texte: "Hôtel Test - Cafétaria" });
+    expect(JSON.stringify(lignes)).not.toContain("—");
+  });
+
+  it("n'imprime pas de ligne vide quand l'adresse ou le téléphone manquent", () => {
+    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [], { nom: "Hôtel Test", adresse: null, telephone: "  " });
+    expect(lignes.filter((l) => l.type === "soustitre").map((l) => (l as { texte: string }).texte)).toEqual(["Merci de votre visite !"]);
+  });
+
+  it("enteteHotel() reprend les coordonnées du profil connecté", () => {
+    expect(enteteHotel({ hotelNom: "Hôtel Test", hotelAdresse: "Goma", hotelTelephone: null })).toEqual({ nom: "Hôtel Test", adresse: "Goma", telephone: null });
   });
 });

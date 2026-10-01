@@ -1,13 +1,13 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { CompteCafeteria, Devise, ModePaiement, Produit, StatutCompte, UtilisateurAuthentifie, VenteCafeteria } from "@hotel-chicago/types";
-import { construireRecuVente } from "@hotel-chicago/receipts";
+import { CompteCafeteria, Devise, ModePaiement, Produit, StatutCompte, ProfilConnecte, VenteCafeteria } from "@hotel-chicago/types";
+import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 
 export interface EcranCompteCafeteriaProps {
   client: ClientApi;
-  utilisateur: UtilisateurAuthentifie;
+  utilisateur: ProfilConnecte;
   compteId: string;
   interfaceImprimante: string | null;
   onRetour: () => void;
@@ -133,7 +133,7 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
     setEnImpression(true);
     setMessageImpression(null);
     try {
-      await window.hotelChicago.imprimer(interfaceImprimante, construireRecuVente(venteEncaissee, compte, utilisateur.nom));
+      await window.hotelChicago.imprimer(interfaceImprimante, construireRecuVente(venteEncaissee, compte, utilisateur.nom, enteteHotel(utilisateur)));
       setMessageImpression("Reçu envoyé à l'imprimante.");
     } catch (e) {
       setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");

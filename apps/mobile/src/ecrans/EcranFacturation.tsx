@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { Devise, Facture, ModePaiement, Reservation, VenteCafeteria } from "@hotel-chicago/types";
 import type { TauxChange } from "@hotel-chicago/api-client";
-import { construireRecuFacture } from "@hotel-chicago/receipts";
+import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -155,7 +155,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
     setEnImpression(true);
     setMessageImpression(null);
     try {
-      await imprimerLignes(construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees));
+      await imprimerLignes(construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur)));
       setMessageImpression("Reçu envoyé à l'imprimante.");
     } catch (e) {
       setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");

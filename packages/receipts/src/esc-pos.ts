@@ -48,7 +48,9 @@ function encoderTexte(texte: string): number[] {
     } else if (caractere.charCodeAt(0) < 128) {
       octets.push(caractere.charCodeAt(0));
     } else {
-      const remplacement = SANS_ACCENT[caractere] ?? "?";
+      // Caractère non listé (ex. « ñ », « å » dans un nom d'hôtel) : sa lettre de base, sinon « ? ».
+      const base = caractere.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const remplacement = SANS_ACCENT[caractere] ?? (/^[\x20-\x7e]+$/.test(base) ? base : "?");
       for (const c of remplacement) octets.push(c.charCodeAt(0));
     }
   }

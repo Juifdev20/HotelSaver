@@ -2,7 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { Devise, Facture, Role, VenteCafeteria } from "@hotel-chicago/types";
-import { construireRecuFacture, construireRecuVente } from "@hotel-chicago/receipts";
+import { construireRecuFacture, construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { ReceiptText } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -126,7 +126,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
         client.obtenirReservation(facture.reservationId),
         client.listerVentesCafeteria(facture.reservationId),
       ]);
-      await imprimerLignes(construireRecuFacture(facture, reservation, utilisateur.nom, ventesLiees));
+      await imprimerLignes(construireRecuFacture(facture, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur)));
       setMessage(`Reçu ${facture.numeroRecu} envoyé à l'imprimante.`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Échec de l'impression.");
@@ -140,7 +140,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
     setMessage(null);
     try {
       const compte = await client.obtenirCompteCafeteria(vente.compteId);
-      await imprimerLignes(construireRecuVente(vente, compte, utilisateur.nom));
+      await imprimerLignes(construireRecuVente(vente, compte, utilisateur.nom, enteteHotel(utilisateur)));
       setMessage(`Reçu ${vente.numeroRecu} envoyé à l'imprimante.`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Échec de l'impression.");

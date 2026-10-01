@@ -28,12 +28,14 @@ export class AuthController {
   async moi(@CurrentUser() currentUser: UtilisateurAuthentifie) {
     const hotel = await this.prisma.hotel.findUnique({
       where: { id: currentUser.hotelId },
-      select: { nom: true, site: { select: { slogan: true } } },
+      select: { nom: true, adresse: true, telephoneContact: true, site: { select: { slogan: true } } },
     });
     return {
       ...currentUser,
       hotelNom: hotel?.nom ?? "",
       hotelSlogan: hotel?.site?.slogan?.trim() || null,
+      hotelAdresse: hotel?.adresse?.trim() || null,
+      hotelTelephone: hotel?.telephoneContact?.trim() || null,
     };
   }
 }

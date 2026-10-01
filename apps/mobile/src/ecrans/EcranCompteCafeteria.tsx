@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Devise, ModePaiement, Produit, StatutCompte, VenteCafeteria } from "@hotel-chicago/types";
-import { construireRecuVente } from "@hotel-chicago/receipts";
+import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Plus, UserPlus } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -250,7 +250,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
     setEnImpression(true);
     setMessageImpression(null);
     try {
-      await imprimerLignes(construireRecuVente(venteEncaissee, compte, utilisateur.nom));
+      await imprimerLignes(construireRecuVente(venteEncaissee, compte, utilisateur.nom, enteteHotel(utilisateur)));
       setMessageImpression("Reçu envoyé à l'imprimante.");
     } catch (e) {
       setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");

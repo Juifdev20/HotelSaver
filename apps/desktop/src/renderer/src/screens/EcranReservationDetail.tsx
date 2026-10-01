@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import type { Reservation, UtilisateurAuthentifie } from "@hotel-chicago/types";
-import { construireRecuFacture } from "@hotel-chicago/receipts";
+import type { Reservation, ProfilConnecte } from "@hotel-chicago/types";
+import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
 import { StatusBadge } from "@hotel-chicago/ui";
@@ -13,7 +13,7 @@ export interface EcranReservationDetailProps {
   onRetour: () => void;
   onFacturer: (reservationId: string) => void;
   /** Pour la réimpression du reçu (séjour terminé). */
-  utilisateur?: UtilisateurAuthentifie;
+  utilisateur?: ProfilConnecte;
   interfaceImprimante?: string | null;
 }
 
@@ -126,7 +126,7 @@ export function EcranReservationDetail({
       if (!reservation || !utilisateur) return;
       await window.hotelChicago.imprimer(
         interfaceImprimante,
-        construireRecuFacture(facture, reservation, utilisateur.nom, ventes)
+        construireRecuFacture(facture, reservation, utilisateur.nom, ventes, enteteHotel(utilisateur))
       );
     }, "Reçu envoyé à l'imprimante.");
   }

@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { Devise, ModePaiement, StatutChambre } from "@hotel-chicago/types";
 import type { StatutReservation } from "@hotel-chicago/types";
-import { construireRecuFacture } from "@hotel-chicago/receipts";
+import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -209,7 +209,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
         client.obtenirReservation(idServeur),
         client.listerVentesCafeteria(idServeur),
       ]);
-      await imprimerLignes(construireRecuFacture(facture, reservationComplete, utilisateur.nom, ventes));
+      await imprimerLignes(construireRecuFacture(facture, reservationComplete, utilisateur.nom, ventes, enteteHotel(utilisateur)));
       setMessageImpression("Reçu envoyé à l'imprimante.");
     } catch (e) {
       setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");

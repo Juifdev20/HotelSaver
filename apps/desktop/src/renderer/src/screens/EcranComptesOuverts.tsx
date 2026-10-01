@@ -1,14 +1,14 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { CompteCafeteria, Devise, Role, StatutCompte, UtilisateurAuthentifie, VenteCafeteria } from "@hotel-chicago/types";
-import { construireRecuVente } from "@hotel-chicago/receipts";
+import { CompteCafeteria, Devise, Role, StatutCompte, ProfilConnecte, VenteCafeteria } from "@hotel-chicago/types";
+import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant, StatusBadge } from "@hotel-chicago/ui";
 import { ClipboardList } from "lucide-react";
 
 export interface EcranComptesOuvertsProps {
   client: ClientApi;
-  utilisateur: UtilisateurAuthentifie;
+  utilisateur: ProfilConnecte;
   interfaceImprimante: string | null;
   onOuvrirCompte: (compteId: string) => void;
 }
@@ -37,7 +37,7 @@ function JournalVentes({
   interfaceImprimante,
 }: {
   client: ClientApi;
-  utilisateur: UtilisateurAuthentifie;
+  utilisateur: ProfilConnecte;
   interfaceImprimante: string | null;
 }) {
   const [ventes, setVentes] = useState<VenteCafeteria[] | null>(null);
@@ -69,7 +69,7 @@ function JournalVentes({
     setErreur(null);
     try {
       const compte = await client.obtenirCompteCafeteria(vente.compteId);
-      await window.hotelChicago.imprimer(interfaceImprimante, construireRecuVente(vente, compte, utilisateur.nom));
+      await window.hotelChicago.imprimer(interfaceImprimante, construireRecuVente(vente, compte, utilisateur.nom, enteteHotel(utilisateur)));
       setMessage(`Reçu ${vente.numeroRecu} envoyé à l'imprimante.`);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'impression.");

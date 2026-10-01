@@ -30,6 +30,9 @@ export interface UtilisateurAuthentifie {
 export interface ProfilConnecte extends UtilisateurAuthentifie {
   hotelNom: string;
   hotelSlogan: string | null;
+  /** Adresse et téléphone de l'hôtel : imprimés dans l'en-tête des reçus. */
+  hotelAdresse: string | null;
+  hotelTelephone: string | null;
 }
 
 /** Super-admin authentifié attaché à la requête par SuperAdminAuthGuard

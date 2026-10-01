@@ -15,13 +15,24 @@ function creer(hotel: unknown) {
 
 describe("AuthController.moi", () => {
   it("renvoie l'utilisateur avec le nom et le slogan de SON hôtel", async () => {
-    const { controleur, prisma } = creer({ nom: "Hôtel Test", site: { slogan: "  Votre escale de détente  " } });
+    const { controleur, prisma } = creer({
+      nom: "Hôtel Test",
+      adresse: " Avenue du Lac 12, Goma ",
+      telephoneContact: "+243 970 000 000",
+      site: { slogan: "  Votre escale de détente  " },
+    });
     const profil = await controleur.moi(UTILISATEUR);
     expect(prisma.hotel.findUnique).toHaveBeenCalledWith({
       where: { id: "hotel-1" },
-      select: { nom: true, site: { select: { slogan: true } } },
+      select: { nom: true, adresse: true, telephoneContact: true, site: { select: { slogan: true } } },
     });
-    expect(profil).toEqual({ ...UTILISATEUR, hotelNom: "Hôtel Test", hotelSlogan: "Votre escale de détente" });
+    expect(profil).toEqual({
+      ...UTILISATEUR,
+      hotelNom: "Hôtel Test",
+      hotelSlogan: "Votre escale de détente",
+      hotelAdresse: "Avenue du Lac 12, Goma",
+      hotelTelephone: "+243 970 000 000",
+    });
   });
 
   it("slogan null quand le patron n'en a pas défini (ni site, ni slogan vide)", async () => {

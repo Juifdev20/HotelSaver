@@ -2763,3 +2763,22 @@ et `aria-label` sur chaque lien pour garder un nom accessible. Le choix est mém
 (`localStorage`, clé `hotel-chicago:barre-laterale-reduite`) entre deux lancements. En fenêtre étroite
 (< 900 px) la barre reste masquée comme avant (tiroir mobile), le bouton n'y apparaît pas. Vérifié dans un
 Electron réel : réduire, naviguer barre réduite, relancer (préférence conservée), ré-étendre.
+### Reçus : l'en-tête vient de l'hôtel connecté (01/10/2026)
+
+Les reçus imprimaient **« HOTEL CHICAGO », « Quartier Congo ya Sika » et « Kasindi, Nord-Kivu, RDC » en dur**,
+quel que soit l'hôtel — découvert en relisant le bandeau de bienvenue. `construireRecuFacture` et
+`construireRecuVente` reçoivent maintenant un dernier paramètre `EnteteHotel` (nom, adresse, téléphone),
+fabriqué par `enteteHotel(utilisateur)` d'après le profil `GET /auth/me`, qui renvoie en plus
+`hotelAdresse` et `hotelTelephone` (coordonnées saisies dans « Site de l'hôtel »). Adresse et téléphone
+absents ou vides → aucune ligne imprimée (pas de ligne vide). Les 9 appels desktop et mobile (facture,
+vente cafétaria, journal des reçus, réimpression) sont mis à jour ; les écrans desktop concernés passent à
+`ProfilConnecte`.
+
+En passant : le **tiret long « — »** du titre du reçu cafétaria n'existe pas dans la table CP850 de
+l'imprimante et s'imprimait « ? » (remplacé par « - ») ; et un caractère accentué non listé (« ñ », « å »…
+dans un nom d'hôtel) retombe sur sa lettre de base avant le « ? ». Le test du paquet `receipts`
+ne compilait plus depuis la phase 16 (`Client.updatedAt/syncVersion`) : corrigé, 12 tests passent.
+
+**Vérifié** : reçu construit avec le vrai profil de l'hôtel de test puis encodé en ESC/POS — le texte envoyé
+à l'imprimante contient « Hôtel Test - Cafétaria », son adresse et son téléphone, ni « Chicago » ni « ? ».
+**Non testé** : une impression physique sur imprimante thermique.
