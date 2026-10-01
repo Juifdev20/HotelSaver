@@ -18,7 +18,7 @@ describe("FacturesService", () => {
 
   beforeEach(() => {
     prisma = creerPrismaMock();
-    service = new FacturesService(prisma);
+    service = new FacturesService(prisma, { emettre: jest.fn() } as any);
     prisma.tauxChange.findFirst.mockResolvedValue(null);
     prisma.facture.findFirst.mockResolvedValue(null);
     prisma.venteCafeteria.findMany.mockResolvedValue([]);

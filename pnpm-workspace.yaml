@@ -8,12 +8,14 @@ packages:
 # cette version de pnpm, il doit vivre ici.
 virtualStoreDir: C:/.pnpm-hc
 allowBuilds:
+  '@firebase/util': false
   '@nestjs/core': true
   '@prisma/client': true
   '@prisma/engines': true
   electron: true
   esbuild: true
   prisma: true
+  protobufjs: false
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.27'
   - '@expo/router-server@57.0.11'

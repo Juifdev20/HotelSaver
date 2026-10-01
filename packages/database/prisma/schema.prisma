@@ -88,6 +88,8 @@ model Hotel {
 
   branding         HotelBranding?
   site             HotelSite?
+  notifications    Notification[]
+  appareilsPush    AppareilPush[]
 
   utilisateurs     Utilisateur[]
   chambres         Chambre[]
@@ -145,6 +147,55 @@ model HotelSite {
   reseaux        Json     @default("{}")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+/// Notification métier (réservation reçue, stock bas…), propre à UN hôtel et destinée à
+/// certains rôles seulement : `roles` fixe qui la voit. `cleDedup` évite d'émettre deux fois
+/// la même alerte (ex. départ dépassé d'une réservation) ; plusieurs lignes sans clé sont permises.
+model Notification {
+  id        String            @id @default(uuid())
+  hotel     Hotel             @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  hotelId   String
+  type      String
+  titre     String
+  corps     String
+  roles     Role[]
+  /// { ecran: "reservations" | "stock" | …, id?: string } — où ouvrir l'app au clic.
+  lien      Json              @default("{}")
+  cleDedup  String?
+  createdAt DateTime          @default(now())
+  lectures  NotificationLue[]
+
+  @@unique([hotelId, cleDedup])
+  @@index([hotelId, createdAt])
+}
+
+/// État « lu » PAR UTILISATEUR (un compte de rôle peut être ouvert sur plusieurs appareils).
+model NotificationLue {
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  notificationId String
+  utilisateurId  String
+  luLe           DateTime     @default(now())
+
+  @@id([notificationId, utilisateurId])
+}
+
+/// Téléphone qui reçoit les notifications push (jeton FCM). Rattaché à l'utilisateur CONNECTÉ :
+/// retiré à la déconnexion, sinon l'alerte du patron s'afficherait chez un employé.
+model AppareilPush {
+  id            String      @id @default(uuid())
+  hotel         Hotel       @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  hotelId       String
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  utilisateurId String
+  plateforme    String
+  jeton         String      @unique
+  actif         Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  derniereVueLe DateTime    @default(now())
+
+  @@index([hotelId])
+  @@index([utilisateurId])
 }
 
 /// Administrateur de la plateforme HotelSaver, indépendant de tout hôtel —
@@ -210,6 +261,7 @@ model Utilisateur {
   /// cette Phase (via creer-utilisateur.js, sans ce champ) n'ont pas de valeur
   /// tant qu'ils ne sont pas mis à jour manuellement.
   email          String?  @unique
+  appareilsPush  AppareilPush[]
 
   @@index([hotelId])
 }

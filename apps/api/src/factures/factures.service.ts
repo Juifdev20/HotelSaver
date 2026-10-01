@@ -1,13 +1,19 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Devise, PrismaClient } from "@hotel-chicago/database";
+import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
+import { NotificationsService } from "../notifications/notifications.service";
+import { messages } from "../notifications/messages";
 import { CreateFactureDto } from "./dto/create-facture.dto";
 import { AnnulerFactureDto } from "./dto/annuler-facture.dto";
 import { calculerEncaissement } from "./encaissement.util";
 
 @Injectable()
 export class FacturesService {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly notifications: NotificationsService
+  ) {}
 
   findAll(hotelId: string, reservationId?: string) {
     return this.prisma.facture.findMany({
@@ -108,15 +114,24 @@ export class FacturesService {
     });
   }
 
-  async annuler(id: string, dto: AnnulerFactureDto, hotelId: string) {
+  /** `par` = qui annule : le patron est prévenu des annulations de son équipe (pas des siennes). */
+  async annuler(id: string, dto: AnnulerFactureDto, hotelId: string, par?: UtilisateurAuthentifie) {
     const facture = await this.findOne(id, hotelId);
     if (facture.annuleLe) {
       throw new ConflictException("Cette facture est déjà annulée.");
     }
-    return this.prisma.facture.update({
+    const annulee = await this.prisma.facture.update({
       where: { id, hotelId },
       data: { annuleLe: new Date(), motifAnnulation: dto.motif, syncVersion: { increment: 1 } },
     });
+    if (par?.role !== Role.PATRON) {
+      void this.notifications.emettre({
+        hotelId,
+        roles: [Role.PATRON],
+        ...messages.recuAnnule({ numeroRecu: facture.numeroRecu, motif: dto.motif, par: par?.nom }),
+      });
+    }
+    return annulee;
   }
 
   /**

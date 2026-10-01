@@ -20,6 +20,7 @@ import { ClientsModule } from "./clients/clients.module";
 import { TauxChangeModule } from "./taux-change/taux-change.module";
 import { MediaModule } from "./media/media.module";
 import { HotelSiteModule } from "./hotel-site/hotel-site.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { HotelSiteModule } from "./hotel-site/hotel-site.module";
     TauxChangeModule,
     MediaModule,
     HotelSiteModule,
+    NotificationsModule,
   ],
   providers: [
     {

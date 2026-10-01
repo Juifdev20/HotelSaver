@@ -41,7 +41,7 @@ describe("PublicService", () => {
     jest.clearAllMocks();
     prisma = creerPrismaMock();
     supabaseAdmin = creerSupabaseAdminMock();
-    service = new PublicService(prisma, supabaseAdmin);
+    service = new PublicService(prisma, supabaseAdmin, { emettre: jest.fn() } as any);
     (extraireCouleursLogo as jest.Mock).mockResolvedValue(null);
   });
 

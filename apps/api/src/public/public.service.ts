@@ -1,6 +1,9 @@
 import { BadRequestException, ConflictException, UnauthorizedException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
 import { StatutChambre } from "@hotel-chicago/database";
+import { Role } from "@hotel-chicago/types";
+import { NotificationsService } from "../notifications/notifications.service";
+import { messages } from "../notifications/messages";
 import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
@@ -28,7 +31,8 @@ const CREATED_BY_SITE_PUBLIC = "SITE_PUBLIC";
 export class PublicService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly supabaseAdmin: SupabaseAdminService
+    private readonly supabaseAdmin: SupabaseAdminService,
+    private readonly notifications: NotificationsService
   ) {}
 
   /**
@@ -215,7 +219,7 @@ export class PublicService {
           (await this.prisma.client.create({ data: { ...dto.client, hotelId } })))
       : await this.prisma.client.create({ data: { ...dto.client, hotelId } });
 
-    return this.prisma.reservation.create({
+    const reservation = await this.prisma.reservation.create({
       data: {
         hotelId,
         chambreId: dto.chambreId,
@@ -228,6 +232,20 @@ export class PublicService {
       },
       include: { chambre: true, client: true },
     });
+
+    // La réception (et le patron) de CET hôtel sont prévenus tout de suite : une demande non vue est un client perdu.
+    void this.notifications.emettre({
+      hotelId,
+      roles: [Role.RECEPTIONNISTE, Role.PATRON],
+      ...messages.demandeReservation({
+        client: reservation.client?.nom ?? "Client",
+        chambre: reservation.chambre?.numero ?? "?",
+        arrivee: reservation.dateArrivee,
+        depart: reservation.dateDepart,
+        reservationId: reservation.id,
+      }),
+    });
+    return reservation;
   }
 
   /**

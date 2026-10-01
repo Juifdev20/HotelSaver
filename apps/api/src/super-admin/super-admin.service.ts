@@ -1,6 +1,9 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
+import { Role } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
+import { NotificationsService } from "../notifications/notifications.service";
+import { messages } from "../notifications/messages";
 import { CreerHotelDto } from "./dto/creer-hotel.dto";
 import { ChangerStatutHotelDto } from "./dto/changer-statut-hotel.dto";
 import { EnregistrerPaiementDto } from "./dto/enregistrer-paiement.dto";
@@ -16,7 +19,8 @@ export class SuperAdminService {
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly renderDomains: RenderDomainsService
+    private readonly renderDomains: RenderDomainsService,
+    private readonly notifications: NotificationsService
   ) {}
 
   /** Chaque hôtel gagne `valideJusquau` (Phase 12), calculé à partir de son
@@ -125,6 +129,15 @@ export class SuperAdminService {
         data: { statutLicence: "SUSPENDU" },
       });
       this.logger.log(`${aSuspendre.length} hôtel(s) suspendu(s) pour licence expirée : ${aSuspendre.map((h) => h.sousDomaine).join(", ")}`);
+      // Le patron l'apprend même si l'accès à l'application lui est désormais refusé (le push, lui, part).
+      for (const hotel of aSuspendre) {
+        void this.notifications.emettre({
+          hotelId: hotel.id,
+          roles: [Role.PATRON],
+          cleDedup: `licence-suspendue:${hotel.id}:${maintenant.toISOString().slice(0, 10)}`,
+          ...messages.licenceSuspendue(),
+        });
+      }
     }
 
     return aSuspendre.length;

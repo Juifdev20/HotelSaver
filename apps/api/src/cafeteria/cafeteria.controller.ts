@@ -92,6 +92,6 @@ export class CafeteriaController {
   @Post("ventes/:id/annuler")
   @Roles(Role.PATRON)
   annulerVente(@Param("id") id: string, @Body() dto: AnnulerVenteDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
-    return this.cafeteriaService.annulerVente(id, dto.motif, currentUser.hotelId);
+    return this.cafeteriaService.annulerVente(id, dto.motif, currentUser.hotelId, currentUser);
   }
 }

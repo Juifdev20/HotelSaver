@@ -2793,3 +2793,11 @@ sans explication.** `FrontiereErreur` (autour de `<App />`, `components/Frontier
 maintenant « Un problème est survenu », le message d'erreur et un bouton « Recharger l'application ».
 En passant : la police Inter, installée dans le magasin pnpm hors du dossier de l'app, recevait un 403 du
 serveur de dev (`server.fs.strict: false`, développement uniquement, sans effet sur le build).
+## Notifications push par hôtel et par rôle (01/10/2026)
+
+- Tables `Notification` (hôtel, rôles ciblés, lien, clé de déduplication), `NotificationLue` (lu par utilisateur), `AppareilPush` (jeton FCM) — RLS activée sans politique.
+- Isolation : `hotelId` et rôle viennent toujours du JWT ; `emettre` ne lève jamais (une alerte ratée ne casse pas une vente).
+- Mobile : FCM natif (firebase-admin côté API, inactif sans `FIREBASE_SERVICE_ACCOUNT_JSON`) ; jeton retiré à la déconnexion/changement de profil (téléphone partagé). Canaux Android : réservations, stock, quotidien, sécurité.
+- Desktop : interrogation toutes les 15 s, zone de notification (fermer = masquer, « Quitter » = fermer), renouvellement du jeton Supabase toutes les 40 min.
+- Alertes stock au franchissement du seuil (point unique `decrementerStock`) ; crons à `Africa/Lubumbashi` (07:00 arrivées, horaire départs dépassés, 20:00 récap, 08:00 licence).
+- Guide : FIREBASE.md.

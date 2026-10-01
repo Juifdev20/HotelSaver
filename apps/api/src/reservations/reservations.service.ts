@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaClient, StatutChambre } from "@hotel-chicago/database";
-import { UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
+import { NotificationsService } from "../notifications/notifications.service";
+import { messages } from "../notifications/messages";
 import { CreateReservationDto } from "./dto/create-reservation.dto";
 import { UpdateReservationDto } from "./dto/update-reservation.dto";
 import { AnnulerReservationDto } from "./dto/annuler-reservation.dto";
@@ -12,7 +14,10 @@ const STATUTS_OCCUPANTS = ["CONFIRMEE", "EN_COURS"] as const;
 
 @Injectable()
 export class ReservationsService {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly notifications: NotificationsService
+  ) {}
 
   findAll(query: FindReservationsQueryDto, hotelId: string) {
     return this.prisma.reservation.findMany({
@@ -107,7 +112,8 @@ export class ReservationsService {
     });
   }
 
-  async annuler(id: string, dto: AnnulerReservationDto, hotelId: string) {
+  /** `par` = l'utilisateur qui annule : le patron est prévenu des annulations faites par son équipe (pas des siennes). */
+  async annuler(id: string, dto: AnnulerReservationDto, hotelId: string, par?: UtilisateurAuthentifie) {
     const reservation = await this.findOne(id, hotelId);
     if (reservation.statut === "ANNULEE") {
       throw new ConflictException("Cette réservation est déjà annulée.");
@@ -116,10 +122,25 @@ export class ReservationsService {
       throw new ConflictException("Impossible d'annuler une réservation déjà terminée.");
     }
 
-    return this.prisma.reservation.update({
+    const annulee = await this.prisma.reservation.update({
       where: { id, hotelId },
       data: { statut: "ANNULEE", annuleLe: new Date(), motifAnnulation: dto.motif, syncVersion: { increment: 1 } },
     });
+
+    if (par?.role !== Role.PATRON) {
+      void this.notifications.emettre({
+        hotelId,
+        roles: [Role.PATRON],
+        ...messages.reservationAnnulee({
+          client: reservation.client?.nom ?? "Client",
+          chambre: reservation.chambre?.numero ?? "?",
+          motif: dto.motif,
+          reservationId: id,
+          par: par?.nom,
+        }),
+      });
+    }
+    return annulee;
   }
 
   /** Valide une demande venue du site public (EN_ATTENTE → CONFIRMEE). Une
@@ -193,6 +214,13 @@ export class ReservationsService {
       }),
     ]);
 
+    // Dédoublonné par réservation : un check-out rejoué ne ré-alerte pas.
+    void this.notifications.emettre({
+      hotelId,
+      roles: [Role.RECEPTIONNISTE, Role.PATRON],
+      cleDedup: `preparer:${id}`,
+      ...messages.chambreAPreparer({ chambre: chambre.numero, chambreId: chambre.id }),
+    });
     return { reservationId: id, statutReservation: "TERMINEE", chambre };
   }
 

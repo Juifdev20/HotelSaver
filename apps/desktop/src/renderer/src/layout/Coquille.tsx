@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
-import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Role, UtilisateurAuthentifie, type NotificationApp } from "@hotel-chicago/types";
 import {
   ArrowLeftRight,
   Bell,
@@ -99,6 +99,14 @@ export function useFermetureExterne(ouvert: boolean, fermer: () => void) {
   return ref;
 }
 
+function formaterDateNotification(iso: string): string {
+  const date = new Date(iso);
+  const memeJour = date.toDateString() === new Date().toDateString();
+  return memeJour
+    ? date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
 export interface CoquilleProps {
   utilisateur: UtilisateurAuthentifie;
   pageActive: IdPage;
@@ -108,6 +116,11 @@ export interface CoquilleProps {
   onDeconnexion: () => void;
   /** Recherche globale (barre du haut) → applique le terme sur l'écran Chambres. */
   onRechercherChambre: (terme: string) => void;
+  /** Centre de notifications (cloche) : liste de MON hôtel / MON rôle, état « lu » par utilisateur. */
+  notifications: NotificationApp[];
+  nonLues: number;
+  onOuvrirNotification: (notification: NotificationApp) => void;
+  onToutMarquerLu: () => void;
   children: React.ReactNode;
 }
 
@@ -148,6 +161,10 @@ export function Coquille({
   onBasculerTheme,
   onDeconnexion,
   onRechercherChambre,
+  notifications,
+  nonLues,
+  onOuvrirNotification,
+  onToutMarquerLu,
   children,
 }: CoquilleProps) {
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
@@ -280,15 +297,44 @@ export function Coquille({
                 type="button"
                 className="coquille__bouton-icone-rond"
                 onClick={() => setNotificationsOuvertes((v) => !v)}
-                aria-label="Notifications"
+                aria-label={nonLues > 0 ? `Notifications (${nonLues} non lues)` : "Notifications"}
                 aria-expanded={notificationsOuvertes}
               >
                 <Bell size={19} aria-hidden="true" />
+                {nonLues > 0 && <span className="coquille__pastille">{nonLues > 9 ? "9+" : nonLues}</span>}
               </button>
               {notificationsOuvertes && (
                 <div className="coquille__menu-deroulant coquille__menu-deroulant--notifications" role="menu">
-                  <p className="hc-text-body-strong">Notifications</p>
-                  <p className="hc-text-caption texte-discret">Aucune notification pour le moment.</p>
+                  <div className="coquille__notifications-entete">
+                    <p className="hc-text-body-strong">Notifications</p>
+                    {nonLues > 0 && (
+                      <button type="button" className="coquille__lien-discret" onClick={onToutMarquerLu}>
+                        Tout marquer comme lu
+                      </button>
+                    )}
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p className="hc-text-caption texte-discret">Aucune notification pour le moment.</p>
+                  ) : (
+                    <ul className="coquille__notifications-liste">
+                      {notifications.map((n) => (
+                        <li key={n.id}>
+                          <button
+                            type="button"
+                            className={`coquille__notification${n.lue ? "" : " coquille__notification--non-lue"}`}
+                            onClick={() => {
+                              setNotificationsOuvertes(false);
+                              onOuvrirNotification(n);
+                            }}
+                          >
+                            <span className="hc-text-body-strong">{n.titre}</span>
+                            <span className="hc-text-caption">{n.corps}</span>
+                            <span className="hc-text-caption texte-discret">{formaterDateNotification(n.createdAt)}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
             </div>

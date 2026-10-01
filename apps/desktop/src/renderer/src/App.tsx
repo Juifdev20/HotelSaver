@@ -8,9 +8,10 @@ import {
   inscrireHotel,
   rafraichirSession,
 } from "@hotel-chicago/api-client";
-import type { InscriptionHotelPayload, ProfilConnecte } from "@hotel-chicago/types";
+import type { InscriptionHotelPayload, LienNotification, NotificationApp, ProfilConnecte } from "@hotel-chicago/types";
 import type { ConfigurationApp } from "../../main/config-store";
-import { IdPage, libellePage } from "./navigation";
+import { IdPage, libellePage, sectionsPourRole } from "./navigation";
+import { useNotifications } from "./useNotifications";
 import { Coquille } from "./layout/Coquille";
 import { EcranConnexion } from "./screens/EcranConnexion";
 import { EcranInscription } from "./screens/EcranInscription";
@@ -136,10 +137,51 @@ export function App() {
     setEcran("connexion");
   }, [lienRecu, ecran]);
 
+  // Le jeton d'accès expire (~1 h) : le client lit toujours la valeur COURANTE via cette référence,
+  // pour qu'un renouvellement ne recrée pas le client (et ne recharge pas les écrans).
+  const jetonCourant = useRef<string | null>(null);
+  jetonCourant.current = accessToken;
+  const connecte = accessToken !== null;
   const client = useMemo(
-    () => (configuration && accessToken ? new ClientApi(configuration.apiUrl, () => accessToken) : null),
-    [configuration, accessToken]
+    () => (configuration && connecte ? new ClientApi(configuration.apiUrl, () => jetonCourant.current) : null),
+    [configuration, connecte]
   );
+
+  // Application laissée ouverte (ou réduite dans la zone de notification) toute la journée :
+  // sans renouvellement périodique, l'écoute des notifications et les écrans passeraient en 401.
+  useEffect(() => {
+    if (!connecte || !configuration) return;
+    const renouveler = async () => {
+      try {
+        const actuelle = await window.hotelChicago.lireConfiguration();
+        if (!actuelle.refreshToken) return;
+        const session = await rafraichirSession({ url: actuelle.supabaseUrl, anonKey: actuelle.supabaseAnonKey }, actuelle.refreshToken);
+        await window.hotelChicago.ecrireConfiguration({ refreshToken: session.refreshToken });
+        jetonCourant.current = session.accessToken;
+      } catch {
+        // Réseau coupé : on réessaie au prochain passage ; le jeton actuel reste valable un moment.
+      }
+    };
+    const minuteur = setInterval(() => void renouveler(), 40 * 60 * 1000);
+    return () => clearInterval(minuteur);
+  }, [connecte, configuration]);
+
+  /** Clic sur une notification (cloche ou notification Windows) → l'écran concerné, si mon rôle y a droit. */
+  const ouvrirLien = (lien: LienNotification) => {
+    if (!utilisateur) return;
+    const autorisees = sectionsPourRole(utilisateur.role).flatMap((section) => section.entrees.map((entree) => entree.id as string));
+    const cible = autorisees.includes(lien.ecran) ? (lien.ecran as IdPage) : "tableau-de-bord";
+    setCompteCafeteriaOuvert(null);
+    setReservationAFacturer(null);
+    setPage(cible);
+  };
+  const lienRef = useRef(ouvrirLien);
+  lienRef.current = ouvrirLien;
+  const centre = useNotifications(ecran === "application" ? client : null, (lien) => lienRef.current(lien));
+  const ouvrirNotification = (notification: NotificationApp) => {
+    void centre.marquerLue(notification.id);
+    ouvrirLien(notification.lien);
+  };
 
   useEffect(() => {
     if (!client) return;
@@ -304,7 +346,8 @@ export function App() {
       contenu = <EcranUtilisateurs client={client} />;
     } else if (page === "parametres") {
       contenu = (
-        <EcranParametres
+        <EcranParametres
+
           client={client}
           utilisateur={utilisateur}
           onNaviguer={naviguer}
@@ -325,6 +368,10 @@ export function App() {
         onBasculerTheme={() => setThemeSombre((v) => !v)}
         onDeconnexion={seDeconnecter}
         onRechercherChambre={setRechercheChambres}
+        notifications={centre.notifications}
+        nonLues={centre.nonLues}
+        onOuvrirNotification={ouvrirNotification}
+        onToutMarquerLu={() => void centre.toutMarquerLu()}
       >
         {contenu}
       </Coquille>

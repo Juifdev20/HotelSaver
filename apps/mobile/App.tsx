@@ -25,6 +25,10 @@ import { EcranConnexion } from "./src/ecrans/EcranConnexion";
 import { EcranInscription } from "./src/ecrans/EcranInscription";
 import { CoquilleOnglets } from "./src/CoquilleOnglets";
 import { FournisseurSession } from "./src/contexteSession";
+import { FournisseurNotifications } from "./src/notifications/ContexteNotifications";
+import { CentreNotifications } from "./src/composants/CentreNotifications";
+import { navigationRef } from "./src/notifications/navigationRef";
+import { retirerAppareil } from "./src/notifications/push";
 
 type Ecran = "chargement" | "selection-profil" | "connexion" | "inscription" | "application";
 
@@ -338,6 +342,7 @@ export default function App() {
    * cours mais garde le profil enregistré (jeton compris) pour un retour rapide.
    * Réservé au PATRON dans l'UI — les employés passent par seDeconnecter. */
   function changerDeProfil() {
+    void retirerAppareil(client);
     setAccessToken(null);
     setUtilisateur(null);
     retourSelectionProfil();
@@ -348,6 +353,7 @@ export default function App() {
    * "Changer de profil" (voir EcranPlus). */
   async function seDeconnecter() {
     const id = utilisateur?.userId;
+    await retirerAppareil(client);
     setAccessToken(null);
     setUtilisateur(null);
     if (id) await oublierProfil(id);
@@ -433,9 +439,12 @@ export default function App() {
       {contenuPret && (
         <SafeAreaProvider>
           <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync }}>
-            <NavigationContainer>
-              <CoquilleOnglets />
-            </NavigationContainer>
+            <FournisseurNotifications client={client} role={utilisateur.role}>
+              <NavigationContainer ref={navigationRef}>
+                <CoquilleOnglets />
+              </NavigationContainer>
+              <CentreNotifications />
+            </FournisseurNotifications>
           </FournisseurSession>
           <StatusBar style="light" />
         </SafeAreaProvider>

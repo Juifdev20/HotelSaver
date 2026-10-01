@@ -1,6 +1,9 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient, Produit } from "@hotel-chicago/database";
+import { Role } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
+import { NotificationsService } from "../notifications/notifications.service";
+import { messages } from "../notifications/messages";
 import { CreateMouvementDto } from "./dto/create-mouvement.dto";
 import { FindMouvementsQueryDto } from "./dto/find-mouvements.query.dto";
 import { TypeMouvement } from "./types-mouvement";
@@ -18,7 +21,10 @@ export interface ParamsMouvement {
 
 @Injectable()
 export class StockService {
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly notifications: NotificationsService
+  ) {}
 
   findAll(query: FindMouvementsQueryDto, hotelId: string) {
     return this.prisma.mouvementStock.findMany({
@@ -63,7 +69,7 @@ export class StockService {
   async decrementerStock(
     client: ClientOuTransaction,
     params: Pick<ParamsMouvement, "hotelId" | "produitId" | "type" | "quantite">,
-    produitDejaCharge?: Pick<Produit, "nom" | "stockActuel">
+    produitDejaCharge?: Pick<Produit, "nom" | "stockActuel"> & Partial<Pick<Produit, "seuilAlerte">>
   ): Promise<void> {
     const produit =
       produitDejaCharge ?? (await client.produit.findUnique({ where: { id: params.produitId, hotelId: params.hotelId } }));
@@ -107,6 +113,38 @@ export class StockService {
     });
     if (count === 0) {
       throw new ConflictException(`Le stock de "${produit.nom}" a changé entre-temps, réessayez.`);
+    }
+
+    this.alerterSiSeuilFranchi(params, produit, nouveauStock, delta);
+  }
+
+  /**
+   * Point UNIQUE par où passe toute variation de stock (ventes cafétaria, synchronisation, écran Stock) :
+   * l'alerte part donc quel que soit le chemin. On alerte au FRANCHISSEMENT du seuil (de « au-dessus » à
+   * « au seuil ou en dessous », puis à zéro), pas à chaque vente : pas de spam, et réarmée dès qu'un
+   * réapprovisionnement remonte le stock au-dessus du seuil.
+   */
+  private alerterSiSeuilFranchi(
+    params: Pick<ParamsMouvement, "hotelId" | "produitId">,
+    produit: Pick<Produit, "nom" | "stockActuel"> & Partial<Pick<Produit, "seuilAlerte">>,
+    nouveauStock: number,
+    delta: number
+  ): void {
+    if (delta >= 0) return;
+    const avant = Number(produit.stockActuel);
+    const roles = [Role.CAFETARIA, Role.PATRON];
+
+    if (nouveauStock === 0 && avant > 0) {
+      void this.notifications.emettre({ hotelId: params.hotelId, roles, ...messages.stockEpuise({ produit: produit.nom, produitId: params.produitId }) });
+      return;
+    }
+    const seuil = produit.seuilAlerte === undefined ? null : Number(produit.seuilAlerte);
+    if (seuil !== null && nouveauStock > 0 && nouveauStock <= seuil && avant > seuil) {
+      void this.notifications.emettre({
+        hotelId: params.hotelId,
+        roles,
+        ...messages.stockBas({ produit: produit.nom, stock: nouveauStock, produitId: params.produitId }),
+      });
     }
   }
 

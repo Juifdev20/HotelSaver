@@ -55,6 +55,11 @@ export function installerFilSecoursNavigateur(): void {
     imprimerTicketDeTest: () => Promise.reject(new Error("L'impression n'est disponible que dans l'application Windows.")),
     lireLienEnAttente: () => Promise.resolve(null),
     surLienOuvert: () => () => undefined,
+    // Hors Electron : pas de notification Windows (le centre de notifications de la cloche suffit).
+    notifier: () => Promise.resolve(),
+    surNotificationOuverte: () => () => undefined,
+    lireLancerAuDemarrage: () => Promise.resolve(false),
+    ecrireLancerAuDemarrage: () => Promise.resolve(false),
   };
   window.hotelChicago = api;
 }

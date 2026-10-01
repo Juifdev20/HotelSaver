@@ -251,6 +251,7 @@
 
 .coquille__bouton-icone,
 .coquille__bouton-icone-rond {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -287,7 +288,74 @@
 
 .coquille__menu-deroulant--notifications {
   padding: var(--hc-space-4);
-  min-width: 260px;
+  min-width: 320px;
+  max-width: 380px;
+}
+
+.coquille__pastille {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+
+.coquille__notifications-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hc-space-3);
+  margin-bottom: var(--hc-space-2);
+}
+
+.coquille__lien-discret {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--hc-color-primary, #2563eb);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.coquille__notifications-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.coquille__notification {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.coquille__notification:hover {
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.coquille__notification--non-lue {
+  background: rgba(37, 99, 235, 0.09);
 }
 
 .coquille__menu-entete {

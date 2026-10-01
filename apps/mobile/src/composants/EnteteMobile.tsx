@@ -1,12 +1,12 @@
 import * as React from "react";
-import { useState } from "react";
-import { Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Bell } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { LIBELLE_ROLE } from "../navigation";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { useNotifications } from "../notifications/ContexteNotifications";
 
 /** Vert = à jour, orange = des changements attendent d'être envoyés, rouge =
  * un conflit à vérifier, gris = hors ligne sans rien en attente. Un point
@@ -36,7 +36,7 @@ function initiales(nom: string): string {
  * deuxième accès au même endroit n'apportait rien (retour du 25/09/2026). */
 export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: boolean }) {
   const { utilisateur } = useSession();
-  const [notifOuvertes, setNotifOuvertes] = useState(false);
+  const { nonLues, ouvrirCentre } = useNotifications();
   const insets = useSafeAreaInsets();
   const etatSync = useSyncEtat();
 
@@ -54,9 +54,14 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
             <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
             <Text style={styles.marqueTexte}>HotelSaver</Text>
           </View>
-          <Pressable style={styles.boutonIcone} onPress={() => setNotifOuvertes(true)} hitSlop={8}>
+          <Pressable style={styles.boutonIcone} onPress={ouvrirCentre} hitSlop={8} accessibilityLabel="Notifications">
             <Bell size={20} color="#fff" />
             <View style={[styles.pointSync, { backgroundColor: couleurPointSync(etatSync) }]} />
+            {nonLues > 0 && (
+              <View style={styles.pastille}>
+                <Text style={styles.pastilleTexte}>{nonLues > 9 ? "9+" : nonLues}</Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>
@@ -72,16 +77,6 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
           </View>
         </View>
       )}
-
-      <Modal visible={notifOuvertes} transparent animationType="fade" onRequestClose={() => setNotifOuvertes(false)}>
-        <Pressable style={styles.fond} onPress={() => setNotifOuvertes(false)}>
-          <View style={styles.feuille}>
-            <View style={styles.feuillePoignee} />
-            <Text style={styles.bonjour}>Notifications</Text>
-            <Text style={styles.role}>Aucune notification pour le moment.</Text>
-          </View>
-        </Pressable>
-      </Modal>
     </>
   );
 }
@@ -110,6 +105,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: couleurs.navy,
   },
+  pastille: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: rayons.pill,
+    backgroundColor: couleurs.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pastilleTexte: { color: "#fff", fontSize: 10, fontWeight: "700" },
   marque: { flexDirection: "row", alignItems: "center", gap: espacements.s1 },
   logo: { width: 22, height: 22 },
   marqueTexte: { fontWeight: "700", fontSize: 15, color: "#fff" },

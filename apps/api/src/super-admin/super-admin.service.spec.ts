@@ -39,7 +39,7 @@ describe("SuperAdminService", () => {
     jest.clearAllMocks();
     prisma = creerPrismaMock();
     renderDomains = creerRenderDomainsMock();
-    service = new SuperAdminService(prisma, renderDomains);
+    service = new SuperAdminService(prisma, renderDomains, { emettre: jest.fn() } as any);
     (extraireCouleursLogo as jest.Mock).mockResolvedValue(null);
   });
 

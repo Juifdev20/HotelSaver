@@ -7,6 +7,7 @@ import {
   LigneCommande,
   ModePaiement,
   MouvementStock,
+  ListeNotifications,
   Occupation,
   Produit,
   ProfilConnecte,
@@ -328,6 +329,35 @@ export class ClientApi {
     return this.requete<SiteHotelEditable>("/hotel-site", { method: "PUT", body: JSON.stringify(donnees) });
   }
 
+  // ---- Notifications ----
+
+  /** Notifications de MON hôtel destinées à MON rôle ; `depuis` (ISO) = seulement les plus récentes. */
+  async listerNotifications(options: { depuis?: string; limite?: number } = {}): Promise<ListeNotifications> {
+    const params = new URLSearchParams();
+    if (options.depuis) params.set("depuis", options.depuis);
+    if (options.limite) params.set("limite", String(options.limite));
+    const requete = params.toString();
+    return this.requete<ListeNotifications>(`/notifications${requete ? `?${requete}` : ""}`);
+  }
+
+  async marquerNotificationLue(id: string): Promise<void> {
+    await this.requete<unknown>(`/notifications/${id}/lue`, { method: "POST" });
+  }
+
+  async marquerToutesNotificationsLues(): Promise<void> {
+    await this.requete<unknown>("/notifications/lues", { method: "POST" });
+  }
+
+  /** Enregistre ce téléphone (jeton FCM) au nom de l'utilisateur connecté. */
+  async enregistrerAppareilPush(jeton: string, plateforme: "android" | "ios"): Promise<void> {
+    await this.requete<unknown>("/notifications/appareils", { method: "POST", body: JSON.stringify({ jeton, plateforme }) });
+  }
+
+  /** À appeler à la déconnexion / au changement de profil : sans cela l'alerte d'un compte s'afficherait chez le suivant. */
+  async retirerAppareilPush(jeton: string): Promise<void> {
+    await this.requete<unknown>("/notifications/appareils", { method: "DELETE", body: JSON.stringify({ jeton }) });
+  }
+
   /** Vrai si le serveur de l'hôtel répond — et c'est bien lui (pas un autre
    * service sur la même adresse, ex. un autre projet sur le port 3000). */
   async estJoignable(): Promise<boolean> {
@@ -606,7 +636,7 @@ export class ClientApi {
       // distinct d'une vraie erreur HTTP, pour que l'appelant puisse le traiter à part.
       throw new ErreurApi(
         0,
-        "Impossible de joindre le serveur de l'hôtel. Vérifiez la connexion internet ou l'URL de l'API dans les Paramètres."
+        "Impossible de joindre le serveur de l'hôtel. Vérifiez la connexion internet puis réessayez."
       );
     }
 

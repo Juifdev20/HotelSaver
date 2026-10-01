@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { Devise, Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
-import { Coins, Moon, Printer, Sun, Users } from "lucide-react";
+import { Bell, Coins, Moon, Printer, Sun, Users } from "lucide-react";
 import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 
@@ -120,6 +120,11 @@ export function EcranParametres({
   themeSombre,
   onBasculerTheme,
 }: EcranParametresProps) {
+  const [lancerAuDemarrage, setLancerAuDemarrage] = useState(false);
+  useEffect(() => {
+    void window.hotelChicago.lireLancerAuDemarrage().then(setLancerAuDemarrage, () => undefined);
+  }, []);
+
   return (
     <div className="page">
       <header className="page__entete">
@@ -147,6 +152,30 @@ export function EcranParametres({
             Basculer
           </Button>
         </div>
+      </div>
+
+      <div className="carte-formulaire">
+        <p className="hc-text-label texte-discret">Notifications</p>
+        <div className="parametres-ligne">
+          <span className="parametres-ligne__icone">
+            <Bell size={18} aria-hidden="true" />
+          </span>
+          <span className="hc-text-body">
+            {lancerAuDemarrage ? "Démarre avec Windows" : "Ne démarre pas avec Windows"}
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => void window.hotelChicago.ecrireLancerAuDemarrage(!lancerAuDemarrage).then(setLancerAuDemarrage)}
+          >
+            {lancerAuDemarrage ? "Désactiver" : "Activer"}
+          </Button>
+        </div>
+        <p className="hc-text-caption texte-discret">
+          Fermer la fenêtre garde HotelSaver actif près de l'horloge pour recevoir les alertes. Activez le démarrage
+          avec Windows pour ne jamais les manquer.
+        </p>
       </div>
 
       {onNaviguer && (

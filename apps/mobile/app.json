@@ -29,6 +29,13 @@
       "expo-secure-store",
       "expo-sqlite",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#053483"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "HotelSaver accède à vos photos pour illustrer vos chambres et le site de votre hôtel."

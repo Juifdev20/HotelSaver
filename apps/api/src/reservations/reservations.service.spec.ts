@@ -32,7 +32,7 @@ describe("ReservationsService", () => {
 
   beforeEach(() => {
     prisma = creerPrismaMock();
-    service = new ReservationsService(prisma);
+    service = new ReservationsService(prisma, { emettre: jest.fn() } as any);
     prisma.chambre.findUnique.mockResolvedValue({ id: "c1", devise: "USD", prixParNuit: 45 });
     prisma.reservation.findFirst.mockResolvedValue(null); // pas de conflit par défaut
   });

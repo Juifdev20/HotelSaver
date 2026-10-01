@@ -21,6 +21,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "16.4.5",
+    "firebase-admin": "^14.5.0",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.2.2",
     "node-vibrant": "^4.0.4",

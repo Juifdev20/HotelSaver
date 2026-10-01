@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   ArrowLeftRight,
@@ -21,6 +21,7 @@ import {
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
 import { useSession } from "../contexteSession";
+import { useNotifications } from "../notifications/ContexteNotifications";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EcranParametresMobile } from "./EcranParametresMobile";
@@ -122,6 +123,14 @@ export function EcranPlus() {
   const sections = sectionsPlusPourRole(utilisateur.role);
   const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
   const etatSync = useSyncEtat();
+  const { demandePlus, consommerDemandePlus } = useNotifications();
+
+  // Tap sur une notification (stock, arrivées…) : ouvre directement la vue concernée.
+  useEffect(() => {
+    if (!demandePlus) return;
+    setVue({ id: demandePlus.vue });
+    consommerDemandePlus();
+  }, [demandePlus, consommerDemandePlus]);
 
   if (vue.id === "parametres") {
     return (

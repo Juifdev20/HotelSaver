@@ -36,6 +36,6 @@ export class FacturesController {
 
   @Post(":id/annuler")
   annuler(@Param("id") id: string, @Body() dto: AnnulerFactureDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
-    return this.facturesService.annuler(id, dto, currentUser.hotelId);
+    return this.facturesService.annuler(id, dto, currentUser.hotelId, currentUser);
   }
 }

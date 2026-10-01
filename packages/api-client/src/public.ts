@@ -21,7 +21,7 @@ async function requetePublique<T>(config: ConfigApiPublique, chemin: string, opt
       headers: { "Content-Type": "application/json", ...options.headers },
     });
   } catch {
-    throw new ErreurApi(0, "Impossible de joindre le serveur. Vérifiez la connexion internet ou l'URL de l'API.");
+    throw new ErreurApi(0, "Impossible de joindre le serveur. Vérifiez la connexion internet puis réessayez.");
   }
 
   const corps = await reponse.json().catch(() => ({}));

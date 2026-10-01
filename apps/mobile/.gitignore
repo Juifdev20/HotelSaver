@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Clé du projet Firebase (voir FIREBASE.md)
+/google-services.json

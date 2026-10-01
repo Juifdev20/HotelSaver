@@ -462,3 +462,65 @@ export enum MethodePaiementLicence {
 export interface HotelAvecValidite extends HotelCree {
   valideJusquau: string;
 }
+
+// ---------------------------------------------------------------------------
+// Notifications (push mobile + centre de notifications desktop/mobile)
+// ---------------------------------------------------------------------------
+
+export const TYPES_NOTIFICATION = [
+  "DEMANDE_RESERVATION",
+  "STOCK_BAS",
+  "STOCK_EPUISE",
+  "CHAMBRE_A_PREPARER",
+  "RESERVATION_ANNULEE",
+  "RECU_ANNULE",
+  "ARRIVEES_DU_JOUR",
+  "DEPART_DEPASSE",
+  "RECAP_QUOTIDIEN",
+  "LICENCE_BIENTOT_EXPIREE",
+  "LICENCE_SUSPENDUE",
+] as const;
+export type TypeNotification = (typeof TYPES_NOTIFICATION)[number];
+
+/** Catégorie = canal Android (réglable une par une dans les réglages du téléphone). */
+export type CategorieNotification = "reservations" | "stock" | "quotidien" | "securite";
+
+export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification> = {
+  DEMANDE_RESERVATION: "reservations",
+  CHAMBRE_A_PREPARER: "reservations",
+  DEPART_DEPASSE: "reservations",
+  STOCK_BAS: "stock",
+  STOCK_EPUISE: "stock",
+  ARRIVEES_DU_JOUR: "quotidien",
+  RECAP_QUOTIDIEN: "quotidien",
+  RESERVATION_ANNULEE: "securite",
+  RECU_ANNULE: "securite",
+  LICENCE_BIENTOT_EXPIREE: "securite",
+  LICENCE_SUSPENDUE: "securite",
+};
+
+/** Écrans que le clic sur une notification peut ouvrir (mêmes ids que la navigation des apps). */
+export type EcranNotification = "reservations" | "arrivees-departs" | "chambres" | "stock" | "facturation" | "tableau-de-bord";
+
+export interface LienNotification {
+  ecran: EcranNotification;
+  /** Identifiant à ouvrir directement (réservation, produit…). */
+  id?: string;
+}
+
+/** GET /notifications — `lue` est propre à l'utilisateur connecté. */
+export interface NotificationApp {
+  id: string;
+  type: TypeNotification;
+  titre: string;
+  corps: string;
+  lien: LienNotification;
+  createdAt: string;
+  lue: boolean;
+}
+
+export interface ListeNotifications {
+  notifications: NotificationApp[];
+  /** Nombre total de notifications non lues de cet utilisateur (pas seulement dans la liste renvoyée). */
+  nonLues: number;
+}

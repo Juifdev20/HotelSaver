@@ -1,8 +1,10 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Devise, Prisma, PrismaClient } from "@hotel-chicago/database";
-import { UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import { StockService } from "../stock/stock.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { messages } from "../notifications/messages";
 import { calculerEncaissement } from "../factures/encaissement.util";
 import { repartirEnParts } from "./partage.util";
 import { OuvrirCompteDto } from "./dto/ouvrir-compte.dto";
@@ -23,7 +25,8 @@ type LigneAvecProduit = CompteComplet["sousComptes"][number]["lignes"][number];
 export class CafeteriaService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly stockService: StockService
+    private readonly stockService: StockService,
+    private readonly notifications: NotificationsService
   ) {}
 
   findAllComptes(query: FindComptesQueryDto, hotelId: string) {
@@ -203,7 +206,7 @@ export class CafeteriaService {
     });
   }
 
-  async annulerVente(id: string, motif: string, hotelId: string) {
+  async annulerVente(id: string, motif: string, hotelId: string, par?: UtilisateurAuthentifie) {
     const vente = await this.prisma.venteCafeteria.findUnique({ where: { id, hotelId } });
     if (!vente) {
       throw new NotFoundException(`Aucune vente trouvée avec l'identifiant ${id}.`);
@@ -211,10 +214,19 @@ export class CafeteriaService {
     if (vente.annuleLe) {
       throw new ConflictException("Cette vente est déjà annulée.");
     }
-    return this.prisma.venteCafeteria.update({
+    const annulee = await this.prisma.venteCafeteria.update({
       where: { id, hotelId },
       data: { annuleLe: new Date(), motifAnnulation: motif, syncVersion: { increment: 1 } },
     });
+    // Seul le patron peut annuler une vente encaissée (matrice 9.3) : il est alors l'auteur, et n'a rien à apprendre de sa propre action.
+    if (par?.role !== Role.PATRON) {
+      void this.notifications.emettre({
+        hotelId,
+        roles: [Role.PATRON],
+        ...messages.recuAnnule({ numeroRecu: vente.numeroRecu, motif, par: par?.nom }),
+      });
+    }
+    return annulee;
   }
 
   findAllVentes(hotelId: string, reservationLieeId?: string) {

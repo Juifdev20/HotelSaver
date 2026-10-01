@@ -38,7 +38,7 @@ describe("CafeteriaService", () => {
   beforeEach(() => {
     prisma = creerPrismaMock();
     stockService = { enregistrerMouvement: jest.fn().mockResolvedValue({}), decrementerStock: jest.fn().mockResolvedValue(undefined) };
-    service = new CafeteriaService(prisma, stockService as any);
+    service = new CafeteriaService(prisma, stockService as any, { emettre: jest.fn() } as any);
   });
 
   describe("ouvrirCompte", () => {

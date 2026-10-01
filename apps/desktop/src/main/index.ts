@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, shell, Tray } from "electron";
 import { join, resolve } from "path";
 import { ecrireConfiguration, lireConfiguration } from "./config-store";
 import { imprimerLignes, imprimerTicketDeTest } from "./imprimante";
@@ -28,7 +28,14 @@ function lienDepuisArguments(args: string[]): string | null {
   return args.find((argument) => argument.toLowerCase().startsWith(`${PROTOCOLE}://`)) ?? null;
 }
 
+// Identifiant Windows de l'application : sans lui, les notifications s'affichent sous « electron.app… ».
+app.setAppUserModelId("com.hotelsaver.desktop");
+
 let fenetrePrincipale: BrowserWindow | null = null;
+let zoneNotification: Tray | null = null;
+/** Vrai seulement quand l'utilisateur choisit « Quitter » : fermer la fenêtre, elle, la réduit
+ * dans la zone de notification pour que l'application continue d'écouter les alertes. */
+let quitterVraiment = false;
 /** Dernier lien reçu et pas encore lu par l'interface (ex. lancement à froid par le lien,
  * avant que la fenêtre ait chargé) — l'interface le réclame au démarrage. */
 let lienEnAttente: string | null = lienDepuisArguments(process.argv);
@@ -38,6 +45,7 @@ function traiterLien(url: string | null): void {
   lienEnAttente = url;
   if (fenetrePrincipale && !fenetrePrincipale.isDestroyed()) {
     if (fenetrePrincipale.isMinimized()) fenetrePrincipale.restore();
+    fenetrePrincipale.show();
     fenetrePrincipale.focus();
     fenetrePrincipale.webContents.send("lien:ouvert", url);
   }
@@ -49,7 +57,11 @@ const premiereInstance = app.requestSingleInstanceLock();
 if (!premiereInstance) {
   app.quit();
 } else {
-  app.on("second-instance", (_evenement, argv) => traiterLien(lienDepuisArguments(argv)));
+  app.on("second-instance", (_evenement, argv) => {
+    // Fenêtre masquée dans la zone de notification : relancer l'application la réaffiche.
+    if (fenetrePrincipale && !fenetrePrincipale.isDestroyed()) fenetrePrincipale.show();
+    traiterLien(lienDepuisArguments(argv));
+  });
 }
 
 function creerFenetrePrincipale(): BrowserWindow {
@@ -63,7 +75,15 @@ function creerFenetrePrincipale(): BrowserWindow {
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false,
+      // Fenêtre masquée : sans cela Chromium ralentit les minuteries et l'écoute des notifications s'endort.
+      backgroundThrottling: false,
     },
+  });
+
+  fenetre.on("close", (evenement) => {
+    if (quitterVraiment) return;
+    evenement.preventDefault();
+    fenetre.hide();
   });
 
   fenetre.webContents.setWindowOpenHandler((details) => {
@@ -82,6 +102,34 @@ function creerFenetrePrincipale(): BrowserWindow {
   return fenetre;
 }
 
+function afficherFenetre(): BrowserWindow {
+  if (!fenetrePrincipale || fenetrePrincipale.isDestroyed()) fenetrePrincipale = creerFenetrePrincipale();
+  if (fenetrePrincipale.isMinimized()) fenetrePrincipale.restore();
+  fenetrePrincipale.show();
+  fenetrePrincipale.focus();
+  return fenetrePrincipale;
+}
+
+function creerZoneNotification(): void {
+  const icone = nativeImage.createFromPath(join(__dirname, "../../resources/icon.png")).resize({ width: 16, height: 16 });
+  zoneNotification = new Tray(icone);
+  zoneNotification.setToolTip("HotelSaver");
+  zoneNotification.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Ouvrir HotelSaver", click: () => afficherFenetre() },
+      { type: "separator" },
+      {
+        label: "Quitter",
+        click: () => {
+          quitterVraiment = true;
+          app.quit();
+        },
+      },
+    ])
+  );
+  zoneNotification.on("click", () => afficherFenetre());
+}
+
 if (premiereInstance) {
   app.whenReady().then(() => {
     ipcMain.handle("configuration:lire", () => lireConfiguration());
@@ -95,7 +143,21 @@ if (premiereInstance) {
       return lien;
     });
 
+    // Notification Windows : un clic ramène l'application au premier plan et ouvre l'écran concerné.
+    ipcMain.handle("notification:afficher", (_evenement, titre: string, corps: string, lien: { ecran: string; id?: string }) => {
+      if (!Notification.isSupported()) return;
+      const notification = new Notification({ title: titre, body: corps, icon: join(__dirname, "../../resources/icon.png") });
+      notification.on("click", () => afficherFenetre().webContents.send("notification:ouverte", lien));
+      notification.show();
+    });
+    ipcMain.handle("application:lancer-au-demarrage:lire", () => app.getLoginItemSettings().openAtLogin);
+    ipcMain.handle("application:lancer-au-demarrage:ecrire", (_evenement, actif: boolean) => {
+      app.setLoginItemSettings({ openAtLogin: actif });
+      return app.getLoginItemSettings().openAtLogin;
+    });
+
     fenetrePrincipale = creerFenetrePrincipale();
+    creerZoneNotification();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -105,8 +167,10 @@ if (premiereInstance) {
   });
 }
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+app.on("before-quit", () => {
+  quitterVraiment = true;
 });
+
+// La fenêtre se masque à la fermeture (voir creerFenetrePrincipale) : l'application reste dans la zone
+// de notification et ne se termine que par « Quitter ».
+app.on("window-all-closed", () => {});

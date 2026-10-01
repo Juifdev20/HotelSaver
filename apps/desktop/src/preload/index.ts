@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { ConfigurationApp } from "../main/config-store";
 import type { LigneRecu } from "@hotel-chicago/receipts";
+import type { LienNotification } from "@hotel-chicago/types";
 
 const api = {
   lireConfiguration: (): Promise<ConfigurationApp> => ipcRenderer.invoke("configuration:lire"),
@@ -20,6 +21,18 @@ const api = {
       ipcRenderer.removeListener("lien:ouvert", ecouteur);
     };
   },
+  /** Notification Windows (visible même fenêtre masquée) ; un clic déclenche `surNotificationOuverte`. */
+  notifier: (titre: string, corps: string, lien: LienNotification): Promise<void> =>
+    ipcRenderer.invoke("notification:afficher", titre, corps, lien),
+  surNotificationOuverte: (rappel: (lien: LienNotification) => void): (() => void) => {
+    const ecouteur = (_evenement: unknown, lien: LienNotification) => rappel(lien);
+    ipcRenderer.on("notification:ouverte", ecouteur);
+    return () => {
+      ipcRenderer.removeListener("notification:ouverte", ecouteur);
+    };
+  },
+  lireLancerAuDemarrage: (): Promise<boolean> => ipcRenderer.invoke("application:lancer-au-demarrage:lire"),
+  ecrireLancerAuDemarrage: (actif: boolean): Promise<boolean> => ipcRenderer.invoke("application:lancer-au-demarrage:ecrire", actif),
 };
 
 contextBridge.exposeInMainWorld("hotelChicago", api);

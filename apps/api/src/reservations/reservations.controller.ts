@@ -49,7 +49,7 @@ export class ReservationsController {
 
   @Post(":id/annuler")
   annuler(@Param("id") id: string, @Body() dto: AnnulerReservationDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
-    return this.reservationsService.annuler(id, dto, currentUser.hotelId);
+    return this.reservationsService.annuler(id, dto, currentUser.hotelId, currentUser);
   }
 
   @Post(":id/check-in")
