@@ -2640,3 +2640,42 @@ cookie ni jeton) accepte toute origine ; le reste (jeton Bearer) garde la liste
 `*.hotelsaver.com` acceptées sur `/public/*`, `evil.example.com` refusée sur `/chambres`.
 Test navigateur : `hotel-test.localhost:5175` → site de l'hôtel (3 chambres, services) ;
 `?hotel=hotel-test` idem ; sous-domaine inconnu et `localhost` nu → vitrine HotelSaver.
+
+## 01/10/2026 — Connexion : « mot de passe oublié », création de compte, retouches desktop
+
+Retour du patron sur la connexion desktop : le bouton « Paramètres » dans la carte n'avait pas
+de sens ; il fallait « Vous n'avez pas encore de compte ? Créer un compte », « Avez-vous déjà un
+compte ? Se connecter » sur la page de création, et « Mot de passe oublié ? ».
+
+- **Desktop** : « Paramètres » sort de la carte (petit engrenage discret dans le coin — sans lui
+  l'adresse de l'API ne serait plus réglable au premier lancement). Photo plus saturée et voile
+  bleu nuit plus marqué à gauche (le texte blanc était illisible sur le mur clair), titre centré.
+  « Créer un compte » ouvre `/inscription` du site dans le navigateur (`URL_SITE_WEB`, réglable à
+  la compilation avec `VITE_URL_SITE_WEB`, `http://localhost:5175` par défaut).
+- **Web** : nouvelles pages `/connexion` (explique que la connexion se fait dans l'application,
+  badges des stores, liens « Mot de passe oublié ? » et « Créer un compte »), `/mot-de-passe-oublie`
+  et `/reinitialiser-mot-de-passe` ; « Se connecter » dans la barre ; la page d'inscription finit
+  par « Avez-vous déjà un compte ? Se connecter ». Le site n'ouvre toujours **aucune session** :
+  aucune clé Supabase côté web (décision Phase 8).
+- **Mobile** : « Mot de passe oublié ? » sur l'écran de connexion (création de compte déjà présente).
+- **API (publique, sans jeton)** : `POST /public/mot-de-passe-oublie` (Supabase `/recover`, réponse
+  identique que le compte existe ou non ; seule la limite de débit remonte, en 429 ; les autres échecs
+  — SMTP non configuré… — sont journalisés côté serveur sans être révélés) et
+  `POST /public/reinitialiser-mot-de-passe` (jeton du lien → `GET /auth/v1/user` pour identifier le
+  compte → mise à jour par `SupabaseAdminService.mettreAJourCompte`). La page web lit le jeton dans le
+  fragment `#access_token=…` et le retire aussitôt de la barre d'adresse.
+
+### À configurer pour que l'e-mail arrive réellement
+
+1. **`SITE_WEB_URL`** dans `apps/api/.env` (défaut `http://localhost:5175`) : adresse du site web.
+2. **Supabase > Authentication > URL Configuration > Redirect URLs** : y ajouter
+   `<SITE_WEB_URL>/reinitialiser-mot-de-passe`, sinon Supabase ignore `redirect_to` et renvoie vers
+   son « Site URL ».
+3. **SMTP personnalisé** (Supabase > Authentication > SMTP) : le service d'e-mail par défaut de
+   Supabase est très limité et n'envoie qu'aux membres de l'équipe du projet. Sans SMTP, les
+   clients réels ne recevront rien.
+
+**Vérifié** : 23 tests `PublicService` (dont les 3 nouveaux), 43 tests api-client, builds. Test
+navigateur réel avec un jeton de récupération généré côté admin (aucun e-mail envoyé) : lien expiré,
+mots de passe différents, enregistrement, jeton retiré de l'URL, reconnexion avec le nouveau mot de
+passe. **L'envoi de l'e-mail lui-même n'a pas été testé** (voir les points ci-dessus).

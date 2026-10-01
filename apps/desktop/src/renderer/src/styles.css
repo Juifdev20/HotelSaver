@@ -74,22 +74,36 @@ p {
   background: linear-gradient(135deg, var(--hc-blue-very-light) 0%, var(--hc-blue-light) 100%);
 }
 
-/* Photo à gauche, qui se fond dans la page vers le centre. */
+/* Photo à gauche, saturée, qui se fond dans la page seulement vers la droite
+ * (le masque garde l'image bien visible jusque derrière la carte). */
 .hc-auth__photo {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  width: 60%;
-  background: #0f2742 center / cover no-repeat;
-  -webkit-mask-image: linear-gradient(to right, #000 35%, transparent 100%);
-  mask-image: linear-gradient(to right, #000 35%, transparent 100%);
+  width: 78%;
+  -webkit-mask-image: linear-gradient(to right, #000 55%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 55%, transparent 100%);
 }
 
+.hc-auth__image {
+  position: absolute;
+  inset: 0;
+  background: #0f2742 center / cover no-repeat;
+  filter: saturate(1.35) contrast(1.06);
+}
+
+/* Voile bleu nuit marqué à gauche : le texte blanc reste lisible quelle que soit la photo. */
 .hc-auth__voile {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(10, 26, 46, 0.55) 0%, rgba(23, 105, 224, 0.15) 70%, transparent 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(8, 24, 48, 0.9) 0%,
+    rgba(12, 44, 92, 0.72) 38%,
+    rgba(23, 105, 224, 0.28) 75%,
+    rgba(23, 105, 224, 0.1) 100%
+  );
 }
 
 .hc-auth__texte {
@@ -99,19 +113,19 @@ p {
   transform: translateY(-50%);
   max-width: 300px;
   color: #fff;
-  text-shadow: 0 1px 12px rgba(10, 26, 46, 0.45);
+  text-shadow: 0 2px 14px rgba(5, 15, 35, 0.55);
 }
 
 .hc-auth__accroche {
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 700;
   line-height: 1.15;
   margin-bottom: var(--hc-space-3);
 }
 
 .hc-auth__description {
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 14px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 15px;
   line-height: 1.6;
   margin-bottom: var(--hc-space-4);
 }
@@ -128,12 +142,38 @@ p {
   display: flex;
   align-items: center;
   gap: var(--hc-space-2);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
 }
 
 .hc-auth__texte li svg {
   color: #8ff0bd;
+}
+
+/* Réglage de l'adresse de l'API : petit bouton discret dans le coin, hors de la carte. */
+.hc-auth__reglages {
+  position: absolute;
+  top: var(--hc-space-4);
+  right: var(--hc-space-4);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--hc-ink-muted);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.hc-auth__reglages:hover,
+.hc-auth__reglages:focus-visible {
+  opacity: 1;
+  background: #fff;
+  color: var(--hc-blue);
 }
 
 .hc-auth__carte {
@@ -168,10 +208,14 @@ p {
   font-size: 26px;
   color: var(--hc-navy);
   margin-bottom: 4px;
+  text-align: center;
 }
 
 .hc-auth__sous-titre {
   margin-bottom: var(--hc-space-4);
+  text-align: center;
+  color: var(--hc-ink-muted);
+  line-height: 1.5;
 }
 
 .hc-auth__label {
@@ -1174,4 +1218,92 @@ p {
   .ligne-service input {
     grid-column: 1;
   }
+}
+
+/* Connexion : mot de passe oublié, séparateur, création de compte */
+.hc-auth__oubli {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--hc-space-2);
+}
+
+.hc-auth__oubli button,
+.hc-auth__retour {
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-family: var(--hc-font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hc-blue);
+  cursor: pointer;
+}
+
+.hc-auth__oubli button:hover,
+.hc-auth__retour:hover {
+  text-decoration: underline;
+}
+
+.hc-auth__retour {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: var(--hc-space-3);
+  padding: 10px;
+  color: var(--hc-ink-muted);
+  font-weight: 500;
+}
+
+.hc-auth__separateur {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  margin: var(--hc-space-4) 0 var(--hc-space-2);
+  color: var(--hc-ink-faint);
+  font-size: 13px;
+}
+
+.hc-auth__separateur::before,
+.hc-auth__separateur::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hc-border);
+}
+
+.hc-auth__pas-de-compte {
+  text-align: center;
+  font-size: 14px;
+  color: var(--hc-ink-muted);
+}
+
+.hc-auth__pas-de-compte a {
+  color: var(--hc-blue);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.hc-auth__pas-de-compte a:hover {
+  text-decoration: underline;
+}
+
+.hc-auth__succes-icone {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--hc-space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--hc-blue-light);
+  color: var(--hc-blue);
+}
+
+.hc-auth__bouton:focus-visible,
+.hc-auth__retour:focus-visible,
+.hc-auth__oubli button:focus-visible {
+  outline: 3px solid var(--hc-info);
+  outline-offset: 2px;
 }

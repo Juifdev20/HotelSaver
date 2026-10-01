@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { Lock, Mail } from "lucide-react-native";
+import { Lock, Mail, MailCheck } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { EnteteAuth } from "../composants/EnteteAuth";
@@ -15,14 +15,105 @@ export interface EcranConnexionProps {
   onConnexion: (email: string, motDePasse: string) => void;
   onRetour?: () => void;
   onCreerCompte?: () => void;
+  /** Envoie l'e-mail « mot de passe oublié » ; rejette avec un message lisible en cas d'échec. */
+  onMotDePasseOublie?: (email: string) => Promise<void>;
 }
 
 /** Bandeau navy + feuille blanche arrondie (maquette). Pas de « mot de passe
  * oublié » ni de « se souvenir de moi » : aucun des deux n'existe côté API, et
  * la session est déjà mémorisée par profil (voir DECISIONS.md, Phase 16). */
-export function EcranConnexion({ emailInitial, message, erreur, enCours, onConnexion, onRetour, onCreerCompte }: EcranConnexionProps) {
+export function EcranConnexion({
+  emailInitial,
+  message,
+  erreur,
+  enCours,
+  onConnexion,
+  onRetour,
+  onCreerCompte,
+  onMotDePasseOublie,
+}: EcranConnexionProps) {
   const [email, setEmail] = useState(emailInitial ?? "");
   const [motDePasse, setMotDePasse] = useState("");
+  const [mode, setMode] = useState<"connexion" | "oubli">("connexion");
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [envoye, setEnvoye] = useState(false);
+  const [erreurOubli, setErreurOubli] = useState<string | null>(null);
+
+  async function envoyerLien() {
+    if (!onMotDePasseOublie) return;
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErreurOubli("Saisissez une adresse e-mail valide.");
+    setErreurOubli(null);
+    setEnvoiEnCours(true);
+    try {
+      await onMotDePasseOublie(email.trim());
+      setEnvoye(true);
+    } catch (e) {
+      setErreurOubli(e instanceof Error ? e.message : "Envoi impossible. Réessayez.");
+    } finally {
+      setEnvoiEnCours(false);
+    }
+  }
+
+  function retourConnexion() {
+    setMode("connexion");
+    setEnvoye(false);
+    setErreurOubli(null);
+  }
+
+  if (mode === "oubli") {
+    return (
+      <View style={styles.page}>
+        <EnteteAuth />
+        <View style={styles.feuille}>
+          <ConteneurFormulaire styleContenu={styles.contenu}>
+            {envoye ? (
+              <>
+                <View style={styles.iconeSucces}>
+                  <MailCheck size={30} color={couleurs.bleu} />
+                </View>
+                <Text style={[styles.titre, styles.centre]}>Consultez votre boîte mail</Text>
+                <Text style={[styles.sousTitre, styles.centre]}>
+                  Si un compte existe pour {email.trim()}, un e-mail vient d'être envoyé avec le lien de réinitialisation.
+                  Pensez à vérifier les courriers indésirables.
+                </Text>
+                <Pressable style={styles.bouton} onPress={retourConnexion}>
+                  <Text style={styles.boutonTexte}>Retour à la connexion</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={styles.titre}>Mot de passe oublié ?</Text>
+                <Text style={styles.sousTitre}>
+                  Saisissez l'adresse e-mail de votre compte : nous vous envoyons un lien pour choisir un nouveau mot de passe.
+                </Text>
+                <ChampAuth
+                  libelle="Adresse e-mail"
+                  icone={Mail}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  textContentType="emailAddress"
+                  placeholder="ex. hotel@monetablissement.com"
+                />
+                {erreurOubli && (
+                  <Text style={styles.erreur} accessibilityRole="alert">
+                    {erreurOubli}
+                  </Text>
+                )}
+                <Pressable style={[styles.bouton, envoiEnCours && styles.boutonDesactive]} onPress={envoyerLien} disabled={envoiEnCours}>
+                  {envoiEnCours ? <ActivityIndicator color="#fff" /> : <Text style={styles.boutonTexte}>Envoyer le lien</Text>}
+                </Pressable>
+                <Pressable style={styles.boutonRetour} onPress={retourConnexion}>
+                  <Text style={styles.boutonRetourTexte}>Retour à la connexion</Text>
+                </Pressable>
+              </>
+            )}
+          </ConteneurFormulaire>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.page}>
@@ -53,6 +144,12 @@ export function EcranConnexion({ emailInitial, message, erreur, enCours, onConne
             textContentType="password"
             placeholder="Votre mot de passe"
           />
+
+          {onMotDePasseOublie && (
+            <Pressable style={styles.lienOubli} onPress={() => setMode("oubli")} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.lienOubliTexte}>Mot de passe oublié ?</Text>
+            </Pressable>
+          )}
 
           {erreur && (
             <Text style={styles.erreur} accessibilityRole="alert">
@@ -144,6 +241,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   boutonContourTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 16 },
+  centre: { textAlign: "center" },
+  iconeSucces: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: couleurs.bleuClair,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: espacements.s3,
+  },
+  lienOubli: { alignSelf: "flex-end", minHeight: 36, justifyContent: "center", marginBottom: espacements.s1 },
+  lienOubliTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 13 },
   boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", height: 44 },
   boutonRetourTexte: { color: couleurs.encreAttenuee, fontWeight: "600" },
 });

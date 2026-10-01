@@ -1424,3 +1424,16 @@ html {
       url("/hotel-chambre-bleue.jpg") center / cover no-repeat;
   }
 }
+
+/* « Se connecter » dans la barre de la vitrine */
+.marketing-nav__connexion {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 8px 4px;
+}
+
+.marketing-nav__connexion:hover {
+  text-decoration: underline;
+}

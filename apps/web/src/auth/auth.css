@@ -469,3 +469,52 @@
   background: var(--hc-surface-100);
   transform: none;
 }
+
+/* Connexion / mot de passe sur le site */
+.auth-aide {
+  margin: 0 0 var(--hc-space-2);
+  text-align: center;
+  font-size: 13px;
+  color: var(--hc-ink-muted);
+}
+
+.auth-separateur {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  margin: var(--hc-space-3) 0 0;
+  color: var(--hc-ink-faint);
+  font-size: 13px;
+}
+
+.auth-separateur::before,
+.auth-separateur::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hc-border);
+}
+
+.lien-auth--sans-marge {
+  margin-top: var(--hc-space-2);
+}
+
+.auth-succes-icone {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--hc-space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--hc-blue-light);
+  color: var(--hc-blue);
+}
+
+.bouton-auth--lien {
+  text-decoration: none;
+}
+
+.carte-auth .badges-stores {
+  justify-content: center;
+}

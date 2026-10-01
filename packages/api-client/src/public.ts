@@ -73,3 +73,18 @@ export function obtenirInfoPublique(config: ConfigApiPublique, sousDomaine: stri
 export function listerHotelsPartenaires(config: ConfigApiPublique): Promise<HotelPartenairePublic[]> {
   return requetePublique(config, "/public/hotels-partenaires");
 }
+
+/** POST /public/mot-de-passe-oublie — envoie l'e-mail de récupération. Même
+ * réponse que le compte existe ou non (le serveur ne révèle rien). */
+export function demanderReinitialisationMotDePasse(config: ConfigApiPublique, email: string): Promise<{ ok: true }> {
+  return requetePublique(config, "/public/mot-de-passe-oublie", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+/** POST /public/reinitialiser-mot-de-passe — `jeton` = jeton d'accès contenu dans
+ * le lien de l'e-mail de récupération (fragment `#access_token=…`). */
+export function reinitialiserMotDePasse(config: ConfigApiPublique, jeton: string, motDePasse: string): Promise<{ ok: true }> {
+  return requetePublique(config, "/public/reinitialiser-mot-de-passe", {
+    method: "POST",
+    body: JSON.stringify({ jeton, motDePasse }),
+  });
+}

@@ -5,7 +5,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
-import { ClientApi, ErreurApi, connecterAvecMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
+import { ClientApi, ErreurApi, connecterAvecMotDePasse, demanderReinitialisationMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
 import { MoteurSync } from "@hotel-chicago/sync-engine";
 import { Role, type InscriptionHotelPayload, type UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
@@ -350,6 +350,10 @@ export default function App() {
         erreur={erreurConnexion}
         enCours={connexionEnCours}
         onConnexion={seConnecter}
+        onMotDePasseOublie={async (email) => {
+          if (!configuration) throw new Error("Application pas encore configurée.");
+          await demanderReinitialisationMotDePasse({ url: configuration.apiUrl }, email);
+        }}
         onRetour={profils.length > 0 ? retourSelectionProfil : undefined}
         onCreerCompte={() => {
           setErreurInscription(null);

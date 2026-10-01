@@ -1,6 +1,6 @@
 jest.mock("../common/palette/extraire-couleurs-logo");
 
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { Prisma } from "@hotel-chicago/database";
 import { PublicService } from "./public.service";
 import { PALETTE_DEFAUT } from "../common/palette-defaut";
@@ -26,6 +26,9 @@ function creerSupabaseAdminMock() {
   return {
     creerCompte: jest.fn().mockResolvedValue({ id: "auth-nouveau", email: "proprietaire@exemple.com" }),
     supprimerCompte: jest.fn().mockResolvedValue(undefined),
+    envoyerRecuperation: jest.fn().mockResolvedValue(undefined),
+    idDepuisJeton: jest.fn().mockResolvedValue("auth-1"),
+    mettreAJourCompte: jest.fn().mockResolvedValue(undefined),
   } as any;
 }
 
@@ -236,6 +239,36 @@ describe("PublicService", () => {
       expect(resultat).toEqual([
         { nom: "Hôtel Chicago", sousDomaine: "chicago", logoUrl: null, adresse: "Goma", couleur: "#1769E0" },
       ]);
+    });
+  });
+
+  describe("mot de passe oublié", () => {
+    afterEach(() => {
+      delete process.env.SITE_WEB_URL;
+    });
+
+    it("demande l'e-mail de récupération avec l'adresse normalisée et le lien de retour vers le site", async () => {
+      process.env.SITE_WEB_URL = "https://hotelsaver.exemple";
+      const reponse = await service.demanderReinitialisation({ email: "  Patron@Exemple.COM " });
+      expect(supabaseAdmin.envoyerRecuperation).toHaveBeenCalledWith(
+        "patron@exemple.com",
+        "https://hotelsaver.exemple/reinitialiser-mot-de-passe"
+      );
+      expect(reponse).toEqual({ ok: true });
+    });
+
+    it("change le mot de passe du détenteur du jeton de récupération", async () => {
+      await service.reinitialiserMotDePasse({ jeton: "jeton-valide", motDePasse: "nouveau-mdp-123" });
+      expect(supabaseAdmin.idDepuisJeton).toHaveBeenCalledWith("jeton-valide");
+      expect(supabaseAdmin.mettreAJourCompte).toHaveBeenCalledWith("auth-1", { motDePasse: "nouveau-mdp-123" });
+    });
+
+    it("refuse (401) un jeton invalide ou expiré, sans rien modifier", async () => {
+      supabaseAdmin.idDepuisJeton.mockResolvedValue(null);
+      await expect(service.reinitialiserMotDePasse({ jeton: "perime", motDePasse: "nouveau-mdp-123" })).rejects.toThrow(
+        UnauthorizedException
+      );
+      expect(supabaseAdmin.mettreAJourCompte).not.toHaveBeenCalled();
     });
   });
 

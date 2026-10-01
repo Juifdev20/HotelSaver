@@ -8,6 +8,7 @@ import { resoudreSousDomaine } from "./resoudreSousDomaine";
 import { appliquerPalette } from "./appliquerPalette";
 import { EcranInscription } from "./EcranInscription";
 import { EcranSucces } from "./EcranSucces";
+import { EcranConnexionWeb, EcranMotDePasseOublie, EcranReinitialisation } from "./auth/EcransMotDePasse";
 import { EcranAccueil } from "./EcranAccueil";
 import { BarreMarketing } from "./accueil/BarreMarketing";
 import { SiteHotel } from "./hotel/SiteHotel";
@@ -37,13 +38,16 @@ function EcranInscriptionAvecEtat() {
 /** Vitrine HotelSaver (plateforme) : accueil marketing + inscription d'un hôtel. */
 function SiteMarketing() {
   const { pathname } = useLocation();
-  const surVitrine = pathname === "/" || pathname === "/inscription";
+  const surVitrine = ["/", "/inscription", "/connexion", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe"].includes(pathname);
   return (
     <>
       {surVitrine && <BarreMarketing />}
       <Routes>
         <Route path="/" element={<EcranAccueil />} />
         <Route path="/inscription" element={<EcranInscriptionAvecEtat />} />
+        <Route path="/connexion" element={<EcranConnexionWeb />} />
+        <Route path="/mot-de-passe-oublie" element={<EcranMotDePasseOublie />} />
+        <Route path="/reinitialiser-mot-de-passe" element={<EcranReinitialisation />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

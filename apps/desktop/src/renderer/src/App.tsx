@@ -1,11 +1,18 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
-import { ClientApi, ErreurApi, connecterAvecMotDePasse, rafraichirSession } from "@hotel-chicago/api-client";
+import {
+  ClientApi,
+  ErreurApi,
+  connecterAvecMotDePasse,
+  demanderReinitialisationMotDePasse,
+  rafraichirSession,
+} from "@hotel-chicago/api-client";
 import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
 import type { ConfigurationApp } from "../../main/config-store";
 import { IdPage, libellePage } from "./navigation";
 import { Coquille } from "./layout/Coquille";
 import { EcranConnexion } from "./screens/EcranConnexion";
+import { URL_SITE_WEB } from "./config-site";
 import { EcranChambres } from "./screens/EcranChambres";
 import { EcranReservations } from "./screens/EcranReservations";
 import { EcranArriveesDeparts } from "./screens/EcranArriveesDeparts";
@@ -278,6 +285,10 @@ export function App() {
   return (
     <EcranConnexion
       onConnexion={seConnecter}
+      onMotDePasseOublie={async (email) => {
+        await demanderReinitialisationMotDePasse({ url: configuration.apiUrl }, email);
+      }}
+      urlInscription={`${URL_SITE_WEB}/inscription`}
       onOuvrirParametres={() => setEcran("parametres-hors-connexion")}
       erreur={erreurConnexion}
       enCours={connexionEnCours}

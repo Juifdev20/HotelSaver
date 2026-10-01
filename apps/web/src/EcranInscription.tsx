@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Building2, Globe, Lock, Mail, MapPin, Phone, User } from "lucide-react";
 import type { InscriptionHotelPayload } from "@hotel-chicago/types";
 import { MiseEnPageAuth, Etapes } from "./auth/MiseEnPageAuth";
@@ -159,9 +160,9 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
           </form>
         )}
 
-        <p className="lien-auth" style={{ cursor: "default", marginTop: 4 }}>
-          Déjà client ? <strong>Connectez-vous depuis l'application</strong> mobile ou ordinateur.
-        </p>
+        <Link to="/connexion" className="lien-auth">
+          Avez-vous déjà un compte ? <strong>Se connecter</strong>
+        </Link>
       </div>
     </MiseEnPageAuth>
   );

@@ -5,6 +5,8 @@ import { FindChambresDisponiblesQueryDto } from "./dto/find-chambres-disponibles
 import { FindHotelPublicQueryDto } from "./dto/find-hotel-public.query.dto";
 import { FindMenuQueryDto } from "./dto/find-menu.query.dto";
 import { InscriptionHotelDto } from "./dto/inscription-hotel.dto";
+import { MotDePasseOublieDto } from "./dto/mot-de-passe-oublie.dto";
+import { ReinitialiserMotDePasseDto } from "./dto/reinitialiser-mot-de-passe.dto";
 
 /**
  * Aucun guard sur ce contrôleur : section 9.1, le "rôle" CLIENT (site public)
@@ -38,6 +40,16 @@ export class PublicController {
   @Post("reservations")
   creerDemandeReservation(@Body() dto: CreerDemandeReservationDto) {
     return this.publicService.creerDemandeReservation(dto);
+  }
+
+  @Post("mot-de-passe-oublie")
+  motDePasseOublie(@Body() dto: MotDePasseOublieDto) {
+    return this.publicService.demanderReinitialisation(dto);
+  }
+
+  @Post("reinitialiser-mot-de-passe")
+  reinitialiserMotDePasse(@Body() dto: ReinitialiserMotDePasseDto) {
+    return this.publicService.reinitialiserMotDePasse(dto);
   }
 
   @Post("hotels/inscription")

@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { ConflictException, HttpException, HttpStatus, Injectable, InternalServerErrorException } from "@nestjs/common";
 
 export interface CompteSupabaseAuth {
   id: string;
@@ -76,5 +76,46 @@ export class SupabaseAdminService {
     if (champs.motDePasse !== undefined) corps.password = champs.motDePasse;
     if (Object.keys(corps).length === 0) return;
     await this.appel("PUT", `/users/${id}`, corps);
+  }
+
+  /**
+   * Envoie l'e-mail « mot de passe oublié » (Supabase Auth, endpoint public
+   * /recover). Supabase répond 200 même si l'adresse n'existe pas (pas
+   * d'énumération de comptes) ; seules les limites de débit remontent.
+   */
+  async envoyerRecuperation(email: string, redirectTo: string): Promise<void> {
+    const url = process.env.SUPABASE_URL;
+    const cle = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !cle) {
+      throw new InternalServerErrorException("SUPABASE_URL/SUPABASE_ANON_KEY non configurés.");
+    }
+    const reponse = await fetch(`${url}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
+      method: "POST",
+      headers: { apikey: cle, "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (reponse.ok) return;
+    const json: any = await reponse.json().catch(() => ({}));
+    if (reponse.status === 429) {
+      throw new HttpException("Trop de demandes. Patientez quelques minutes avant de réessayer.", HttpStatus.TOO_MANY_REQUESTS);
+    }
+    // Autres échecs (SMTP non configuré, etc.) : journalisés pour l'exploitant,
+    // mais jamais révélés au visiteur — même réponse que pour une adresse inconnue.
+    // eslint-disable-next-line no-console
+    console.error(`[mot de passe oublié] Supabase a refusé (${reponse.status}) : ${json.msg || json.message || JSON.stringify(json)}`);
+  }
+
+  /** Identifiant Supabase Auth du détenteur d'un jeton d'accès, ou null si le
+   * jeton est invalide ou expiré. */
+  async idDepuisJeton(jeton: string): Promise<string | null> {
+    const url = process.env.SUPABASE_URL;
+    const cle = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !cle) {
+      throw new InternalServerErrorException("SUPABASE_URL/SUPABASE_ANON_KEY non configurés.");
+    }
+    const reponse = await fetch(`${url}/auth/v1/user`, { headers: { apikey: cle, Authorization: `Bearer ${jeton}` } });
+    if (!reponse.ok) return null;
+    const json: any = await reponse.json().catch(() => null);
+    return json?.id ?? null;
   }
 }

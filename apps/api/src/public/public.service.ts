@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, UnauthorizedException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
 import { StatutChambre } from "@hotel-chicago/database";
 import { PRISMA } from "../prisma/prisma.module";
@@ -10,6 +10,8 @@ import { FindChambresDisponiblesQueryDto } from "./dto/find-chambres-disponibles
 import { FindHotelPublicQueryDto } from "./dto/find-hotel-public.query.dto";
 import { FindMenuQueryDto } from "./dto/find-menu.query.dto";
 import { InscriptionHotelDto } from "./dto/inscription-hotel.dto";
+import { MotDePasseOublieDto } from "./dto/mot-de-passe-oublie.dto";
+import { ReinitialiserMotDePasseDto } from "./dto/reinitialiser-mot-de-passe.dto";
 
 /** Réservations qui bloquent réellement une chambre (voir ReservationsService —
  * dupliqué ici volontairement : ce service public ne doit dépendre d'aucun
@@ -129,6 +131,27 @@ export class PublicService {
         couleur: palette?.light?.bleu ?? null,
       };
     });
+  }
+
+  /**
+   * « Mot de passe oublié » : e-mail de récupération Supabase, dont le lien
+   * ramène sur la page de réinitialisation du site. Réponse identique que le
+   * compte existe ou non.
+   */
+  async demanderReinitialisation(dto: MotDePasseOublieDto): Promise<{ ok: true }> {
+    const site = process.env.SITE_WEB_URL ?? "http://localhost:5175";
+    await this.supabaseAdmin.envoyerRecuperation(dto.email.trim().toLowerCase(), `${site}/reinitialiser-mot-de-passe`);
+    return { ok: true };
+  }
+
+  /** Fixe le nouveau mot de passe du détenteur du jeton de récupération. */
+  async reinitialiserMotDePasse(dto: ReinitialiserMotDePasseDto): Promise<{ ok: true }> {
+    const id = await this.supabaseAdmin.idDepuisJeton(dto.jeton);
+    if (!id) {
+      throw new UnauthorizedException("Ce lien a expiré ou n'est plus valide. Refaites une demande de réinitialisation.");
+    }
+    await this.supabaseAdmin.mettreAJourCompte(id, { motDePasse: dto.motDePasse });
+    return { ok: true };
   }
 
   async findChambresDisponibles(query: FindChambresDisponiblesQueryDto) {

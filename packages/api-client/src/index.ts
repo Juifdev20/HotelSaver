@@ -22,7 +22,7 @@ export type {
 } from "./client";
 export { connecterAvecMotDePasse, rafraichirSession } from "./supabase-auth";
 export type { ConfigSupabaseAuth, SessionSupabase } from "./supabase-auth";
-export { inscrireHotel, listerChambresDisponibles, listerMenu, creerDemandeReservationPublique, obtenirInfoPublique, listerHotelsPartenaires } from "./public";
+export { inscrireHotel, listerChambresDisponibles, listerMenu, creerDemandeReservationPublique, obtenirInfoPublique, listerHotelsPartenaires, demanderReinitialisationMotDePasse, reinitialiserMotDePasse } from "./public";
 export type { ConfigApiPublique } from "./public";
 export { ClientSuperAdmin } from "./super-admin";
 export type { DonneesCreationHotel, DonneesEnregistrementPaiement, DonneesAjoutDomaine } from "./super-admin";
