@@ -2,6 +2,7 @@ import type { EntitePull, EntitePush } from "@hotel-chicago/api-client";
 import type { Chambre, Produit } from "@hotel-chicago/types";
 import type { ConflitSync, LigneFileAttente, StockageLocal } from "@hotel-chicago/sync-engine";
 import { obtenirBase } from "./sqlite";
+import { DepenseBrute, upsertDepense } from "./depensesMirroir";
 
 function genererId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -29,6 +30,9 @@ interface CompteCafeteriaBrute {
   id: string;
   tableOuNom: string;
   statut: string;
+  origine?: string | null;
+  contactClient?: string | null;
+  noteClient?: string | null;
   ouvertPar: string;
   ouvertLe: string;
   fermeLe: string | null;
@@ -52,6 +56,10 @@ interface LigneCommandeBrute {
   quantite: string;
   prixUnitaire: string;
   devise: string;
+  statut?: string;
+  prisEnChargeA?: string | null;
+  pretA?: string | null;
+  note?: string | null;
   createdAt: string;
   updatedAt: string;
   syncVersion: number;
@@ -69,8 +77,14 @@ interface ReservationBrute {
   statut: string;
   origine: string;
   createdBy: string;
+  note: string | null;
   annuleLe: string | null;
   motifAnnulation: string | null;
+  jetonSuivi?: string | null;
+  heureArriveePrevue?: string | null;
+  demandeClient?: string | null;
+  preEnregistreLe?: string | null;
+  reponseReception?: string | null;
   updatedAt: string;
   syncVersion: number;
 }
@@ -80,6 +94,9 @@ interface ClientBrute {
   nom: string;
   telephone: string | null;
   email: string | null;
+  typePiece: string | null;
+  numeroPiece: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
   syncVersion: number;
@@ -243,6 +260,12 @@ export async function creerStockageLocalMobile(): Promise<StockageLocal> {
         }
         return;
       }
+      if (entiteType === "Depense") {
+        for (const brute of lignes as DepenseBrute[]) {
+          await upsertDepense(db, brute);
+        }
+        return;
+      }
       // Autres entités : pas encore de table miroir dédiée (voir le plan).
     },
 
@@ -264,6 +287,8 @@ export async function creerStockageLocalMobile(): Promise<StockageLocal> {
       } else if (entiteType === "Client") {
         // Enfant du CREATE Reservation (client inline, Phase 16).
         await db.runAsync("UPDATE clients SET remoteId = ?, syncVersion = ? WHERE id = ?", [remoteId, syncVersion, localId]);
+      } else if (entiteType === "Depense") {
+        await db.runAsync("UPDATE depenses SET remoteId = ?, syncVersion = ? WHERE id = ?", [remoteId, syncVersion, localId]);
       }
     },
 
@@ -272,6 +297,8 @@ export async function creerStockageLocalMobile(): Promise<StockageLocal> {
         await upsertChambre(db, donneesServeur as Chambre);
       } else if (entiteType === "Reservation") {
         await upsertReservation(db, donneesServeur as ReservationBrute);
+      } else if (entiteType === "Depense") {
+        await upsertDepense(db, donneesServeur as DepenseBrute);
       }
     },
   };
@@ -293,15 +320,20 @@ async function upsertChambre(db: Awaited<ReturnType<typeof obtenirBase>>, chambr
  * upsert simple par id, comme Chambre. */
 async function upsertProduit(db: Awaited<ReturnType<typeof obtenirBase>>, produit: Produit): Promise<void> {
   await db.runAsync(
-    `INSERT INTO produits (id, nom, categorie, prix, devise, photo, stockActuel, seuilAlerte, actif, updatedAt, syncVersion)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO produits (id, nom, categorie, prix, devise, prixAchat, photo, stockActuel, seuilAlerte, actif, commandableEnLigne, description, typeProduit, portionsDisponibles, codeBarres, updatedAt, syncVersion)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        nom = excluded.nom, categorie = excluded.categorie, prix = excluded.prix, devise = excluded.devise,
+       prixAchat = excluded.prixAchat,
        photo = excluded.photo, stockActuel = excluded.stockActuel, seuilAlerte = excluded.seuilAlerte,
-       actif = excluded.actif, updatedAt = excluded.updatedAt, syncVersion = excluded.syncVersion`,
+       actif = excluded.actif, commandableEnLigne = excluded.commandableEnLigne, description = excluded.description,
+       typeProduit = excluded.typeProduit, portionsDisponibles = excluded.portionsDisponibles, codeBarres = excluded.codeBarres,
+       updatedAt = excluded.updatedAt, syncVersion = excluded.syncVersion`,
     [
-      produit.id, produit.nom, produit.categorie, produit.prix, produit.devise, produit.photo,
-      produit.stockActuel, produit.seuilAlerte, produit.actif ? 1 : 0, produit.updatedAt, produit.syncVersion,
+      produit.id, produit.nom, produit.categorie, produit.prix, produit.devise, produit.prixAchat ?? null, produit.photo,
+      produit.stockActuel, produit.seuilAlerte, produit.actif ? 1 : 0, produit.commandableEnLigne ? 1 : 0,
+      produit.description ?? null, produit.typeProduit ?? "ARTICLE", produit.portionsDisponibles ?? null,
+      produit.codeBarres ?? null, produit.updatedAt, produit.syncVersion,
     ]
   );
 }
@@ -319,14 +351,14 @@ async function upsertCompteCafeteria(db: Awaited<ReturnType<typeof obtenirBase>>
   );
   if (existant) {
     await db.runAsync(
-      `UPDATE comptes_cafeteria SET remoteId = ?, tableOuNom = ?, statut = ?, ouvertPar = ?, ouvertLe = ?, fermeLe = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
-      [brute.id, brute.tableOuNom, brute.statut, brute.ouvertPar, brute.ouvertLe, brute.fermeLe, brute.updatedAt, brute.syncVersion, existant.id]
+      `UPDATE comptes_cafeteria SET remoteId = ?, tableOuNom = ?, statut = ?, origine = ?, contactClient = ?, noteClient = ?, ouvertPar = ?, ouvertLe = ?, fermeLe = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
+      [brute.id, brute.tableOuNom, brute.statut, brute.origine ?? null, brute.contactClient ?? null, brute.noteClient ?? null, brute.ouvertPar, brute.ouvertLe, brute.fermeLe, brute.updatedAt, brute.syncVersion, existant.id]
     );
   } else {
     await db.runAsync(
-      `INSERT INTO comptes_cafeteria (id, remoteId, tableOuNom, statut, ouvertPar, ouvertLe, fermeLe, updatedAt, syncVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [brute.id, brute.id, brute.tableOuNom, brute.statut, brute.ouvertPar, brute.ouvertLe, brute.fermeLe, brute.updatedAt, brute.syncVersion]
+      `INSERT INTO comptes_cafeteria (id, remoteId, tableOuNom, statut, origine, contactClient, noteClient, ouvertPar, ouvertLe, fermeLe, updatedAt, syncVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [brute.id, brute.id, brute.tableOuNom, brute.statut, brute.origine ?? null, brute.contactClient ?? null, brute.noteClient ?? null, brute.ouvertPar, brute.ouvertLe, brute.fermeLe, brute.updatedAt, brute.syncVersion]
     );
   }
 }
@@ -356,14 +388,14 @@ async function upsertLigneCommande(db: Awaited<ReturnType<typeof obtenirBase>>, 
   );
   if (existant) {
     await db.runAsync(
-      `UPDATE lignes_commande SET remoteId = ?, sousCompteId = ?, produitId = ?, quantite = ?, prixUnitaire = ?, devise = ?, createdAt = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
-      [brute.id, brute.sousCompteId, brute.produitId, brute.quantite, brute.prixUnitaire, brute.devise, brute.createdAt, brute.updatedAt, brute.syncVersion, existant.id]
+      `UPDATE lignes_commande SET remoteId = ?, sousCompteId = ?, produitId = ?, quantite = ?, prixUnitaire = ?, devise = ?, statut = ?, prisEnChargeA = ?, pretA = ?, note = ?, createdAt = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
+      [brute.id, brute.sousCompteId, brute.produitId, brute.quantite, brute.prixUnitaire, brute.devise, brute.statut ?? "EN_ATTENTE", brute.prisEnChargeA ?? null, brute.pretA ?? null, brute.note ?? null, brute.createdAt, brute.updatedAt, brute.syncVersion, existant.id]
     );
   } else {
     await db.runAsync(
-      `INSERT INTO lignes_commande (id, remoteId, sousCompteId, produitId, quantite, prixUnitaire, devise, createdAt, updatedAt, syncVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [brute.id, brute.id, brute.sousCompteId, brute.produitId, brute.quantite, brute.prixUnitaire, brute.devise, brute.createdAt, brute.updatedAt, brute.syncVersion]
+      `INSERT INTO lignes_commande (id, remoteId, sousCompteId, produitId, quantite, prixUnitaire, devise, statut, prisEnChargeA, pretA, note, createdAt, updatedAt, syncVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [brute.id, brute.id, brute.sousCompteId, brute.produitId, brute.quantite, brute.prixUnitaire, brute.devise, brute.statut ?? "EN_ATTENTE", brute.prisEnChargeA ?? null, brute.pretA ?? null, brute.note ?? null, brute.createdAt, brute.updatedAt, brute.syncVersion]
     );
   }
 }
@@ -380,20 +412,24 @@ async function upsertReservation(db: Awaited<ReturnType<typeof obtenirBase>>, br
   );
   if (existant) {
     await db.runAsync(
-      `UPDATE reservations SET remoteId = ?, chambreId = ?, clientId = ?, dateArrivee = ?, dateDepart = ?, acompte = ?, statut = ?, origine = ?, createdBy = ?, annuleLe = ?, motifAnnulation = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
+      `UPDATE reservations SET remoteId = ?, chambreId = ?, clientId = ?, dateArrivee = ?, dateDepart = ?, acompte = ?, statut = ?, origine = ?, createdBy = ?, note = ?, annuleLe = ?, motifAnnulation = ?,
+         jetonSuivi = ?, heureArriveePrevue = ?, demandeClient = ?, preEnregistreLe = ?, reponseReception = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
       [
         brute.id, brute.chambreId, brute.clientId, brute.dateArrivee, brute.dateDepart, brute.acompte,
-        brute.statut, brute.origine, brute.createdBy, brute.annuleLe, brute.motifAnnulation,
+        brute.statut, brute.origine, brute.createdBy, brute.note ?? null, brute.annuleLe, brute.motifAnnulation,
+        brute.jetonSuivi ?? null, brute.heureArriveePrevue ?? null, brute.demandeClient ?? null, brute.preEnregistreLe ?? null, brute.reponseReception ?? null,
         brute.updatedAt, brute.syncVersion, existant.id,
       ]
     );
   } else {
     await db.runAsync(
-      `INSERT INTO reservations (id, remoteId, chambreId, clientId, dateArrivee, dateDepart, acompte, statut, origine, createdBy, annuleLe, motifAnnulation, updatedAt, syncVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO reservations (id, remoteId, chambreId, clientId, dateArrivee, dateDepart, acompte, statut, origine, createdBy, note, annuleLe, motifAnnulation,
+         jetonSuivi, heureArriveePrevue, demandeClient, preEnregistreLe, reponseReception, updatedAt, syncVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         brute.id, brute.id, brute.chambreId, brute.clientId, brute.dateArrivee, brute.dateDepart, brute.acompte,
-        brute.statut, brute.origine, brute.createdBy, brute.annuleLe, brute.motifAnnulation,
+        brute.statut, brute.origine, brute.createdBy, brute.note ?? null, brute.annuleLe, brute.motifAnnulation,
+        brute.jetonSuivi ?? null, brute.heureArriveePrevue ?? null, brute.demandeClient ?? null, brute.preEnregistreLe ?? null, brute.reponseReception ?? null,
         brute.updatedAt, brute.syncVersion,
       ]
     );
@@ -407,14 +443,14 @@ async function upsertClient(db: Awaited<ReturnType<typeof obtenirBase>>, brute: 
   );
   if (existant) {
     await db.runAsync(
-      `UPDATE clients SET remoteId = ?, nom = ?, telephone = ?, email = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
-      [brute.id, brute.nom, brute.telephone, brute.email, brute.updatedAt, brute.syncVersion, existant.id]
+      `UPDATE clients SET remoteId = ?, nom = ?, telephone = ?, email = ?, typePiece = ?, numeroPiece = ?, notes = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
+      [brute.id, brute.nom, brute.telephone, brute.email, brute.typePiece ?? null, brute.numeroPiece ?? null, brute.notes ?? null, brute.updatedAt, brute.syncVersion, existant.id]
     );
   } else {
     await db.runAsync(
-      `INSERT INTO clients (id, remoteId, nom, telephone, email, createdAt, updatedAt, syncVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [brute.id, brute.id, brute.nom, brute.telephone, brute.email, brute.createdAt, brute.updatedAt, brute.syncVersion]
+      `INSERT INTO clients (id, remoteId, nom, telephone, email, typePiece, numeroPiece, notes, createdAt, updatedAt, syncVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [brute.id, brute.id, brute.nom, brute.telephone, brute.email, brute.typePiece ?? null, brute.numeroPiece ?? null, brute.notes ?? null, brute.createdAt, brute.updatedAt, brute.syncVersion]
     );
   }
 }

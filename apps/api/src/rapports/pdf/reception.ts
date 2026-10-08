@@ -1,4 +1,6 @@
 import { AgregatReception, LigneConcordance } from "../agregats/types";
+import { AgregatDepenses } from "../agregats/depenses";
+import { sectionDepenses } from "./depenses";
 import {
   BrandingPdf,
   collecter,
@@ -22,6 +24,8 @@ export interface ContexteRapportReception {
   provisoire: boolean;
   concordance: LigneConcordance[];
   limites: string[];
+  /** Dépenses du département sur le mois (07/10/2026) — absent : section omise. */
+  depenses?: AgregatDepenses;
 }
 
 const LIBELLE_MODE: Record<string, string> = {
@@ -216,7 +220,15 @@ export async function rendreRapportReception(
     doc.font("Helvetica-Bold").fontSize(8.5).fillColor("#b3261e").text("Écart détecté entre le rapport et le tableau de bord — vérification nécessaire.");
   }
 
-  // 8. Signatures
+  // 8. Dépenses et solde net
+  if (ctx.depenses) {
+    sectionDepenses(doc, "8. Dépenses du mois et solde net", ctx.depenses, {
+      libelle: "Recette chambres",
+      montant: data.recetteChambres,
+    });
+  }
+
+  // 9. Signatures
   signatures(doc, [
     { titre: "Le/La réceptionniste", nom: ctx.genereParNom },
     { titre: "Le patron", nom: "" },

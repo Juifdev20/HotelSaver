@@ -1,13 +1,14 @@
 import { BadRequestException, ConflictException, UnauthorizedException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, PrismaClient } from "@hotel-chicago/database";
+import { Prisma, PrismaClient, StatutLigne, TypeProduit } from "@hotel-chicago/database";
 import { StatutChambre } from "@hotel-chicago/database";
-import { Role } from "@hotel-chicago/types";
+import { CommandeWebCreee, Role, StatutSuiviPublic, SuiviReservationPublic, codeSuivi } from "@hotel-chicago/types";
 import { NotificationsService } from "../notifications/notifications.service";
 import { messages } from "../notifications/messages";
 import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 import { genererPalette } from "../common/palette/generer-palette";
+import { CreerCommandeWebDto } from "./dto/creer-commande-web.dto";
 import { CreerDemandeReservationDto } from "./dto/creer-demande-reservation.dto";
 import { FindChambresDisponiblesQueryDto } from "./dto/find-chambres-disponibles.query.dto";
 import { FindHotelPublicQueryDto } from "./dto/find-hotel-public.query.dto";
@@ -15,6 +16,14 @@ import { FindMenuQueryDto } from "./dto/find-menu.query.dto";
 import { InscriptionHotelDto } from "./dto/inscription-hotel.dto";
 import { MotDePasseOublieDto } from "./dto/mot-de-passe-oublie.dto";
 import { ReinitialiserMotDePasseDto } from "./dto/reinitialiser-mot-de-passe.dto";
+import { FindTicketCommandeQueryDto } from "./dto/find-ticket-commande.query.dto";
+import { rendreTicketCommandeWeb } from "./ticket-commande";
+import { AnnulerReservationPubliqueDto, PreEnregistrementDto, SuiviReservationQueryDto } from "./dto/suivi-reservation.dto";
+
+/** Préfixe du motif d'une annulation faite par le client depuis sa page de
+ * suivi — distingue « Annulée » (par le client) de « Non retenue » (par
+ * l'hôtel, motif interne jamais montré au client). */
+const MOTIF_ANNULATION_CLIENT = "Annulée par le client depuis le site";
 
 /** Réservations qui bloquent réellement une chambre (voir ReservationsService —
  * dupliqué ici volontairement : ce service public ne doit dépendre d'aucun
@@ -104,6 +113,7 @@ export class PublicService {
       reception24h: site?.reception24h ?? false,
       lienCarte: site?.lienCarte ?? null,
       reseaux: site?.reseaux ?? {},
+      commandeWebActivee: hotel.commandeWebActivee,
       logoUrl: hotel.branding?.logoUrl ?? null,
       policeAffichage: hotel.branding?.policeAffichage ?? "Fraunces",
       policeCorps: hotel.branding?.policeCorps ?? "Public Sans",
@@ -188,12 +198,215 @@ export class PublicService {
     });
   }
 
+  /**
+   * Carte publique — seuls les produits que le patron a explicitement marqués
+   * `commandableEnLigne` sont exposés (opt-in : rien n'est publié par défaut).
+   * `portionsDisponibles` permet au site de marquer « Épuisé » un plat à
+   * portions limitées (null = illimité).
+   */
   async findMenu(query: FindMenuQueryDto) {
     const { id: hotelId } = await this.resoudreHotel(query.sousDomaine);
+    // Carte du restaurant : uniquement les PLATS (les articles de comptoir —
+    // bière, sucre… — ne sont pas un « menu » et n'ont pas vocation à être
+    // commandés en ligne).
     return this.prisma.produit.findMany({
-      where: { hotelId, actif: true },
+      where: { hotelId, actif: true, commandableEnLigne: true, typeProduit: "PLAT" },
       orderBy: [{ categorie: "asc" }, { nom: "asc" }],
     });
+  }
+
+  /**
+   * POST /public/commande — un visiteur anonyme commande depuis la page
+   * « Cuisine » du site. La commande devient un CompteCafeteria ordinaire
+   * (origine SITE_PUBLIC) : paiement au comptoir, reçu et suivi de préparation
+   * passent ensuite par les flux cafétéria existants.
+   *
+   * Règles propres au canal public :
+   * - l'hôtel doit avoir activé `commandeWebActivee` (404 uniforme sinon) ;
+   * - chaque produit doit être `actif`, `commandableEnLigne` ET de type PLAT
+   *   pour CET hôtel (les articles de comptoir ne sont pas commandables) ;
+   * - les prix sont repris en base, jamais depuis le payload client ;
+   * - un plat n'a pas de stock compté (on cuisine à la commande) ; s'il a des
+   *   `portionsDisponibles` limitées elles sont vérifiées puis décrémentées
+   *   (remontées si la commande échoue ensuite) ;
+   * - statut des lignes : EN_ATTENTE si la cuisine interne est active, SERVI
+   *   sinon (même règle que CafeteriaService.ajouterLigne).
+   */
+  async creerCommandeWeb(dto: CreerCommandeWebDto): Promise<CommandeWebCreee> {
+    const hotel = await this.resoudreHotel(dto.sousDomaine);
+    if (!hotel.commandeWebActivee) {
+      throw new NotFoundException(`Aucun hôtel disponible pour "${dto.sousDomaine}".`);
+    }
+    const hotelId = hotel.id;
+
+    // Agrégation par produit pour le total (un même produit peut figurer sur
+    // plusieurs lignes avec des notes différentes).
+    const quantites = new Map<string, number>();
+    for (const ligne of dto.lignes) {
+      quantites.set(ligne.produitId, (quantites.get(ligne.produitId) ?? 0) + ligne.quantite);
+    }
+
+    const produits = await this.prisma.produit.findMany({
+      where: {
+        hotelId,
+        id: { in: [...quantites.keys()] },
+        actif: true,
+        commandableEnLigne: true,
+        typeProduit: TypeProduit.PLAT,
+      },
+    });
+    const parId = new Map(produits.map((p) => [p.id, p]));
+    for (const produitId of quantites.keys()) {
+      if (!parId.has(produitId)) {
+        throw new BadRequestException("Un des articles commandés n'est plus disponible à la commande en ligne.");
+      }
+    }
+
+    const contactClient =
+      [dto.client.telephone, dto.client.chambre ? `ch. ${dto.client.chambre}` : null].filter(Boolean).join(" · ") ||
+      null;
+    const compte = await this.prisma.compteCafeteria.create({
+      data: {
+        hotelId,
+        tableOuNom: `Commande web — ${dto.client.nom}`,
+        origine: "SITE_PUBLIC",
+        contactClient,
+        noteClient: dto.client.note ?? null,
+        ouvertPar: CREATED_BY_SITE_PUBLIC,
+        sousComptes: { create: [{ hotelId, nom: dto.client.nom }] },
+      },
+      include: { sousComptes: true },
+    });
+    const sousCompteId = compte.sousComptes[0]!.id;
+
+    const statutLigne = hotel.cuisineActivee ? StatutLigne.EN_ATTENTE : StatutLigne.SERVI;
+    // Plats à portions limitées déjà décrémentés — à remonter si la suite
+    // échoue (pas de transaction interactive via le pooler).
+    const portionsDecrementees: { produitId: string; quantite: number }[] = [];
+    try {
+      for (const [produitId, quantite] of quantites) {
+        const produit = parId.get(produitId)!;
+        if (produit.portionsDisponibles != null) {
+          const { count } = await this.prisma.produit.updateMany({
+            where: { id: produitId, hotelId, portionsDisponibles: { gte: quantite } },
+            data: { portionsDisponibles: { decrement: quantite } },
+          });
+          if (count === 0) {
+            throw new BadRequestException(`"${produit.nom}" n'est plus disponible en quantité suffisante.`);
+          }
+          portionsDecrementees.push({ produitId, quantite });
+        }
+      }
+      for (const ligne of dto.lignes) {
+        const produit = parId.get(ligne.produitId)!;
+        await this.prisma.ligneCommande.create({
+          data: {
+            hotelId,
+            sousCompteId,
+            produitId: ligne.produitId,
+            quantite: ligne.quantite,
+            prixUnitaire: produit.prix,
+            devise: produit.devise,
+            statut: statutLigne,
+            note: ligne.note ?? null,
+          },
+        });
+      }
+    } catch (erreur) {
+      // Défaire proprement : remonter les portions déjà décrémentées puis
+      // supprimer la commande partielle (lignes → sous-compte → compte) plutôt
+      // que de laisser un compte fantôme au comptoir.
+      for (const { produitId, quantite } of portionsDecrementees) {
+        await this.prisma.produit
+          .updateMany({ where: { id: produitId, hotelId }, data: { portionsDisponibles: { increment: quantite } } })
+          .catch(() => undefined);
+      }
+      await this.annulerCommandeWebPartielle(hotelId, compte.id).catch(() => undefined);
+      throw erreur;
+    }
+
+    let totalUSD = 0;
+    let totalCDF = 0;
+    for (const [produitId, quantite] of quantites) {
+      const produit = parId.get(produitId)!;
+      if (produit.devise === "USD") totalUSD += Number(produit.prix) * quantite;
+      else totalCDF += Number(produit.prix) * quantite;
+    }
+    const nbArticles = dto.lignes.reduce((somme, l) => somme + l.quantite, 0);
+
+    // La cafétéria (et le patron) de CET hôtel sont prévenus tout de suite.
+    void this.notifications.emettre({
+      hotelId,
+      roles: [Role.CAFETARIA, Role.PATRON],
+      ...messages.commandeWeb({
+        client: dto.client.nom,
+        articles: nbArticles,
+        totalUSD,
+        totalCDF,
+        compteId: compte.id,
+      }),
+    });
+
+    return { compteId: compte.id, reference: compte.id.slice(0, 8).toUpperCase(), totalUSD, totalCDF };
+  }
+
+  /**
+   * Ticket PDF téléchargeable depuis l'écran de confirmation. Endpoint public
+   * (le client n'a pas de compte) mais restreint aux commandes SITE_PUBLIC
+   * de l'hôtel concerné : connaître l'UUID complet d'une commande reste
+   * invraisemblable à deviner, et un compte de comptoir ne doit jamais être
+   * exposé ici.
+   */
+  async genererTicketCommandeWeb(compteId: string, query: FindTicketCommandeQueryDto): Promise<Buffer> {
+    const hotel = await this.resoudreHotel(query.sousDomaine);
+    const compte = await this.prisma.compteCafeteria.findFirst({
+      where: { id: compteId, hotelId: hotel.id, origine: "SITE_PUBLIC" },
+      include: { sousComptes: { include: { lignes: { include: { produit: true } } } } },
+    });
+    if (!compte) {
+      throw new NotFoundException("Aucune commande trouvée pour cette référence.");
+    }
+    let totalUSD = 0;
+    let totalCDF = 0;
+    const lignes = compte.sousComptes.flatMap((sc) =>
+      sc.lignes.map((l) => {
+        const montantLigne = Number(l.prixUnitaire) * Number(l.quantite);
+        if (l.devise === "USD") totalUSD += montantLigne;
+        else totalCDF += montantLigne;
+        return {
+          quantite: Number(l.quantite),
+          nom: l.produit.nom,
+          prixUnitaire: Number(l.prixUnitaire),
+          devise: l.devise as "USD" | "CDF",
+        };
+      })
+    );
+    return rendreTicketCommandeWeb(
+      {
+        reference: compte.id.slice(0, 8).toUpperCase(),
+        nomClient: compte.tableOuNom.replace(/^Commande web — /, ""),
+        contactClient: compte.contactClient,
+        noteClient: compte.noteClient,
+        dateCommande: compte.ouvertLe,
+        lignes,
+        totalUSD,
+        totalCDF,
+      },
+      { nom: hotel.nom, adresse: hotel.adresse, telephone: hotel.telephoneContact }
+    );
+  }
+
+  /**
+   * Compensation si `creerCommandeWeb` échoue après la création du compte (pas
+   * de transaction interactive possible via le pooler, même raisonnement que
+   * CafeteriaService.ajouterLigne) : lignes, sous-compte et compte supprimés.
+   * Les plats n'ayant pas de stock compté, il n'y a rien à remonter.
+   */
+  private async annulerCommandeWebPartielle(hotelId: string, compteId: string): Promise<void> {
+    const lignes = await this.prisma.ligneCommande.findMany({ where: { hotelId, sousCompte: { compteId } }, select: { id: true } });
+    await this.prisma.ligneCommande.deleteMany({ where: { id: { in: lignes.map((l) => l.id) } } });
+    await this.prisma.sousCompte.deleteMany({ where: { compteId } });
+    await this.prisma.compteCafeteria.delete({ where: { id: compteId } });
   }
 
   async creerDemandeReservation(dto: CreerDemandeReservationDto) {
@@ -245,7 +458,142 @@ export class PublicService {
         reservationId: reservation.id,
       }),
     });
-    return reservation;
+    // Jamais la réservation complète (elle contient la fiche client) : le site
+    // n'a besoin que du jeton pour ouvrir la page « Ma réservation ».
+    return { id: reservation.id, statut: reservation.statut, jetonSuivi: reservation.jetonSuivi };
+  }
+
+  /** Réservation désignée par son jeton de suivi, dans l'hôtel du site
+   * consulté — 404 uniforme sinon (jeton inconnu, autre hôtel, hôtel suspendu). */
+  private async reservationParJeton(jeton: string, sousDomaine: string) {
+    const hotel = await this.resoudreHotel(sousDomaine);
+    const reservation = await this.prisma.reservation.findFirst({
+      where: { jetonSuivi: jeton, hotelId: hotel.id },
+      include: { chambre: true, client: true },
+    });
+    if (!reservation) throw new NotFoundException("Réservation introuvable.");
+    return { hotel, reservation };
+  }
+
+  /** Annulable / pré-enregistrable : demande ou réservation confirmée, jusqu'à
+   * la fin du jour d'arrivée (le client peut encore prévenir le jour même). */
+  private static modifiableParClient(r: { statut: string; dateArrivee: Date }, maintenant = new Date()): boolean {
+    return (r.statut === "EN_ATTENTE" || r.statut === "CONFIRMEE") && maintenant.getTime() < r.dateArrivee.getTime() + 24 * 3600_000;
+  }
+
+  /**
+   * Page « Ma réservation » du site (07/10/2026). Réponse réduite à ce que le
+   * client doit voir : jamais le numéro de pièce (seulement « renseignée »),
+   * jamais le motif interne d'une annulation par l'hôtel.
+   */
+  async obtenirSuiviReservation(jeton: string, query: SuiviReservationQueryDto): Promise<SuiviReservationPublic> {
+    const { hotel, reservation: r } = await this.reservationParJeton(jeton, query.sousDomaine);
+    const site = await this.prisma.hotelSite.findUnique({ where: { hotelId: hotel.id }, select: { whatsapp: true } });
+    const nuits = Math.max(1, Math.round((r.dateDepart.getTime() - r.dateArrivee.getTime()) / 86_400_000));
+    const statut: StatutSuiviPublic =
+      r.statut === "ANNULEE"
+        ? r.motifAnnulation?.startsWith(MOTIF_ANNULATION_CLIENT)
+          ? "ANNULEE"
+          : "NON_RETENUE"
+        : (r.statut as StatutSuiviPublic);
+    const modifiable = PublicService.modifiableParClient(r);
+    return {
+      code: codeSuivi(r.jetonSuivi),
+      statut,
+      hotel: { nom: hotel.nom, whatsapp: site?.whatsapp ?? null, telephone: hotel.telephoneContact ?? null },
+      client: { nom: r.client.nom },
+      chambre: { numero: r.chambre.numero, type: r.chambre.type },
+      dateArrivee: r.dateArrivee.toISOString(),
+      dateDepart: r.dateDepart.toISOString(),
+      nuits,
+      totalEstime: String(Math.round(Number(r.chambre.prixParNuit) * nuits * 100) / 100),
+      acompte: String(r.acompte),
+      devise: r.chambre.devise as SuiviReservationPublic["devise"],
+      preEnregistrement: {
+        fait: r.preEnregistreLe !== null,
+        le: r.preEnregistreLe?.toISOString() ?? null,
+        heureArriveePrevue: r.heureArriveePrevue,
+        demandeClient: r.demandeClient,
+        pieceRenseignee: Boolean(r.client.typePiece && r.client.numeroPiece),
+      },
+      reponseReception: r.reponseReception,
+      peutAnnuler: modifiable,
+      peutPreEnregistrer: modifiable,
+    };
+  }
+
+  /** Le client annule lui-même depuis sa page de suivi ; la réception et le
+   * patron sont prévenus. Même écriture que ReservationsService.annuler
+   * (statut, annuleLe, motif, syncVersion+1), dupliquée volontairement : ce
+   * service public ne dépend pas du module Réservations. */
+  async annulerReservationPublique(jeton: string, query: SuiviReservationQueryDto, dto: AnnulerReservationPubliqueDto) {
+    const { hotel, reservation } = await this.reservationParJeton(jeton, query.sousDomaine);
+    if (!PublicService.modifiableParClient(reservation)) {
+      throw new ConflictException("Cette réservation ne peut plus être annulée en ligne. Contactez l'hôtel.");
+    }
+    const precision = dto.motif?.trim();
+    const motif = precision ? `${MOTIF_ANNULATION_CLIENT} : ${precision}` : MOTIF_ANNULATION_CLIENT;
+    await this.prisma.reservation.update({
+      where: { id: reservation.id },
+      data: { statut: "ANNULEE", annuleLe: new Date(), motifAnnulation: motif, syncVersion: { increment: 1 } },
+    });
+    void this.notifications.emettre({
+      hotelId: hotel.id,
+      roles: [Role.RECEPTIONNISTE, Role.PATRON],
+      ...messages.reservationAnnulee({
+        client: reservation.client.nom,
+        chambre: reservation.chambre.numero,
+        motif,
+        reservationId: reservation.id,
+        par: "le client (site web)",
+      }),
+    });
+    return this.obtenirSuiviReservation(jeton, query);
+  }
+
+  /** Pré-enregistrement en ligne : la pièce va sur la fiche Client, l'heure
+   * et la demande sur la Reservation (syncVersion+1 des deux, pour que les
+   * téléphones de la réception les reçoivent). Peut être refait tant que la
+   * réservation reste modifiable. */
+  async preEnregistrer(jeton: string, query: SuiviReservationQueryDto, dto: PreEnregistrementDto) {
+    const { hotel, reservation } = await this.reservationParJeton(jeton, query.sousDomaine);
+    if (!PublicService.modifiableParClient(reservation)) {
+      throw new ConflictException("Le pré-enregistrement n'est plus possible pour cette réservation. Contactez l'hôtel.");
+    }
+    const demande = dto.demandeClient?.trim() || null;
+    await this.prisma.$transaction([
+      this.prisma.client.update({
+        where: { id: reservation.clientId },
+        data: {
+          typePiece: dto.typePiece,
+          numeroPiece: dto.numeroPiece.trim(),
+          ...(dto.email ? { email: dto.email.trim() } : {}),
+          ...(dto.telephone ? { telephone: dto.telephone.trim() } : {}),
+          syncVersion: { increment: 1 },
+        },
+      }),
+      this.prisma.reservation.update({
+        where: { id: reservation.id },
+        data: {
+          heureArriveePrevue: dto.heureArriveePrevue,
+          demandeClient: demande,
+          preEnregistreLe: new Date(),
+          syncVersion: { increment: 1 },
+        },
+      }),
+    ]);
+    void this.notifications.emettre({
+      hotelId: hotel.id,
+      roles: [Role.RECEPTIONNISTE, Role.PATRON],
+      ...messages.preEnregistrement({
+        client: reservation.client.nom,
+        chambre: reservation.chambre.numero,
+        arrivee: reservation.dateArrivee,
+        heure: dto.heureArriveePrevue,
+        reservationId: reservation.id,
+      }),
+    });
+    return this.obtenirSuiviReservation(jeton, query);
   }
 
   /**

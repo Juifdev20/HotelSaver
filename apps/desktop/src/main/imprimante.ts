@@ -1,5 +1,5 @@
 import { printer as ThermalPrinter, types as PrinterTypes, characterSet as CharacterSet } from "node-thermal-printer";
-import type { LigneRecu } from "@hotel-chicago/receipts";
+import { commandesCodeBarre, type LigneRecu } from "@hotel-chicago/receipts";
 
 /**
  * Traduit `LigneRecu[]` vers l'API haut niveau de `node-thermal-printer` —
@@ -48,6 +48,11 @@ function ecrireLignes(imprimante: ReturnType<typeof construireImprimante>, ligne
       case "montant":
         imprimante.alignLeft();
         imprimante.leftRight(ligne.libelle, ligne.valeur);
+        break;
+      case "codebarre":
+        // Mêmes octets ESC/POS (GS k) que le mobile : un seul encodeur de
+        // code-barres pour les deux plateformes.
+        imprimante.append(Buffer.from(commandesCodeBarre(ligne.valeur)));
         break;
     }
   }

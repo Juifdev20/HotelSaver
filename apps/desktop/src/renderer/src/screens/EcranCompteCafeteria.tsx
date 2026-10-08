@@ -1,7 +1,7 @@
 import * as React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { CompteCafeteria, Devise, ModePaiement, Produit, StatutCompte, ProfilConnecte, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
+import { CompteCafeteria, Devise, MenuDuJour, ModePaiement, Produit, StatutLigne, LIBELLE_STATUT_LIGNE, StatutCompte, ProfilConnecte, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { Check, Plus } from "lucide-react";
@@ -14,6 +14,8 @@ export interface EcranCompteCafeteriaProps {
   compteId: string;
   interfaceImprimante: string | null;
   onRetour: () => void;
+  /** « Vente rapide » : ouvre tout de suite l'ajout pour la première personne. */
+  ouvrirAjoutAuDemarrage?: boolean;
 }
 
 function totalSousCompte(sousCompte: CompteCafeteria["sousComptes"][number]): { usd: number; cdf: number } {
@@ -42,7 +44,14 @@ function totalCompte(compte: CompteCafeteria): { usd: number; cdf: number } {
  * apps/mobile/src/ecrans/EcranCompteCafeteria.tsx). En ligne directe : pas
  * de miroir, chaque action appelle l'API et recharge le compte.
  */
-export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceImprimante, onRetour }: EcranCompteCafeteriaProps) {
+export function EcranCompteCafeteria({
+  client,
+  utilisateur,
+  compteId,
+  interfaceImprimante,
+  onRetour,
+  ouvrirAjoutAuDemarrage = false,
+}: EcranCompteCafeteriaProps) {
   const [compte, setCompte] = useState<CompteCafeteria | null>(null);
   const [produits, setProduits] = useState<Produit[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -52,7 +61,18 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
 
   // Niveau 2 : id de la personne pour qui on ajoute des consommations (null = vue d'ensemble).
   const [personneEnAjout, setPersonneEnAjout] = useState<string | null>(null);
+  const [scanAuDemarrage, setScanAuDemarrage] = useState(false);
+  const ajoutDemarrageFait = useRef(false);
+
+  // Vente rapide : une seule fois, dès que le compte est chargé.
+  useEffect(() => {
+    if (!ouvrirAjoutAuDemarrage || ajoutDemarrageFait.current || !compte?.sousComptes[0]) return;
+    ajoutDemarrageFait.current = true;
+    setScanAuDemarrage(true);
+    setPersonneEnAjout(compte.sousComptes[0].id);
+  }, [ouvrirAjoutAuDemarrage, compte]);
   const [populaires, setPopulaires] = useState<Map<string, number>>(new Map());
+  const [menuDuJour, setMenuDuJour] = useState<MenuDuJour | null>(null);
 
   const [modePaiement, setModePaiement] = useState<ModePaiement>(ModePaiement.CASH);
   const [venteEncaissee, setVenteEncaissee] = useState<VenteCafeteria | null>(null);
@@ -71,6 +91,7 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
     return () => clearInterval(minuteur);
   }, []);
   const [enImpression, setEnImpression] = useState(false);
+  const [serviEnCours, setServiEnCours] = useState<Set<string>>(new Set());
   const [messageImpression, setMessageImpression] = useState<string | null>(null);
 
   // Le MÊME reçu sert à l'aperçu et à l'impression : ce qu'on voit est ce qui sort imprimé.
@@ -92,6 +113,7 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
       .produitsPopulaires()
       .then((liste) => setPopulaires(new Map(liste.map((l) => [l.produitId, l.quantite]))))
       .catch(() => {});
+    client.menuDuJour().then(setMenuDuJour).catch(() => {});
   }, [client]);
 
   useEffect(() => {
@@ -114,6 +136,24 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
       setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
       setEnAjoutPersonne(false);
+    }
+  }
+
+  async function marquerServi(ligneId: string) {
+    if (serviEnCours.has(ligneId)) return;
+    setServiEnCours((courant) => new Set(courant).add(ligneId));
+    setErreur(null);
+    try {
+      await client.majStatutLigne(ligneId, StatutLigne.SERVI);
+      rechargerCompte();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setServiEnCours((courant) => {
+        const suivant = new Set(courant);
+        suivant.delete(ligneId);
+        return suivant;
+      });
     }
   }
 
@@ -189,6 +229,7 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
   const compteOuvert = compte.statut === StatutCompte.OUVERT;
   // Séparation des tâches : le patron (sauf réglage de l'hôtel) consulte le compte mais n'y ajoute ni n'y encaisse rien.
   const operer = peutOperer(utilisateur);
+  const cuisineActivee = utilisateur.cuisineActivee === true;
   const personnesARegler = compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0);
   const { visibles: personnesVisibles, revoyables } = sousComptesVisibles(compte.sousComptes, maintenant, masquees);
   // « Afficher » ne ramène que les personnes payées depuis moins de 5 minutes ; au-delà, l'écran est propre.
@@ -210,8 +251,14 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
         personne={personneChoisie}
         produits={produits}
         populaires={populaires}
-        onRetour={() => setPersonneEnAjout(null)}
+        menuDuJour={menuDuJour}
+        scannerAuDemarrage={scanAuDemarrage}
+        onRetour={() => {
+          setScanAuDemarrage(false);
+          setPersonneEnAjout(null);
+        }}
         onAjoute={() => {
+          setScanAuDemarrage(false);
           setPersonneEnAjout(null);
           rechargerCompte();
           chargerCatalogue();
@@ -278,6 +325,24 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
         </p>
       )}
 
+      {compte.origine === "SITE_PUBLIC" && (
+        <div className="carte-formulaire" role="note">
+          <p className="hc-text-label texte-discret">Commande web</p>
+          <p className="hc-text-caption texte-discret">
+            Passée depuis le site web de l'hôtel — le client se présente au comptoir pour payer, son reçu est le reçu cafétaria habituel.
+          </p>
+          <p className="hc-text-body-strong" style={{ letterSpacing: "0.08em", color: "var(--hc-blue)" }}>
+            Référence : {compte.id.slice(0, 8).toUpperCase()}
+          </p>
+          {compte.contactClient && (
+            <p className="hc-text-body">Contact : {compte.contactClient}</p>
+          )}
+          {compte.noteClient && (
+            <p className="hc-text-body">Note du client : {compte.noteClient}</p>
+          )}
+        </div>
+      )}
+
       {compteOuvert && operer && compte.sousComptes.length > 0 && (
         <p className="hc-text-caption texte-discret">Ajoutez des consommations à une personne, puis encaissez-la quand elle part : chacun règle sa part.</p>
       )}
@@ -285,6 +350,7 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
       {personnesAffichees.map((sousCompte) => {
         const totalPersonne = totalSousCompte(sousCompte);
         const nbArticles = sousCompte.lignes.reduce((n, l) => n + Number(l.quantite), 0);
+        const modifiable = compteOuvert && !sousCompte.payeLe && operer;
         const contenu = (
           <>
             <div className="personne-carte__entete">
@@ -312,8 +378,23 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
             </div>
             {sousCompte.lignes.map((ligne) => (
               <div className="parametres-ligne" key={ligne.id}>
-                <span className="hc-text-body">
+                <span className="hc-text-body" style={{ display: "flex", alignItems: "center", gap: "var(--hc-space-2)" }}>
                   {ligne.quantite}x {ligne.produit.nom}
+                  {cuisineActivee && ligne.statut && ligne.statut !== StatutLigne.SERVI && (
+                    <span className={`statut-ligne statut-ligne--${ligne.statut.toLowerCase().replaceAll("_", "-")}`}>
+                      {LIBELLE_STATUT_LIGNE[ligne.statut as StatutLigne]}
+                    </span>
+                  )}
+                  {cuisineActivee && ligne.statut === StatutLigne.PRET && modifiable && (
+                    <button
+                      type="button"
+                      className="lien-action"
+                      disabled={serviEnCours.has(ligne.id)}
+                      onClick={() => void marquerServi(ligne.id)}
+                    >
+                      Servi
+                    </button>
+                  )}
                 </span>
                 <span className="hc-text-price">{formatMontant(Number(ligne.prixUnitaire) * Number(ligne.quantite), ligne.devise)}</span>
               </div>
@@ -327,7 +408,6 @@ export function EcranCompteCafeteria({ client, utilisateur, compteId, interfaceI
             )}
           </>
         );
-        const modifiable = compteOuvert && !sousCompte.payeLe && operer;
         return (
           <div key={sousCompte.id} className={`carte-formulaire personne-carte${sousCompte.payeLe ? " personne-carte--payee" : ""}`}>
             {contenu}

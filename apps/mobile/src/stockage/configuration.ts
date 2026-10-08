@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 
 /**
  * Configuration de l'app (même principe que le desktop, `apps/desktop/src/main/config-store.ts`,
@@ -13,6 +14,26 @@ export interface ConfigurationApp {
 }
 
 const CLE = "hotel-chicago:configuration";
+
+/** IP du PC de développement telle que le dev-client la connaît déjà :
+ * `Constants.expoConfig.hostUri` est l'hôte Metro (ex. "172.20.10.2:8081"),
+ * donc l'IP Wi-Fi actuelle de la machine — elle suit les changements de
+ * réseau sans jamais être codée en dur. `null` hors dev-client. */
+function apiUrlViaWifi(): string | null {
+  const hostUri = Constants.expoConfig?.hostUri;
+  const ip = hostUri?.split(":")[0];
+  if (!ip || ip === "localhost" || ip === "127.0.0.1") return null;
+  return `http://${ip}:3000`;
+}
+
+/** Toutes les façons de joindre le serveur, dans l'ordre de préférence :
+ * la valeur du build (prod : l'URL publique ; dev : 127.0.0.1 via le câble
+ * USB), puis l'IP Wi-Fi courante en dev, puis localhost en dernier recours.
+ * ClientApi essaie chacune jusqu'à une réponse (voir client.ts). */
+export function candidatsApi(): string[] {
+  const candidats = [API_URL_COMPILATION, apiUrlViaWifi(), "http://127.0.0.1:3000"];
+  return [...new Set(candidats.filter((u): u is string => Boolean(u)))];
+}
 
 // Mêmes valeurs par défaut que le desktop (clé anon publique, sans risque à
 // embarquer). `apiUrl` pointe sur localhost : en développement, le téléphone

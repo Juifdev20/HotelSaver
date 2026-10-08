@@ -1,9 +1,10 @@
 import * as React from "react";
-import { useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { useMemo, useState } from "react";
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { MouvementStock, Produit } from "@hotel-chicago/types";
-import { Package } from "lucide-react-native";
+import { Package, TrendingUp } from "lucide-react-native";
+import { formatMontant } from "../formatMontant";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -37,6 +38,7 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
   const { donnee: mouvements, erreur, enCours, recharger } = useDonnee(() => client.listerMouvementsStock(), client);
   const { donnee: produits } = useDonnee(() => client.listerProduits(), client);
 
+  const [onglet, setOnglet] = useState<"mouvements" | "valeur">("mouvements");
   const [modaleOuverte, setModaleOuverte] = useState(false);
   const [selecteurOuvert, setSelecteurOuvert] = useState(false);
   const [produit, setProduit] = useState<Produit | null>(null);
@@ -45,6 +47,10 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
   const [motif, setMotif] = useState("");
   const [enEnvoi, setEnEnvoi] = useState(false);
   const [erreurFormulaire, setErreurFormulaire] = useState<string | null>(null);
+
+  // Seuls les articles de comptoir ont un stock — les plats sont préparés à
+  // la commande et n'apparaissent ni dans les mouvements ni dans la valeur.
+  const produitsActifs = useMemo(() => (produits ?? []).filter((p) => p.actif && p.typeProduit !== "PLAT"), [produits]);
 
   function ouvrirFormulaire() {
     setProduit(null);
@@ -90,35 +96,73 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
 
       {erreur && <Text style={styles.erreur}>{erreur}</Text>}
 
-      {mouvements?.length === 0 && (
+      <View style={styles.onglets}>
+        <Pressable style={[styles.onglet, onglet === "mouvements" && styles.ongletActif]} onPress={() => setOnglet("mouvements")}>
+          <Text style={[styles.ongletTexte, onglet === "mouvements" && styles.ongletTexteActif]}>Mouvements</Text>
+        </Pressable>
+        <Pressable style={[styles.onglet, onglet === "valeur" && styles.ongletActif]} onPress={() => setOnglet("valeur")}>
+          <Text style={[styles.ongletTexte, onglet === "valeur" && styles.ongletTexteActif]}>Valeur stock</Text>
+        </Pressable>
+      </View>
+
+      {onglet === "valeur" && (
+        <ScrollView contentContainerStyle={styles.liste} refreshControl={<RefreshControl refreshing={enCours} onRefresh={recharger} />}>
+          {produitsActifs.length === 0 && (
+            <View style={styles.videConteneur}>
+              <TrendingUp size={32} color={couleurs.encreFaible} />
+              <Text style={styles.videTitre}>Aucun produit actif.</Text>
+            </View>
+          )}
+          {produitsActifs.map((p) => {
+            const valeur = Number(p.prix) * Number(p.stockActuel);
+            const cout = p.prixAchat ? Number(p.prixAchat) * Number(p.stockActuel) : null;
+            return (
+              <View key={p.id} style={styles.carte}>
+                <View style={styles.carteEntete}>
+                  <Text style={styles.nom}>{p.nom}</Text>
+                  <Text style={styles.quantitePositive}>{formatMontant(String(valeur), p.devise)}</Text>
+                </View>
+                <Text style={styles.type}>{p.categorie} · Stock : {p.stockActuel}</Text>
+                {cout !== null && (
+                  <Text style={styles.motif}>Coût acq. : {formatMontant(String(cout), p.devise)}</Text>
+                )}
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {onglet === "mouvements" && mouvements?.length === 0 && (
         <View style={styles.videConteneur}>
           <Package size={32} color={couleurs.encreFaible} />
           <Text style={styles.videTitre}>Aucun mouvement enregistré.</Text>
         </View>
       )}
 
-      <FlatList
-        data={mouvements ?? []}
-        keyExtractor={(m: MouvementStock) => m.id}
-        contentContainerStyle={styles.liste}
-        refreshControl={<RefreshControl refreshing={enCours} onRefresh={recharger} />}
-        renderItem={({ item }) => {
-          const negatif = item.type === "SORTIE_VENTE" || item.type === "PERTE" || Number(item.quantite) < 0;
-          return (
-            <View style={styles.carte}>
-              <View style={styles.carteEntete}>
-                <Text style={styles.nom}>{item.produit.nom}</Text>
-                <Text style={[styles.quantite, negatif ? styles.quantiteNegative : styles.quantitePositive]}>
-                  {negatif ? "" : "+"}
-                  {item.quantite}
-                </Text>
+      {onglet === "mouvements" && (
+        <FlatList
+          data={mouvements ?? []}
+          keyExtractor={(m: MouvementStock) => m.id}
+          contentContainerStyle={styles.liste}
+          refreshControl={<RefreshControl refreshing={enCours} onRefresh={recharger} />}
+          renderItem={({ item }) => {
+            const negatif = item.type === "SORTIE_VENTE" || item.type === "PERTE" || Number(item.quantite) < 0;
+            return (
+              <View style={styles.carte}>
+                <View style={styles.carteEntete}>
+                  <Text style={styles.nom}>{item.produit.nom}</Text>
+                  <Text style={[styles.quantite, negatif ? styles.quantiteNegative : styles.quantitePositive]}>
+                    {negatif ? "" : "+"}
+                    {item.quantite}
+                  </Text>
+                </View>
+                <Text style={styles.type}>{LIBELLE_TYPE[item.type] ?? item.type}</Text>
+                {item.motif && <Text style={styles.motif}>{item.motif}</Text>}
               </View>
-              <Text style={styles.type}>{LIBELLE_TYPE[item.type] ?? item.type}</Text>
-              {item.motif && <Text style={styles.motif}>{item.motif}</Text>}
-            </View>
-          );
-        }}
-      />
+            );
+          }}
+        />
+      )}
 
       <FeuilleModale visible={modaleOuverte} onFermer={() => setModaleOuverte(false)} titre="Enregistrer un mouvement">
         <Text style={styles.label}>Produit</Text>
@@ -169,7 +213,7 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
 
       <SelecteurProduit
         visible={selecteurOuvert}
-        produits={produits ?? []}
+        produits={produitsActifs}
         onFermer={() => setSelecteurOuvert(false)}
         onChoisir={(p) => {
           setProduit(p);
@@ -186,6 +230,11 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
+  onglets: { flexDirection: "row", marginHorizontal: espacements.s4, marginTop: espacements.s3, borderRadius: rayons.md, borderWidth: 1, borderColor: couleurs.bordure, overflow: "hidden" },
+  onglet: { flex: 1, height: 38, alignItems: "center", justifyContent: "center", backgroundColor: couleurs.surface200 },
+  ongletActif: { backgroundColor: couleurs.bleu },
+  ongletTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encre },
+  ongletTexteActif: { color: "#fff" },
   // 88px de marge basse : le FAB ne recouvre pas la dernière carte.
   liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },
   videConteneur: { alignItems: "center", padding: espacements.s7, gap: espacements.s2 },

@@ -4,7 +4,10 @@ import {
   CompteCafeteria,
   Devise,
   Facture,
+  InventairePhysique,
   LigneCommande,
+  LignePreparationInventaire,
+  MenuDuJour,
   ModePaiement,
   MouvementStock,
   ListeNotifications,
@@ -14,6 +17,10 @@ import {
   ProfilConnecte,
   RapportMensuel,
   DepartementRapport,
+  CreerDepense,
+  Depense,
+  FiltresDepenses,
+  ModifierDepense,
   RecetteDuJour,
   RecetteDuMois,
   Reservation,
@@ -22,6 +29,7 @@ import {
   SousCompte,
   StatutChambre,
   StatutCompte,
+  StatutLigne,
   StatutReservation,
   UsageImage,
   UtilisateurAuthentifie,
@@ -55,9 +63,20 @@ export interface DonneesProduit {
   categorie: string;
   prix: number;
   devise: Devise;
+  /** Plat préparé ou article de comptoir (défaut ARTICLE côté API). */
+  typeProduit?: "ARTICLE" | "PLAT";
   photo?: string;
   stockActuel?: number;
   seuilAlerte?: number;
+  prixAchat?: number;
+  /** Opt-in site public : visible/commandable sur la page « Cuisine ». */
+  commandableEnLigne?: boolean;
+  /** Description affichée sur la page publique. */
+  description?: string;
+  /** PLAT : portions préparées (absent = illimité). */
+  portionsDisponibles?: number;
+  /** ARTICLE : code-barres (fabricant ou EAN-13 interne). */
+  codeBarres?: string;
 }
 
 /** Champs de apps/api/src/produits/dto/update-produit.dto.ts (stockActuel
@@ -67,9 +86,18 @@ export interface DonneesModificationProduit {
   categorie?: string;
   prix?: number;
   devise?: Devise;
-  photo?: string;
+  typeProduit?: "ARTICLE" | "PLAT";
+  /** null retire la photo. */
+  photo?: string | null;
   seuilAlerte?: number;
+  prixAchat?: number;
   actif?: boolean;
+  commandableEnLigne?: boolean;
+  description?: string;
+  /** PLAT : portions préparées ; null = repasser en illimité. */
+  portionsDisponibles?: number | null;
+  /** ARTICLE : code-barres ; null = retirer le code. */
+  codeBarres?: string | null;
 }
 
 /** SORTIE_VENTE exclu : généré automatiquement par une ligne de commande
@@ -102,6 +130,9 @@ export type DonneesEncaissement =
 export interface FiltresReservations {
   statut?: StatutReservation;
   chambreId?: string;
+  /** Plage planning [du, au) : réservations qui chevauchent la fenêtre. */
+  du?: string;
+  au?: string;
 }
 
 /** Champs de apps/api/src/reservations/dto/create-reservation.dto.ts —
@@ -109,10 +140,13 @@ export interface FiltresReservations {
 export interface DonneesReservation {
   chambreId: string;
   clientId?: string;
-  client?: { nom: string; telephone?: string; email?: string };
+  client?: { nom: string; telephone?: string; email?: string; typePiece?: string; numeroPiece?: string };
   dateArrivee: string;
   dateDepart: string;
   acompte?: number;
+  note?: string;
+  /** Walk-in : la réservation naît EN_COURS et la chambre passe OCCUPEE. */
+  installerImmediatement?: boolean;
 }
 
 /** Champs de apps/api/src/reservations/dto/update-reservation.dto.ts. */
@@ -120,6 +154,39 @@ export interface DonneesModificationReservation {
   dateArrivee?: string;
   dateDepart?: string;
   acompte?: number;
+  note?: string;
+  /** Message visible par le client sur sa page de suivi « Ma réservation ». */
+  reponseReception?: string;
+}
+
+/** Champs de apps/api/src/clients/dto/modifier-client.dto.ts. */
+export interface DonneesModificationClient {
+  nom?: string;
+  telephone?: string;
+  email?: string;
+  typePiece?: string;
+  numeroPiece?: string;
+  notes?: string;
+}
+
+/** GET /dashboard/journee-reception — remise de poste (heure de Lubumbashi). */
+export interface JourneeReception {
+  date: string;
+  recette: {
+    chambres: { montantUSD: number; montantCDF: number; nombreFactures: number };
+    cafeteria: { montantUSD: number; montantCDF: number; nombreVentes: number };
+    total: { montantUSD: number; montantCDF: number };
+  };
+  arrivees: { effectuees: ReservationResume[]; restantes: ReservationResume[] };
+  departs: { effectues: ReservationResume[]; restants: ReservationResume[] };
+  chambres: Occupation;
+  comptesCafeteriaOuverts: number;
+}
+
+interface ReservationResume {
+  statut: StatutReservation;
+  client: { nom: string };
+  chambre: { numero: string };
 }
 
 /** Corps de POST /reservations/:id/annuler — ligne plate, sans `include`
@@ -209,6 +276,7 @@ export const ENTITES_PUSH = [
   "CompteCafeteria",
   "SousCompte",
   "LigneCommande",
+  "Depense",
 ] as const;
 export type EntitePush = (typeof ENTITES_PUSH)[number];
 
@@ -266,14 +334,34 @@ export type ReponsePull = Partial<Record<EntitePull, unknown[]>>;
  * voir supabase-auth.ts). `getAccessToken` est une fonction, pas une valeur
  * figée à la construction : le jeton change au fil du temps (rafraîchi), et
  * l'appelant (apps/desktop) reste seul responsable de le stocker/rafraîchir.
+ *
+ * `baseUrl` accepte une liste : chaque requête tente la dernière URL qui a
+ * répondu puis les autres — indispensable sur mobile où le même serveur est
+ * joignable par le câble USB (adb reverse → 127.0.0.1) ET par le Wi-Fi (IP
+ * locale du PC, qui change avec le réseau). Le basculement ne se fait que
+ * sur une erreur RÉSEAU (fetch qui jette), jamais sur une réponse HTTP —
+ * une 4xx/5xx vient du bon serveur, aucune autre URL ne répondrait mieux.
  */
 export class ClientApi {
+  /** URL prioritaire : dernière qui a répondu (réessayée en premier). */
+  private urlCourante: string;
+  private readonly urls: string[];
+
   constructor(
-    private readonly baseUrl: string,
+    baseUrl: string | string[],
     /** Peut renvoyer une promesse : au démarrage instantané de l'app mobile, le jeton d'accès arrive quelques
      * instants après l'ouverture ; les requêtes l'attendent au lieu d'échouer. */
     private readonly getAccessToken: () => string | null | Promise<string | null>
-  ) {}
+  ) {
+    this.urls = (Array.isArray(baseUrl) ? baseUrl : [baseUrl]).filter(Boolean);
+    if (this.urls.length === 0) throw new Error("ClientApi : au moins une URL de base est requise.");
+    this.urlCourante = this.urls[0];
+  }
+
+  /** URL qui répond actuellement — pour construire des liens (images, …). */
+  get urlBase(): string {
+    return this.urlCourante;
+  }
 
   async moi(): Promise<ProfilConnecte> {
     return this.requete<ProfilConnecte>("/auth/me");
@@ -425,6 +513,35 @@ export class ClientApi {
   }
 
   // ---------------------------------------------------------------------
+  // Dépenses par département — saisies par la réception et la cafétaria,
+  // consultées par le patron (le département vient du rôle, côté serveur).
+  // ---------------------------------------------------------------------
+
+  async listerDepenses(filtres: FiltresDepenses): Promise<Depense[]> {
+    return this.requete<Depense[]>(`/depenses?${ClientApi.parametresDepenses(filtres)}`);
+  }
+
+  async creerDepense(donnees: CreerDepense): Promise<Depense> {
+    return this.requete<Depense>("/depenses", { method: "POST", body: JSON.stringify(donnees) });
+  }
+
+  /** Correction, ou annulation définitive avec `{ annulee: true }`. */
+  async modifierDepense(id: string, donnees: ModifierDepense): Promise<Depense> {
+    return this.requete<Depense>(`/depenses/${id}`, { method: "PATCH", body: JSON.stringify(donnees) });
+  }
+
+  /** URL signée courte (5 min) du PDF des dépenses de la période. */
+  async urlPdfDepenses(filtres: FiltresDepenses): Promise<{ url: string }> {
+    return this.requete<{ url: string }>(`/depenses/pdf?${ClientApi.parametresDepenses(filtres)}`);
+  }
+
+  private static parametresDepenses(filtres: FiltresDepenses): string {
+    const params = new URLSearchParams({ du: filtres.du, au: filtres.au });
+    if (filtres.departement) params.set("departement", filtres.departement);
+    return params.toString();
+  }
+
+  // ---------------------------------------------------------------------
   // Cafétaria — comptes et ventes
   // ---------------------------------------------------------------------
 
@@ -434,6 +551,12 @@ export class ClientApi {
 
   async obtenirCompteCafeteria(id: string): Promise<CompteCafeteria> {
     return this.requete<CompteCafeteria>(`/cafeteria/comptes/${id}`);
+  }
+
+  /** Commande web retrouvée par sa référence courte (8 caractères du ticket).
+   * 404 si inconnue, 409 si déjà réglée — la référence devient obsolète. */
+  async trouverCompteParReference(reference: string): Promise<CompteCafeteria> {
+    return this.requete<CompteCafeteria>(`/cafeteria/comptes/par-reference/${encodeURIComponent(reference.trim())}`);
   }
 
   async ouvrirCompteCafeteria(donnees: DonneesOuvrirCompte): Promise<CompteCafeteria> {
@@ -451,8 +574,8 @@ export class ClientApi {
   }
 
   /** PATRON : autorise (ou non) le patron à réaliser lui-même les opérations du quotidien (séparation des tâches). */
-  async modifierReglagesHotel(donnees: { patronPeutOperer: boolean }): Promise<{ patronPeutOperer: boolean }> {
-    return this.requete<{ patronPeutOperer: boolean }>("/hotel/reglages", { method: "PATCH", body: JSON.stringify(donnees) });
+  async modifierReglagesHotel(donnees: { patronPeutOperer?: boolean; cuisineActivee?: boolean; commandeWebActivee?: boolean }): Promise<{ patronPeutOperer: boolean; cuisineActivee: boolean; commandeWebActivee: boolean }> {
+    return this.requete<{ patronPeutOperer: boolean; cuisineActivee: boolean; commandeWebActivee: boolean }>("/hotel/reglages", { method: "PATCH", body: JSON.stringify(donnees) });
   }
 
   /** Produits les plus ajoutés aux comptes aujourd'hui (du plus au moins demandé). */
@@ -502,6 +625,13 @@ export class ClientApi {
     return this.requete<Produit>(`/produits/${id}`, { method: "PATCH", body: JSON.stringify(donnees) });
   }
 
+  /** Associe (ou retire avec null) le code-barres d'un article — ouvert à la
+   * cafétaria, qui ne peut rien modifier d'autre sur le produit. 409 si le
+   * code est déjà pris par un autre produit de l'hôtel. */
+  async associerCodeBarres(id: string, codeBarres: string | null): Promise<Produit> {
+    return this.requete<Produit>(`/produits/${id}/code-barres`, { method: "PATCH", body: JSON.stringify({ codeBarres }) });
+  }
+
   async supprimerProduit(id: string): Promise<void> {
     return this.requete<void>(`/produits/${id}`, { method: "DELETE" });
   }
@@ -516,6 +646,31 @@ export class ClientApi {
 
   async creerMouvementStock(donnees: DonneesMouvementStock): Promise<MouvementStock> {
     return this.requete<MouvementStock>("/stock", { method: "POST", body: JSON.stringify(donnees) });
+  }
+
+  /** Reconstitue les stocks théoriques sur la période pour lancer l'évaluateur d'inventaire. */
+  async preparerInventaire(dateDebut: string, dateFin: string): Promise<LignePreparationInventaire[]> {
+    return this.requete<LignePreparationInventaire[]>(`/stock/inventaire/preparer?debut=${dateDebut}&fin=${dateFin}`);
+  }
+
+  /** Enregistre un inventaire physique et génère son PDF. */
+  async creerInventaire(dto: {
+    dateDebut: string;
+    dateFin: string;
+    titre?: string;
+    items: Array<{ produitId: string; stockPhysique: number; note?: string }>;
+  }): Promise<InventairePhysique> {
+    return this.requete<InventairePhysique>("/stock/inventaires", { method: "POST", body: JSON.stringify(dto) });
+  }
+
+  /** Liste l'historique des inventaires physiques. */
+  async listerInventaires(): Promise<InventairePhysique[]> {
+    return this.requete<InventairePhysique[]>("/stock/inventaires");
+  }
+
+  /** URL signée (5 min) pour télécharger le PDF d'un inventaire. */
+  async urlInventaire(id: string): Promise<{ url: string }> {
+    return this.requete<{ url: string }>(`/stock/inventaires/${id}/telecharger`);
   }
 
   // ---------------------------------------------------------------------
@@ -585,6 +740,16 @@ export class ClientApi {
     return this.requete<ClientAvecSejours>(`/clients/${id}`);
   }
 
+  /** PATCH /clients/:id — fiche complète (pièce d'identité, notes). */
+  async modifierClient(id: string, donnees: DonneesModificationClient): Promise<ClientAvecSejours> {
+    return this.requete<ClientAvecSejours>(`/clients/${id}`, { method: "PATCH", body: JSON.stringify(donnees) });
+  }
+
+  /** GET /dashboard/journee-reception — remise de poste réception. */
+  async journeeReception(): Promise<JourneeReception> {
+    return this.requete<JourneeReception>("/dashboard/journee-reception");
+  }
+
   /** Taux du jour en vigueur, ou null si le patron n'en a jamais saisi —
    * l'écran d'encaissement s'en sert pour l'aperçu du paiement croisé. */
   async tauxActuel(): Promise<TauxChange | null> {
@@ -617,6 +782,37 @@ export class ClientApi {
     return this.requete<VenteCafeteria[]>(
       `/cafeteria/ventes${reservationLieeId ? `?reservationLieeId=${reservationLieeId}` : ""}`
     );
+  }
+
+  /** PATCH /cafeteria/lignes/:id/statut — avance le statut d'une ligne (cuisine). */
+  async majStatutLigne(ligneId: string, statut: StatutLigne): Promise<LigneCommande> {
+    return this.requete<LigneCommande>(`/cafeteria/lignes/${ligneId}/statut`, {
+      method: "PATCH",
+      body: JSON.stringify({ statut }),
+    });
+  }
+
+  /** GET /cafeteria/cuisine — commandes actives pour l'écran de cuisine. */
+  async lignesPourCuisine(): Promise<unknown[]> {
+    return this.requete<unknown[]>("/cafeteria/cuisine");
+  }
+
+  /** GET /cafeteria/menu-du-jour — menu actif aujourd'hui, null si non défini. */
+  async menuDuJour(): Promise<MenuDuJour | null> {
+    return this.requete<MenuDuJour | null>("/cafeteria/menu-du-jour");
+  }
+
+  /** PUT /cafeteria/menu-du-jour — définit le menu du jour (crée ou remplace). */
+  async definirMenuDuJour(items: Array<{ produitId: string; prixSpecial?: number; deviseSpeciale?: string }>): Promise<MenuDuJour> {
+    return this.requete<MenuDuJour>("/cafeteria/menu-du-jour", {
+      method: "PUT",
+      body: JSON.stringify({ items }),
+    });
+  }
+
+  /** DELETE /cafeteria/menu-du-jour/items/:itemId — retire un produit du menu du jour. */
+  async supprimerItemMenuDuJour(itemId: string): Promise<void> {
+    await this.requete<void>(`/cafeteria/menu-du-jour/items/${itemId}`, { method: "DELETE" });
   }
 
   // ---------------------------------------------------------------------
@@ -670,17 +866,27 @@ export class ClientApi {
     const token = await this.getAccessToken();
     // Un FormData fixe lui-même son Content-Type (avec la frontière multipart).
     const estFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
-    let reponse: Response;
-    try {
-      reponse = await fetch(`${this.baseUrl}${chemin}`, {
-        ...options,
-        headers: {
-          ...(estFormData ? {} : { "Content-Type": "application/json" }),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...options.headers,
-        },
-      });
-    } catch {
+    const enTetes = {
+      ...(estFormData ? {} : { "Content-Type": "application/json" }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    };
+
+    // La dernière URL gagnante d'abord, puis les candidates : un câble USB
+    // ou un changement de Wi-Fi ne laissent jamais l'app sans serveur tant
+    // qu'AU MOINS une route fonctionne.
+    const candidates = [this.urlCourante, ...this.urls.filter((u) => u !== this.urlCourante)];
+    let reponse: Response | null = null;
+    for (const url of candidates) {
+      try {
+        reponse = await fetch(`${url}${chemin}`, { ...options, headers: enTetes });
+        this.urlCourante = url;
+        break;
+      } catch {
+        // Réseau mort sur cette URL — on tente la suivante.
+      }
+    }
+    if (!reponse) {
       // statusCode 0 = aucune réponse reçue (internet coupé, serveur injoignable) —
       // distinct d'une vraie erreur HTTP, pour que l'appelant puisse le traiter à part.
       throw new ErreurApi(

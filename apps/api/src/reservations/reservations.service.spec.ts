@@ -107,6 +107,99 @@ describe("ReservationsService", () => {
         expect.objectContaining({ data: expect.objectContaining({ clientId: "cl-nouveau" }) })
       );
     });
+
+    it("enregistre la note (demandes spéciales) sur la réservation", async () => {
+      prisma.client.findUnique.mockResolvedValue({ id: "cl1" });
+      prisma.reservation.create.mockResolvedValue({ id: "r1" });
+
+      await service.create({ ...base, clientId: "cl1", note: "Lit bébé" } as any, currentUser);
+
+      expect(prisma.reservation.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ note: "Lit bébé" }) })
+      );
+    });
+
+    it("arrivée express : crée EN_COURS et passe la chambre OCCUPEE dans la même transaction", async () => {
+      prisma.client.findUnique.mockResolvedValue({ id: "cl1" });
+      prisma.reservation.create.mockResolvedValue({ id: "r1" });
+      prisma.chambre.update.mockResolvedValue({ id: "c1", statut: "OCCUPEE" });
+
+      await service.create({ ...base, clientId: "cl1", installerImmediatement: true } as any, currentUser);
+
+      expect(prisma.reservation.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ statut: "EN_COURS" }) })
+      );
+      expect(prisma.chambre.update).toHaveBeenCalledWith({
+        where: { id: "c1", hotelId: HOTEL_ID },
+        data: { statut: "OCCUPEE", syncVersion: { increment: 1 } },
+      });
+      expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it("sans arrivée express : la chambre n'est PAS touchée à la création", async () => {
+      prisma.client.findUnique.mockResolvedValue({ id: "cl1" });
+      prisma.reservation.create.mockResolvedValue({ id: "r1" });
+
+      await service.create({ ...base, clientId: "cl1" } as any, currentUser);
+
+      expect(prisma.chambre.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findAll (plage planning)", () => {
+    it("filtre les réservations chevauchant [du, au) et exclut les ANNULEE", async () => {
+      prisma.reservation.findMany.mockResolvedValue([]);
+      await service.findAll(
+        { du: "2026-10-06", au: "2026-10-13" } as any,
+        HOTEL_ID
+      );
+      expect(prisma.reservation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            hotelId: HOTEL_ID,
+            statut: { not: "ANNULEE" },
+            dateArrivee: { lt: new Date("2026-10-13") },
+            dateDepart: { gt: new Date("2026-10-06") },
+          }),
+          orderBy: { dateArrivee: "asc" },
+        })
+      );
+    });
+
+    it("sans plage : pas de filtre de dates, tri descendant, statut inchangé", async () => {
+      prisma.reservation.findMany.mockResolvedValue([]);
+      await service.findAll({ statut: "ANNULEE" } as any, HOTEL_ID);
+      expect(prisma.reservation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { hotelId: HOTEL_ID, statut: "ANNULEE", chambreId: undefined },
+          orderBy: { dateArrivee: "desc" },
+        })
+      );
+    });
+  });
+
+  describe("update", () => {
+    it("enregistre la réponse de la réception (visible sur le suivi client)", async () => {
+      prisma.reservation.findUnique.mockResolvedValue({
+        id: "r1",
+        statut: "EN_ATTENTE",
+        chambreId: "c1",
+        dateArrivee: new Date("2026-10-01"),
+        dateDepart: new Date("2026-10-03"),
+        acompte: "0",
+        note: null,
+      });
+      prisma.reservation.update.mockResolvedValue({ id: "r1" });
+
+      await service.update("r1", { reponseReception: "Acompte de 30 $ attendu à l'arrivée." }, HOTEL_ID);
+
+      expect(prisma.reservation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "r1", hotelId: HOTEL_ID },
+          data: expect.objectContaining({ reponseReception: "Acompte de 30 $ attendu à l'arrivée." }),
+        })
+      );
+    });
   });
 
   describe("annuler", () => {

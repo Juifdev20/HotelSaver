@@ -980,6 +980,253 @@
   padding-top: var(--hc-space-6);
 }
 
+/* ---------- Page « Cuisine » : commande en ligne ---------- */
+
+.cuisine-corps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--hc-space-6);
+  align-items: start;
+}
+
+.cuisine-section h2 {
+  margin: 0 0 var(--hc-space-3);
+  font-size: 18px;
+  color: var(--hc-navy);
+}
+
+.cuisine-section + .cuisine-section {
+  margin-top: var(--hc-space-6);
+}
+
+.cuisine-grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--hc-space-4);
+}
+
+.plat-carte {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--hc-surface-100);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  box-shadow: var(--hc-shadow-card);
+}
+
+.plat-carte--epuise {
+  opacity: 0.6;
+}
+
+.plat-carte__media {
+  aspect-ratio: 4 / 3;
+  background: var(--hc-surface-300);
+}
+
+.plat-carte__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.plat-carte__media--vide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--hc-ink-muted);
+}
+
+.plat-carte__corps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+  padding: var(--hc-space-3) var(--hc-space-4);
+  flex: 1;
+}
+
+.plat-carte__corps h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--hc-ink);
+}
+
+.plat-carte__corps p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--hc-ink-muted);
+  flex: 1;
+}
+
+.plat-carte__prix {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hc-space-2);
+  margin-top: var(--hc-space-2);
+}
+
+.plat-carte__prix strong {
+  color: var(--hc-navy);
+}
+
+.plat-carte__epuise {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hc-danger);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.plat-carte__ajouter {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.quantite-controle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+}
+
+.quantite-controle button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-sm);
+  background: var(--hc-surface-200);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--hc-ink);
+}
+
+.quantite-controle button:hover {
+  border-color: var(--hc-blue);
+  color: var(--hc-blue);
+}
+
+.quantite-controle span {
+  min-width: 20px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.panier {
+  background: var(--hc-surface-100);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  box-shadow: var(--hc-shadow-card);
+  padding: var(--hc-space-4);
+  position: sticky;
+  top: 90px;
+}
+
+.panier h2 {
+  margin: 0 0 var(--hc-space-3);
+  font-size: 17px;
+  color: var(--hc-navy);
+}
+
+.panier__vide {
+  margin: 0;
+  font-size: 14px;
+  color: var(--hc-ink-muted);
+}
+
+.panier__lignes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.panier__lignes li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--hc-space-2);
+  padding: var(--hc-space-2) 0;
+  border-bottom: 1px solid var(--hc-border);
+  font-size: 14px;
+}
+
+.panier__total {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--hc-space-3) 0;
+  font-size: 15px;
+}
+
+.panier__total strong {
+  color: var(--hc-navy);
+}
+
+.panier__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+}
+
+.panier__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hc-ink-muted);
+}
+
+.panier__form input {
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-surface-200);
+  font: inherit;
+  font-size: 15px;
+  color: var(--hc-ink);
+}
+
+.commande-succes {
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+  background: var(--hc-surface-100);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  box-shadow: var(--hc-shadow-card);
+  padding: var(--hc-space-6) var(--hc-space-4);
+}
+
+.commande-succes__reference {
+  font-size: 17px;
+}
+
+.commande-succes__reference strong {
+  color: var(--hc-blue);
+  font-size: 22px;
+  letter-spacing: 0.08em;
+}
+
+.commande-succes__total {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--hc-navy);
+}
+
+.commande-succes .hotel-bouton {
+  margin-top: var(--hc-space-3);
+}
+
+.commande-succes__actions {
+  display: flex;
+  gap: var(--hc-space-2);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 /* ---------- Tablette / bureau ---------- */
 @media (min-width: 700px) {
   .hotel-grille-chambres {
@@ -1003,6 +1250,10 @@
 }
 
 @media (min-width: 960px) {
+  .cuisine-corps {
+    grid-template-columns: 1fr 340px;
+  }
+
   .hotel-nav__liens {
     display: flex;
   }
@@ -1034,5 +1285,139 @@
   .chambre-carte__media img,
   .hotel-galerie__vignette img {
     transition: none;
+  }
+}
+
+/* ---------- Ma réservation (suivi client, 07/10/2026) ---------- */
+.suivi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-4);
+}
+
+.suivi .hotel-entete {
+  margin-bottom: 0;
+}
+
+.suivi-carte {
+  background: var(--hc-surface-100);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  box-shadow: var(--hc-shadow-card);
+  padding: var(--hc-space-5) var(--hc-space-4);
+}
+
+.suivi-titre {
+  margin: 0 0 var(--hc-space-2);
+  color: var(--hc-navy);
+}
+
+.suivi-sous-titre {
+  margin: 0 0 var(--hc-space-2);
+  font-size: 18px;
+  color: var(--hc-navy);
+}
+
+.suivi-statut {
+  border-radius: var(--hc-radius-lg);
+  padding: var(--hc-space-4);
+  border: 1px solid transparent;
+}
+
+.suivi-statut strong {
+  font-size: 18px;
+}
+
+.suivi-statut p {
+  margin: 4px 0 0;
+}
+
+.suivi-statut--attente {
+  background: var(--hc-warning-light);
+  border-color: var(--hc-warning);
+}
+
+.suivi-statut--ok {
+  background: var(--hc-success-light);
+  border-color: var(--hc-success);
+}
+
+.suivi-statut--info {
+  background: var(--hc-info-light);
+  border-color: var(--hc-info);
+}
+
+.suivi-statut--fin {
+  background: var(--hc-surface-300);
+  border-color: var(--hc-border);
+}
+
+.suivi-details {
+  display: grid;
+  gap: var(--hc-space-3);
+  margin: 0;
+}
+
+.suivi-details dt {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--hc-ink-muted);
+}
+
+.suivi-details dd {
+  margin: 2px 0 0;
+  font-size: 16px;
+  color: var(--hc-ink);
+}
+
+.suivi-ok {
+  color: var(--hc-success);
+  font-weight: 600;
+}
+
+.suivi-texte {
+  color: var(--hc-ink);
+  white-space: pre-line;
+  line-height: 1.6;
+}
+
+.suivi-liste {
+  margin: 0 0 var(--hc-space-3);
+  padding-left: 18px;
+  line-height: 1.7;
+}
+
+.suivi-formulaire {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.suivi-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2);
+  margin-top: var(--hc-space-2);
+}
+
+.suivi-danger {
+  color: var(--hc-danger);
+}
+
+.suivi-danger-plein {
+  background: var(--hc-danger);
+}
+
+.suivi-rappel {
+  text-align: center;
+  font-size: 14px;
+  color: var(--hc-ink-muted);
+}
+
+@media (min-width: 700px) {
+  .suivi-details {
+    grid-template-columns: 1fr 1fr;
   }
 }

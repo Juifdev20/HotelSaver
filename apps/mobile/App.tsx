@@ -5,10 +5,10 @@ import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { ActivityIndicator, Image, Linking, StyleSheet, Text, View } from "react-native";
-import { ClientApi, ErreurApi, connecterAvecMotDePasse, demanderReinitialisationMotDePasse, inscrireHotel, rafraichirSession } from "@hotel-chicago/api-client";
+import { ClientApi, ErreurApi, connecterAvecMotDePasse, connecterViaApi, demanderReinitialisationMotDePasse, inscrireHotel, rafraichirSession, rafraichirViaApi } from "@hotel-chicago/api-client";
 import { MoteurSync } from "@hotel-chicago/sync-engine";
 import { Role, type InscriptionHotelPayload, type ProfilConnecte } from "@hotel-chicago/types";
-import { lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
+import { candidatsApi, lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
 import { creerStockageLocalMobile } from "./src/stockage/stockageLocalMobile";
 import {
   ProfilEnregistre,
@@ -26,7 +26,8 @@ import { EcranSelectionProfil } from "./src/ecrans/EcranSelectionProfil";
 import { EcranConnexion } from "./src/ecrans/EcranConnexion";
 import { EcranInscription } from "./src/ecrans/EcranInscription";
 import { CoquilleOnglets } from "./src/CoquilleOnglets";
-import { FournisseurSession } from "./src/contexteSession";
+import { FournisseurSession, useSession } from "./src/contexteSession";
+import { useSyncEtat } from "./src/hooks/useSyncEtat";
 import { FournisseurNotifications } from "./src/notifications/ContexteNotifications";
 import { CentreNotifications } from "./src/composants/CentreNotifications";
 import { navigationRef } from "./src/notifications/navigationRef";
@@ -93,6 +94,25 @@ function messageErreurProfil(erreur: Error): string {
   return erreur.message;
 }
 
+/** Recharge le profil (`/auth/me`) après chaque cycle de sync réussi (~20 s en
+ * ligne) : un réglage hôtel changé par le patron sur un autre appareil —
+ * ex. suivi cuisine, « patron opère » — se propage sans relancer l'app. Le
+ * rechargement est invisible : `rechargerProfil` ne remplace le profil que
+ * s'il a réellement changé (comparaison), donc aucun re-render en temps normal. */
+function RafraichisseurProfil() {
+  const { rechargerProfil } = useSession();
+  const etatSync = useSyncEtat();
+  const dernierTraite = useRef<string | null>(null);
+  useEffect(() => {
+    const horodatage = etatSync.dernierePousseeLe;
+    if (!horodatage || horodatage === dernierTraite.current) return;
+    dernierTraite.current = horodatage;
+    void rechargerProfil().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etatSync.dernierePousseeLe]);
+  return null;
+}
+
 export default function App() {
   const [configuration, setConfiguration] = useState<ConfigurationApp | null>(null);
   const [profils, setProfils] = useState<ProfilEnregistre[]>([]);
@@ -147,7 +167,7 @@ export default function App() {
   }, [lienRecu, ecran]);
 
   const client = useMemo(
-    () => (configuration && sessionActive ? new ClientApi(configuration.apiUrl, () => jetonRef.current ?? attendreJeton()) : null),
+    () => (configuration && sessionActive ? new ClientApi(candidatsApi(), () => jetonRef.current ?? attendreJeton()) : null),
     [configuration, sessionActive]
   );
 
@@ -195,6 +215,7 @@ export default function App() {
         "CompteCafeteria",
         "SousCompte",
         "LigneCommande",
+        "Depense",
       ]);
       moteurCree.demarrer();
       setMoteurSync(moteurCree);
@@ -257,7 +278,7 @@ export default function App() {
             // Le renouvellement de session et la durée minimale d'affichage courent EN MÊME TEMPS
             // (avant : l'un après l'autre, donc leurs durées s'additionnaient).
             const [session] = await Promise.all([
-              rafraichirSession({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, jeton),
+              rafraichir(config, jeton),
               attendreDureeMinimale(),
             ]);
             await terminerConnexion(session, config, profil.email);
@@ -275,7 +296,7 @@ export default function App() {
   }, []);
 
   async function terminerConnexion(session: { accessToken: string; refreshToken: string }, config: ConfigurationApp, email: string) {
-    const clientTemporaire = new ClientApi(config.apiUrl, () => session.accessToken);
+    const clientTemporaire = new ClientApi(candidatsApi(), () => session.accessToken);
     // Timeout : sans lui, un serveur injoignable fait pendre le démarrage
     // jusqu'au timeout TCP (~2 min). En échec, le démarrage retombe sur la
     // sélection de profil au lieu de rester figé.
@@ -306,7 +327,7 @@ export default function App() {
     try {
       const jeton = await lireJetonRafraichissement(utilisateurId);
       if (!jeton) return "expiree";
-      const session = await rafraichirSession({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, jeton);
+      const session = await rafraichir(config, jeton);
       jetonRef.current = session.accessToken;
       await ecrireJetonRafraichissement(utilisateurId, session.refreshToken);
       return "ok";
@@ -331,7 +352,7 @@ export default function App() {
     if (etat === "expiree") return sessionExpiree();
     if (etat !== "ok" || !rafraichirProfil) return;
     try {
-      const frais = await new ClientApi(config.apiUrl, () => jetonRef.current).moi();
+      const frais = await new ClientApi(candidatsApi(), () => jetonRef.current).moi();
       await ecrireProfilCache(frais.userId, frais);
       setUtilisateur((courant) => (courant && courant.userId === frais.userId ? frais : courant));
     } catch {
@@ -377,16 +398,38 @@ export default function App() {
     setEcran("connexion");
   }
 
+  /** Connexion/renouvellement : préfère le relais API local (le téléphone
+   * n'a besoin que du LAN, le serveur parle à Supabase à sa place) ; en
+   * secours — relais absent sur une vieille API (404) — appel direct
+   * Supabase qui exige l'Internet. */
+  async function connecter(config: ConfigurationApp, email: string, motDePasse: string) {
+    try {
+      return await connecterViaApi(candidatsApi(), email, motDePasse);
+    } catch (e) {
+      if (e instanceof ErreurApi && e.statusCode === 404) {
+        return connecterAvecMotDePasse({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, email, motDePasse);
+      }
+      throw e;
+    }
+  }
+
+  async function rafraichir(config: ConfigurationApp, jetonRafraichissement: string) {
+    try {
+      return await rafraichirViaApi(candidatsApi(), jetonRafraichissement);
+    } catch (e) {
+      if (e instanceof ErreurApi && e.statusCode === 404) {
+        return rafraichirSession({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, jetonRafraichissement);
+      }
+      throw e;
+    }
+  }
+
   async function seConnecter(email: string, motDePasse: string) {
     if (!configuration) return;
     setErreurConnexion(null);
     setConnexionEnCours(true);
     try {
-      const session = await connecterAvecMotDePasse(
-        { url: configuration.supabaseUrl, anonKey: configuration.supabaseAnonKey },
-        email,
-        motDePasse
-      );
+      const session = await connecter(configuration, email, motDePasse);
       await terminerConnexion(session, configuration, email);
     } catch (erreur) {
       setErreurConnexion(erreur instanceof Error ? messageErreurProfil(erreur) : "Erreur de connexion.");
@@ -400,7 +443,7 @@ export default function App() {
     setErreurInscription(null);
     setInscriptionEnCours(true);
     try {
-      await inscrireHotel({ url: configuration.apiUrl }, dto);
+      await inscrireHotel({ url: candidatsApi() }, dto);
       try {
         // Le compte Supabase créé côté serveur a email_confirm: false (choix
         // volontaire, voir DECISIONS.md Phase 4) : la première connexion peut
@@ -408,11 +451,7 @@ export default function App() {
         // d'inscription — l'hôtel existe bel et bien — donc on ne réaffiche
         // jamais l'erreur brute de connexion ici (ex. "Contactez le patron"
         // n'aurait aucun sens pour quelqu'un qui vient de créer SON compte).
-        const session = await connecterAvecMotDePasse(
-          { url: configuration.supabaseUrl, anonKey: configuration.supabaseAnonKey },
-          dto.email,
-          dto.motDePasse
-        );
+        const session = await connecter(configuration, dto.email, dto.motDePasse);
         await terminerConnexion(session, configuration, dto.email);
       } catch {
         setEmailPreRempli(dto.email);
@@ -487,7 +526,7 @@ export default function App() {
         onConnexion={seConnecter}
         onMotDePasseOublie={async (email) => {
           if (!configuration) throw new Error("Application pas encore configurée.");
-          await demanderReinitialisationMotDePasse({ url: configuration.apiUrl }, email);
+          await demanderReinitialisationMotDePasse({ url: candidatsApi() }, email);
         }}
         onRetour={profils.length > 0 ? retourSelectionProfil : undefined}
         onCreerCompte={() => {
@@ -537,7 +576,12 @@ export default function App() {
     <View style={styles.racine}>
       {contenuPret && (
         <SafeAreaProvider>
-          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync, rechargerProfil: async () => setUtilisateur(await client.moi()) }}>
+          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync, rechargerProfil: async () => {
+            const frais = await client.moi();
+            await ecrireProfilCache(frais.userId, frais);
+            setUtilisateur((courant) => (courant && JSON.stringify(courant) === JSON.stringify(frais) ? courant : frais));
+          } }}>
+            <RafraichisseurProfil />
             <FournisseurNotifications client={client} role={utilisateur.role}>
               <NavigationContainer ref={navigationRef}>
                 <CoquilleOnglets />

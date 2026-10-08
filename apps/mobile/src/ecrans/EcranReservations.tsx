@@ -14,24 +14,32 @@ import { ReservationMiroir, listerReservationsMiroir } from "../stockage/reserva
 import { EcranReservationDetail } from "./EcranReservationDetail";
 import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
 import { EcranFacturation } from "./EcranFacturation";
+import { EcranPlanning } from "./EcranPlanning";
 
 export interface EcranReservationsProps {
   /** Segment affiché à l'ouverture — "aujourdhui" quand l'écran sert de vue
    * « Arrivées et départs » depuis l'onglet Plus. */
   segmentInitial?: SegmentId;
-  /** Présent seulement quand l'écran est embarqué dans Plus (un « Retour »
-   * ramène à la liste Plus ; en onglet, il n'y a rien à quitter). */
+  /** « Retour » en en-tête : vers la liste Plus quand l'écran y est
+   * embarqué, vers l'Accueil depuis l'onglet Réserv. */
   onRetour?: () => void;
+  /** Deep-link notification : ouvre directement le détail de la réservation. */
+  reservationInitiale?: string;
 }
 
-type SegmentId = "aujourdhui" | "avenir" | "encours" | "historique";
-type Vue = { id: "liste" } | { id: "detail"; reservationId: string } | { id: "nouveau" } | { id: "facturation"; reservationId: string };
+type SegmentId = "aujourdhui" | "avenir" | "encours" | "historique" | "planning";
+type Vue =
+  | { id: "liste" }
+  | { id: "detail"; reservationId: string }
+  | { id: "nouveau"; chambreInitialeId?: string; dateArriveeInitiale?: string }
+  | { id: "facturation"; reservationId: string };
 
 const SEGMENTS: { id: SegmentId; libelle: string }[] = [
   { id: "aujourdhui", libelle: "Aujourd'hui" },
   { id: "avenir", libelle: "À venir" },
   { id: "encours", libelle: "En cours" },
   { id: "historique", libelle: "Historique" },
+  { id: "planning", libelle: "Planning" },
 ];
 
 const LABEL_STATUT: Record<StatutReservation, string> = {
@@ -85,6 +93,8 @@ function filtrer(reservations: ReservationMiroir[], segment: SegmentId): Reserva
       return reservations.filter((r) => r.statut === "EN_COURS");
     case "historique":
       return reservations.filter((r) => r.statut === "TERMINEE" || r.statut === "ANNULEE");
+    case "planning":
+      return reservations; // affiché par EcranPlanning, pas par la liste
   }
 }
 
@@ -93,6 +103,7 @@ const VIDE_PAR_SEGMENT: Record<SegmentId, string> = {
   avenir: "Aucune réservation à venir.",
   encours: "Aucun client présent.",
   historique: "Aucun séjour passé.",
+  planning: "Aucune réservation sur la fenêtre.",
 };
 
 /**
@@ -102,10 +113,10 @@ const VIDE_PAR_SEGMENT: Record<SegmentId, string> = {
  * Facturation, tout géré par un état local — même principe que
  * EcranOngletCaisse, sans stack de navigation.
  */
-export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: EcranReservationsProps) {
+export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, reservationInitiale }: EcranReservationsProps) {
   const { moteurSync, utilisateur } = useSession();
   const etatSync = useSyncEtat();
-  const [vue, setVue] = useState<Vue>({ id: "liste" });
+  const [vue, setVue] = useState<Vue>(reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" });
   const [segment, setSegment] = useState<SegmentId>(segmentInitial);
   const [reservations, setReservations] = useState<ReservationMiroir[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -136,6 +147,7 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: E
   }
 
   const liste = useMemo(() => filtrer(reservations ?? [], segment), [reservations, segment]);
+  const sousTitre = reservations ? `${liste.length} séjour${liste.length > 1 ? "s" : ""}` : "Chargement…";
 
   if (vue.id === "detail") {
     return (
@@ -155,6 +167,8 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: E
     return (
       <EcranNouvelleReservation
         onRetour={() => setVue({ id: "liste" })}
+        chambreInitialeId={vue.chambreInitialeId}
+        dateArriveeInitiale={vue.dateArriveeInitiale}
         onCree={(id) => {
           rechargerMiroir();
           setVue({ id: "detail", reservationId: id });
@@ -178,14 +192,16 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: E
   return (
     <View style={styles.page}>
       <EnteteMobile />
-      <View style={styles.entete}>
-        <View>
-          <Text style={styles.titre}>Réservations</Text>
-          <Text style={styles.sousTitre}>
-            {reservations ? `${liste.length} séjour${liste.length > 1 ? "s" : ""}` : "Chargement…"}
-          </Text>
+      {onRetour ? (
+        <EnteteRetour titre="Réservations" sousTitre={sousTitre} onRetour={onRetour} />
+      ) : (
+        <View style={styles.entete}>
+          <View>
+            <Text style={styles.titre}>Réservations</Text>
+            <Text style={styles.sousTitre}>{sousTitre}</Text>
+          </View>
         </View>
-      </View>
+      )}
 
       <View style={styles.segments}>
         {SEGMENTS.map((s) => (
@@ -199,47 +215,58 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour }: E
         ))}
       </View>
 
-      {onRetour && (
-        <Pressable onPress={onRetour} style={styles.retourExterne} hitSlop={10} accessibilityRole="button">
-          <Text style={styles.retourExterneTexte}>‹ Retour</Text>
-        </Pressable>
-      )}
-
       {erreur && <Text style={styles.erreur}>{erreur}</Text>}
 
-      {reservations && liste.length === 0 && (
-        <View style={styles.videConteneur}>
-          <Text style={styles.videTexte}>{VIDE_PAR_SEGMENT[segment]}</Text>
-        </View>
-      )}
+      {segment === "planning" ? (
+        <EcranPlanning
+          onNouvelleReservation={(chambreId, dateIso) =>
+            setVue({ id: "nouveau", chambreInitialeId: chambreId, dateArriveeInitiale: dateIso })
+          }
+          onOuvrirReservation={(id) => setVue({ id: "detail", reservationId: id })}
+        />
+      ) : (
+        <>
+          {reservations && liste.length === 0 && (
+            <View style={styles.videConteneur}>
+              <Text style={styles.videTexte}>{VIDE_PAR_SEGMENT[segment]}</Text>
+            </View>
+          )}
 
-      <FlatList
-        data={liste}
-        keyExtractor={(r) => r.id}
-        contentContainerStyle={styles.liste}
-        refreshControl={<RefreshControl refreshing={rafraichissement} onRefresh={actualiser} />}
-        renderItem={({ item }) => {
-          const tone = COULEUR_STATUT[item.statut];
-          return (
-            <Pressable style={styles.carte} onPress={() => setVue({ id: "detail", reservationId: item.id })}>
-              <View style={styles.carteEntete}>
-                <Text style={styles.clientNom}>{item.client.nom}</Text>
-                <View style={[styles.badge, { backgroundColor: tone.fond }]}>
-                  <Text style={[styles.badgeTexte, { color: tone.texte }]}>{LABEL_STATUT[item.statut]}</Text>
-                </View>
-              </View>
-              <Text style={styles.ligne}>
-                Ch. {item.chambre.numero} · {dateCourte(item.dateArrivee)} → {dateCourte(item.dateDepart)}
-              </Text>
-              <Text style={styles.ligneSecondaire}>
-                {formatMontant(item.chambre.prixParNuit, item.chambre.devise)} / nuit
-                {item.remoteId === null ? " · en attente de synchro" : ""}
-                {item.origine === "SITE_PUBLIC" ? " · site public" : ""}
-              </Text>
-            </Pressable>
-          );
-        }}
-      />
+          <FlatList
+            data={liste}
+            keyExtractor={(r) => r.id}
+            contentContainerStyle={styles.liste}
+            refreshControl={<RefreshControl refreshing={rafraichissement} onRefresh={actualiser} />}
+            renderItem={({ item }) => {
+              const tone = COULEUR_STATUT[item.statut];
+              return (
+                <Pressable style={styles.carte} onPress={() => setVue({ id: "detail", reservationId: item.id })}>
+                  <View style={styles.carteEntete}>
+                    <Text style={styles.clientNom}>{item.client.nom}</Text>
+                    <View style={[styles.badge, { backgroundColor: tone.fond }]}>
+                      <Text style={[styles.badgeTexte, { color: tone.texte }]}>{LABEL_STATUT[item.statut]}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.ligne}>
+                    Ch. {item.chambre.numero} · {dateCourte(item.dateArrivee)} → {dateCourte(item.dateDepart)}
+                  </Text>
+                  <Text style={styles.ligneSecondaire}>
+                    {formatMontant(item.chambre.prixParNuit, item.chambre.devise)} / nuit
+                    {item.remoteId === null ? " · en attente de synchro" : ""}
+                    {item.origine === "SITE_PUBLIC" ? " · site public" : ""}
+                  </Text>
+                  {item.note && <Text style={styles.noteTexte}>Note : {item.note}</Text>}
+                  {item.preEnregistreLe && (
+                    <Text style={styles.preEnregistre}>
+                      ✓ Pré-enregistré{item.heureArriveePrevue ? ` · arrivée vers ${item.heureArriveePrevue}` : ""}
+                    </Text>
+                  )}
+                </Pressable>
+              );
+            }}
+          />
+        </>
+      )}
 
       {/* « + » flottant bas-droite — sous le pouce, standard Android
           (remplace l'ancien bouton d'en-tête). */}
@@ -274,16 +301,6 @@ const styles = StyleSheet.create({
   segmentActif: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
   segmentTexte: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },
   segmentTexteActif: { color: "#fff" },
-  // Zone tactile ≥44px — le « ‹ Retour » de 13px était trop petit
-  // (retour du patron 28/09, écran Arrivées et départs).
-  retourExterne: {
-    paddingHorizontal: espacements.s4,
-    paddingVertical: espacements.s2,
-    marginBottom: espacements.s1,
-    minHeight: 44,
-    justifyContent: "center",
-  },
-  retourExterneTexte: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
   // 88px de marge basse : le FAB ne recouvre pas la dernière carte.
   liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },
@@ -303,4 +320,6 @@ const styles = StyleSheet.create({
   badgeTexte: { fontSize: 11, fontWeight: "700" },
   ligne: { fontSize: 14, color: couleurs.encre },
   ligneSecondaire: { fontSize: 12, color: couleurs.encreAttenuee },
+  noteTexte: { fontSize: 12, color: couleurs.violet, fontStyle: "italic" },
+  preEnregistre: { fontSize: 12, fontWeight: "600", color: couleurs.succes },
 });

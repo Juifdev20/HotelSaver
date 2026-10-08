@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { Devise, Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
-import { Bell, Coins, Moon, Printer, ShieldCheck, Sun, Users } from "lucide-react";
+import { Bell, ChefHat, Coins, Globe, Moon, Printer, ShieldCheck, Sun, Users } from "lucide-react";
 import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 
@@ -126,13 +126,15 @@ export function EcranParametres({
   const [enregistrementReglage, setEnregistrementReglage] = useState(false);
   const [erreurReglage, setErreurReglage] = useState<string | null>(null);
   const patronOpere = utilisateur?.patronPeutOperer === true;
+  const cuisineActivee = utilisateur?.cuisineActivee === true;
+  const commandeWebActivee = utilisateur?.commandeWebActivee === true;
 
-  async function basculerPatronOpere() {
+  async function basculerReglage(donnees: { patronPeutOperer?: boolean; cuisineActivee?: boolean; commandeWebActivee?: boolean }) {
     if (!client) return;
     setEnregistrementReglage(true);
     setErreurReglage(null);
     try {
-      await client.modifierReglagesHotel({ patronPeutOperer: !patronOpere });
+      await client.modifierReglagesHotel(donnees);
       onProfilModifie?.();
     } catch (e) {
       setErreurReglage(e instanceof Error ? e.message : "Erreur inconnue.");
@@ -140,6 +142,10 @@ export function EcranParametres({
       setEnregistrementReglage(false);
     }
   }
+
+  const basculerPatronOpere = () => basculerReglage({ patronPeutOperer: !patronOpere });
+  const basculerCuisine = () => basculerReglage({ cuisineActivee: !cuisineActivee });
+  const basculerCommandeWeb = () => basculerReglage({ commandeWebActivee: !commandeWebActivee });
 
   const [lancerAuDemarrage, setLancerAuDemarrage] = useState(false);
   useEffect(() => {
@@ -246,6 +252,44 @@ export function EcranParametres({
             Réserver, faire les check-in/out, facturer et tenir la caisse sont réservés au personnel (réception, cafétaria) pour éviter toute
             confusion. Activez ce réglage seulement si vous travaillez seul : le patron garde dans tous les cas l'administration, les rapports
             et les annulations avec motif.
+          </p>
+          <div className="parametres-ligne">
+            <span className="parametres-ligne__icone">
+              <ChefHat size={18} aria-hidden="true" />
+            </span>
+            <span className="hc-text-body">{cuisineActivee ? "Suivi cuisine activé" : "Suivi cuisine désactivé"}</span>
+            {client && (
+              <Button type="button" variant="secondary" size="sm" onClick={() => void basculerCuisine()} disabled={enregistrementReglage}>
+                {enregistrementReglage ? "…" : cuisineActivee ? "Désactiver" : "Activer"}
+              </Button>
+            )}
+          </div>
+          <p className="hc-text-caption texte-discret">
+            Activez si des plats sont préparés par une équipe séparée : les commandes partent sur l'écran Cuisine jusqu'à leur service. Laissez
+            désactivé pour une vente au comptoir (articles servis immédiatement — l'écran Cuisine et les statuts sont masqués).
+          </p>
+          <div className="parametres-ligne">
+            <span className="parametres-ligne__icone">
+              <Globe size={18} aria-hidden="true" />
+            </span>
+            <span className="hc-text-body">
+              {commandeWebActivee ? "Commande en ligne activée" : "Commande en ligne désactivée"}
+            </span>
+            {client && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void basculerCommandeWeb()}
+                disabled={enregistrementReglage}
+              >
+                {enregistrementReglage ? "…" : commandeWebActivee ? "Désactiver" : "Activer"}
+              </Button>
+            )}
+          </div>
+          <p className="hc-text-caption texte-discret">
+            Affiche la page « Cuisine » sur le site web de l'hôtel : les clients y commandent et paient au comptoir. Publiez les produits dans
+            Menu (« Visible et commandable sur le site ») — la cafétaria est notifiée de chaque commande et les retrouve dans Comptes ouverts.
           </p>
           {erreurReglage && (
             <p role="alert" className="hc-text-body texte-erreur">

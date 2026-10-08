@@ -4,7 +4,9 @@ import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { InfoHotelPublique } from "@hotel-chicago/types";
 import { cheminHotel } from "../resoudreSousDomaine";
 import { EcranChambresPubliques } from "../EcranChambresPubliques";
+import { EcranCuisinePublique } from "../EcranCuisinePublique";
 import { EcranMenuPublique } from "../EcranMenuPublique";
+import { EcranSuiviReservation } from "../EcranSuiviReservation";
 import { BarreHotel } from "./BarreHotel";
 import { AccueilHotel } from "./AccueilHotel";
 
@@ -29,6 +31,7 @@ function PiedHotel({ info }: { info: InfoHotelPublique }) {
         <nav aria-label="Pied de page">
           <Link to={cheminHotel("/chambres")}>Chambres</Link>
           <Link to={cheminHotel("/menu")}>Menu</Link>
+          {info.commandeWebActivee && <Link to={cheminHotel("/cuisine")}>Cuisine</Link>}
           <a href={`${cheminHotel("/")}#contact`}>Contact</a>
         </nav>
       </div>
@@ -56,6 +59,10 @@ export function SiteHotel({ info, sousDomaine }: { info: InfoHotelPublique; sous
           <Route path="/" element={<AccueilHotel info={info} sousDomaine={sousDomaine} />} />
           <Route path="/chambres" element={<EcranChambresPubliques sousDomaine={sousDomaine} />} />
           <Route path="/menu" element={<EcranMenuPublique sousDomaine={sousDomaine} />} />
+          {info.commandeWebActivee && (
+            <Route path="/cuisine" element={<EcranCuisinePublique sousDomaine={sousDomaine} />} />
+          )}
+          <Route path="/ma-reservation/:jeton" element={<EcranSuiviReservation sousDomaine={sousDomaine} />} />
           <Route path="*" element={<Navigate to={cheminHotel("/")} replace />} />
         </Routes>
       </div>

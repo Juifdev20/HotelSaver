@@ -9,6 +9,9 @@ export interface EcranNouvelleReservationProps {
   client: ClientApi;
   onRetour: () => void;
   onCreee: (reservationId: string) => void;
+  /** Pré-remplissage depuis le planning (cellule chambre × jour). */
+  chambreInitialeId?: string;
+  dateArriveeInitiale?: string; // AAAA-MM-JJ
 }
 
 const STATUTS_OCCUPANTS = new Set(["CONFIRMEE", "EN_COURS"]); // reservations.service.ts
@@ -30,7 +33,7 @@ function jourSuivant(input: string, nuits: number): string {
  * et le check-in pour un walk-in du jour ; si le check-in échoue la
  * réservation reste créée (CONFIRMEE), signalé à l'écran.
  */
-export function EcranNouvelleReservation({ client, onRetour, onCreee }: EcranNouvelleReservationProps) {
+export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreInitialeId, dateArriveeInitiale }: EcranNouvelleReservationProps) {
   const [chambres, setChambres] = useState<Chambre[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [clients, setClients] = useState<ClientHotel[]>([]);
@@ -38,15 +41,18 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee }: EcranNou
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
-  const [arrivee, setArrivee] = useState(aujourdhuiInput());
+  const [arrivee, setArrivee] = useState(dateArriveeInitiale ?? aujourdhuiInput());
   const [nuits, setNuits] = useState(1);
-  const [chambreId, setChambreId] = useState("");
+  const [chambreId, setChambreId] = useState(chambreInitialeId ?? "");
   const [modeClient, setModeClient] = useState<"nouveau" | "existant">("nouveau");
   const [clientId, setClientId] = useState("");
   const [rechercheClient, setRechercheClient] = useState("");
   const [nom, setNom] = useState("");
   const [telephone, setTelephone] = useState("");
   const [email, setEmail] = useState("");
+  const [typePiece, setTypePiece] = useState("");
+  const [numeroPiece, setNumeroPiece] = useState("");
+  const [note, setNote] = useState("");
   const [acompteSaisi, setAcompteSaisi] = useState("");
   const [checkInImmediat, setCheckInImmediat] = useState(false);
 
@@ -106,26 +112,28 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee }: EcranNou
 
     setEnCours(true);
     try {
+      // Arrivée express : `installerImmediatement` fait le check-in dans la
+      // même transaction que la création (chambre OCCUPEE immédiatement) —
+      // plus de deuxième appel qui pouvait échouer après un create réussi.
       const creee = await client.creerReservation({
         chambreId: chambreChoisie.id,
         ...(modeClient === "existant"
           ? { clientId }
-          : { client: { nom: nom.trim(), telephone: telephone.trim() || undefined, email: email.trim() || undefined } }),
+          : {
+              client: {
+                nom: nom.trim(),
+                telephone: telephone.trim() || undefined,
+                email: email.trim() || undefined,
+                typePiece: typePiece.trim() || undefined,
+                numeroPiece: numeroPiece.trim() || undefined,
+              },
+            }),
         dateArrivee: new Date(arrivee + "T12:00:00").toISOString(),
         dateDepart: new Date(depart + "T12:00:00").toISOString(),
         acompte: acompte || undefined,
+        note: note.trim() || undefined,
+        installerImmediatement: checkInImmediat || undefined,
       });
-      if (checkInImmediat) {
-        try {
-          await client.checkIn(creee.id);
-        } catch (e) {
-          setErreur(
-            "Réservation créée, mais le check-in a échoué : " +
-              (e instanceof Error ? e.message : "erreur inconnue") +
-              ". Il pourra être refait depuis le détail."
-          );
-        }
-      }
       onCreee(creee.id);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
@@ -210,6 +218,14 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee }: EcranNou
                   Email
                 </label>
                 <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <label className="hc-text-label" htmlFor="type-piece">
+                  Type de pièce (optionnel)
+                </label>
+                <input id="type-piece" type="text" value={typePiece} onChange={(e) => setTypePiece(e.target.value)} placeholder="CNI, passeport, permis…" />
+                <label className="hc-text-label" htmlFor="numero-piece">
+                  N° de pièce (optionnel)
+                </label>
+                <input id="numero-piece" type="text" value={numeroPiece} onChange={(e) => setNumeroPiece(e.target.value)} placeholder="Numéro de la pièce d'identité" />
               </>
             ) : (
               <>
@@ -237,6 +253,17 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee }: EcranNou
                 </select>
               </>
             )}
+          </div>
+
+          <div className="carte-formulaire formulaire">
+            <p className="hc-text-label texte-discret">Demandes spéciales (optionnel)</p>
+            <textarea
+              id="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Lit bébé, étage élevé, régime alimentaire…"
+              rows={3}
+            />
           </div>
 
           <div className="carte-formulaire formulaire">

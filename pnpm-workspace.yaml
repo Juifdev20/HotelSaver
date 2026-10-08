@@ -12,6 +12,7 @@ allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true
   '@prisma/engines': true
+  '@swc/core': true
   electron: true
   esbuild: true
   prisma: true
@@ -23,3 +24,5 @@ minimumReleaseAgeExclude:
   - expo-modules-core@57.0.19
   - expo-modules-jsi@57.1.1
   - expo@57.0.25
+onlyBuiltDependencies:
+  - '@swc/core'

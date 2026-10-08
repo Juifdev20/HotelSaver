@@ -70,7 +70,7 @@ export function EcranConnexion({
 
           {mode === "connexion" && (
             <>
-              <h2 className="hc-auth__titre">Bon retour 👋</h2>
+              <h2 className="hc-auth__titre">Bon retour</h2>
               <p className="hc-auth__sous-titre">Connectez-vous à votre espace hôtelier.</p>
 
               {message && (

@@ -375,6 +375,47 @@ describe("CafeteriaService", () => {
     });
   });
 
+  describe("trouverCompteParReference", () => {
+    const appelAttendu = (ref: string) => ({
+      where: { hotelId: HOTEL_ID, origine: "SITE_PUBLIC", id: { startsWith: ref } },
+      include: expect.anything(),
+      orderBy: { ouvertLe: "desc" },
+      take: 5,
+    });
+
+    it("renvoie le compte web ouvert dont l'id commence par la référence (insensible à la casse)", async () => {
+      const compte = { id: "e6a5e231-0000", statut: "OUVERT", sousComptes: [] };
+      prisma.compteCafeteria.findMany.mockResolvedValue([compte]);
+      await expect(service.trouverCompteParReference("  E6A5E231  ", HOTEL_ID)).resolves.toBe(compte);
+      expect(prisma.compteCafeteria.findMany).toHaveBeenCalledWith(appelAttendu("e6a5e231"));
+    });
+
+    it("rejette une référence qui n'est pas un préfixe hexadécimal", async () => {
+      await expect(service.trouverCompteParReference("bonjour!", HOTEL_ID)).rejects.toThrow(BadRequestException);
+      await expect(service.trouverCompteParReference("abc", HOTEL_ID)).rejects.toThrow(BadRequestException);
+      expect(prisma.compteCafeteria.findMany).not.toHaveBeenCalled();
+    });
+
+    it("renvoie 404 si aucune commande web ne correspond", async () => {
+      prisma.compteCafeteria.findMany.mockResolvedValue([]);
+      await expect(service.trouverCompteParReference("e6a5e231", HOTEL_ID)).rejects.toThrow(NotFoundException);
+    });
+
+    it("renvoie 409 si la commande existe mais est déjà clôturée (référence obsolète)", async () => {
+      prisma.compteCafeteria.findMany.mockResolvedValue([{ id: "e6a5e231-0000", statut: "FERME" }]);
+      await expect(service.trouverCompteParReference("e6a5e231", HOTEL_ID)).rejects.toThrow(ConflictException);
+    });
+
+    it("préfère le compte encore ouvert si le préfixe correspond aussi à un compte clôturé", async () => {
+      const ouvert = { id: "e6a5e231-1111", statut: "OUVERT", sousComptes: [] };
+      prisma.compteCafeteria.findMany.mockResolvedValue([
+        { id: "e6a5e231-0000", statut: "FERME" },
+        ouvert,
+      ]);
+      await expect(service.trouverCompteParReference("e6a5e231", HOTEL_ID)).resolves.toBe(ouvert);
+    });
+  });
+
   describe("produitsPopulaires", () => {
     it("agrège les lignes de CET hôtel depuis minuit (heure de Lubumbashi, UTC+2) et classe par quantité", async () => {
       prisma.ligneCommande.groupBy.mockResolvedValue([

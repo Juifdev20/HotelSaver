@@ -5,12 +5,16 @@ import {
   ArrowLeftRight,
   Bell,
   BedDouble,
+  BookOpenCheck,
   CalendarDays,
+  ChefHat,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   ClipboardList,
   FileText,
+  Wallet,
   LayoutDashboard,
   LogOut,
   LucideIcon,
@@ -23,6 +27,7 @@ import {
   Settings,
   ShoppingCart,
   Sun,
+  Ticket,
   UserRound,
   Globe,
   Users,
@@ -51,17 +56,22 @@ const ICONES: Record<IdPage, LucideIcon> = {
   chambres: BedDouble,
   reservations: CalendarDays,
   "arrivees-departs": ArrowLeftRight,
+  "journal-journee": BookOpenCheck,
   clients: Users,
   facturation: Receipt,
   caisse: ShoppingCart,
   "comptes-ouverts": ClipboardList,
+  "retrait-commande": Ticket,
+  cuisine: ChefHat,
   menu: UtensilsCrossed,
   stock: Package,
+  inventaire: ClipboardCheck,
   parametres: Settings,
   imprimante: Printer,
   utilisateurs: UserRound,
   "site-hotel": Globe,
   rapports: FileText,
+  depenses: Wallet,
 };
 
 const LIBELLE_ROLE: Record<Role, string> = {
@@ -174,8 +184,8 @@ export function Coquille({
   const [notificationsOuvertes, setNotificationsOuvertes] = useState(false);
   const [recherche, setRecherche] = useState("");
   const [barreReduite, setBarreReduite] = useState(barreReduitePreferee);
-  const sections = sectionsPourRole(utilisateur.role, peutOperer(utilisateur));
-  const barreDuBas = entreesBarreDuBas(utilisateur.role, peutOperer(utilisateur));
+  const sections = sectionsPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true);
+  const barreDuBas = entreesBarreDuBas(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true);
 
   const refProfil = useFermetureExterne(menuProfilOuvert, () => setMenuProfilOuvert(false));
   const refNotifications = useFermetureExterne(notificationsOuvertes, () => setNotificationsOuvertes(false));

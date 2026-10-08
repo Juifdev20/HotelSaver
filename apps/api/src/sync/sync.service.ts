@@ -8,6 +8,8 @@ import { ReservationsService } from "../reservations/reservations.service";
 import { ProduitsService } from "../produits/produits.service";
 import { StockService } from "../stock/stock.service";
 import { CafeteriaService } from "../cafeteria/cafeteria.service";
+import { DepensesService } from "../depenses/depenses.service";
+import { departementDuRole } from "../common/departement";
 import { ACCESSEUR_PRISMA, ENTITES_PULL, EntitePull, EntitePush } from "./entites-synchronisables";
 import { SyncPushDto } from "./dto/sync-push.dto";
 import { PushOperationDto } from "./dto/push-operation.dto";
@@ -56,6 +58,17 @@ const ROLES_LECTURE: Record<EntitePull, Role[]> = {
   SousCompte: [Role.CAFETARIA, Role.PATRON],
   LigneCommande: [Role.CAFETARIA, Role.PATRON],
   VenteCafeteria: [Role.CAFETARIA, Role.PATRON],
+  Depense: [Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON],
+};
+
+/** Filtre de lecture supplémentaire par entité, au-delà de l'hôtel : un
+ * réceptionniste ne doit pas recevoir les dépenses de la cafétaria (et
+ * inversement) ; le patron reçoit tout. */
+const FILTRE_LECTURE: Partial<Record<EntitePull, (user: UtilisateurAuthentifie) => Record<string, unknown>>> = {
+  Depense: (user) => {
+    const departement = departementDuRole(user.role);
+    return departement ? { departement } : {};
+  },
 };
 
 /** Opérations du quotidien (séparation des tâches) : la synchronisation applique la même règle que les routes
@@ -72,7 +85,8 @@ export class SyncService {
     private readonly reservationsService: ReservationsService,
     private readonly produitsService: ProduitsService,
     private readonly stockService: StockService,
-    private readonly cafeteriaService: CafeteriaService
+    private readonly cafeteriaService: CafeteriaService,
+    private readonly depensesService: DepensesService
   ) {
     // Chaque entité délègue à son service métier existant plutôt qu'à un
     // passthrough Prisma générique : ça réutilise gratuitement toute la
@@ -157,6 +171,13 @@ export class SyncService {
           }
           return this.cafeteriaService.ajouterLigne(compteId, dto as any, currentUser);
         },
+      },
+      // Jamais le patron : il consulte les dépenses, il ne les saisit pas.
+      Depense: {
+        rolesCreate: [Role.RECEPTIONNISTE, Role.CAFETARIA],
+        rolesUpdate: [Role.RECEPTIONNISTE, Role.CAFETARIA],
+        create: (payload, currentUser) => this.depensesService.creer(payload as any, currentUser),
+        update: (id, payload, currentUser) => this.depensesService.modifier(id, payload as any, currentUser),
       },
     };
   }
@@ -258,14 +279,21 @@ export class SyncService {
       (ROLES_LECTURE[entite] ?? []).includes(currentUser.role)
     );
 
+    // En parallèle (08/10/2026) : chaque lecture coûte ~300 ms depuis Kasindi ;
+    // en série, 11 entités faisaient ~3 s par synchronisation et retardaient
+    // la caisse. Le pool `pg` (max 5) borne le nombre de requêtes simultanées.
+    const lignes = await Promise.all(
+      entitesAutorisees.map((entite) =>
+        (this.prisma as any)[ACCESSEUR_PRISMA[entite]].findMany({
+          where: { hotelId: currentUser.hotelId, updatedAt: { gt: depuis }, ...FILTRE_LECTURE[entite]?.(currentUser) },
+          orderBy: { updatedAt: "asc" },
+        }) as Promise<unknown[]>
+      )
+    );
     const resultat: Record<string, unknown[]> = {};
-    for (const entite of entitesAutorisees) {
-      const accesseur = ACCESSEUR_PRISMA[entite];
-      resultat[entite] = await (this.prisma as any)[accesseur].findMany({
-        where: { hotelId: currentUser.hotelId, updatedAt: { gt: depuis } },
-        orderBy: { updatedAt: "asc" },
-      });
-    }
+    entitesAutorisees.forEach((entite, i) => {
+      resultat[entite] = lignes[i];
+    });
     return resultat;
   }
 }

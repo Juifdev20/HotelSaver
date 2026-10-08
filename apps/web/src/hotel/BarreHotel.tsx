@@ -51,6 +51,7 @@ export function BarreHotel({ info }: { info: InfoHotelPublique }) {
           {info.services.length > 0 && <a href={ancre("services")}>Services</a>}
           {info.galerie.length > 0 && <a href={ancre("galerie")}>Galerie</a>}
           <NavLink to={cheminHotel("/menu")}>Menu</NavLink>
+          {info.commandeWebActivee && <NavLink to={cheminHotel("/cuisine")}>Cuisine</NavLink>}
           <a href={ancre("contact")}>Contact</a>
           <Link to={cheminHotel("/chambres")} className="hotel-bouton hotel-bouton--primaire hotel-nav__cta">
             Réserver

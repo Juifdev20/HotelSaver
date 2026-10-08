@@ -3,10 +3,14 @@ import { Prisma, PrismaClient, Produit } from "@hotel-chicago/database";
 import { Role } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import { NotificationsService } from "../notifications/notifications.service";
+import { SupabaseStorageService } from "../common/supabase-storage/supabase-storage.service";
 import { messages } from "../notifications/messages";
 import { CreateMouvementDto } from "./dto/create-mouvement.dto";
 import { FindMouvementsQueryDto } from "./dto/find-mouvements.query.dto";
+import { LancerInventaireDto } from "./dto/lancer-inventaire.dto";
 import { TypeMouvement } from "./types-mouvement";
+import { BrandingPdf } from "../rapports/pdf/commun";
+import { genererPdfInventaire } from "../rapports/pdf/inventaire";
 
 type ClientOuTransaction = PrismaClient | Prisma.TransactionClient;
 
@@ -23,7 +27,8 @@ export interface ParamsMouvement {
 export class StockService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly notifications: NotificationsService
+    private readonly notifications: NotificationsService,
+    private readonly storage: SupabaseStorageService
   ) {}
 
   findAll(query: FindMouvementsQueryDto, hotelId: string) {
@@ -146,6 +151,164 @@ export class StockService {
         ...messages.stockBas({ produit: produit.nom, stock: nouveauStock, produitId: params.produitId }),
       });
     }
+  }
+
+  // ── Inventaire physique ────────────────────────────────────────────────────
+
+  /**
+   * Reconstitue le stock théorique à la fin de la période pour chaque produit
+   * actif de l'hôtel : part du stockActuel courant puis annule les mouvements
+   * postérieurs à dateFin (même algorithme que agregatCafeteria pour stockCloture).
+   */
+  async preparerInventaire(dateDebut: string, dateFin: string, hotelId: string) {
+    const debut = new Date(dateDebut);
+    const fin   = new Date(dateFin);
+    fin.setUTCHours(23, 59, 59, 999);
+
+    const produits = await this.prisma.produit.findMany({
+      // Les plats n'ont pas de stock compté (préparés à la commande) : ils
+      // n'ont rien à faire dans un inventaire physique.
+      where: { hotelId, actif: true, typeProduit: "ARTICLE" },
+      select: { id: true, nom: true, categorie: true, prix: true, devise: true, prixAchat: true, stockActuel: true },
+      orderBy: [{ categorie: "asc" }, { nom: "asc" }],
+    });
+
+    const mouvements = await this.prisma.mouvementStock.findMany({
+      where: { hotelId, createdAt: { gte: debut } },
+      select: { produitId: true, quantite: true, type: true, createdAt: true },
+    });
+
+    return produits.map((p) => {
+      const mouvs = mouvements.filter((m) => m.produitId === p.id);
+      let apresFin = 0;
+      let entrees = 0, sortiesVentes = 0, pertes = 0, ajustements = 0;
+      for (const m of mouvs) {
+        const q    = Number(m.quantite);
+        const signe = m.type === "ENTREE" || m.type === "AJUSTEMENT" ? 1 : -1;
+        if (m.createdAt > fin) {
+          apresFin += signe * q;
+          continue;
+        }
+        if (m.type === "ENTREE")          entrees       += q;
+        else if (m.type === "SORTIE_VENTE") sortiesVentes += q;
+        else if (m.type === "PERTE")      pertes        += q;
+        else                               ajustements  += q;
+      }
+      const stockTheorique = Number(p.stockActuel) - apresFin;
+      return {
+        produitId:     p.id,
+        nom:           p.nom,
+        categorie:     p.categorie,
+        prix:          String(p.prix),
+        devise:        p.devise,
+        prixAchat:     p.prixAchat != null ? String(p.prixAchat) : undefined,
+        stockActuel:   String(p.stockActuel),
+        stockTheorique,
+        entrees,
+        sortiesVentes,
+        pertes,
+        ajustements,
+      };
+    });
+  }
+
+  /** Crée l'inventaire en base, génère le PDF et l'enregistre dans Supabase Storage. */
+  async creerInventaire(dto: LancerInventaireDto, createdBy: string, hotelId: string) {
+    const theoriques = await this.preparerInventaire(dto.dateDebut, dto.dateFin, hotelId);
+    const mapTheo = new Map(theoriques.map((l) => [l.produitId, l]));
+
+    // 1. Créer l'enregistrement + les items
+    const inventaire = await this.prisma.inventairePhysique.create({
+      data: {
+        hotelId,
+        dateDebut:  new Date(dto.dateDebut),
+        dateFin:    new Date(dto.dateFin),
+        titre:      dto.titre,
+        createdBy,
+        items: {
+          create: dto.items.map((item) => {
+            const theo = mapTheo.get(item.produitId)?.stockTheorique ?? 0;
+            return {
+              produitId:      item.produitId,
+              stockTheorique: theo,
+              stockPhysique:  item.stockPhysique,
+              ecart:          item.stockPhysique - theo,
+              note:           item.note,
+            };
+          }),
+        },
+      },
+      include: { items: { include: { produit: true } } },
+    });
+
+    // 2. Branding de l'hôtel (sans logo — aucune dépendance sharp dans ce module)
+    const hotel = await this.prisma.hotel.findUniqueOrThrow({
+      where: { id: hotelId },
+      include: { branding: true },
+    });
+    const palette  = hotel.branding?.palette as { light?: { navy?: string } } | null;
+    const branding: BrandingPdf = {
+      nom:       hotel.nom,
+      adresse:   hotel.adresse,
+      telephone: hotel.telephoneContact,
+      logo:      null,
+      couleur:   palette?.light?.navy ?? undefined,
+    };
+
+    // 3. Générer le PDF
+    const lignesPdf = inventaire.items.map((item) => ({
+      produit:        item.produit.nom,
+      categorie:      item.produit.categorie,
+      prix:           String(item.produit.prix),
+      devise:         String(item.produit.devise),
+      prixAchat:      item.produit.prixAchat != null ? String(item.produit.prixAchat) : null,
+      stockTheorique: Number(item.stockTheorique),
+      stockPhysique:  Number(item.stockPhysique),
+      ecart:          Number(item.ecart),
+      note:           item.note,
+    }));
+    const pdfBuffer = await genererPdfInventaire(
+      {
+        dateDebut:  dto.dateDebut,
+        dateFin:    dto.dateFin,
+        titre:      dto.titre,
+        createdAt:  inventaire.createdAt.toISOString(),
+        createdBy,
+        lignes:     lignesPdf,
+      },
+      branding
+    );
+
+    // 4. Upload PDF + mise à jour pdfUrl
+    const chemin = `${hotelId}/inventaires/${inventaire.id}.pdf`;
+    await this.storage.envoyerRapportPdf(chemin, pdfBuffer);
+    const pdfUrl = await this.storage.urlSigneeRapport(chemin, 3600 * 24 * 365); // URL longue durée (1 an)
+
+    await this.prisma.inventairePhysique.update({
+      where: { id: inventaire.id },
+      data: { pdfUrl: chemin }, // on stocke le chemin, pas l'URL signée (elle expire)
+    });
+
+    return { ...inventaire, pdfUrl };
+  }
+
+  listerInventaires(hotelId: string) {
+    return this.prisma.inventairePhysique.findMany({
+      where: { hotelId },
+      include: { items: { include: { produit: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  /**
+   * Retourne une URL signée courte (5 min) pour télécharger le PDF d'un inventaire.
+   * Le chemin stocké dans `pdfUrl` est le chemin relatif dans le bucket (pas l'URL complète).
+   */
+  async urlPdfInventaire(id: string, hotelId: string): Promise<string> {
+    const inv = await this.prisma.inventairePhysique.findUnique({ where: { id, hotelId } });
+    if (!inv) throw new NotFoundException(`Inventaire ${id} introuvable.`);
+    if (!inv.pdfUrl) throw new NotFoundException("Le PDF de cet inventaire n'est pas disponible.");
+    return this.storage.urlSigneeRapport(inv.pdfUrl);
   }
 
   /**

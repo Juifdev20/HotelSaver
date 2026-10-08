@@ -1,8 +1,9 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClientApi, ClientAvecSejours } from "@hotel-chicago/api-client";
-import { StatusBadge } from "@hotel-chicago/ui";
-import { Search, Users } from "lucide-react";
+import { Devise } from "@hotel-chicago/types";
+import { Button, StatusBadge, formatMontant } from "@hotel-chicago/ui";
+import { Pencil, Search, Users } from "lucide-react";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
 
 export interface EcranClientsProps {
@@ -12,13 +13,17 @@ export interface EcranClientsProps {
 /**
  * Répertoire des clients de l'hôtel (GET /clients, Phase 16) : recherche
  * par nom/téléphone ; la fiche affiche les séjours embarqués par l'API
- * (`reservations` inclus dans la réponse, voir clients.service.ts).
+ * (`reservations` inclus dans la réponse, voir clients.service.ts) et
+ * s'édite (pièce d'identité, notes — PATCH /clients/:id).
  */
 export function EcranClients({ client }: EcranClientsProps) {
   const [clients, setClients] = useState<ClientAvecSejours[] | null>(null);
   const [recherche, setRecherche] = useState("");
   const [clientChoisi, setClientChoisi] = useState<ClientAvecSejours | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [edition, setEdition] = useState(false);
+  const [enCours, setEnCours] = useState(false);
+  const [saisie, setSaisie] = useState({ nom: "", telephone: "", email: "", typePiece: "", numeroPiece: "", notes: "" });
 
   const charger = useCallback(() => {
     client
@@ -41,6 +46,56 @@ export function EcranClients({ client }: EcranClientsProps) {
     [clientChoisi]
   );
 
+  /** Total encaissé sur les séjours facturés (factures non annulées). */
+  const totalDepense = useMemo(() => {
+    let usd = 0;
+    let cdf = 0;
+    for (const r of clientChoisi?.reservations ?? []) {
+      if (r.facture && !r.facture.annuleLe) {
+        usd += Number(r.facture.montantTotalUSD);
+        cdf += Number(r.facture.montantTotalCDF);
+      }
+    }
+    return { usd, cdf };
+  }, [clientChoisi]);
+
+  function ouvrirEdition() {
+    if (!clientChoisi) return;
+    setSaisie({
+      nom: clientChoisi.nom,
+      telephone: clientChoisi.telephone ?? "",
+      email: clientChoisi.email ?? "",
+      typePiece: clientChoisi.typePiece ?? "",
+      numeroPiece: clientChoisi.numeroPiece ?? "",
+      notes: clientChoisi.notes ?? "",
+    });
+    setErreur(null);
+    setEdition(true);
+  }
+
+  async function enregistrerFiche() {
+    if (!clientChoisi || !saisie.nom.trim()) return;
+    setEnCours(true);
+    setErreur(null);
+    try {
+      const modifie = await client.modifierClient(clientChoisi.id, {
+        nom: saisie.nom.trim(),
+        telephone: saisie.telephone.trim(),
+        email: saisie.email.trim(),
+        typePiece: saisie.typePiece.trim(),
+        numeroPiece: saisie.numeroPiece.trim(),
+        notes: saisie.notes.trim(),
+      });
+      setClientChoisi(modifie);
+      setEdition(false);
+      charger();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Impossible d'enregistrer la fiche.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
   if (clientChoisi) {
     return (
       <div className="page">
@@ -59,6 +114,52 @@ export function EcranClients({ client }: EcranClientsProps) {
             <p className="hc-text-body texte-discret">Aucune coordonnée enregistrée.</p>
           )}
         </div>
+
+        <div className="carte-formulaire">
+          <div className="parametres-ligne">
+            <p className="hc-text-label texte-discret">Pièce d'identité et notes</p>
+            <Button type="button" variant="secondary" onClick={ouvrirEdition}>
+              <Pencil size={14} aria-hidden="true" /> Compléter la fiche
+            </Button>
+          </div>
+          {clientChoisi.typePiece || clientChoisi.numeroPiece ? (
+            <p className="hc-text-body">
+              {[clientChoisi.typePiece, clientChoisi.numeroPiece].filter(Boolean).join(" · ")}
+            </p>
+          ) : (
+            <p className="hc-text-body texte-discret">Aucune pièce enregistrée (registre de police).</p>
+          )}
+          {clientChoisi.notes && <p className="hc-text-body texte-discret" style={{ fontStyle: "italic" }}>{clientChoisi.notes}</p>}
+          {(totalDepense.usd > 0 || totalDepense.cdf > 0) && (
+            <p className="hc-text-body">
+              Total dépensé : <strong>{formatMontant(totalDepense.usd, Devise.USD)}</strong>
+              {totalDepense.cdf > 0 ? ` + ${formatMontant(totalDepense.cdf, Devise.CDF)}` : ""}
+            </p>
+          )}
+        </div>
+
+        {edition && (
+          <div className="carte-formulaire formulaire">
+            <p className="hc-text-label texte-discret">Compléter la fiche</p>
+            {erreur && <p role="alert" className="hc-text-body texte-erreur">{erreur}</p>}
+            <label className="hc-text-label" htmlFor="cl-nom">Nom</label>
+            <input id="cl-nom" type="text" value={saisie.nom} onChange={(e) => setSaisie({ ...saisie, nom: e.target.value })} />
+            <label className="hc-text-label" htmlFor="cl-tel">Téléphone</label>
+            <input id="cl-tel" type="tel" value={saisie.telephone} onChange={(e) => setSaisie({ ...saisie, telephone: e.target.value })} />
+            <label className="hc-text-label" htmlFor="cl-email">Email</label>
+            <input id="cl-email" type="email" value={saisie.email} onChange={(e) => setSaisie({ ...saisie, email: e.target.value })} />
+            <label className="hc-text-label" htmlFor="cl-type-piece">Type de pièce</label>
+            <input id="cl-type-piece" type="text" value={saisie.typePiece} onChange={(e) => setSaisie({ ...saisie, typePiece: e.target.value })} placeholder="CNI, passeport, permis…" />
+            <label className="hc-text-label" htmlFor="cl-num-piece">N° de pièce</label>
+            <input id="cl-num-piece" type="text" value={saisie.numeroPiece} onChange={(e) => setSaisie({ ...saisie, numeroPiece: e.target.value })} placeholder="Numéro de la pièce" />
+            <label className="hc-text-label" htmlFor="cl-notes">Notes (suivi interne)</label>
+            <textarea id="cl-notes" value={saisie.notes} onChange={(e) => setSaisie({ ...saisie, notes: e.target.value })} placeholder="VIP, habitudes, restrictions…" rows={3} />
+            <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
+              <Button type="button" onClick={enregistrerFiche} disabled={enCours}>{enCours ? "…" : "Enregistrer"}</Button>
+              <Button type="button" variant="secondary" onClick={() => setEdition(false)}>Annuler</Button>
+            </div>
+          </div>
+        )}
 
         <p className="hc-text-label texte-discret">Séjours ({sejoursDuClient.length})</p>
         {sejoursDuClient.length === 0 && <p className="hc-text-body texte-discret">Aucun séjour enregistré.</p>}

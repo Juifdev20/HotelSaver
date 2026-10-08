@@ -93,7 +93,14 @@ export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOu
           return (
             <Pressable style={styles.carte} onPress={() => onOuvrirCompte(item.id)}>
               <View style={styles.carteEntete}>
-                <Text style={styles.nom}>{item.tableOuNom}</Text>
+                <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: espacements.s2 }}>
+                  <Text style={styles.nom} numberOfLines={1}>{item.tableOuNom}</Text>
+                  {item.origine === "SITE_PUBLIC" && (
+                    <View style={styles.badgeWeb}>
+                      <Text style={styles.badgeWebTexte}>Réf. {item.id.slice(0, 8).toUpperCase()}</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.personnes}>
                   {nombrePersonnes} personne{nombrePersonnes > 1 ? "s" : ""}
                 </Text>
@@ -126,7 +133,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   carteEntete: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  nom: { fontSize: 16, fontWeight: "700", color: couleurs.encre },
+  nom: { fontSize: 16, fontWeight: "700", color: couleurs.encre, flexShrink: 1 },
+  badgeWeb: { backgroundColor: couleurs.bleuClair, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
+  badgeWebTexte: { fontSize: 10, fontWeight: "700", color: couleurs.bleu },
   personnes: { fontSize: 12, color: couleurs.encreAttenuee },
   totaux: { flexDirection: "row", gap: espacements.s3, marginTop: 4 },
   total: { fontSize: 15, fontWeight: "700", color: couleurs.encre },

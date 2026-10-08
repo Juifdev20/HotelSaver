@@ -54,6 +54,22 @@ enum StatutLicence {
   RESILIE
 }
 
+/// Nature d'un produit cafétéria : un plat préparé (photo/description, publiable
+/// sur le site, passe en cuisine, sans stock compté) ou un article de comptoir
+/// (bière, sucre… : stock, seuil, prix d'achat, servi directement).
+enum TypeProduit {
+  ARTICLE
+  PLAT
+}
+
+/// Cycle de vie d'une ligne de commande en cuisine.
+enum StatutLigne {
+  EN_ATTENTE    // commande passée, pas encore prise en charge
+  EN_PREPARATION // cuisine au travail
+  PRET          // prêt à être servi
+  SERVI         // servi au client
+}
+
 /// Département auquel appartient un rapport mensuel PDF.
 enum DepartementRapport {
   CAFETERIA
@@ -81,6 +97,14 @@ model Hotel {
   // Séparation des tâches : false (défaut) = le patron ne réalise PAS les opérations du quotidien
   // (réserver, check-in/out, facturer, ouvrir/encaisser un compte cafétaria) ; il peut l'activer s'il travaille seul.
   patronPeutOperer Boolean @default(false)
+  // Suivi cuisine : false (défaut) = vente au comptoir, les lignes de commande sont
+  // créées directement SERVI et l'écran Cuisine est masqué ; true = file de production
+  // cuisine (EN_ATTENTE → EN_PREPARATION → PRET → SERVI) pour les hôtels avec plats préparés.
+  cuisineActivee   Boolean @default(false)
+  // Commande en ligne : true = le site public de l'hôtel expose l'onglet « Cuisine »
+  // (produits commandableEnLigne) et POST /public/commande crée des comptes
+  // SITE_PUBLIC ; false (défaut) = pas de commande en ligne pour cet hôtel.
+  commandeWebActivee Boolean @default(false)
   emailContact     String?
   telephoneContact String?
   adresse          String?
@@ -119,8 +143,11 @@ model Hotel {
   sousComptes      SousCompte[]
   lignesCommande   LigneCommande[]
   ventesCafeteria  VenteCafeteria[]
-  paiementsLicence PaiementLicence[]
-  rapportsMensuels RapportMensuel[]
+  menusDuJour          MenuDuJour[]
+  inventairesPhysiques InventairePhysique[]
+  paiementsLicence     PaiementLicence[]
+  rapportsMensuels     RapportMensuel[]
+  depenses             Depense[]
 }
 
 /// Charte graphique d'un hôtel. Un seul JSON pour toute la palette
@@ -308,6 +335,10 @@ model Client {
   nom          String
   telephone    String?
   email        String?
+  // Registre de police / fidélisation — fiche client complète :
+  typePiece    String? // CNI, PASSEPORT, PERMIS, AUTRE
+  numeroPiece  String?
+  notes        String?
   createdAt    DateTime      @default(now())
   // Ajoutés en Phase 16 pour rendre Client pullable par /sync/pull (le pull
   // incrémental filtre sur updatedAt > curseur, comme toutes les entités
@@ -337,6 +368,21 @@ model Reservation {
   // "aucune suppression physique ... uniquement des annulations tracées avec motif") :
   annuleLe        DateTime?
   motifAnnulation String?
+  // Demandes spéciales du client (lit bébé, étage, régime…) saisies à la
+  // réservation et affichées à l'arrivée :
+  note        String?
+  // Suivi par le client depuis le site (07/10/2026) : secret du lien
+  // « Ma réservation » (UUID v4, jamais devinable), puis pré-enregistrement
+  // en ligne. `demandeClient` = texte du client, distinct de `note` qui
+  // appartient à la réception.
+  jetonSuivi         String    @unique @default(uuid())
+  heureArriveePrevue String?
+  demandeClient      String?
+  preEnregistreLe    DateTime?
+  // Message de la réception visible par le client sur sa page de suivi
+  // (« Ma réservation ») — réponse à sa demande avant confirmation ;
+  // distinct de `note` qui reste interne.
+  reponseReception   String?
   facture     Facture?
   updatedAt   DateTime @updatedAt
   syncVersion Int      @default(1)
@@ -391,15 +437,31 @@ model Produit {
   categorie       String
   prix            Decimal
   devise          Devise // USD ou CDF, propre à chaque produit
+  typeProduit     TypeProduit      @default(ARTICLE) // PLAT = préparé (cuisine/site, sans stock) ; ARTICLE = comptoir (stocké, servi direct)
   photo           String? // URL Supabase Storage (bucket menu-photos), ajoutée depuis l'app — voir section 5.1
   stockActuel     Decimal          @default(0)
   seuilAlerte     Decimal          @default(5)
+  prixAchat       Decimal?         // Prix d'acquisition unitaire (facultatif — calcul de marge inventaire)
   actif           Boolean          @default(true)
+  // Opt-in site public : true = le produit apparaît sur le menu/commande du site
+  // (uniquement si l'hôtel a activé commandeWebActivee) ; rien n'est publié sans choix explicite.
+  commandableEnLigne Boolean       @default(false)
+  description     String? // texte libre affiché sur la page « Cuisine » du site public
+  // PLAT uniquement : portions préparées disponibles à la vente. null =
+  // illimité (on cuisine à la commande) ; sinon décrémenté à chaque ligne
+  // vendue et le plat passe « Épuisé » à 0 (comptoir + site).
+  portionsDisponibles Int?
+  // Code-barres (ARTICLE seulement, 08/10/2026) : code du fabricant ou EAN-13
+  // interne préfixe 2 généré par l'app. Identifiant seul, jamais le prix.
+  codeBarres      String?
   mouvementsStock MouvementStock[]
   lignesCommande  LigneCommande[]
+  menuDuJourItems MenuDuJourItem[]
+  inventaireItems InventairePhysiqueItem[]
   updatedAt       DateTime         @updatedAt
   syncVersion     Int              @default(1)
 
+  @@unique([hotelId, codeBarres])
   @@index([hotelId])
 }
 
@@ -441,6 +503,13 @@ model CompteCafeteria {
   hotelId     String
   tableOuNom  String
   statut      StatutCompte  @default(OUVERT)
+  // Origine de la commande : null/vide = comptoir ; "SITE_PUBLIC" = commande
+  // passée sur le site web public de l'hôtel (même convention que Reservation.origine).
+  origine     String?
+  // Coordonnées du client web (téléphone, chambre) pour l'identifier au comptoir.
+  contactClient String?
+  // Instruction globale saisie par le client web (ex. « sans piment »).
+  noteClient  String?
   ouvertPar   String // Utilisateur.id
   ouvertLe    DateTime      @default(now())
   fermeLe     DateTime?
@@ -482,15 +551,21 @@ model LigneCommande {
   quantite     Decimal
   // Copie du prix ET de la devise du produit au moment de la commande (jamais recalculés
   // si le prix ou la devise du produit change ensuite) :
-  prixUnitaire Decimal
-  devise       Devise
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  syncVersion  Int        @default(1)
+  prixUnitaire  Decimal
+  devise        Devise
+  // Cycle de vie cuisine : EN_ATTENTE → EN_PREPARATION → PRET → SERVI
+  statut        StatutLigne @default(EN_ATTENTE)
+  prisEnChargeA DateTime?   // horodatage du passage EN_PREPARATION
+  pretA         DateTime?   // horodatage du passage PRET
+  note          String?     // instruction spéciale (ex. "sans sucre")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  syncVersion   Int         @default(1)
 
   @@index([sousCompteId])
   @@index([produitId])
   @@index([hotelId])
+  @@index([statut])
 }
 
 model VenteCafeteria {
@@ -565,4 +640,96 @@ model RapportMensuel {
   @@unique([hotelId, departement, periode, version])
   @@unique([hotelId, numero])
   @@index([hotelId, periode])
+}
+
+/// Dépense saisie par un département (réception ou cafétaria) — jamais par le
+/// patron, qui consulte seulement (demande du 07/10/2026). Le département est
+/// déduit du rôle de l'auteur côté serveur. Aucune suppression physique : une
+/// erreur s'annule (`annulee`), la ligne reste pour la traçabilité comptable.
+/// Synchronisable hors ligne (mobile) : `updatedAt`/`syncVersion`.
+model Depense {
+  id          String             @id @default(uuid())
+  hotel       Hotel              @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId     String
+  departement DepartementRapport
+  date        DateTime           @db.Date
+  motif       String
+  montant     Decimal
+  devise      Devise
+  /// Instantanés de l'auteur — lisibles même si le compte est renommé plus tard.
+  creeParId   String
+  creeParNom  String
+  annulee     Boolean            @default(false)
+  annuleeLe   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  syncVersion Int                @default(1)
+
+  @@index([hotelId, departement, date])
+}
+
+/// Menu du jour : liste de produits mis en avant pour une journée donnée,
+/// avec un prix spécial optionnel. Une seule entrée par hôtel par jour (unique).
+/// Défini par le PATRON ou le CAFETARIA depuis EcranMenu (desktop) ou EcranPlus (mobile).
+model MenuDuJour {
+  id        String         @id @default(uuid())
+  hotel     Hotel          @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId   String
+  date      DateTime       @db.Date
+  actif     Boolean        @default(true)
+  createdBy String         // Utilisateur.id
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  items     MenuDuJourItem[]
+
+  @@unique([hotelId, date])
+  @@index([hotelId])
+}
+
+/// Un produit dans le menu du jour, avec un prix spécial optionnel.
+/// `prixSpecial` et `deviseSpeciale` sont null → utilise le prix catalogue du produit.
+model MenuDuJourItem {
+  id             String     @id @default(uuid())
+  menu           MenuDuJour @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  menuId         String
+  produit        Produit    @relation(fields: [produitId], references: [id])
+  produitId      String
+  prixSpecial    Decimal?   // null = prix catalogue
+  deviseSpeciale Devise?    // null = devise du produit
+
+  @@unique([menuId, produitId])
+  @@index([menuId])
+}
+
+/// Inventaire physique : comparaison du stock théorique (calculé) vs réel (saisi à la main).
+/// Créé par CAFETARIA ou PATRON depuis l'écran Inventaire. Le PDF généré est stocké dans
+/// Supabase Storage (bucket rapports) et son URL est conservée dans pdfUrl.
+model InventairePhysique {
+  id        String                   @id @default(uuid())
+  hotel     Hotel                    @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId   String
+  dateDebut DateTime                 @db.Date
+  dateFin   DateTime                 @db.Date
+  titre     String?
+  createdBy String
+  createdAt DateTime                 @default(now())
+  pdfUrl    String?
+  items     InventairePhysiqueItem[]
+
+  @@index([hotelId])
+}
+
+/// Un produit dans un inventaire physique : stock théorique reconstitué vs stock physique saisi.
+model InventairePhysiqueItem {
+  id             String             @id @default(uuid())
+  inventaire     InventairePhysique @relation(fields: [inventaireId], references: [id], onDelete: Cascade)
+  inventaireId   String
+  produit        Produit            @relation(fields: [produitId], references: [id])
+  produitId      String
+  stockTheorique Decimal
+  stockPhysique  Decimal
+  ecart          Decimal            // stockPhysique - stockTheorique
+  note           String?
+
+  @@index([inventaireId])
 }

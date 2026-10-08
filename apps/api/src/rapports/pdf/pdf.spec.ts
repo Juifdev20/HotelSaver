@@ -1,4 +1,5 @@
 import { AgregatCafeteria, AgregatReception } from "../agregats/types";
+import { rendreDepenses } from "./depenses";
 import { rendreRapportCafeteria, ContexteRapportCafeteria } from "./cafeteria";
 import { rendreRapportReception, ContexteRapportReception } from "./reception";
 
@@ -76,6 +77,33 @@ describe("Rendu PDF", () => {
       cafeteriaVide,
       { ...ctx("cafeteria"), provisoire: true },
       { ...branding, logo: null },
+      "abcd1234"
+    );
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
+  it("la section Dépenses et solde net (solde négatif inclus) ne fait pas échouer le rendu", async () => {
+    const depenses = {
+      lignes: [
+        { date: "02/09/2026", motif: "Carburant groupe électrogène", montant: 40, devise: "USD" as const, auteur: "Rita" },
+        { date: "03/09/2026", motif: "Savon", montant: 12000, devise: "CDF" as const, auteur: "Rita" },
+      ],
+      nombre: 2,
+      total: { usd: 40, cdf: 12000 },
+    };
+    const pdf = await rendreRapportReception(receptionVide, { ...ctx("reception"), depenses }, branding, "abcd1234");
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
+  it("produit le PDF des dépenses d'une période (deux départements, sous-totaux par jour)", async () => {
+    const pdf = await rendreDepenses(
+      [
+        { date: "02/10/2026", motif: "Carburant", montant: 20, devise: "USD", auteur: "Rita", departement: "RECEPTION" },
+        { date: "02/10/2026", motif: "Sucre", montant: 8000, devise: "CDF", auteur: "Caleb", departement: "CAFETERIA" },
+        { date: "05/10/2026", motif: "Ampoules", montant: 6, devise: "USD", auteur: "Rita", departement: "RECEPTION" },
+      ],
+      { plage: "du 01/10/2026 au 31/10/2026", departement: null, genereParNom: "Paul", genereLe: new Date("2026-10-07T08:00:00Z") },
+      branding,
       "abcd1234"
     );
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");

@@ -138,7 +138,7 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
         {/* Desktop : message de bienvenue + horloge empilée à droite. */}
         <div className="hero__desktop">
           <div className="hero__contenu">
-            <p className="hero__salutation">Bienvenue 👋</p>
+            <p className="hero__salutation">Bienvenue</p>
             <h1 className="hero__titre">{utilisateur.hotelNom}</h1>
             <p className="hero__soustitre">{utilisateur.hotelSlogan ?? SLOGAN_PAR_DEFAUT}</p>
           </div>

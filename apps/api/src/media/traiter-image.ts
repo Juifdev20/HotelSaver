@@ -1,7 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import sharp from "sharp";
 
-export type UsageImage = "chambre" | "couverture" | "galerie";
+export type UsageImage = "chambre" | "couverture" | "galerie" | "produit";
 
 /** Dimensions maximales (la plus grande image tient dans ce cadre, jamais
  * agrandie). Volontairement modestes : c'est ce qui garde la base et le
@@ -10,6 +10,9 @@ const CADRES: Record<UsageImage, { largeur: number; hauteur: number }> = {
   chambre: { largeur: 1280, hauteur: 960 },
   galerie: { largeur: 1280, hauteur: 960 },
   couverture: { largeur: 1920, hauteur: 1080 },
+  // Photo de plat : vignette sur la page « Cuisine » du site — pas besoin de
+  // plus grand qu'une chambre.
+  produit: { largeur: 1024, hauteur: 768 },
 };
 
 export const TAILLE_MAX_ENVOI_OCTETS = 10 * 1024 * 1024;

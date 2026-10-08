@@ -13,6 +13,7 @@ function creerPrismaMock() {
     ligneCommande: { findMany: jest.fn().mockResolvedValue([]) },
     facture: { findMany: jest.fn().mockResolvedValue([]) },
     venteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
+    depense: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
   } as any;
 }
 
@@ -28,6 +29,7 @@ describe("SyncService", () => {
   let produitsService: any;
   let stockService: any;
   let cafeteriaService: any;
+  let depensesService: any;
   let service: SyncService;
 
   beforeEach(() => {
@@ -37,7 +39,8 @@ describe("SyncService", () => {
     produitsService = { create: jest.fn(), update: jest.fn() };
     stockService = { create: jest.fn() };
     cafeteriaService = { ouvrirCompte: jest.fn(), ajouterSousCompte: jest.fn(), ajouterLigne: jest.fn() };
-    service = new SyncService(prisma, chambresService, reservationsService, produitsService, stockService, cafeteriaService);
+    depensesService = { creer: jest.fn(), modifier: jest.fn() };
+    service = new SyncService(prisma, chambresService, reservationsService, produitsService, stockService, cafeteriaService, depensesService);
   });
 
   describe("push — CREATE", () => {
@@ -266,6 +269,7 @@ describe("SyncService", () => {
           "LigneCommande",
           "Facture",
           "VenteCafeteria",
+          "Depense",
         ].sort()
       );
     });
@@ -274,6 +278,49 @@ describe("SyncService", () => {
       await service.pull({ depuis: "2026-01-01T00:00:00.000Z", entites: "Chambre" } as any, patron);
       expect(prisma.chambre.findMany).toHaveBeenCalled();
       expect(prisma.reservation.findMany).not.toHaveBeenCalled();
+    });
+
+    it("Depense : chaque département ne reçoit que ses propres dépenses, le patron reçoit tout", async () => {
+      await service.pull({ depuis: "2026-01-01T00:00:00.000Z", entites: "Depense" } as any, receptionniste);
+      expect(prisma.depense.findMany.mock.calls[0][0].where).toMatchObject({ hotelId: HOTEL_ID, departement: "RECEPTION" });
+
+      await service.pull({ depuis: "2026-01-01T00:00:00.000Z", entites: "Depense" } as any, cafetaria);
+      expect(prisma.depense.findMany.mock.calls[1][0].where).toMatchObject({ departement: "CAFETERIA" });
+
+      await service.pull({ depuis: "2026-01-01T00:00:00.000Z", entites: "Depense" } as any, patron);
+      expect(prisma.depense.findMany.mock.calls[2][0].where).not.toHaveProperty("departement");
+    });
+  });
+
+  describe("Depense", () => {
+    it("CREATE par la réception : délègue à DepensesService.creer", async () => {
+      depensesService.creer.mockResolvedValue({ id: "dep-1", syncVersion: 1 });
+      const r = await service.push(
+        { operations: [{ entiteType: "Depense", localId: "l-1", operation: "CREATE", payload: { date: "2026-10-07", motif: "Savon", montant: 5, devise: "USD" } }] } as any,
+        receptionniste
+      );
+      expect(r.resultats[0]).toMatchObject({ statut: "SYNCED", remoteId: "dep-1" });
+      expect(depensesService.creer).toHaveBeenCalledWith(expect.objectContaining({ motif: "Savon" }), receptionniste);
+    });
+
+    it("le patron ne peut pas créer de dépense via la synchronisation", async () => {
+      const r = await service.push(
+        { operations: [{ entiteType: "Depense", localId: "l-1", operation: "CREATE", payload: {} }] } as any,
+        { ...patron, patronPeutOperer: true }
+      );
+      expect(r.resultats[0].statut).toBe("ERROR");
+      expect(depensesService.creer).not.toHaveBeenCalled();
+    });
+
+    it("UPDATE avec un syncVersion à jour : délègue à DepensesService.modifier", async () => {
+      prisma.depense.findUnique.mockResolvedValue({ id: "dep-1", syncVersion: 1 });
+      depensesService.modifier.mockResolvedValue({ id: "dep-1", syncVersion: 2 });
+      const r = await service.push(
+        { operations: [{ entiteType: "Depense", localId: "l-1", remoteId: "dep-1", operation: "UPDATE", baseSyncVersion: 1, payload: { annulee: true } }] } as any,
+        cafetaria
+      );
+      expect(r.resultats[0]).toMatchObject({ statut: "SYNCED", syncVersion: 2 });
+      expect(depensesService.modifier).toHaveBeenCalledWith("dep-1", { annulee: true }, cafetaria);
     });
   });
 });

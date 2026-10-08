@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { Devise, Prisma, PrismaClient } from "@hotel-chicago/database";
+import { Devise, Prisma, PrismaClient, StatutLigne, TypeProduit } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import { StockService } from "../stock/stock.service";
@@ -12,6 +12,8 @@ import { AjouterSousCompteDto } from "./dto/ajouter-sous-compte.dto";
 import { AjouterLigneDto } from "./dto/ajouter-ligne.dto";
 import { EncaisserCompteDto } from "./dto/encaisser-compte.dto";
 import { FindComptesQueryDto } from "./dto/find-comptes.query.dto";
+import { MajStatutLigneDto } from "./dto/maj-statut-ligne.dto";
+import { DefinirMenuDuJourDto } from "./dto/definir-menu-du-jour.dto";
 
 const INCLUDE_COMPTE_COMPLET = {
   sousComptes: { include: { lignes: { include: { produit: true } } } },
@@ -65,6 +67,34 @@ export class CafeteriaService {
       throw new NotFoundException(`Aucun compte cafétaria trouvé avec l'identifiant ${id}.`);
     }
     return compte;
+  }
+
+  /**
+   * Retrait d'une commande web : le client présente la référence courte de
+   * son ticket (les 8 premiers caractères de l'id du compte, affichés sur la
+   * confirmation du site et le ticket PDF). Uniquement les commandes
+   * SITE_PUBLIC — un compte de comptoir n'a pas de référence à présenter.
+   * Une fois la commande encaissée le compte passe FERME : la référence
+   * devient obsolète (409), donc impossible de la réutiliser une deuxième
+   * fois pour se faire servir gratuitement.
+   */
+  async trouverCompteParReference(reference: string, hotelId: string): Promise<CompteComplet> {
+    const ref = reference.trim().toLowerCase();
+    if (!/^[0-9a-f]{4,32}$/.test(ref)) {
+      throw new BadRequestException("Référence invalide — elle se trouve sur le ticket du client (ex. E6A5E231).");
+    }
+    const correspondants = await this.prisma.compteCafeteria.findMany({
+      where: { hotelId, origine: "SITE_PUBLIC", id: { startsWith: ref } },
+      include: INCLUDE_COMPTE_COMPLET,
+      orderBy: { ouvertLe: "desc" },
+      take: 5,
+    });
+    const ouvert = correspondants.find((c) => c.statut === "OUVERT");
+    if (ouvert) return ouvert;
+    if (correspondants.length > 0) {
+      throw new ConflictException("Cette commande a déjà été réglée et clôturée — la référence n'est plus valable.");
+    }
+    throw new NotFoundException("Aucune commande web ne correspond à cette référence.");
   }
 
   ouvrirCompte(dto: OuvrirCompteDto, currentUser: UtilisateurAuthentifie) {
@@ -123,26 +153,48 @@ export class CafeteriaService {
     // chargé ci-dessus pour vérifier `actif`) pour épargner une deuxième
     // lecture — chaque aller-retour compte sur une connexion internet lente
     // (service jugé trop lent en conditions réelles, 26/09/2026).
-    await this.stockService.decrementerStock(
-      this.prisma,
-      { hotelId: currentUser.hotelId, produitId: dto.produitId, type: "SORTIE_VENTE", quantite: dto.quantite },
-      produit
-    );
+    //
+    // Un PLAT n'a pas de stock compté (on cuisine à la commande) : ni contrôle
+    // ni décrément ni mouvement d'audit pour lui. Sauf si le patron a limité
+    // les portions préparées (`portionsDisponibles`) : décrément conditionnel
+    // — le WHERE `gte` garantit de ne jamais passer sous zéro (0 ligne
+    // touchée = portions insuffisantes → 400, rien d'écrit).
+    const estPlat = produit.typeProduit === TypeProduit.PLAT;
+    if (!estPlat) {
+      await this.stockService.decrementerStock(
+        this.prisma,
+        { hotelId: currentUser.hotelId, produitId: dto.produitId, type: "SORTIE_VENTE", quantite: dto.quantite },
+        produit
+      );
+    } else if (produit.portionsDisponibles != null) {
+      const { count } = await this.prisma.produit.updateMany({
+        where: { id: produit.id, hotelId: currentUser.hotelId, portionsDisponibles: { gte: dto.quantite } },
+        data: { portionsDisponibles: { decrement: dto.quantite } },
+      });
+      if (count === 0) {
+        throw new ConflictException(
+          `Plus assez de portions de "${produit.nom}" pour cette commande (épuisé ou presque).`
+        );
+      }
+    }
 
-    // Une fois le stock validé, le mouvement d'audit et la ligne de commande
-    // sont deux écritures indépendantes (aucune n'a besoin du résultat de
-    // l'autre) : envoyées en parallèle plutôt que l'une après l'autre.
+    // Une fois le stock validé, le mouvement d'audit (articles seulement) et
+    // la ligne de commande sont deux écritures indépendantes (aucune n'a
+    // besoin du résultat de l'autre) : envoyées en parallèle plutôt que l'une
+    // après l'autre.
     const [, ligne] = await Promise.all([
-      this.prisma.mouvementStock.create({
-        data: {
-          hotelId: currentUser.hotelId,
-          produitId: dto.produitId,
-          quantite: dto.quantite,
-          type: "SORTIE_VENTE",
-          motif: `Vente cafétaria — compte "${compte.tableOuNom}"`,
-          createdBy: currentUser.userId,
-        },
-      }),
+      estPlat
+        ? Promise.resolve(null)
+        : this.prisma.mouvementStock.create({
+            data: {
+              hotelId: currentUser.hotelId,
+              produitId: dto.produitId,
+              quantite: dto.quantite,
+              type: "SORTIE_VENTE",
+              motif: `Vente cafétaria — compte "${compte.tableOuNom}"`,
+              createdBy: currentUser.userId,
+            },
+          }),
       this.prisma.ligneCommande.create({
         data: {
           hotelId: currentUser.hotelId,
@@ -151,6 +203,10 @@ export class CafeteriaService {
           quantite: dto.quantite,
           prixUnitaire: produit.prix,
           devise: produit.devise,
+          // Seul un plat entre dans la file de production (quand la cuisine
+          // interne est activée) ; un article de comptoir est servi dès la
+          // vente — vendre une bière n'encombre pas l'écran du cuisinier.
+          statut: estPlat && currentUser.cuisineActivee ? StatutLigne.EN_ATTENTE : StatutLigne.SERVI,
         },
         include: { produit: true },
       }),
@@ -449,5 +505,161 @@ export class CafeteriaService {
       );
     }
     return ventes;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Statut de ligne (cycle de vie cuisine)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Met à jour le statut d'une ligne de commande.
+   * Règles : EN_ATTENTE → EN_PREPARATION → PRET → SERVI (ordre croissant obligatoire).
+   * Horodate automatiquement `prisEnChargeA` et `pretA`.
+   */
+  async majStatutLigne(ligneId: string, dto: MajStatutLigneDto, hotelId: string) {
+    const ligne = await this.prisma.ligneCommande.findUnique({ where: { id: ligneId, hotelId } });
+    if (!ligne) throw new NotFoundException(`Ligne de commande introuvable.`);
+
+    const ordre: StatutLigne[] = [StatutLigne.EN_ATTENTE, StatutLigne.EN_PREPARATION, StatutLigne.PRET, StatutLigne.SERVI];
+    const actuel = ordre.indexOf(ligne.statut as StatutLigne);
+    const prochain = ordre.indexOf(dto.statut as unknown as StatutLigne);
+    if (prochain <= actuel) {
+      throw new BadRequestException(`Impossible de passer de « ${ligne.statut} » à « ${dto.statut} » : l'ordre doit être croissant.`);
+    }
+
+    return this.prisma.ligneCommande.update({
+      where: { id: ligneId },
+      data: {
+        statut: dto.statut as unknown as StatutLigne,
+        prisEnChargeA: dto.statut === "EN_PREPARATION" ? new Date() : undefined,
+        pretA:         dto.statut === "PRET"           ? new Date() : undefined,
+        syncVersion:   { increment: 1 },
+      },
+      include: { produit: true },
+    });
+  }
+
+  /**
+   * Lignes actives pour l'écran de cuisine : EN_ATTENTE et EN_PREPARATION,
+   * groupées par compte, triées du plus ancien au plus récent. Renvoie une
+   * liste vide si l'hôtel n'a pas activé le suivi cuisine (vente au comptoir).
+   */
+  async lignesPourCuisine(currentUser: UtilisateurAuthentifie) {
+    if (!currentUser.cuisineActivee) return [];
+    const { hotelId } = currentUser;
+    const lignes = await this.prisma.ligneCommande.findMany({
+      where: {
+        hotelId,
+        statut: { in: [StatutLigne.EN_ATTENTE, StatutLigne.EN_PREPARATION] },
+        sousCompte: { payeLe: null, compte: { statut: "OUVERT" } },
+      },
+      include: {
+        produit: true,
+        sousCompte: {
+          include: { compte: { select: { id: true, tableOuNom: true, ouvertLe: true } } },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const parCompte = new Map<string, {
+      compteId: string;
+      tableOuNom: string;
+      ouvertLe: Date;
+      lignes: typeof lignes;
+    }>();
+
+    for (const ligne of lignes) {
+      const { compte } = ligne.sousCompte;
+      if (!parCompte.has(compte.id)) {
+        parCompte.set(compte.id, { compteId: compte.id, tableOuNom: compte.tableOuNom, ouvertLe: compte.ouvertLe, lignes: [] });
+      }
+      parCompte.get(compte.id)!.lignes.push(ligne);
+    }
+
+    return Array.from(parCompte.values());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Menu du jour
+  // ---------------------------------------------------------------------------
+
+  /** Retourne le menu du jour actif pour la date en cours (fuseau Africa/Lubumbashi). */
+  async menuDuJour(hotelId: string) {
+    const dateLocale = this.dateLocaleAujourdhui();
+    return this.prisma.menuDuJour.findUnique({
+      where: { hotelId_date: { hotelId, date: dateLocale } },
+      include: { items: { include: { produit: true } } },
+    });
+  }
+
+  /**
+   * Définit (crée ou remplace) le menu du jour.
+   * Upsert : si un menu existe déjà pour aujourd'hui, ses items sont remplacés.
+   */
+  async definirMenuDuJour(dto: DefinirMenuDuJourDto, currentUser: UtilisateurAuthentifie) {
+    const hotelId = currentUser.hotelId;
+    const dateLocale = this.dateLocaleAujourdhui();
+
+    const produits = await this.prisma.produit.findMany({
+      where: { id: { in: dto.items.map((i) => i.produitId) }, hotelId, actif: true },
+    });
+    if (produits.length !== dto.items.length) {
+      throw new NotFoundException("Un ou plusieurs produits sont introuvables ou inactifs.");
+    }
+
+    const existant = await this.prisma.menuDuJour.findUnique({ where: { hotelId_date: { hotelId, date: dateLocale } } });
+
+    if (existant) {
+      await this.prisma.menuDuJourItem.deleteMany({ where: { menuId: existant.id } });
+      await this.prisma.menuDuJourItem.createMany({
+        data: dto.items.map((item) => ({
+          id: crypto.randomUUID(),
+          menuId: existant.id,
+          produitId: item.produitId,
+          prixSpecial: item.prixSpecial ?? null,
+          deviseSpeciale: item.deviseSpeciale ?? null,
+        })),
+      });
+      return this.prisma.menuDuJour.findUnique({
+        where: { id: existant.id },
+        include: { items: { include: { produit: true } } },
+      });
+    }
+
+    return this.prisma.menuDuJour.create({
+      data: {
+        id: crypto.randomUUID(),
+        hotelId,
+        date: dateLocale,
+        createdBy: currentUser.userId,
+        items: {
+          create: dto.items.map((item) => ({
+            id: crypto.randomUUID(),
+            produitId: item.produitId,
+            prixSpecial: item.prixSpecial ?? null,
+            deviseSpeciale: item.deviseSpeciale ?? null,
+          })),
+        },
+      },
+      include: { items: { include: { produit: true } } },
+    });
+  }
+
+  /** Supprime un item du menu du jour. */
+  async supprimerItemMenu(itemId: string, hotelId: string) {
+    const item = await this.prisma.menuDuJourItem.findUnique({
+      where: { id: itemId },
+      include: { menu: { select: { hotelId: true } } },
+    });
+    if (!item || item.menu.hotelId !== hotelId) throw new NotFoundException("Item introuvable.");
+    await this.prisma.menuDuJourItem.delete({ where: { id: itemId } });
+    return { ok: true };
+  }
+
+  private dateLocaleAujourdhui(): Date {
+    const DECALAGE_MS = 2 * 60 * 60 * 1000;
+    const maintenant = new Date(Date.now() + DECALAGE_MS);
+    return new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate());
   }
 }

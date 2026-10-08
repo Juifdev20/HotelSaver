@@ -1,8 +1,8 @@
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { LayoutDashboard, BedDouble, CalendarDays, ClipboardList, Menu, ShoppingCart } from "lucide-react-native";
+import { LayoutDashboard, BedDouble, CalendarDays, ClipboardList, Menu, ShoppingCart, Wallet } from "lucide-react-native";
 import { couleurs } from "./tokens";
 import { IdOnglet, libelleOnglet, ongletsPourRole } from "./navigation";
 import { useSession } from "./contexteSession";
@@ -11,9 +11,11 @@ import { EcranChambres } from "./ecrans/EcranChambres";
 import { EcranCaisse } from "./ecrans/EcranCaisse";
 import { EcranComptesOuverts } from "./ecrans/EcranComptesOuverts";
 import { EcranCompteCafeteria } from "./ecrans/EcranCompteCafeteria";
+import { useNotifications } from "./notifications/ContexteNotifications";
 import { EcranReservations } from "./ecrans/EcranReservations";
 import { EcranBientot } from "./ecrans/EcranBientot";
 import { EcranPlus } from "./ecrans/EcranPlus";
+import { EcranDepenses } from "./ecrans/EcranDepenses";
 
 type ParamListOnglets = Record<IdOnglet, undefined>;
 const Tab = createBottomTabNavigator<ParamListOnglets>();
@@ -37,27 +39,47 @@ function EcranAccueilConnecte({ navigation }: { navigation: BottomTabNavigationP
 function EcranOngletCaisse({ navigation }: { navigation: BottomTabNavigationProp<ParamListOnglets> }) {
   const { client } = useSession();
   const [compteId, setCompteId] = useState<string | null>(null);
+  const [venteRapide, setVenteRapide] = useState(false);
 
   if (compteId) {
     return (
       <EcranCompteCafeteria
         client={client}
         compteId={compteId}
+        ouvrirAjoutAuDemarrage={venteRapide}
         onRetour={() => {
           setCompteId(null);
+          setVenteRapide(false);
           navigation.navigate("comptes-ouverts");
         }}
       />
     );
   }
-  return <EcranCaisse onCompteOuvert={setCompteId} onRetour={() => navigation.navigate("tableau-de-bord")} />;
+  return (
+    <EcranCaisse
+      onCompteOuvert={(id, options) => {
+        setVenteRapide(options?.venteRapide === true);
+        setCompteId(id);
+      }}
+      onRetour={() => navigation.navigate("tableau-de-bord")}
+    />
+  );
 }
 
 /** Onglet "Comptes" (CAFETARIA) : même détail de compte que "Caisse", mais
- * "Retour" depuis la liste reste sur cet onglet (rien à quitter). */
+ * "Retour" depuis la liste reste sur cet onglet (rien à quitter). Une
+ * notification « commande web » ouvre directement le détail du compte. */
 function EcranOngletComptesOuverts({ navigation }: { navigation: BottomTabNavigationProp<ParamListOnglets> }) {
   const { client } = useSession();
+  const { demandeCompte, consommerDemandeCompte } = useNotifications();
   const [compteId, setCompteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (demandeCompte) {
+      setCompteId(demandeCompte.compteId);
+      consommerDemandeCompte();
+    }
+  }, [demandeCompte, consommerDemandeCompte]);
 
   if (compteId) {
     return <EcranCompteCafeteria client={client} compteId={compteId} onRetour={() => setCompteId(null)} />;
@@ -67,12 +89,39 @@ function EcranOngletComptesOuverts({ navigation }: { navigation: BottomTabNaviga
   );
 }
 
+/** Onglet "Réserv." (RECEPTIONNISTE/PATRON) : une notification qui porte un
+ * id de réservation (demande arrivée, annulation, départ dépassé) ouvre
+ * directement son détail — même mécanisme que demandeCompte pour la
+ * cafétaria. */
+function EcranOngletReservations({ navigation }: { navigation: BottomTabNavigationProp<ParamListOnglets> }) {
+  const { demandeReservation, consommerDemandeReservation } = useNotifications();
+  const [reservationId, setReservationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (demandeReservation) {
+      setReservationId(demandeReservation.reservationId);
+      consommerDemandeReservation();
+    }
+  }, [demandeReservation, consommerDemandeReservation]);
+
+  // La clé force le remontage quand une nouvelle notification cible une
+  // autre réservation — reservationInitiale n'est lue qu'au montage.
+  return (
+    <EcranReservations
+      key={reservationId ?? "liste"}
+      reservationInitiale={reservationId ?? undefined}
+      onRetour={() => navigation.navigate("tableau-de-bord")}
+    />
+  );
+}
+
 const ICONES: Record<IdOnglet, typeof LayoutDashboard> = {
   "tableau-de-bord": LayoutDashboard,
   chambres: BedDouble,
   reservations: CalendarDays,
   caisse: ShoppingCart,
   "comptes-ouverts": ClipboardList,
+  depenses: Wallet,
   plus: Menu,
 };
 
@@ -104,10 +153,11 @@ export function CoquilleOnglets() {
           >
             {(props) => {
               if (onglet.id === "tableau-de-bord") return <EcranAccueilConnecte {...props} />;
-              if (onglet.id === "chambres") return <EcranChambres />;
-              if (onglet.id === "reservations") return <EcranReservations />;
+              if (onglet.id === "chambres") return <EcranChambres onRetour={() => props.navigation.navigate("tableau-de-bord")} />;
+              if (onglet.id === "reservations") return <EcranOngletReservations {...props} />;
               if (onglet.id === "caisse") return <EcranOngletCaisse {...props} />;
               if (onglet.id === "comptes-ouverts") return <EcranOngletComptesOuverts {...props} />;
+              if (onglet.id === "depenses") return <EcranDepenses onRetour={() => props.navigation.navigate("tableau-de-bord")} />;
               if (onglet.id === "plus") return <EcranPlus />;
               return <EcranBientot titre={libelleOnglet(onglet.id)} />;
             }}

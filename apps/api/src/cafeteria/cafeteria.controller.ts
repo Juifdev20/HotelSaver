@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
@@ -12,6 +12,8 @@ import { AjouterLigneDto } from "./dto/ajouter-ligne.dto";
 import { EncaisserCompteDto } from "./dto/encaisser-compte.dto";
 import { FindComptesQueryDto } from "./dto/find-comptes.query.dto";
 import { AnnulerVenteDto } from "./dto/annuler-vente.dto";
+import { MajStatutLigneDto } from "./dto/maj-statut-ligne.dto";
+import { DefinirMenuDuJourDto } from "./dto/definir-menu-du-jour.dto";
 
 /**
  * Permissions (section 9.3, lignes Comptes/Ventes cafétaria) : RECEPTIONNISTE
@@ -39,6 +41,13 @@ export class CafeteriaController {
   @Get("comptes")
   findAllComptes(@Query() query: FindComptesQueryDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.cafeteriaService.findAllComptes(query, currentUser.hotelId);
+  }
+
+  /** Retrait d'une commande web par sa référence courte (ticket client) —
+   * DOIT rester avant GET comptes/:id pour ne pas être capturée par le param. */
+  @Get("comptes/par-reference/:reference")
+  trouverParReference(@Param("reference") reference: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.trouverCompteParReference(reference, currentUser.hotelId);
   }
 
   @Get("comptes/:id")
@@ -103,5 +112,45 @@ export class CafeteriaController {
   @Roles(Role.PATRON)
   annulerVente(@Param("id") id: string, @Body() dto: AnnulerVenteDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.cafeteriaService.annulerVente(id, dto.motif, currentUser.hotelId, currentUser);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Statut de ligne (cycle de vie cuisine)
+  // ---------------------------------------------------------------------------
+
+  /** PATCH /cafeteria/lignes/:id/statut — avance le statut d'une ligne (cuisine → salle). */
+  @Patch("lignes/:id/statut")
+  majStatutLigne(@Param("id") id: string, @Body() dto: MajStatutLigneDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.majStatutLigne(id, dto, currentUser.hotelId);
+  }
+
+  /** GET /cafeteria/cuisine — lignes EN_ATTENTE + EN_PREPARATION pour l'écran de cuisine. */
+  @Get("cuisine")
+  lignesPourCuisine(@CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.lignesPourCuisine(currentUser);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Menu du jour
+  // ---------------------------------------------------------------------------
+
+  /** GET /cafeteria/menu-du-jour — menu actif pour aujourd'hui, null si non défini. */
+  @Get("menu-du-jour")
+  menuDuJour(@CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.menuDuJour(currentUser.hotelId);
+  }
+
+  /** PUT /cafeteria/menu-du-jour — crée ou remplace le menu du jour. */
+  @Put("menu-du-jour")
+  @Roles(Role.CAFETARIA, Role.PATRON)
+  definirMenuDuJour(@Body() dto: DefinirMenuDuJourDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.definirMenuDuJour(dto, currentUser);
+  }
+
+  /** DELETE /cafeteria/menu-du-jour/items/:itemId — retire un produit du menu du jour. */
+  @Delete("menu-du-jour/items/:itemId")
+  @Roles(Role.CAFETARIA, Role.PATRON)
+  supprimerItemMenu(@Param("itemId") itemId: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.supprimerItemMenu(itemId, currentUser.hotelId);
   }
 }

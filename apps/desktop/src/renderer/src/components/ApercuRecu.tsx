@@ -37,6 +37,13 @@ export function ApercuRecu({ lignes }: { lignes: LigneRecu[] }) {
                 <span className="apercu-recu__gras">{ligne.valeur}</span>
               </p>
             );
+          case "codebarre":
+            // L'imprimante dessine les barres elle-même ; l'aperçu montre le code.
+            return (
+              <p key={i} className="apercu-recu__centre apercu-recu__gras" style={{ letterSpacing: 2 }}>
+                ▌▍▌▌▍ {ligne.valeur} ▍▌▌▍▌
+              </p>
+            );
         }
       })}
     </div>

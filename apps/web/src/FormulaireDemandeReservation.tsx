@@ -1,9 +1,11 @@
 import * as React from "react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@hotel-chicago/ui";
 import { creerDemandeReservationPublique } from "@hotel-chicago/api-client";
 import type { Chambre } from "@hotel-chicago/types";
 import { configuration } from "./config";
+import { cheminHotel } from "./resoudreSousDomaine";
 
 export interface FormulaireDemandeReservationProps {
   sousDomaine: string;
@@ -15,7 +17,9 @@ export interface FormulaireDemandeReservationProps {
 
 /**
  * Toujours EN_ATTENTE côté API (voir PublicService.creerDemandeReservation) —
- * jamais de faux message de confirmation ici : la réception arbitre.
+ * jamais de faux message de confirmation ici : la réception arbitre. Après
+ * l'envoi, le client arrive sur sa page « Ma réservation » (statut en
+ * attente, pré-enregistrement), dont il garde le lien.
  */
 export function FormulaireDemandeReservation({
   sousDomaine,
@@ -29,7 +33,7 @@ export function FormulaireDemandeReservation({
   const [email, setEmail] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
-  const [envoyee, setEnvoyee] = useState(false);
+  const naviguer = useNavigate();
 
   async function soumettre(e: React.FormEvent) {
     e.preventDefault();
@@ -38,7 +42,7 @@ export function FormulaireDemandeReservation({
     setErreur(null);
     setEnCours(true);
     try {
-      await creerDemandeReservationPublique(
+      const { jetonSuivi } = await creerDemandeReservationPublique(
         { url: configuration.apiUrl },
         {
           sousDomaine,
@@ -48,7 +52,7 @@ export function FormulaireDemandeReservation({
           dateDepart,
         }
       );
-      setEnvoyee(true);
+      naviguer(cheminHotel(`/ma-reservation/${jetonSuivi}`));
     } catch (err) {
       setErreur(err instanceof Error ? err.message : "Erreur lors de l'envoi de la demande.");
     } finally {
@@ -59,15 +63,6 @@ export function FormulaireDemandeReservation({
   return (
     <div className="fond-modale" onClick={onFermer}>
       <div className="carte carte--etroite" onClick={(e) => e.stopPropagation()}>
-        {envoyee ? (
-          <>
-            <h2 className="titre">Demande envoyée !</h2>
-            <p className="sous-titre">L'hôtel vous contactera pour confirmer votre réservation.</p>
-            <Button style={{ width: "100%", marginTop: 16 }} onClick={onFermer}>
-              Fermer
-            </Button>
-          </>
-        ) : (
           <form onSubmit={soumettre}>
             <h2 className="titre">Chambre {chambre.numero}</h2>
             <p className="sous-titre">
@@ -108,7 +103,6 @@ export function FormulaireDemandeReservation({
               Annuler
             </button>
           </form>
-        )}
       </div>
     </div>
   );

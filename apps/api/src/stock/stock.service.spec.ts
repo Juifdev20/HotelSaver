@@ -19,7 +19,7 @@ describe("StockService", () => {
   beforeEach(() => {
     prisma = creerPrismaMock();
     mockSelf = prisma;
-    service = new StockService(prisma, { emettre: jest.fn() } as any);
+    service = new StockService(prisma, { emettre: jest.fn() } as any, {} as any);
     prisma.mouvementStock.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "m1", ...data }));
     prisma.produit.updateMany.mockResolvedValue({ count: 1 });
   });

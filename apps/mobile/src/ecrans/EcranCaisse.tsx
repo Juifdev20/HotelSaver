@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScanBarcode } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
@@ -9,7 +10,8 @@ import { useSession } from "../contexteSession";
 import { creerCompteLocal } from "../stockage/cafeteriaMirroir";
 
 export interface EcranCaisseProps {
-  onCompteOuvert: (compteId: string) => void;
+  /** `venteRapide` : ouvrir directement l'ajout de consommations, caméra prête. */
+  onCompteOuvert: (compteId: string, options?: { venteRapide: boolean }) => void;
   onRetour: () => void;
 }
 
@@ -29,15 +31,19 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  async function ouvrir() {
-    if (!tableOuNom.trim()) {
+  /** `venteRapide` (scan au comptoir, 08/10/2026) : compte « Comptoir HH:MM »
+   * créé sans rien saisir, puis ouverture directe de l'ajout avec la caméra. */
+  async function ouvrir(venteRapide = false) {
+    const heure = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    const nom = venteRapide ? `Comptoir ${heure}` : tableOuNom.trim();
+    if (!nom) {
       setErreur("Le nom de la table ou du client est obligatoire.");
       return;
     }
     setEnCours(true);
     setErreur(null);
     try {
-      const compte = await creerCompteLocal(tableOuNom.trim(), nomPremierSousCompte.trim() || undefined);
+      const compte = await creerCompteLocal(nom, venteRapide ? "Client" : nomPremierSousCompte.trim() || undefined);
       await moteurSync.mettreEnFile({
         entiteType: "CompteCafeteria",
         localId: compte.id,
@@ -53,7 +59,7 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
       });
       setTableOuNom("");
       setNomPremierSousCompte("");
-      onCompteOuvert(compte.id);
+      onCompteOuvert(compte.id, { venteRapide });
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
@@ -88,8 +94,19 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
 
           {erreur && <Text style={styles.erreur}>{erreur}</Text>}
 
-          <Pressable style={styles.bouton} onPress={ouvrir} disabled={enCours}>
+          <Pressable style={styles.bouton} onPress={() => ouvrir(false)} disabled={enCours}>
             <Text style={styles.boutonTexte}>{enCours ? "…" : "Ouvrir le compte"}</Text>
+          </Pressable>
+        </View>
+
+        <View style={[styles.carte, { marginTop: espacements.s4 }]}>
+          <Text style={styles.titreRapide}>Vente au comptoir</Text>
+          <Text style={styles.aideRapide}>
+            Scannez directement les articles (caméra ou douchette) : un compte « Comptoir » est ouvert pour vous.
+          </Text>
+          <Pressable style={[styles.bouton, styles.boutonRapide]} onPress={() => ouvrir(true)} disabled={enCours}>
+            <ScanBarcode size={18} color="#fff" />
+            <Text style={styles.boutonTexte}>Vente rapide (scanner)</Text>
           </Pressable>
         </View>
       </ConteneurFormulaire>
@@ -122,4 +139,7 @@ const styles = StyleSheet.create({
   erreur: { color: couleurs.danger, fontSize: 13, marginTop: espacements.s2 },
   bouton: { height: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center", marginTop: espacements.s4 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  boutonRapide: { flexDirection: "row", gap: espacements.s2, marginTop: espacements.s2 },
+  titreRapide: { fontSize: 16, fontWeight: "700", color: couleurs.navy },
+  aideRapide: { fontSize: 13, color: couleurs.encreAttenuee },
 });

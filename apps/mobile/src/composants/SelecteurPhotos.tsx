@@ -2,6 +2,7 @@ import * as React from "react";
 import { useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { File } from "expo-file-system";
 import { ImagePlus, X } from "lucide-react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import type { UsageImage } from "@hotel-chicago/types";
@@ -44,12 +45,11 @@ export function SelecteurPhotos({ client, usage, photos, max, onChange, onEnvoye
     try {
       for (const asset of choix.assets.slice(0, restantes)) {
         const corps = new FormData();
-        // React Native accepte { uri, name, type } à la place d'un Blob.
-        corps.append("fichier", {
-          uri: asset.uri,
-          name: asset.fileName ?? "photo.jpg",
-          type: asset.mimeType ?? "image/jpeg",
-        } as unknown as Blob);
+        // Expo SDK 57 remplace le fetch/FormData global par son implémentation
+        // WinterCG, qui ne comprend plus la convention React Native classique
+        // { uri, name, type } ("Unsupported FormDataPart implementation") —
+        // il faut un objet Blob-like réel, fourni par expo-file-system.
+        corps.append("fichier", new File(asset.uri), asset.fileName ?? "photo.jpg");
         const { url } = await client.televerserImage(corps, usage);
         onEnvoyee?.(url);
         courantes = [...courantes, url];

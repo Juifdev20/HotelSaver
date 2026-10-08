@@ -44,6 +44,14 @@ export class MoteurSync {
   private minuteur: ReturnType<typeof setInterval> | null = null;
   private cycleEnCours: Promise<void> | null = null;
   private palierBackoff = -1;
+  /** Une écriture est arrivée pendant un cycle en cours : ce cycle avait déjà
+   * lu la file, donc il ne l'enverra pas — on enchaîne un cycle juste après
+   * au lieu d'attendre le prochain poll (jusqu'à 20 s, constaté à la caisse
+   * cafétaria le 08/10/2026 : boutons « Encaisser » / « Ajouter » grisés). */
+  private envoiDemande = false;
+  /** Dernier contact réussi avec le serveur : pas de ping /health
+   * supplémentaire avant chaque envoi si on vient de lui parler. */
+  private dernierContactOk = 0;
   private prochainEssaiAu = 0;
 
   constructor(
@@ -82,6 +90,7 @@ export class MoteurSync {
   async mettreEnFile(operation: Parameters<StockageLocal["ajouterFileAttente"]>[0]): Promise<void> {
     await this.stockage.ajouterFileAttente(operation);
     await this.rafraichirCompteurs();
+    if (this.cycleEnCours) this.envoiDemande = true;
     void this.cycle();
   }
 
@@ -136,6 +145,11 @@ export class MoteurSync {
     if (this.cycleEnCours) return this.cycleEnCours;
     this.cycleEnCours = this.executerCycle().finally(() => {
       this.cycleEnCours = null;
+      // Écriture arrivée pendant ce cycle : on l'envoie tout de suite.
+      if (this.envoiDemande) {
+        this.envoiDemande = false;
+        void this.cycle();
+      }
     });
     return this.cycleEnCours;
   }
@@ -143,7 +157,11 @@ export class MoteurSync {
   private async executerCycle(): Promise<void> {
     if (Date.now() < this.prochainEssaiAu) return;
 
-    const enLigne = await this.client.estJoignable();
+    // Serveur joint il y a moins de 15 s : pas de ping avant d'envoyer
+    // (un aller-retour de moins pour chaque vente) ; un échec réseau de
+    // l'envoi passe de toute façon par le backoff ci-dessous.
+    const recent = this.etat.enLigne && Date.now() - this.dernierContactOk < 15_000;
+    const enLigne = recent || (await this.client.estJoignable());
     if (!enLigne) {
       this.etat = { ...this.etat, enLigne: false };
       this.emettre();
@@ -152,8 +170,17 @@ export class MoteurSync {
     this.palierBackoff = -1;
 
     try {
-      await this.pousser();
+      const envoyees = await this.pousser();
+      this.dernierContactOk = Date.now();
+      if (envoyees > 0) {
+        // Les écrans rechargent leur miroir sur `dernierePousseeLe` : on les
+        // prévient dès que l'envoi est confirmé (ids serveur connus, boutons
+        // réactivables) sans attendre la réception des autres données.
+        this.etat = { ...this.etat, enLigne: true, dernierePousseeLe: new Date().toISOString() };
+        await this.rafraichirCompteurs();
+      }
       await this.tirer();
+      this.dernierContactOk = Date.now();
       this.etat = {
         ...this.etat,
         enLigne: true,
@@ -172,11 +199,12 @@ export class MoteurSync {
     await this.rafraichirCompteurs();
   }
 
-  private async pousser(): Promise<void> {
+  /** Renvoie le nombre d'opérations envoyées (0 = rien à faire). */
+  private async pousser(): Promise<number> {
     // Les opérations rejetées définitivement par le serveur ne sont plus
     // envoyées : elles restent en file pour l'écran « Actions échouées ».
     const file = (await this.stockage.listerFileAttente()).filter((l) => l.attempts < SEUIL_ECHEC_DEFINITIF);
-    if (file.length === 0) return;
+    if (file.length === 0) return 0;
 
     const resultats = await this.client.syncPush(
       file.map((ligne) => ({
@@ -225,6 +253,7 @@ export class MoteurSync {
         await this.stockage.marquerEchecFileAttente(ligne.id, resultat.message ?? "Erreur inconnue.");
       }
     }
+    return file.length;
   }
 
   private async tirer(): Promise<void> {

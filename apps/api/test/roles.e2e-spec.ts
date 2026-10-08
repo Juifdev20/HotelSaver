@@ -90,15 +90,16 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
       findFirst: jest.fn().mockResolvedValue(HOTEL_ACTIF),
     },
     chambre: { findMany: jest.fn().mockResolvedValue([]) },
-    reservation: { findMany: jest.fn().mockResolvedValue([]) },
+    reservation: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
     client: { findMany: jest.fn().mockResolvedValue([]) },
-    produit: { findMany: jest.fn().mockResolvedValue([]) },
+    produit: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
     mouvementStock: { findMany: jest.fn().mockResolvedValue([]) },
     compteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
     sousCompte: { findMany: jest.fn().mockResolvedValue([]) },
     ligneCommande: { findMany: jest.fn().mockResolvedValue([]) },
     facture: { findMany: jest.fn().mockResolvedValue([]) },
     venteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
+    depense: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
   };
 
   const tokenPour = (supabaseAuthId: string) => jwt.sign({ sub: supabaseAuthId }, JWT_SECRET);
@@ -312,6 +313,54 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
     });
   });
 
+  describe("Produits — code-barres : la cafétaria associe, le reste de la fiche reste au patron", () => {
+    it.each(["auth-cafeteria", "auth-patron"])("%s atteint le service sur PATCH /produits/:id/code-barres (404 : produit absent du mock)", async (compte) => {
+      await request(app.getHttpServer())
+        .patch("/produits/p1/code-barres")
+        .set("Authorization", bearer(compte))
+        .send({ codeBarres: "4006381333931" })
+        .expect(404);
+    });
+
+    it("la réception est refusée (403) et la cafétaria ne peut pas modifier le reste de la fiche", async () => {
+      await request(app.getHttpServer()).patch("/produits/p1/code-barres").set("Authorization", bearer("auth-receptionniste")).send({ codeBarres: "4006381333931" }).expect(403);
+      await request(app.getHttpServer()).patch("/produits/p1").set("Authorization", bearer("auth-cafeteria")).send({ prix: 1 }).expect(403);
+    });
+
+    it("un code invalide est refusé (400)", async () => {
+      await request(app.getHttpServer()).patch("/produits/p1/code-barres").set("Authorization", bearer("auth-cafeteria")).send({ codeBarres: "a b" }).expect(400);
+    });
+  });
+
+  describe("Dépenses — saisies par la réception et la cafétaria, consultées par le patron", () => {
+    const corps = { date: "2026-10-01", motif: "Carburant", montant: 10, devise: "USD" };
+
+    it.each(["auth-patron", "auth-patron-operant"])("%s → 403 sur POST /depenses et PATCH /depenses/:id", async (compte) => {
+      await request(app.getHttpServer()).post("/depenses").set("Authorization", bearer(compte)).send(corps).expect(403);
+      await request(app.getHttpServer()).patch("/depenses/d1").set("Authorization", bearer(compte)).send({ annulee: true }).expect(403);
+    });
+
+    it.each(["auth-receptionniste", "auth-cafeteria", "auth-patron"])("%s → 200 sur GET /depenses", async (compte) => {
+      await request(app.getHttpServer())
+        .get("/depenses?du=2026-10-01&au=2026-10-31")
+        .set("Authorization", bearer(compte))
+        .expect(200);
+    });
+
+    it("la réception n'est jamais refusée en saisie (la requête atteint le service)", async () => {
+      const reponse = await request(app.getHttpServer()).patch("/depenses/d1").set("Authorization", bearer("auth-receptionniste")).send({ annulee: true });
+      expect(reponse.status).toBe(404); // dépense inexistante dans le mock, pas un refus de droits
+    });
+
+    it("valide le corps : un montant nul est refusé (400)", async () => {
+      await request(app.getHttpServer())
+        .post("/depenses")
+        .set("Authorization", bearer("auth-cafeteria"))
+        .send({ ...corps, montant: 0 })
+        .expect(400);
+    });
+  });
+
   describe("Auth — /auth/me identifie l'utilisateur connecté pour tout client", () => {
     it("refuse sans authentification", async () => {
       await request(app.getHttpServer()).get("/auth/me").expect(401);
@@ -335,6 +384,18 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
         await request(app.getHttpServer()).get(`${route}?sousDomaine=chicago`).expect(200);
       }
     );
+
+    it("suivi de réservation : sans jeton d'auth, un lien inconnu donne 404 (jamais 401)", async () => {
+      await request(app.getHttpServer()).get("/public/suivi/inconnu?sousDomaine=chicago").expect(404);
+      await request(app.getHttpServer()).post("/public/suivi/inconnu/annuler?sousDomaine=chicago").send({}).expect(404);
+    });
+
+    it("pré-enregistrement : le corps est validé (heure au format HH:MM)", async () => {
+      await request(app.getHttpServer())
+        .post("/public/suivi/inconnu/pre-enregistrement?sousDomaine=chicago")
+        .send({ typePiece: "CNI", numeroPiece: "123456", heureArriveePrevue: "25h" })
+        .expect(400);
+    });
   });
 
   describe("Sync — section 10.3, tous les rôles avec compte peuvent pousser/tirer", () => {

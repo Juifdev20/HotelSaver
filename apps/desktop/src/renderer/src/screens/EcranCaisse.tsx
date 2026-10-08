@@ -2,10 +2,12 @@ import * as React from "react";
 import { useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Button } from "@hotel-chicago/ui";
+import { ScanBarcode } from "lucide-react";
 
 export interface EcranCaisseProps {
   client: ClientApi;
-  onCompteOuvert: (compteId: string) => void;
+  /** `venteRapide` : ouvrir directement l'ajout de consommations, scanner prêt. */
+  onCompteOuvert: (compteId: string, options?: { venteRapide: boolean }) => void;
 }
 
 /**
@@ -21,8 +23,12 @@ export function EcranCaisse({ client, onCompteOuvert }: EcranCaisseProps) {
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  async function ouvrir() {
-    if (!tableOuNom.trim()) {
+  /** `venteRapide` (scan au comptoir, 08/10/2026) : compte « Comptoir HH:MM »
+   * ouvert sans rien saisir, puis ajout direct par douchette ou webcam. */
+  async function ouvrir(venteRapide = false) {
+    const heure = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    const nom = venteRapide ? `Comptoir ${heure}` : tableOuNom.trim();
+    if (!nom) {
       setErreur("Le nom de la table ou du client est obligatoire.");
       return;
     }
@@ -30,12 +36,12 @@ export function EcranCaisse({ client, onCompteOuvert }: EcranCaisseProps) {
     setErreur(null);
     try {
       const compte = await client.ouvrirCompteCafeteria({
-        tableOuNom: tableOuNom.trim(),
-        nomPremierSousCompte: nomPremierSousCompte.trim() || undefined,
+        tableOuNom: nom,
+        nomPremierSousCompte: venteRapide ? "Client" : nomPremierSousCompte.trim() || undefined,
       });
       setTableOuNom("");
       setNomPremierSousCompte("");
-      onCompteOuvert(compte.id);
+      onCompteOuvert(compte.id, { venteRapide });
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
@@ -79,8 +85,18 @@ export function EcranCaisse({ client, onCompteOuvert }: EcranCaisseProps) {
           </p>
         )}
 
-        <Button type="button" onClick={ouvrir} disabled={enCours} style={{ marginTop: "var(--hc-space-3)" }}>
+        <Button type="button" onClick={() => ouvrir(false)} disabled={enCours} style={{ marginTop: "var(--hc-space-3)" }}>
           {enCours ? "…" : "Ouvrir le compte"}
+        </Button>
+      </div>
+
+      <div className="carte-formulaire formulaire">
+        <p className="hc-text-body-strong">Vente au comptoir</p>
+        <p className="hc-text-body texte-discret">
+          Scannez directement les articles (douchette ou webcam) : un compte « Comptoir » est ouvert pour vous.
+        </p>
+        <Button type="button" onClick={() => ouvrir(true)} disabled={enCours}>
+          <ScanBarcode size={16} aria-hidden="true" /> Vente rapide (scanner)
         </Button>
       </div>
     </div>

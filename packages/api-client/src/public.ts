@@ -1,26 +1,39 @@
 import type {
   Chambre,
+  CommandeWebCreee,
+  CommandeWebPayload,
   DemandeReservationPayload,
   HotelCree,
   HotelPartenairePublic,
   InfoHotelPublique,
   InscriptionHotelPayload,
+  PreEnregistrementPayload,
   Produit,
+  SuiviReservationPublic,
 } from "@hotel-chicago/types";
 import { ErreurApi } from "./client";
 
 export interface ConfigApiPublique {
-  url: string;
+  /** Une URL ou plusieurs candidates (câble USB + Wi-Fi) — même basculement
+   * sur erreur réseau que ClientApi. */
+  url: string | string[];
 }
 
 async function requetePublique<T>(config: ConfigApiPublique, chemin: string, options: RequestInit = {}): Promise<T> {
-  let reponse: Response;
-  try {
-    reponse = await fetch(`${config.url}${chemin}`, {
-      ...options,
-      headers: { "Content-Type": "application/json", ...options.headers },
-    });
-  } catch {
+  const urls = (Array.isArray(config.url) ? config.url : [config.url]).filter(Boolean);
+  let reponse: Response | null = null;
+  for (const url of urls) {
+    try {
+      reponse = await fetch(`${url}${chemin}`, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...options.headers },
+      });
+      break;
+    } catch {
+      // Réseau mort sur cette URL — candidate suivante.
+    }
+  }
+  if (!reponse) {
     throw new ErreurApi(0, "Impossible de joindre le serveur. Vérifiez la connexion internet puis réessayez.");
   }
 
@@ -58,9 +71,56 @@ export function listerMenu(config: ConfigApiPublique, sousDomaine: string): Prom
   return requetePublique(config, `/public/menu?${params}`);
 }
 
-/** POST /public/reservations (Phase 9 : sousDomaine ajouté au payload). */
-export function creerDemandeReservationPublique(config: ConfigApiPublique, dto: DemandeReservationPayload) {
+/** POST /public/reservations (Phase 9 : sousDomaine ajouté au payload).
+ * Réponse réduite au jeton de la page « Ma réservation » (07/10/2026). */
+export function creerDemandeReservationPublique(
+  config: ConfigApiPublique,
+  dto: DemandeReservationPayload
+): Promise<{ id: string; statut: string; jetonSuivi: string }> {
   return requetePublique(config, "/public/reservations", { method: "POST", body: JSON.stringify(dto) });
+}
+
+function cheminSuivi(jeton: string, sousDomaine: string, suffixe = ""): string {
+  return `/public/suivi/${encodeURIComponent(jeton)}${suffixe}?${new URLSearchParams({ sousDomaine })}`;
+}
+
+/** GET /public/suivi/:jeton — page « Ma réservation » du client. */
+export function obtenirSuiviReservation(config: ConfigApiPublique, sousDomaine: string, jeton: string): Promise<SuiviReservationPublic> {
+  return requetePublique(config, cheminSuivi(jeton, sousDomaine));
+}
+
+/** POST /public/suivi/:jeton/annuler — le client annule lui-même. */
+export function annulerReservationPublique(
+  config: ConfigApiPublique,
+  sousDomaine: string,
+  jeton: string,
+  motif?: string
+): Promise<SuiviReservationPublic> {
+  return requetePublique(config, cheminSuivi(jeton, sousDomaine, "/annuler"), {
+    method: "POST",
+    body: JSON.stringify(motif ? { motif } : {}),
+  });
+}
+
+/** POST /public/suivi/:jeton/pre-enregistrement — pièce, heure d'arrivée, demandes. */
+export function preEnregistrerReservation(
+  config: ConfigApiPublique,
+  sousDomaine: string,
+  jeton: string,
+  donnees: PreEnregistrementPayload
+): Promise<SuiviReservationPublic> {
+  return requetePublique(config, cheminSuivi(jeton, sousDomaine, "/pre-enregistrement"), {
+    method: "POST",
+    body: JSON.stringify(donnees),
+  });
+}
+
+/** POST /public/commande — commande cafétéria depuis la page « Cuisine » du
+ * site de l'hôtel (nécessite commandeWebActivee côté hôtel). Les prix sont
+ * recalculés côté serveur ; la réponse porte la référence à présenter au
+ * comptoir et le total par devise. */
+export function creerCommandeWeb(config: ConfigApiPublique, dto: CommandeWebPayload): Promise<CommandeWebCreee> {
+  return requetePublique(config, "/public/commande", { method: "POST", body: JSON.stringify(dto) });
 }
 
 /** GET /public/hotel (Phase 11) — charte graphique publique de l'hôtel résolu. */

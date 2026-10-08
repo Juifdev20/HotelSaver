@@ -120,7 +120,7 @@ export function EcranConnexion({
       <EnteteAuth />
       <View style={styles.feuille}>
         <ConteneurFormulaire styleContenu={styles.contenu}>
-          <Text style={styles.titre}>Bon retour 👋</Text>
+          <Text style={styles.titre}>Bon retour</Text>
           <Text style={styles.sousTitre}>Connectez-vous à votre espace hôtelier.</Text>
 
           {message && <Text style={styles.message}>{message}</Text>}

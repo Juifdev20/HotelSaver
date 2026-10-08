@@ -7,6 +7,7 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
+import { SelecteurDate, saisieDepuisIso } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { listerChambresMiroir } from "../stockage/chambresMirroir";
@@ -22,6 +23,9 @@ export interface EcranNouvelleReservationProps {
   onRetour: () => void;
   /** Après création (locale ou en ligne) : le hub affiche le détail. */
   onCree: (reservationId: string) => void;
+  /** Pré-remplissage depuis le planning (cellule chambre × date). */
+  chambreInitialeId?: string;
+  dateArriveeInitiale?: string; // ISO
 }
 
 const STATUTS_OCCUPANTS = new Set(["CONFIRMEE", "EN_COURS"]); // mêmes que reservations.service.ts
@@ -60,11 +64,13 @@ function chambresOccupeesSurPeriode(reservations: ReservationMiroir[], arrivee: 
  * faut l'id serveur tout de suite — la réservation est alors créée en
  * appel direct, pas via la file.
  */
-export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleReservationProps) {
+export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, dateArriveeInitiale }: EcranNouvelleReservationProps) {
   const { client, moteurSync, utilisateur } = useSession();
   const etatSync = useSyncEtat();
 
-  const [saisieArrivee, setSaisieArrivee] = useState(aujourdhuiSaisie());
+  const [saisieArrivee, setSaisieArrivee] = useState(() =>
+    dateArriveeInitiale ? saisieDepuisIso(dateArriveeInitiale.slice(0, 10)) : aujourdhuiSaisie()
+  );
   const [nuits, setNuits] = useState(1);
   const [chambres, setChambres] = useState<Chambre[] | null>(null);
   const [reservations, setReservations] = useState<ReservationMiroir[]>([]);
@@ -76,7 +82,10 @@ export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleRese
   const [nom, setNom] = useState("");
   const [telephone, setTelephone] = useState("");
   const [email, setEmail] = useState("");
+  const [typePiece, setTypePiece] = useState("");
+  const [numeroPiece, setNumeroPiece] = useState("");
   const [acompteSaisi, setAcompteSaisi] = useState("");
+  const [note, setNote] = useState("");
   const [checkInImmediat, setCheckInImmediat] = useState(false);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -87,9 +96,13 @@ export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleRese
         setChambres(c);
         setReservations(r);
         setClients(cl);
+        if (chambreInitialeId) {
+          const initiale = c.find((x) => x.id === chambreInitialeId);
+          if (initiale) setChambreChoisie(initiale);
+        }
       })
       .catch((e: Error) => setErreur(e.message));
-  }, []);
+  }, [chambreInitialeId]);
 
   useEffect(charger, [charger]);
 
@@ -147,24 +160,30 @@ export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleRese
 
     setEnCours(true);
     try {
-      const nouveauClient = modeClient === "nouveau" ? { nom: nom.trim(), telephone: telephone.trim() || undefined, email: email.trim() || undefined } : undefined;
+      const nouveauClient =
+        modeClient === "nouveau"
+          ? {
+              nom: nom.trim(),
+              telephone: telephone.trim() || undefined,
+              email: email.trim() || undefined,
+              typePiece: typePiece.trim() || undefined,
+              numeroPiece: numeroPiece.trim() || undefined,
+            }
+          : undefined;
+      const noteTrim = note.trim() || undefined;
       if (checkInImmediat && etatSync.enLigne) {
-        // En ligne + check-in immédiat : appel direct (l'id serveur est
-        // nécessaire tout de suite pour enchaîner le check-in — la file de
-        // sync ne le connaîtrait qu'après le prochain push).
+        // Arrivée express : l'API crée la réservation EN_COURS et passe la
+        // chambre OCCUPEE dans la même transaction (installerImmediatement) —
+        // un seul appel, aucun état intermédiaire possible.
         const creee = await client.creerReservation({
           chambreId: chambreChoisie.id,
           ...(clientChoisi ? { clientId: clientChoisi.remoteId! } : { client: nouveauClient }),
           dateArrivee,
           dateDepart,
           acompte: acompte || undefined,
+          note: noteTrim,
+          installerImmediatement: true,
         });
-        try {
-          await client.checkIn(creee.id);
-        } catch {
-          // La réservation existe (CONFIRMEE) — le check-in pourra être
-          // refait depuis son détail ; on signale sans faire échouer.
-        }
         await moteurSync.forcerSynchronisation();
         onCree(creee.id);
         return;
@@ -175,6 +194,7 @@ export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleRese
         dateArrivee,
         dateDepart,
         acompte,
+        note: noteTrim,
         clientExistant: clientChoisi ?? undefined,
         nouveauClient,
         createdBy: utilisateur.userId,
@@ -203,13 +223,9 @@ export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleRese
       <ConteneurFormulaire styleContenu={styles.contenu}>
         <View style={styles.carte}>
           <Text style={styles.champLabel}>Arrivée (JJ/MM/AAAA)</Text>
-          <TextInput
-            style={styles.champ}
-            value={saisieArrivee}
-            onChangeText={setSaisieArrivee}
-            placeholder="JJ/MM/AAAA"
-            placeholderTextColor={couleurs.encreFaible}
-            keyboardType="numbers-and-punctuation"
+          <SelecteurDate
+            valeur={isoDepuisSaisie(saisieArrivee)?.slice(0, 10) ?? ""}
+            onChange={(iso) => setSaisieArrivee(iso ? saisieDepuisIso(iso) : "")}
           />
           <Text style={styles.champLabel}>Nombre de nuits</Text>
           <View style={styles.stepper}>
@@ -281,6 +297,10 @@ export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleRese
               <TextInput style={styles.champ} value={telephone} onChangeText={setTelephone} placeholder="+243 …" placeholderTextColor={couleurs.encreFaible} keyboardType="phone-pad" />
               <Text style={styles.champLabel}>Email</Text>
               <TextInput style={styles.champ} value={email} onChangeText={setEmail} placeholder="Optionnel" placeholderTextColor={couleurs.encreFaible} keyboardType="email-address" autoCapitalize="none" />
+              <Text style={styles.champLabel}>Type de pièce (optionnel)</Text>
+              <TextInput style={styles.champ} value={typePiece} onChangeText={setTypePiece} placeholder="CNI, passeport, permis…" placeholderTextColor={couleurs.encreFaible} />
+              <Text style={styles.champLabel}>N° de pièce (optionnel)</Text>
+              <TextInput style={styles.champ} value={numeroPiece} onChangeText={setNumeroPiece} placeholder="Numéro de la pièce d'identité" placeholderTextColor={couleurs.encreFaible} />
             </>
           ) : (
             <>
@@ -327,6 +347,18 @@ export function EcranNouvelleReservation({ onRetour, onCree }: EcranNouvelleRese
               </View>
             </View>
           )}
+        </View>
+
+        <View style={styles.carte}>
+          <Text style={styles.champLabel}>Demandes spéciales (optionnel)</Text>
+          <TextInput
+            style={[styles.champ, styles.champMulti]}
+            value={note}
+            onChangeText={setNote}
+            placeholder="Lit bébé, étage élevé, régime alimentaire…"
+            placeholderTextColor={couleurs.encreFaible}
+            multiline
+          />
         </View>
 
         {etatSync.enLigne && (
@@ -443,6 +475,7 @@ const styles = StyleSheet.create({
   caseCochee: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
   caseTexte: { color: "#fff", fontSize: 13, fontWeight: "700" },
   checkInTexte: { flex: 1, fontSize: 13, color: couleurs.encre },
+  champMulti: { height: 72, textAlignVertical: "top", paddingTop: espacements.s3 },
   bouton: { height: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
   info: { fontSize: 13, color: couleurs.encreAttenuee, paddingVertical: espacements.s2 },

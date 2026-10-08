@@ -286,7 +286,10 @@ export function EcranComptesOuverts({ client, utilisateur, interfaceImprimante, 
                 const total = totalCompte(c);
                 return (
                   <tr key={c.id}>
-                    <td className="hc-text-body-strong">{c.tableOuNom}</td>
+                    <td className="hc-text-body-strong">
+                      {c.tableOuNom}{" "}
+                      {c.origine === "SITE_PUBLIC" && <StatusBadge tone="info" label={`Réf. ${c.id.slice(0, 8).toUpperCase()}`} />}
+                    </td>
                     <td className="texte-discret">{c.sousComptes.length}</td>
                     <td className="texte-discret">
                       {total.usd === 0 && total.cdf === 0

@@ -1,15 +1,17 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
-import { Devise, ModePaiement, StatutChambre, peutOperer } from "@hotel-chicago/types";
+import { Devise, ModePaiement, StatutChambre, codeSuivi, lienSuivi, peutOperer } from "@hotel-chicago/types";
 import type { StatutReservation } from "@hotel-chicago/types";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
+import { Link2, MessageCircle, Pencil } from "lucide-react-native";
 import { FeuilleModale } from "../composants/FeuilleModale";
+import { SelecteurDate } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { imprimerLignes } from "../impression/imprimante";
@@ -79,12 +81,15 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
   const [reservation, setReservation] = useState<ReservationMiroir | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState<string | null>(null);
-  const [feuille, setFeuille] = useState<"annuler" | "modifier" | null>(null);
+  const [feuille, setFeuille] = useState<"annuler" | "modifier" | "whatsapp" | "reponse" | null>(null);
   const [motif, setMotif] = useState("");
   const [saisieArrivee, setSaisieArrivee] = useState("");
   const [saisieDepart, setSaisieDepart] = useState("");
   const [saisieAcompte, setSaisieAcompte] = useState("");
+  const [saisieNote, setSaisieNote] = useState("");
+  const [saisieReponse, setSaisieReponse] = useState("");
   const [messageImpression, setMessageImpression] = useState<string | null>(null);
+  const [messageWhatsApp, setMessageWhatsApp] = useState("");
 
   const recharger = useCallback(() => {
     obtenirReservationMiroir(reservationId)
@@ -172,6 +177,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
       setErreur("Acompte invalide.");
       return;
     }
+    const noteModifiee = saisieNote.trim() !== (reservation.note ?? "") ? saisieNote.trim() : undefined;
     setFeuille(null);
     void executer("modifier", async () => {
       // Écriture optimiste + file UPDATE : fonctionne aussi hors ligne
@@ -181,7 +187,29 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
         dateArrivee: dateArrivee ?? undefined,
         dateDepart: dateDepart ?? undefined,
         acompte,
+        note: noteModifiee,
       });
+      await moteurSync.mettreEnFile({
+        entiteType: "Reservation",
+        localId: reservation.id,
+        remoteId: reservation.remoteId!,
+        operation: "UPDATE",
+        payload,
+        baseSyncVersion: reservation.syncVersion,
+      });
+      await recharger();
+    });
+  }
+
+  /** Réponse visible par le client sur sa page « Ma réservation » — la voix
+   * de l'hôtel (ex. « acompte attendu à l'arrivée »). Même chemin optimiste
+   * + file UPDATE que `modifier` — fonctionne hors ligne. */
+  function repondre() {
+    if (!reservation) return;
+    const texte = saisieReponse.trim();
+    setFeuille(null);
+    void executer("repondre", async () => {
+      const payload = await modifierReservationLocale(reservation, { reponseReception: texte });
       await moteurSync.mettreEnFile({
         entiteType: "Reservation",
         localId: reservation.id,
@@ -216,6 +244,80 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
     } finally {
       setEnCours(null);
     }
+  }
+
+  /** Message WhatsApp pré-rempli, adapté au statut : pour une demande EN
+   * ATTENTE on « accuse réception » pour ouvrir la discussion avant de
+   * confirmer ; ensuite c'est la vraie confirmation avec montants. */
+  /** Lien « Ma réservation » du client — null tant que la réservation n'est
+   * pas synchronisée (le jeton vient du serveur) ou si le profil en cache
+   * date d'avant cette fonctionnalité (hotelUrlSite absent). */
+  const lienClient =
+    reservation?.jetonSuivi && utilisateur.hotelUrlSite ? lienSuivi(utilisateur.hotelUrlSite, reservation.jetonSuivi) : null;
+  const suiviModifiable = reservation?.statut === "EN_ATTENTE" || reservation?.statut === "CONFIRMEE";
+
+  function partagerLien() {
+    if (!lienClient || !reservation) return;
+    Share.share({
+      message: `Suivez votre réservation et pré-enregistrez-vous avant votre arrivée : ${lienClient}`,
+    }).catch(() => setErreur("Partage impossible sur cet appareil."));
+  }
+
+  function construireMessageWhatsApp(): string {
+    if (!reservation) return "";
+    const nuitsCalc = Math.max(
+      1,
+      Math.round((new Date(reservation.dateDepart).getTime() - new Date(reservation.dateArrivee).getTime()) / 86400000)
+    );
+    const total = Number(reservation.chambre.prixParNuit) * nuitsCalc;
+    const lignes: (string | null)[] =
+      reservation.statut === "EN_ATTENTE"
+        ? [
+            utilisateur.hotelNom,
+            ``,
+            `Bonjour ${reservation.client.nom}, nous avons bien reçu votre demande de réservation :`,
+            `Chambre ${reservation.chambre.numero} (${reservation.chambre.type}) — du ${dateCourte(reservation.dateArrivee)} au ${dateCourte(reservation.dateDepart)}, ${nuitsCalc} nuit${nuitsCalc > 1 ? "s" : ""}`,
+            `Total estimé : ${formatMontant(total, reservation.chambre.devise)}`,
+            `Nous souhaitons échanger avec vous avant de confirmer votre réservation. Merci de nous répondre ici.`,
+            lienClient ? `Suivez votre demande ici : ${lienClient}` : null,
+            ``,
+            `Cordialement, la réception`,
+          ]
+        : [
+            utilisateur.hotelNom,
+            ``,
+            `Confirmation de réservation`,
+            `Client : ${reservation.client.nom}`,
+            `Chambre ${reservation.chambre.numero} (${reservation.chambre.type})`,
+            `Du ${dateCourte(reservation.dateArrivee)} au ${dateCourte(reservation.dateDepart)} — ${nuitsCalc} nuit${nuitsCalc > 1 ? "s" : ""}`,
+            `Total : ${formatMontant(total, reservation.chambre.devise)}`,
+            Number(reservation.acompte) > 0
+              ? `Acompte reçu : ${formatMontant(reservation.acompte, reservation.chambre.devise)} · Reste : ${formatMontant(Math.max(0, total - Number(reservation.acompte)), reservation.chambre.devise)}`
+              : null,
+            reservation.note ? `Note : ${reservation.note}` : null,
+            lienClient && suiviModifiable ? `Gagnez du temps à l'arrivée, pré-enregistrez-vous ici : ${lienClient}` : null,
+            ``,
+            `À bientôt !`,
+          ];
+    return lignes.filter((l): l is string => l !== null).join("\n");
+  }
+
+  /** Ouvre la feuille d'édition du message avant l'envoi vers WhatsApp. */
+  function ouvrirWhatsApp() {
+    if (!reservation) return;
+    setMessageWhatsApp(construireMessageWhatsApp());
+    setFeuille("whatsapp");
+  }
+
+  /** Envoie le texte (tel qu'édité) vers WhatsApp — le téléphone du client
+   * s'il existe, sinon le choix du contact (wa.me exige un numéro). */
+  function envoyerWhatsApp() {
+    if (!reservation) return;
+    const numerique = (reservation.client.telephone ?? "").replace(/\D/g, "");
+    const texte = encodeURIComponent(messageWhatsApp);
+    const url = numerique ? `https://wa.me/${numerique}?text=${texte}` : `whatsapp://send?text=${texte}`;
+    setFeuille(null);
+    Linking.openURL(url).catch(() => setErreur("WhatsApp n'est pas installé sur cet appareil."));
   }
 
   function bouton(nom: string, libelle: string, action: () => void, actif: boolean, secondaire = false) {
@@ -278,6 +380,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
               {formatMontant(reservation.acompte, reservation.chambre.devise)}
             </Text>
             {reservation.origine === "SITE_PUBLIC" && <Text style={styles.ligneSecondaire}>Demande reçue du site public</Text>}
+            {reservation.note && <Text style={styles.note}>Note : {reservation.note}</Text>}
             {statut === "ANNULEE" && reservation.motifAnnulation && (
               <Text style={styles.ligneSecondaire}>Motif d'annulation : {reservation.motifAnnulation}</Text>
             )}
@@ -294,6 +397,66 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
             <Text style={styles.ligne}>{reservation.client.nom}</Text>
             {reservation.client.telephone && <Text style={styles.ligneSecondaire}>{reservation.client.telephone}</Text>}
             {reservation.client.email && <Text style={styles.ligneSecondaire}>{reservation.client.email}</Text>}
+            {(reservation.client.typePiece || reservation.client.numeroPiece) && (
+              <Text style={styles.ligneSecondaire}>
+                Pièce : {[reservation.client.typePiece, reservation.client.numeroPiece].filter(Boolean).join(" · ")}
+              </Text>
+            )}
+            <Pressable style={styles.whatsapp} onPress={ouvrirWhatsApp} accessibilityRole="button">
+              <MessageCircle size={16} color="#1FA855" />
+              <Text style={styles.whatsappTexte}>Contacter le client par WhatsApp</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.carte}>
+            <View style={styles.ligneEntete}>
+              <Text style={styles.titre}>Suivi en ligne</Text>
+              {reservation.jetonSuivi && <Text style={styles.ligneSecondaire}>{codeSuivi(reservation.jetonSuivi)}</Text>}
+            </View>
+            {reservation.preEnregistreLe ? (
+              <>
+                <Text style={styles.preEnregistre}>
+                  ✓ Pré-enregistré le {dateCourte(reservation.preEnregistreLe)}
+                  {reservation.heureArriveePrevue ? ` · arrivée vers ${reservation.heureArriveePrevue}` : ""}
+                </Text>
+                {reservation.demandeClient && <Text style={styles.note}>Demande du client : {reservation.demandeClient}</Text>}
+              </>
+            ) : (
+              <Text style={styles.ligneSecondaire}>
+                {suiviModifiable ? "Pas encore pré-enregistré — envoyez-lui le lien." : "Pas de pré-enregistrement."}
+              </Text>
+            )}
+            {reservation.reponseReception && (
+              <Text style={styles.note}>Votre réponse au client : {reservation.reponseReception}</Text>
+            )}
+            {suiviModifiable && (
+              <Pressable
+                style={[styles.whatsapp, !estSynchronisee && styles.boutonInactif]}
+                onPress={() => {
+                  setSaisieReponse(reservation.reponseReception ?? "");
+                  setErreur(null);
+                  setFeuille("reponse");
+                }}
+                disabled={!estSynchronisee}
+                accessibilityRole="button"
+              >
+                <Pencil size={16} color={couleurs.bleu} />
+                <Text style={[styles.whatsappTexte, { color: couleurs.bleu }]}>
+                  {reservation.reponseReception ? "Modifier votre réponse" : "Répondre au client"}
+                </Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={[styles.whatsapp, !lienClient && styles.boutonInactif]}
+              onPress={partagerLien}
+              disabled={!lienClient}
+              accessibilityRole="button"
+            >
+              <Link2 size={16} color={couleurs.bleu} />
+              <Text style={[styles.whatsappTexte, { color: couleurs.bleu }]}>
+                {lienClient ? "Partager le lien de suivi" : "Lien disponible après synchronisation"}
+              </Text>
+            </Pressable>
           </View>
 
           <View style={styles.actions}>
@@ -309,6 +472,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
                   setSaisieArrivee(saisieDepuisIso(reservation.dateArrivee));
                   setSaisieDepart(saisieDepuisIso(reservation.dateDepart));
                   setSaisieAcompte(reservation.acompte !== "0" ? String(reservation.acompte) : "");
+                  setSaisieNote(reservation.note ?? "");
                   setErreur(null);
                   setFeuille("modifier");
                 },
@@ -354,12 +518,61 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
 
       <FeuilleModale visible={feuille === "modifier"} onFermer={() => setFeuille(null)} titre="Modifier la réservation">
         <Text style={styles.champLabel}>Arrivée (JJ/MM/AAAA)</Text>
-        <TextInput style={styles.champ} value={saisieArrivee} onChangeText={setSaisieArrivee} placeholder="JJ/MM/AAAA" placeholderTextColor={couleurs.encreFaible} keyboardType="numbers-and-punctuation" />
+        <SelecteurDate
+          valeur={isoDepuisSaisie(saisieArrivee)?.slice(0, 10) ?? ""}
+          onChange={(iso) => setSaisieArrivee(iso ? saisieDepuisIso(iso) : "")}
+        />
         <Text style={styles.champLabel}>Départ (JJ/MM/AAAA)</Text>
-        <TextInput style={styles.champ} value={saisieDepart} onChangeText={setSaisieDepart} placeholder="JJ/MM/AAAA" placeholderTextColor={couleurs.encreFaible} keyboardType="numbers-and-punctuation" />
+        <SelecteurDate
+          valeur={isoDepuisSaisie(saisieDepart)?.slice(0, 10) ?? ""}
+          onChange={(iso) => setSaisieDepart(iso ? saisieDepuisIso(iso) : "")}
+        />
         <Text style={styles.champLabel}>Acompte ({reservation?.chambre.devise})</Text>
         <TextInput style={styles.champ} value={saisieAcompte} onChangeText={setSaisieAcompte} placeholder="0" placeholderTextColor={couleurs.encreFaible} keyboardType="numeric" />
+        <Text style={styles.champLabel}>Demandes spéciales</Text>
+        <TextInput
+          style={styles.champ}
+          value={saisieNote}
+          onChangeText={setSaisieNote}
+          placeholder="Lit bébé, étage élevé…"
+          placeholderTextColor={couleurs.encreFaible}
+          multiline
+        />
         <Pressable style={styles.bouton} onPress={modifier}>
+          <Text style={styles.boutonTexte}>Enregistrer</Text>
+        </Pressable>
+      </FeuilleModale>
+
+      <FeuilleModale visible={feuille === "whatsapp"} onFermer={() => setFeuille(null)} titre="Message WhatsApp">
+        <Text style={styles.champLabel}>Message au client (modifiable)</Text>
+        <TextInput
+          style={styles.champMultiligne}
+          value={messageWhatsApp}
+          onChangeText={setMessageWhatsApp}
+          placeholder="Votre message…"
+          placeholderTextColor={couleurs.encreFaible}
+          multiline
+        />
+        <Pressable style={styles.boutonWhatsApp} onPress={envoyerWhatsApp} accessibilityRole="button">
+          <MessageCircle size={16} color="#fff" />
+          <Text style={styles.boutonTexte}>Ouvrir WhatsApp</Text>
+        </Pressable>
+        <Pressable style={styles.boutonSecondaire} onPress={() => setMessageWhatsApp(construireMessageWhatsApp())}>
+          <Text style={styles.boutonSecondaireTexte}>Réinitialiser le texte</Text>
+        </Pressable>
+      </FeuilleModale>
+
+      <FeuilleModale visible={feuille === "reponse"} onFermer={() => setFeuille(null)} titre="Répondre au client">
+        <Text style={styles.champLabel}>Message visible sur la page de suivi du client</Text>
+        <TextInput
+          style={styles.champMultiligne}
+          value={saisieReponse}
+          onChangeText={setSaisieReponse}
+          placeholder="Ex. Demande bien reçue — acompte de 30 $ attendu à l'arrivée."
+          placeholderTextColor={couleurs.encreFaible}
+          multiline
+        />
+        <Pressable style={styles.bouton} onPress={repondre}>
           <Text style={styles.boutonTexte}>Enregistrer</Text>
         </Pressable>
       </FeuilleModale>
@@ -385,6 +598,16 @@ const styles = StyleSheet.create({
   ligne: { fontSize: 14, color: couleurs.encre },
   ligneSecondaire: { fontSize: 13, color: couleurs.encreAttenuee },
   horsLigne: { fontSize: 12, color: couleurs.alerte, marginTop: espacements.s2 },
+  note: { fontSize: 13, color: couleurs.violet, fontStyle: "italic", marginTop: 2 },
+  preEnregistre: { fontSize: 14, fontWeight: "600", color: couleurs.succes },
+  whatsapp: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacements.s2,
+    marginTop: espacements.s2,
+    minHeight: 36,
+  },
+  whatsappTexte: { fontSize: 14, fontWeight: "600", color: "#1FA855" },
   badge: { paddingHorizontal: espacements.s2, paddingVertical: 3, borderRadius: rayons.pill },
   badgeTexte: { fontSize: 11, fontWeight: "700" },
   actions: { gap: espacements.s2 },
@@ -412,5 +635,27 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: couleurs.encre,
     backgroundColor: couleurs.surface100,
+  },
+  champMultiligne: {
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    borderRadius: rayons.sm,
+    paddingHorizontal: espacements.s3,
+    paddingVertical: espacements.s2,
+    minHeight: 160,
+    fontSize: 14,
+    color: couleurs.encre,
+    backgroundColor: couleurs.surface100,
+    textAlignVertical: "top",
+  },
+  boutonWhatsApp: {
+    height: 48,
+    borderRadius: rayons.sm,
+    backgroundColor: "#1FA855",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: espacements.s2,
+    marginTop: espacements.s2,
   },
 });

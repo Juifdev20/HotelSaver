@@ -19,8 +19,11 @@ export interface ClientMiroir extends Client {
   remoteId: string | null;
 }
 
-export interface ReservationMiroir extends Reservation {
+/** `jetonSuivi` null tant qu'une réservation créée hors ligne n'a pas été
+ * synchronisée (le serveur génère le jeton, il arrive au pull suivant). */
+export interface ReservationMiroir extends Omit<Reservation, "jetonSuivi"> {
   remoteId: string | null;
+  jetonSuivi: string | null;
 }
 
 interface ClientLigneBrute {
@@ -29,6 +32,9 @@ interface ClientLigneBrute {
   nom: string;
   telephone: string | null;
   email: string | null;
+  typePiece: string | null;
+  numeroPiece: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
   syncVersion: number;
@@ -45,8 +51,14 @@ interface ReservationLigneBrute {
   statut: string;
   origine: string;
   createdBy: string;
+  note: string | null;
   annuleLe: string | null;
   motifAnnulation: string | null;
+  jetonSuivi: string | null;
+  heureArriveePrevue: string | null;
+  demandeClient: string | null;
+  preEnregistreLe: string | null;
+  reponseReception: string | null;
   updatedAt: string;
   syncVersion: number;
 }
@@ -58,6 +70,9 @@ function clientDepuisBrut(brut: ClientLigneBrute): ClientMiroir {
     nom: brut.nom,
     telephone: brut.telephone,
     email: brut.email,
+    typePiece: brut.typePiece ?? null,
+    numeroPiece: brut.numeroPiece ?? null,
+    notes: brut.notes ?? null,
     updatedAt: brut.updatedAt,
     syncVersion: brut.syncVersion,
   };
@@ -101,7 +116,17 @@ async function assemblerReservations(
       clientsBruts.map(clientDepuisBrut).find((c) => c.remoteId === clientId) ??
       null;
     return (
-      brut ?? { id: clientId, nom: "Client inconnu", telephone: null, email: null, updatedAt: "", syncVersion: 0 }
+      brut ?? {
+        id: clientId,
+        nom: "Client inconnu",
+        telephone: null,
+        email: null,
+        typePiece: null,
+        numeroPiece: null,
+        notes: null,
+        updatedAt: "",
+        syncVersion: 0,
+      }
     );
   };
 
@@ -127,8 +152,14 @@ async function assemblerReservations(
     acompte: brut.acompte,
     statut: brut.statut as StatutReservation,
     origine: brut.origine,
+    note: brut.note ?? null,
     annuleLe: brut.annuleLe,
     motifAnnulation: brut.motifAnnulation,
+    jetonSuivi: brut.jetonSuivi ?? null,
+    heureArriveePrevue: brut.heureArriveePrevue ?? null,
+    demandeClient: brut.demandeClient ?? null,
+    preEnregistreLe: brut.preEnregistreLe ?? null,
+    reponseReception: brut.reponseReception ?? null,
     facture: null,
     syncVersion: brut.syncVersion,
   }));
@@ -161,9 +192,10 @@ export interface DonneesReservationLocale {
   dateArrivee: string; // ISO
   dateDepart: string; // ISO
   acompte: number;
+  note?: string;
   /** Client existant synchronisé (remoteId requis) OU nouveau client inline. */
   clientExistant?: ClientMiroir;
-  nouveauClient?: { nom: string; telephone?: string; email?: string };
+  nouveauClient?: { nom: string; telephone?: string; email?: string; typePiece?: string; numeroPiece?: string };
   createdBy: string;
 }
 
@@ -200,15 +232,18 @@ export async function creerReservationLocale(donnees: DonneesReservationLocale):
     const nouveau = donnees.nouveauClient!;
     clientIdLocal = randomUUID();
     await db.runAsync(
-      `INSERT INTO clients (id, remoteId, nom, telephone, email, createdAt, updatedAt, syncVersion)
-       VALUES (?, NULL, ?, ?, ?, ?, ?, 1)`,
-      [clientIdLocal, nouveau.nom, nouveau.telephone ?? null, nouveau.email ?? null, maintenant, maintenant]
+      `INSERT INTO clients (id, remoteId, nom, telephone, email, typePiece, numeroPiece, notes, createdAt, updatedAt, syncVersion)
+       VALUES (?, NULL, ?, ?, ?, ?, ?, NULL, ?, ?, 1)`,
+      [clientIdLocal, nouveau.nom, nouveau.telephone ?? null, nouveau.email ?? null, nouveau.typePiece ?? null, nouveau.numeroPiece ?? null, maintenant, maintenant]
     );
     clientPourAffichage = {
       id: clientIdLocal,
       nom: nouveau.nom,
       telephone: nouveau.telephone ?? null,
       email: nouveau.email ?? null,
+      typePiece: nouveau.typePiece ?? null,
+      numeroPiece: nouveau.numeroPiece ?? null,
+      notes: null,
       updatedAt: maintenant,
       syncVersion: 1,
     };
@@ -216,12 +251,21 @@ export async function creerReservationLocale(donnees: DonneesReservationLocale):
     // mapping id local → id réel du Client créé implicitement — le même
     // mécanisme `enfants` que premierSousCompteLocalId, sinon le client
     // arriverait en doublon au pull suivant.
-    payloadClient = { client: { nom: nouveau.nom, telephone: nouveau.telephone, email: nouveau.email }, clientLocalId: clientIdLocal };
+    payloadClient = {
+      client: {
+        nom: nouveau.nom,
+        telephone: nouveau.telephone,
+        email: nouveau.email,
+        typePiece: nouveau.typePiece,
+        numeroPiece: nouveau.numeroPiece,
+      },
+      clientLocalId: clientIdLocal,
+    };
   }
 
   await db.runAsync(
-    `INSERT INTO reservations (id, remoteId, chambreId, clientId, dateArrivee, dateDepart, acompte, statut, origine, createdBy, annuleLe, motifAnnulation, updatedAt, syncVersion)
-     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, 1)`,
+    `INSERT INTO reservations (id, remoteId, chambreId, clientId, dateArrivee, dateDepart, acompte, statut, origine, createdBy, note, annuleLe, motifAnnulation, updatedAt, syncVersion)
+     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, 1)`,
     [
       idReservation,
       donnees.chambre.id,
@@ -232,6 +276,7 @@ export async function creerReservationLocale(donnees: DonneesReservationLocale):
       "CONFIRMEE",
       "RECEPTION",
       donnees.createdBy,
+      donnees.note ?? null,
       maintenant,
     ]
   );
@@ -248,8 +293,14 @@ export async function creerReservationLocale(donnees: DonneesReservationLocale):
     acompte: String(donnees.acompte),
     statut: "CONFIRMEE",
     origine: "RECEPTION",
+    note: donnees.note ?? null,
     annuleLe: null,
     motifAnnulation: null,
+    jetonSuivi: null,
+    heureArriveePrevue: null,
+    demandeClient: null,
+    preEnregistreLe: null,
+    reponseReception: null,
     facture: null,
     syncVersion: 1,
   };
@@ -262,6 +313,7 @@ export async function creerReservationLocale(donnees: DonneesReservationLocale):
       dateArrivee: donnees.dateArrivee,
       dateDepart: donnees.dateDepart,
       acompte: donnees.acompte,
+      ...(donnees.note ? { note: donnees.note } : {}),
     },
   };
 }
@@ -271,15 +323,17 @@ export async function creerReservationLocale(donnees: DonneesReservationLocale):
  * baseSyncVersion (voir l'écran, qui grise le bouton sinon). */
 export async function modifierReservationLocale(
   reservation: ReservationMiroir,
-  modifs: { dateArrivee?: string; dateDepart?: string; acompte?: number }
+  modifs: { dateArrivee?: string; dateDepart?: string; acompte?: number; note?: string; reponseReception?: string }
 ): Promise<Record<string, unknown>> {
   const db = await obtenirBase();
   await db.runAsync(
-    `UPDATE reservations SET dateArrivee = ?, dateDepart = ?, acompte = ?, updatedAt = ? WHERE id = ?`,
+    `UPDATE reservations SET dateArrivee = ?, dateDepart = ?, acompte = ?, note = ?, reponseReception = ?, updatedAt = ? WHERE id = ?`,
     [
       modifs.dateArrivee ?? reservation.dateArrivee,
       modifs.dateDepart ?? reservation.dateDepart,
       modifs.acompte !== undefined ? String(modifs.acompte) : reservation.acompte,
+      modifs.note !== undefined ? modifs.note : reservation.note,
+      modifs.reponseReception !== undefined ? modifs.reponseReception : reservation.reponseReception,
       new Date().toISOString(),
       reservation.id,
     ]
@@ -289,7 +343,23 @@ export async function modifierReservationLocale(
   if (modifs.dateArrivee !== undefined) payload.dateArrivee = modifs.dateArrivee;
   if (modifs.dateDepart !== undefined) payload.dateDepart = modifs.dateDepart;
   if (modifs.acompte !== undefined) payload.acompte = modifs.acompte;
+  if (modifs.note !== undefined) payload.note = modifs.note;
+  if (modifs.reponseReception !== undefined) payload.reponseReception = modifs.reponseReception;
   return payload;
+}
+
+/** Écriture locale de la fiche client après un PATCH /clients/:id réussi —
+ * seuls les champs fournis sont touchés (les autres gardent leur valeur) ;
+ * affichage immédiat, le prochain pull réconcilie avec la version serveur. */
+export async function ecrireClientLocal(
+  id: string,
+  champs: { nom?: string; telephone?: string; email?: string; typePiece?: string; numeroPiece?: string; notes?: string }
+): Promise<void> {
+  const db = await obtenirBase();
+  const colonnes = (Object.keys(champs) as (keyof typeof champs)[]).filter((k) => champs[k] !== undefined);
+  const affectations = [...colonnes.map((c) => `${c} = ?`), "updatedAt = ?"].join(", ");
+  const valeurs = [...colonnes.map((c) => champs[c] ?? null), new Date().toISOString(), id, id];
+  await db.runAsync(`UPDATE clients SET ${affectations} WHERE id = ? OR remoteId = ?`, valeurs);
 }
 
 /** Écriture locale d'un changement confirmé par le serveur (confirmer,

@@ -18,7 +18,7 @@ export function EcranConnexionWeb() {
       <div className="carte-auth">
         <img className="carte-auth__logo" src="/logo-hotelsaver.png" alt="" />
         <div className="carte-auth__marque">HotelSaver</div>
-        <h1 className="carte-auth__titre">Bon retour 👋</h1>
+        <h1 className="carte-auth__titre">Bon retour</h1>
         <p className="carte-auth__sous-titre">
           Votre espace hôtelier se trouve dans l'application HotelSaver. Ouvrez-la et connectez-vous avec votre adresse
           e-mail et votre mot de passe.

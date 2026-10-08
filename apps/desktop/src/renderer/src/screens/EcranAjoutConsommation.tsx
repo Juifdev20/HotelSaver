@@ -1,9 +1,12 @@
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Devise, type CompteCafeteria, type Produit } from "@hotel-chicago/types";
+import { Devise, TypeProduit, type CompteCafeteria, type MenuDuJour, type Produit } from "@hotel-chicago/types";
+import { normaliserCodeBarres, trouverProduitParCode } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
-import { Minus, Plus, Search, X } from "lucide-react";
+import { Camera, Minus, Plus, ScanBarcode, Search, Star, X } from "lucide-react";
+import { ScannerWebcam } from "../components/ScannerWebcam";
+import { bip, useDouchette } from "../components/scan";
 
 export interface EcranAjoutConsommationProps {
   client: ClientApi;
@@ -12,9 +15,13 @@ export interface EcranAjoutConsommationProps {
   produits: Produit[];
   /** Quantités ajoutées aujourd'hui par produit (les plus demandés passent en tête). */
   populaires: Map<string, number>;
+  /** Menu du jour actif, null si non défini. */
+  menuDuJour?: MenuDuJour | null;
   onRetour: () => void;
   /** Panier validé : l'écran du compte se recharge et revient à la vue d'ensemble. */
   onAjoute: () => void;
+  /** « Vente rapide » : la webcam s'ouvre dès l'arrivée (la douchette marche toujours). */
+  scannerAuDemarrage?: boolean;
 }
 
 const NB_POPULAIRES = 6;
@@ -31,8 +38,24 @@ function normaliser(texte: string): string {
  * Même logique que l'écran mobile (apps/mobile/src/ecrans/EcranAjoutConsommation.tsx), en ligne
  * directe : chaque ligne appelle l'API, qui contrôle le stock.
  */
-export function EcranAjoutConsommation({ client, compte, personne, produits, populaires, onRetour, onAjoute }: EcranAjoutConsommationProps) {
+export function EcranAjoutConsommation({
+  client,
+  compte,
+  personne,
+  produits,
+  populaires,
+  menuDuJour,
+  onRetour,
+  onAjoute,
+  scannerAuDemarrage = false,
+}: EcranAjoutConsommationProps) {
   const [recherche, setRecherche] = useState("");
+  // Scan (08/10/2026) : douchette (écoute globale du clavier), webcam, code inconnu à associer.
+  const [webcamOuverte, setWebcamOuverte] = useState(scannerAuDemarrage);
+  const [infoScan, setInfoScan] = useState<string | null>(null);
+  const [codeInconnu, setCodeInconnu] = useState<string | null>(null);
+  const [produitAssocie, setProduitAssocie] = useState("");
+  const [codesAssocies, setCodesAssocies] = useState<Record<string, string>>({});
   const [categorie, setCategorie] = useState(TOUTES);
   const [panier, setPanier] = useState<Record<string, number>>({});
   const [enEnvoi, setEnEnvoi] = useState(false);
@@ -81,6 +104,58 @@ export function EcranAjoutConsommation({ client, compte, personne, produits, pop
       else suivant[produit.id] = quantite;
       return suivant;
     });
+  }
+
+  const panierRef = useRef(panier);
+  panierRef.current = panier;
+
+  /** Code lu (douchette, webcam ou recherche) → l'article part au panier, sans appel réseau. */
+  function ajouterParCode(brut: string): string {
+    const code = normaliserCodeBarres(brut);
+    if (!code) return "";
+    const idAssocie = codesAssocies[code];
+    const produit = (idAssocie && produitsParId.get(idAssocie)) || trouverProduitParCode(produits, code);
+    if (!produit) {
+      bip("erreur");
+      setCodeInconnu(code);
+      const message = `Code ${code} inconnu`;
+      setInfoScan(message);
+      return message;
+    }
+    const stock = Number(produit.stockActuel);
+    const deja = panierRef.current[produit.id] ?? 0;
+    if (produit.typeProduit !== TypeProduit.PLAT && deja + 1 > stock) {
+      bip("erreur");
+      const message = stock <= 0 ? `${produit.nom} : épuisé` : `${produit.nom} : plus que ${stock} en stock`;
+      setInfoScan(message);
+      return message;
+    }
+    changer(produit, 1);
+    bip("ok");
+    setCodeInconnu(null);
+    const message = `${produit.nom} ajouté (${deja + 1})`;
+    setInfoScan(message);
+    return message;
+  }
+
+  useDouchette(ajouterParCode, !webcamOuverte);
+
+  /** Associe le code inconnu au produit choisi (route ouverte à la cafétaria), puis l'ajoute. */
+  async function associerCode() {
+    const code = codeInconnu;
+    const produit = produitsParId.get(produitAssocie);
+    if (!code || !produit) return;
+    try {
+      await client.associerCodeBarres(produit.id, code);
+      setCodesAssocies((courant) => ({ ...courant, [code]: produit.id }));
+      setCodeInconnu(null);
+      setProduitAssocie("");
+      changer(produit, 1);
+      bip("ok");
+      setInfoScan(`Code associé à ${produit.nom} — ajouté à la sélection.`);
+    } catch (e) {
+      setInfoScan(e instanceof Error ? e.message : "Association impossible.");
+    }
   }
 
   function retour() {
@@ -174,6 +249,13 @@ export function EcranAjoutConsommation({ client, compte, personne, produits, pop
                 placeholder="Rechercher un produit…"
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
+                onKeyDown={(e) => {
+                  // Code saisi ou collé à la main puis Entrée : ajout direct s'il est connu.
+                  if (e.key === "Enter" && (trouverProduitParCode(produits, recherche) || codesAssocies[normaliserCodeBarres(recherche)])) {
+                    ajouterParCode(recherche);
+                    setRecherche("");
+                  }
+                }}
                 autoFocus
               />
               {recherche && (
@@ -182,7 +264,51 @@ export function EcranAjoutConsommation({ client, compte, personne, produits, pop
                 </button>
               )}
             </label>
+            <Button type="button" variant="secondary" onClick={() => setWebcamOuverte(true)}>
+              <Camera size={16} aria-hidden="true" /> Scanner
+            </Button>
           </div>
+
+          {infoScan && (
+            <div
+              className="carte-formulaire"
+              role="status"
+              style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderColor: codeInconnu ? "var(--hc-danger)" : "var(--hc-success)" }}
+            >
+              <ScanBarcode size={16} aria-hidden="true" />
+              <span className="hc-text-body" style={{ flex: 1 }}>
+                {infoScan}
+              </span>
+              {codeInconnu && (
+                <>
+                  <select value={produitAssocie} onChange={(e) => setProduitAssocie(e.target.value)} aria-label="Produit correspondant">
+                    <option value="">Associer à un produit…</option>
+                    {produits
+                      .filter((p) => p.typeProduit !== TypeProduit.PLAT && !p.codeBarres)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nom}
+                        </option>
+                      ))}
+                  </select>
+                  <Button type="button" onClick={associerCode} disabled={!produitAssocie}>
+                    Associer
+                  </Button>
+                </>
+              )}
+              <button
+                type="button"
+                className="champ-recherche__effacer"
+                onClick={() => {
+                  setInfoScan(null);
+                  setCodeInconnu(null);
+                }}
+                aria-label="Fermer le message"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+          )}
 
           {categories.length > 2 && (
             <div className="puces" role="group" aria-label="Catégorie">
@@ -191,6 +317,26 @@ export function EcranAjoutConsommation({ client, compte, personne, produits, pop
                   {c}
                 </button>
               ))}
+            </div>
+          )}
+
+          {menuDuJour && menuDuJour.items.length > 0 && (
+            <div className="ajout-conso__menu-du-jour">
+              <p className="hc-text-label ajout-conso__menu-du-jour__titre">
+                <Star size={13} aria-hidden="true" />
+                Menu du jour
+              </p>
+              <div className="ajout-conso__grille">
+                {menuDuJour.items
+                  .filter((item) => produits.find((p) => p.id === item.produitId))
+                  .map((item) => {
+                    const p = produits.find((p) => p.id === item.produitId)!;
+                    const prixAffiche = item.prixSpecial ?? p.prix;
+                    const deviseAffichee = item.deviseSpeciale ?? p.devise;
+                    return carteProduit({ ...p, prix: prixAffiche, devise: deviseAffichee as Devise });
+                  })}
+              </div>
+              <hr className="ajout-conso__separateur" />
             </div>
           )}
 
@@ -234,6 +380,10 @@ export function EcranAjoutConsommation({ client, compte, personne, produits, pop
           </Button>
         </aside>
       </div>
+
+      {webcamOuverte && (
+        <ScannerWebcam mode="continu" onCode={ajouterParCode} onFermer={() => setWebcamOuverte(false)} titre={`Scanner pour ${personne.nom}`} />
+      )}
     </div>
   );
 }

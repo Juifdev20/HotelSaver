@@ -15,6 +15,14 @@ export enum Devise {
   CDF = "CDF",
 }
 
+/** Doit rester synchronisé avec l'enum `TypeProduit` de schema.prisma :
+ * PLAT = préparé (cuisine/site, sans stock compté) ; ARTICLE = comptoir
+ * (stocké, servi directement). */
+export enum TypeProduit {
+  ARTICLE = "ARTICLE",
+  PLAT = "PLAT",
+}
+
 /** Utilisateur authentifié attaché à la requête par le AuthGuard (apps/api). */
 export interface UtilisateurAuthentifie {
   /** Utilisateur.id (Prisma), pas le supabaseAuthId brut */
@@ -26,6 +34,12 @@ export interface UtilisateurAuthentifie {
   /** Réglage de l'hôtel (séparation des tâches) : le patron peut-il aussi réaliser les opérations du
    * quotidien ? Absent/false = non. Lire via `peutOperer`, jamais directement. */
   patronPeutOperer?: boolean;
+  /** Réglage de l'hôtel : file de production cuisine active (EN_ATTENTE → SERVI, écran Cuisine,
+   * badges sur les comptes) ? Absent/false = vente au comptoir, lignes créées directement SERVI. */
+  cuisineActivee?: boolean;
+  /** Réglage de l'hôtel : les clients peuvent commander depuis le site public
+   * (onglet « Cuisine » du site, POST /public/commande). Absent/false = canal fermé. */
+  commandeWebActivee?: boolean;
 }
 
 /**
@@ -46,6 +60,9 @@ export interface ProfilConnecte extends UtilisateurAuthentifie {
   /** Adresse et téléphone de l'hôtel : imprimés dans l'en-tête des reçus. */
   hotelAdresse: string | null;
   hotelTelephone: string | null;
+  /** Adresse du site public de l'hôtel (domaine personnalisé vérifié, sinon
+   * `SITE_WEB_URL/?hotel=<sousDomaine>`) — base du lien de suivi client. */
+  hotelUrlSite: string;
 }
 
 /** Super-admin authentifié attaché à la requête par SuperAdminAuthGuard
@@ -92,10 +109,24 @@ export interface Produit {
   categorie: string;
   prix: string;
   devise: Devise;
+  /** Plat préparé ou article de comptoir stocké (défaut ARTICLE). */
+  typeProduit: TypeProduit;
   photo: string | null;
   stockActuel: string;
   seuilAlerte: string;
+  prixAchat?: string;   // Decimal → string, facultatif — prix d'acquisition pour le calcul de marge
   actif: boolean;
+  /** Opt-in site public : visible et commandable sur la page « Cuisine » du site
+   * (si l'hôtel a activé commandeWebActivee). */
+  commandableEnLigne: boolean;
+  /** Description affichée sur la page publique (facultative). */
+  description?: string | null;
+  /** PLAT : portions préparées restantes ; null/absent = illimité (cuisine à
+   * la commande). Décrémenté à la vente ; 0 = « Épuisé ». */
+  portionsDisponibles?: number | null;
+  /** ARTICLE : code-barres du fabricant ou EAN-13 interne (préfixe 2) —
+   * l'identifiant seul, jamais le prix. null = pas de code. */
+  codeBarres?: string | null;
   /** Présents en base (comme Chambre) mais absents jusqu'ici de ce type —
    * ajoutés pour le miroir hors ligne Cafétaria (Phase 6, 26/09/2026), voir
    * apps/mobile/src/stockage/stockageLocalMobile.ts. */
@@ -175,6 +206,22 @@ export enum ModePaiement {
 export const MODES_ENCAISSEMENT = ["GROUPE", "PAR_SOUS_COMPTE", "PARTAGE_EGAL"] as const;
 export type ModeEncaissement = (typeof MODES_ENCAISSEMENT)[number];
 
+/** Doit rester synchronisé avec l'enum `StatutLigne` du schéma Prisma. */
+export enum StatutLigne {
+  EN_ATTENTE    = "EN_ATTENTE",
+  EN_PREPARATION = "EN_PREPARATION",
+  PRET          = "PRET",
+  SERVI         = "SERVI",
+}
+
+/** Libellés courts affichés dans les badges de statut cuisine. */
+export const LIBELLE_STATUT_LIGNE: Record<StatutLigne, string> = {
+  EN_ATTENTE:     "En attente",
+  EN_PREPARATION: "En préparation",
+  PRET:           "Prêt",
+  SERVI:          "Servi",
+};
+
 /** Forme JSON d'une LigneCommande (Decimal → string, voir Chambre), avec le
  * produit inclus (voir INCLUDE_COMPTE_COMPLET côté API). */
 export interface LigneCommande {
@@ -184,7 +231,37 @@ export interface LigneCommande {
   quantite: string;
   prixUnitaire: string;
   devise: Devise;
+  statut: StatutLigne;
+  prisEnChargeA: string | null;
+  pretA: string | null;
+  note: string | null;
   produit: Produit;
+}
+
+// ---------------------------------------------------------------------------
+// Menu du jour
+// ---------------------------------------------------------------------------
+
+/** Un item du menu du jour avec son prix spécial optionnel. */
+export interface MenuDuJourItem {
+  id: string;
+  menuId: string;
+  produitId: string;
+  prixSpecial: string | null;   // null = prix catalogue
+  deviseSpeciale: Devise | null;
+  produit: Produit;
+}
+
+/** Menu du jour d'un hôtel pour une date donnée. */
+export interface MenuDuJour {
+  id: string;
+  hotelId: string;
+  date: string; // "YYYY-MM-DD"
+  actif: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  items: MenuDuJourItem[];
 }
 
 export interface SousCompte {
@@ -224,6 +301,12 @@ export interface CompteCafeteria {
   id: string;
   tableOuNom: string;
   statut: StatutCompte;
+  /** "SITE_PUBLIC" = commande passée sur le site web public ; null = comptoir. */
+  origine?: string | null;
+  /** Téléphone / chambre du client web, pour l'identifier au comptoir. */
+  contactClient?: string | null;
+  /** Instruction globale saisie par le client web (ex. « sans piment »). */
+  noteClient?: string | null;
   ouvertPar: string;
   ouvertLe: string;
   fermeLe: string | null;
@@ -245,6 +328,44 @@ export interface MouvementStock {
   produit: Produit;
 }
 
+/** Données d'un produit retournées par GET /stock/inventaire/preparer :
+ *  stock théorique reconstitué + détail des mouvements sur la période. */
+export interface LignePreparationInventaire {
+  produitId: string;
+  nom: string;
+  categorie: string;
+  prix: string;
+  devise: Devise;
+  prixAchat?: string;
+  stockActuel: string;
+  stockTheorique: number;
+  entrees: number;
+  sortiesVentes: number;
+  pertes: number;
+  ajustements: number;
+}
+
+export interface InventairePhysiqueItem {
+  id: string;
+  produitId: string;
+  produit: { nom: string; categorie: string; prix: string; devise: Devise; prixAchat?: string };
+  stockTheorique: string;
+  stockPhysique: string;
+  ecart: string;
+  note: string | null;
+}
+
+export interface InventairePhysique {
+  id: string;
+  dateDebut: string;
+  dateFin: string;
+  titre: string | null;
+  createdBy: string;
+  createdAt: string;
+  pdfUrl: string | null;
+  items: InventairePhysiqueItem[];
+}
+
 export const STATUTS_RESERVATION = ["EN_ATTENTE", "CONFIRMEE", "EN_COURS", "TERMINEE", "ANNULEE"] as const;
 export type StatutReservation = (typeof STATUTS_RESERVATION)[number];
 
@@ -253,6 +374,10 @@ export interface Client {
   nom: string;
   telephone: string | null;
   email: string | null;
+  /** Registre de police / fidélisation — fiche client complète. */
+  typePiece: string | null;
+  numeroPiece: string | null;
+  notes: string | null;
   /** Présents en base depuis la Phase 16 (pull /sync/pull + miroir local) —
    * jamais renseignés dans le payload `client` inline de création. */
   updatedAt: string;
@@ -294,6 +419,16 @@ export interface Reservation {
   acompte: string;
   statut: StatutReservation;
   origine: string;
+  /** Demandes spéciales du client (lit bébé, étage…) affichées à l'arrivée. */
+  note: string | null;
+  /** Secret du lien « Ma réservation » envoyé au client (voir `lienSuivi`). */
+  jetonSuivi: string;
+  /** Pré-enregistrement en ligne par le client : « HH:MM », texte libre, date. */
+  heureArriveePrevue: string | null;
+  demandeClient: string | null;
+  preEnregistreLe: string | null;
+  /** Message de la réception visible par le client sur sa page de suivi. */
+  reponseReception: string | null;
   annuleLe: string | null;
   motifAnnulation: string | null;
   facture: Facture | null;
@@ -363,11 +498,46 @@ export interface DemandeReservationPayload {
   dateDepart: string;
 }
 
+/** POST /public/commande — commande passée par un client depuis le site public
+ * de l'hôtel (onglet « Cuisine »). Les prix sont TOUJOURS repris côté serveur :
+ * le payload ne transporte que produitId + quantite (+ note de préparation). */
+export interface CommandeWebPayload {
+  sousDomaine: string;
+  client: {
+    nom: string;
+    /** Téléphone/WhatsApp pour identifier le client au comptoir. */
+    telephone?: string;
+    /** N° de chambre si le client est un invité de l'hôtel (facultatif). */
+    chambre?: string;
+    /** Instruction globale (ex. « sans piment »). */
+    note?: string;
+  };
+  lignes: {
+    produitId: string;
+    quantite: number;
+    /** Instruction propre à l'article (ex. « bien cuit »). */
+    note?: string;
+  }[];
+}
+
+/** Réponse de POST /public/commande — confirmation affichée au client :
+ * référence courte à présenter au comptoir + total calculé côté serveur. */
+export interface CommandeWebCreee {
+  compteId: string;
+  /** Référence courte lisible (8 premiers caractères de l'id). */
+  reference: string;
+  /** Totaux par devise — les produits peuvent être en USD ET en CDF, jamais fusionnés. */
+  totalUSD: number;
+  totalCDF: number;
+}
+
 /** Réponse de GET /public/hotel — charte graphique publique d'un hôtel
  * (Phase 11), volontairement minimale (ni statutLicence, ni emailContact,
  * etc., qui n'ont rien à faire côté public). */
 export interface InfoHotelPublique extends ContenuSiteHotel {
   nom: string;
+  /** Réglage hôtel : l'onglet « Cuisine » (commande en ligne) est-il visible sur le site ? */
+  commandeWebActivee: boolean;
   logoUrl: string | null;
   policeAffichage: string;
   policeCorps: string;
@@ -448,7 +618,7 @@ export interface SiteHotelEditable extends ContenuSiteHotel {
   emailContact: string | null;
 }
 
-export type UsageImage = "chambre" | "couverture" | "galerie";
+export type UsageImage = "chambre" | "couverture" | "galerie" | "produit";
 
 /** Nombre maximal de photos par chambre (imposé aussi par l'API). */
 export const MAX_PHOTOS_CHAMBRE = 2;
@@ -498,6 +668,8 @@ export const TYPES_NOTIFICATION = [
   "LICENCE_SUSPENDUE",
   "RAPPORT_A_GENERER",
   "RAPPORT_DISPONIBLE",
+  "COMMANDE_WEB",
+  "PRE_ENREGISTREMENT",
 ] as const;
 export type TypeNotification = (typeof TYPES_NOTIFICATION)[number];
 
@@ -518,10 +690,12 @@ export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification>
   LICENCE_SUSPENDUE: "securite",
   RAPPORT_A_GENERER: "quotidien",
   RAPPORT_DISPONIBLE: "quotidien",
+  COMMANDE_WEB: "reservations",
+  PRE_ENREGISTREMENT: "reservations",
 };
 
 /** Écrans que le clic sur une notification peut ouvrir (mêmes ids que la navigation des apps). */
-export type EcranNotification = "reservations" | "arrivees-departs" | "chambres" | "stock" | "facturation" | "tableau-de-bord" | "rapports";
+export type EcranNotification = "reservations" | "arrivees-departs" | "chambres" | "stock" | "facturation" | "tableau-de-bord" | "rapports" | "comptes-ouverts";
 
 export interface LienNotification {
   ecran: EcranNotification;
@@ -617,4 +791,109 @@ export interface RecetteDuMois {
   chambres?: MontantsParDevise & { nombreFactures: number; nuitees: number; tauxOccupationPourcent: number };
   cafeteria?: MontantsParDevise & { nombreVentes: number; panierMoyenUSD: number; panierMoyenCDF: number };
   total: MontantsParDevise;
+}
+
+// ---------------------------------------------------------------------------
+// Dépenses par département (réception, cafétaria) — saisies par le personnel,
+// consultées par le patron (demande du 07/10/2026).
+// ---------------------------------------------------------------------------
+
+/** Une ligne de GET /depenses. `montant` est un Decimal Prisma sérialisé en
+ * chaîne ; `date` = « AAAA-MM-JJ » (jour de la dépense, sans heure). */
+export interface Depense {
+  id: string;
+  departement: DepartementRapport;
+  date: string;
+  motif: string;
+  montant: string;
+  devise: Devise;
+  creeParId: string;
+  creeParNom: string;
+  annulee: boolean;
+  annuleeLe: string | null;
+  createdAt: string;
+  updatedAt: string;
+  syncVersion: number;
+}
+
+export interface CreerDepense {
+  /** « AAAA-MM-JJ ». */
+  date: string;
+  motif: string;
+  montant: number;
+  devise: Devise;
+}
+
+export interface ModifierDepense extends Partial<CreerDepense> {
+  /** true = annuler la dépense (irréversible, jamais de suppression). */
+  annulee?: boolean;
+}
+
+export interface FiltresDepenses {
+  /** « AAAA-MM-JJ » inclus. */
+  du: string;
+  /** « AAAA-MM-JJ » inclus. */
+  au: string;
+  /** PATRON seulement — le personnel ne voit que son département. */
+  departement?: DepartementRapport;
+}
+
+// ---------------------------------------------------------------------------
+// Suivi de réservation par le client (site de l'hôtel) + pré-enregistrement
+// en ligne (07/10/2026).
+// ---------------------------------------------------------------------------
+
+/** Code lisible montré au client : « RES-1A2B3C4D ». */
+export function codeSuivi(jetonSuivi: string): string {
+  return `RES-${jetonSuivi.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+}
+
+/** Lien « Ma réservation » à partir de l'adresse du site de l'hôtel
+ * (`ProfilConnecte.hotelUrlSite`) — construit sans réseau, depuis le miroir
+ * local. Garde la requête `?hotel=` quand le site n'a pas de domaine propre. */
+export function lienSuivi(hotelUrlSite: string, jetonSuivi: string): string {
+  const [base, requete] = hotelUrlSite.split("?");
+  return `${base.replace(/\/+$/, "")}/ma-reservation/${encodeURIComponent(jetonSuivi)}${requete ? `?${requete}` : ""}`;
+}
+
+export type StatutSuiviPublic = "EN_ATTENTE" | "CONFIRMEE" | "EN_COURS" | "TERMINEE" | "ANNULEE" | "NON_RETENUE";
+
+/** Réponse de GET /public/suivi/:jeton — uniquement ce que le client doit
+ * voir : jamais le numéro de pièce ni le motif interne d'une annulation. */
+export interface SuiviReservationPublic {
+  code: string;
+  statut: StatutSuiviPublic;
+  hotel: { nom: string; whatsapp: string | null; telephone: string | null };
+  client: { nom: string };
+  chambre: { numero: string; type: string };
+  dateArrivee: string;
+  dateDepart: string;
+  nuits: number;
+  totalEstime: string;
+  acompte: string;
+  devise: Devise;
+  preEnregistrement: {
+    fait: boolean;
+    le: string | null;
+    heureArriveePrevue: string | null;
+    demandeClient: string | null;
+    pieceRenseignee: boolean;
+  };
+  /** Message laissé par la réception — la voix de l'hôtel dans le suivi. */
+  reponseReception: string | null;
+  peutAnnuler: boolean;
+  peutPreEnregistrer: boolean;
+}
+
+export type TypePiece = "CNI" | "PASSEPORT" | "PERMIS" | "AUTRE";
+
+/** Corps de POST /public/suivi/:jeton/pre-enregistrement. */
+export interface PreEnregistrementPayload {
+  typePiece: TypePiece;
+  numeroPiece: string;
+  /** « HH:MM ». */
+  heureArriveePrevue: string;
+  demandeClient?: string;
+  email?: string;
+  telephone?: string;
 }

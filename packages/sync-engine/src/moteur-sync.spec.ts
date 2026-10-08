@@ -208,6 +208,47 @@ describe("MoteurSync", () => {
     expect(appelsSyncPull).toBe(1);
   });
 
+  it("une écriture arrivée pendant un cycle en cours est envoyée juste après, sans attendre le poll", async () => {
+    const stockage = creerStockageFactice();
+    const envois: string[][] = [];
+    let libererPull: () => void = () => {};
+    const client = creerClientFactice({
+      syncPush: async (operations) => {
+        envois.push(operations.map((o) => o.localId));
+        return operations.map((op) => ({ localId: op.localId, remoteId: op.localId, syncVersion: 1, statut: "SYNCED" }));
+      },
+      syncPull: () => new Promise((resolve) => (libererPull = () => resolve({}))),
+    });
+    const moteur = new MoteurSync(client, stockage, ["Chambre"]);
+
+    const premierCycle = moteur.forcerSynchronisation(); // bloqué sur le pull
+    await new Promise((r) => setTimeout(r, 0));
+    await moteur.mettreEnFile({ entiteType: "CompteCafeteria", localId: "compte-1", operation: "CREATE", payload: { tableOuNom: "Comptoir" } });
+    libererPull();
+    await premierCycle;
+    // Le cycle enchaîné tourne : on libère son pull à son tour.
+    await new Promise((r) => setTimeout(r, 0));
+    libererPull();
+    await moteur.forcerSynchronisation();
+
+    expect(envois).toContainEqual(["compte-1"]);
+    expect(stockage.file).toHaveLength(0);
+  });
+
+  it("prévient les écrans dès la fin de l'envoi, avant la fin de la réception", async () => {
+    const stockage = creerStockageFactice();
+    let libererPull: () => void = () => {};
+    const client = creerClientFactice({ syncPull: () => new Promise((resolve) => (libererPull = () => resolve({}))) });
+    const moteur = new MoteurSync(client, stockage, ["Chambre"]);
+    await stockage.ajouterFileAttente({ entiteType: "CompteCafeteria", localId: "c1", operation: "CREATE", payload: {} });
+
+    const cycle = moteur.forcerSynchronisation();
+    for (let i = 0; i < 10 && !moteur.etatActuel().dernierePousseeLe; i++) await new Promise((r) => setTimeout(r, 0));
+    expect(moteur.etatActuel().dernierePousseeLe).not.toBeNull(); // pull toujours en attente
+    libererPull();
+    await cycle;
+  });
+
   it("renseigne le remoteId des enfants créés implicitement par un CREATE parent", async () => {
     const stockage = creerStockageFactice();
     const client = creerClientFactice({

@@ -16,9 +16,15 @@ function creerPrismaMock() {
       create: jest.fn(),
     },
     chambre: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-    reservation: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn() },
-    produit: { findMany: jest.fn().mockResolvedValue([]) },
-    client: { findFirst: jest.fn(), create: jest.fn() },
+    reservation: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    hotelSite: { findUnique: jest.fn().mockResolvedValue({ whatsapp: "+243970000000" }) },
+    $transaction: jest.fn().mockResolvedValue([]),
+    produit: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+    client: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+    compteCafeteria: { create: jest.fn(), delete: jest.fn() },
+    sousCompte: { deleteMany: jest.fn() },
+    ligneCommande: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), deleteMany: jest.fn() },
+    mouvementStock: { create: jest.fn(), deleteMany: jest.fn() },
   } as any;
 }
 
@@ -35,13 +41,15 @@ function creerSupabaseAdminMock() {
 describe("PublicService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
   let supabaseAdmin: ReturnType<typeof creerSupabaseAdminMock>;
+  let notifications: { emettre: jest.Mock };
   let service: PublicService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = creerPrismaMock();
     supabaseAdmin = creerSupabaseAdminMock();
-    service = new PublicService(prisma, supabaseAdmin, { emettre: jest.fn() } as any);
+    notifications = { emettre: jest.fn() };
+    service = new PublicService(prisma, supabaseAdmin, notifications as any);
     (extraireCouleursLogo as jest.Mock).mockResolvedValue(null);
   });
 
@@ -109,6 +117,137 @@ describe("PublicService", () => {
     });
   });
 
+  describe("creerCommandeWeb", () => {
+    const dto = {
+      sousDomaine: "chicago",
+      client: { nom: "Aline Web", telephone: "+243999000000", chambre: "12", note: "sans piment" },
+      lignes: [
+        { produitId: "p1", quantite: 2, note: "bien cuit" },
+        { produitId: "p2", quantite: 1 },
+      ],
+    };
+
+    function hotelAvecCommandeWeb() {
+      prisma.hotel.findFirst.mockResolvedValue({
+        id: HOTEL_ID,
+        statutLicence: "ACTIF",
+        commandeWebActivee: true,
+        cuisineActivee: true,
+      });
+    }
+
+    it("lève NotFoundException si l'hôtel n'a pas activé la commande en ligne", async () => {
+      prisma.hotel.findFirst.mockResolvedValue({ id: HOTEL_ID, statutLicence: "ACTIF", commandeWebActivee: false });
+      await expect(service.creerCommandeWeb(dto as any)).rejects.toThrow(NotFoundException);
+      expect(prisma.compteCafeteria.create).not.toHaveBeenCalled();
+    });
+
+    it("rejette un produit absent ou non commandable en ligne", async () => {
+      hotelAvecCommandeWeb();
+      prisma.produit.findMany.mockResolvedValue([{ id: "p1", prix: 5, devise: "USD", stockActuel: 10 }]);
+      await expect(service.creerCommandeWeb(dto as any)).rejects.toThrow(BadRequestException);
+      expect(prisma.compteCafeteria.create).not.toHaveBeenCalled();
+    });
+
+    it("la requête produits n'accepte que des plats commandables (les articles de comptoir sont rejetés côté requête)", async () => {
+      hotelAvecCommandeWeb();
+      prisma.produit.findMany.mockResolvedValue([]);
+      await expect(service.creerCommandeWeb(dto as any)).rejects.toThrow(BadRequestException);
+      expect(prisma.produit.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ hotelId: HOTEL_ID, actif: true, commandableEnLigne: true, typeProduit: "PLAT" }),
+        })
+      );
+      expect(prisma.compteCafeteria.create).not.toHaveBeenCalled();
+    });
+
+    it("crée un compte SITE_PUBLIC avec lignes EN_ATTENTE (cuisine active), prix serveur et notification", async () => {
+      hotelAvecCommandeWeb();
+      prisma.produit.findMany.mockResolvedValue([
+        { id: "p1", nom: "Pizza", prix: 5, devise: "USD", typeProduit: "PLAT" },
+        { id: "p2", nom: "Jus", prix: 2000, devise: "CDF", typeProduit: "PLAT" },
+      ]);
+      prisma.compteCafeteria.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({ id: "compte-web-123456", ...data, sousComptes: [{ id: "sc1" }] })
+      );
+      prisma.ligneCommande.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "l1", ...data }));
+
+      const resultat = await service.creerCommandeWeb(dto as any);
+
+      expect(prisma.compteCafeteria.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            hotelId: HOTEL_ID,
+            origine: "SITE_PUBLIC",
+            ouvertPar: "SITE_PUBLIC",
+            contactClient: "+243999000000 · ch. 12",
+            noteClient: "sans piment",
+          }),
+        })
+      );
+      // Prix repris en base (5 USD et 2000 CDF), jamais depuis le client.
+      expect(prisma.ligneCommande.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ produitId: "p1", prixUnitaire: 5, devise: "USD", statut: "EN_ATTENTE", note: "bien cuit" }),
+        })
+      );
+      expect(prisma.ligneCommande.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ produitId: "p2", prixUnitaire: 2000, devise: "CDF" }) })
+      );
+      // Un plat n'a pas de stock compté : aucun décrément ni mouvement.
+      expect(prisma.mouvementStock.create).not.toHaveBeenCalled();
+      expect(notifications.emettre).toHaveBeenCalledWith(
+        expect.objectContaining({ hotelId: HOTEL_ID, type: "COMMANDE_WEB" })
+      );
+      expect(resultat.totalUSD).toBe(10);
+      expect(resultat.totalCDF).toBe(2000);
+      expect(resultat.reference).toBe("COMPTE-W");
+    });
+
+    it("crée les lignes directement SERVI quand la cuisine interne est désactivée", async () => {
+      prisma.hotel.findFirst.mockResolvedValue({
+        id: HOTEL_ID,
+        statutLicence: "ACTIF",
+        commandeWebActivee: true,
+        cuisineActivee: false,
+      });
+      prisma.produit.findMany.mockResolvedValue([{ id: "p1", nom: "Pizza", prix: 5, devise: "USD", typeProduit: "PLAT" }]);
+      prisma.compteCafeteria.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({ id: "c-web", ...data, sousComptes: [{ id: "sc1" }] })
+      );
+      prisma.ligneCommande.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "l1", ...data }));
+
+      await service.creerCommandeWeb({ ...dto, lignes: [{ produitId: "p1", quantite: 1 }] } as any);
+
+      expect(prisma.ligneCommande.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ statut: "SERVI" }) })
+      );
+    });
+
+    it("défait la commande partielle si la création d'une ligne échoue en cours de route", async () => {
+      hotelAvecCommandeWeb();
+      prisma.produit.findMany.mockResolvedValue([
+        { id: "p1", nom: "Pizza", prix: 5, devise: "USD", typeProduit: "PLAT" },
+        { id: "p2", nom: "Jus", prix: 2000, devise: "CDF", typeProduit: "PLAT" },
+      ]);
+      prisma.compteCafeteria.create.mockImplementation(({ data }: any) =>
+        Promise.resolve({ id: "c-web", ...data, sousComptes: [{ id: "sc1" }] })
+      );
+      prisma.ligneCommande.findMany.mockResolvedValue([{ id: "l1" }]);
+      prisma.ligneCommande.create
+        .mockResolvedValueOnce({ id: "l1" })
+        .mockRejectedValueOnce(new Error("contrainte violée"));
+
+      await expect(service.creerCommandeWeb(dto as any)).rejects.toThrow("contrainte violée");
+
+      // Lignes, sous-compte et compte supprimés — pas de compte fantôme.
+      expect(prisma.ligneCommande.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["l1"] } } });
+      expect(prisma.sousCompte.deleteMany).toHaveBeenCalledWith({ where: { compteId: "c-web" } });
+      expect(prisma.compteCafeteria.delete).toHaveBeenCalledWith({ where: { id: "c-web" } });
+      expect(notifications.emettre).not.toHaveBeenCalled();
+    });
+  });
+
   describe("findMenu", () => {
     it("retourne les produits actifs de l'hôtel résolu", async () => {
       await service.findMenu({ sousDomaine: "chicago" } as any);
@@ -116,7 +255,7 @@ describe("PublicService", () => {
         where: { OR: [{ domainePersonnalise: "chicago" }, { sousDomaine: "chicago" }] },
       });
       expect(prisma.produit.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { hotelId: HOTEL_ID, actif: true } })
+        expect.objectContaining({ where: { hotelId: HOTEL_ID, actif: true, commandableEnLigne: true, typeProduit: "PLAT" } })
       );
     });
 
@@ -143,25 +282,126 @@ describe("PublicService", () => {
     it("réutilise un client existant trouvé par téléphone plutôt que d'en créer un nouveau", async () => {
       prisma.chambre.findUnique.mockResolvedValue({ id: "c1" });
       prisma.client.findFirst.mockResolvedValue({ id: "client-existant" });
-      prisma.reservation.create.mockImplementation(({ data }: any) => Promise.resolve(data));
+      prisma.reservation.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "r1", jetonSuivi: "jeton-1", ...data }));
 
-      const resa = await service.creerDemandeReservation(dto as any);
+      await service.creerDemandeReservation(dto as any);
 
       expect(prisma.client.create).not.toHaveBeenCalled();
-      expect(resa.clientId).toBe("client-existant");
+      expect(prisma.reservation.create.mock.calls[0][0].data.clientId).toBe("client-existant");
     });
 
     it("crée toujours la réservation en EN_ATTENTE / SITE_PUBLIC, jamais confirmée", async () => {
       prisma.chambre.findUnique.mockResolvedValue({ id: "c1" });
       prisma.client.findFirst.mockResolvedValue(null);
       prisma.client.create.mockResolvedValue({ id: "nouveau-client" });
-      prisma.reservation.create.mockImplementation(({ data }: any) => Promise.resolve(data));
+      prisma.reservation.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "r1", jetonSuivi: "jeton-1", ...data }));
 
       const resa = await service.creerDemandeReservation(dto as any);
 
-      expect(resa.statut).toBe("EN_ATTENTE");
-      expect(resa.origine).toBe("SITE_PUBLIC");
-      expect(resa.createdBy).toBe("SITE_PUBLIC");
+      const { data } = prisma.reservation.create.mock.calls[0][0];
+      expect(data.statut).toBe("EN_ATTENTE");
+      expect(data.origine).toBe("SITE_PUBLIC");
+      expect(data.createdBy).toBe("SITE_PUBLIC");
+      // Le site ne reçoit que le jeton de suivi, jamais la fiche client.
+      expect(resa).toEqual({ id: "r1", statut: "EN_ATTENTE", jetonSuivi: "jeton-1" });
+    });
+  });
+
+  describe("suivi de réservation par le client", () => {
+    const demain = new Date(Date.now() + 2 * 86_400_000);
+    const reservation = (over: Record<string, unknown> = {}) => ({
+      id: "r1",
+      clientId: "client-1",
+      jetonSuivi: "1a2b3c4d-0000-4000-8000-000000000000",
+      statut: "CONFIRMEE",
+      dateArrivee: demain,
+      dateDepart: new Date(demain.getTime() + 2 * 86_400_000),
+      acompte: "10",
+      motifAnnulation: null,
+      heureArriveePrevue: null,
+      demandeClient: null,
+      preEnregistreLe: null,
+      reponseReception: null,
+      chambre: { numero: "12", type: "Double", prixParNuit: "45", devise: "USD" },
+      client: { nom: "Jean Visiteur", typePiece: "CNI", numeroPiece: "SECRET-123" },
+      ...over,
+    });
+    const q = { sousDomaine: "chicago" };
+
+    it("cherche le jeton dans l'hôtel du site consulté seulement (404 sinon)", async () => {
+      prisma.reservation.findFirst.mockResolvedValue(null);
+      await expect(service.obtenirSuiviReservation("jeton", q)).rejects.toThrow(NotFoundException);
+      expect(prisma.reservation.findFirst.mock.calls[0][0].where).toEqual({ jetonSuivi: "jeton", hotelId: HOTEL_ID });
+    });
+
+    it("ne renvoie jamais le numéro de pièce ni le motif interne", async () => {
+      prisma.reservation.findFirst.mockResolvedValue(reservation({ statut: "ANNULEE", motifAnnulation: "Client douteux" }));
+      const suivi = await service.obtenirSuiviReservation("jeton", q);
+      expect(JSON.stringify(suivi)).not.toContain("SECRET-123");
+      expect(JSON.stringify(suivi)).not.toContain("Client douteux");
+      expect(suivi.statut).toBe("NON_RETENUE");
+      expect(suivi.preEnregistrement.pieceRenseignee).toBe(true);
+    });
+
+    it("expose la réponse de la réception au client", async () => {
+      prisma.reservation.findFirst.mockResolvedValue(reservation({ reponseReception: "Acompte de 30 $ attendu à l'arrivée." }));
+      const suivi = await service.obtenirSuiviReservation("jeton", q);
+      expect(suivi.reponseReception).toBe("Acompte de 30 $ attendu à l'arrivée.");
+    });
+
+    it("calcule code, nuits, total estimé et droits du client", async () => {
+      prisma.reservation.findFirst.mockResolvedValue(reservation());
+      const suivi = await service.obtenirSuiviReservation("jeton", q);
+      expect(suivi).toMatchObject({
+        code: "RES-1A2B3C4D",
+        statut: "CONFIRMEE",
+        nuits: 2,
+        totalEstime: "90",
+        devise: "USD",
+        hotel: { whatsapp: "+243970000000" },
+        peutAnnuler: true,
+        peutPreEnregistrer: true,
+      });
+    });
+
+    it("annulation par le client : motif reconnaissable et réception prévenue", async () => {
+      prisma.reservation.findFirst
+        .mockResolvedValueOnce(reservation())
+        .mockResolvedValueOnce(reservation({ statut: "ANNULEE", motifAnnulation: "Annulée par le client depuis le site" }));
+      const suivi = await service.annulerReservationPublique("jeton", q, { motif: "Vol annulé" });
+      expect(prisma.reservation.update.mock.calls[0][0].data).toMatchObject({
+        statut: "ANNULEE",
+        motifAnnulation: "Annulée par le client depuis le site : Vol annulé",
+        syncVersion: { increment: 1 },
+      });
+      expect(notifications.emettre.mock.calls[0][0].roles).toEqual(["RECEPTIONNISTE", "PATRON"]);
+      expect(suivi.statut).toBe("ANNULEE");
+    });
+
+    it("refuse l'annulation d'un séjour commencé ou terminé", async () => {
+      prisma.reservation.findFirst.mockResolvedValue(reservation({ statut: "EN_COURS" }));
+      await expect(service.annulerReservationPublique("jeton", q, {})).rejects.toThrow(ConflictException);
+      prisma.reservation.findFirst.mockResolvedValue(reservation({ dateArrivee: new Date(Date.now() - 3 * 86_400_000) }));
+      await expect(service.annulerReservationPublique("jeton", q, {})).rejects.toThrow(ConflictException);
+    });
+
+    it("pré-enregistrement : pièce sur le client, heure et demande sur la réservation, syncVersion+1, notification", async () => {
+      prisma.reservation.findFirst.mockResolvedValue(reservation());
+      await service.preEnregistrer("jeton", q, {
+        typePiece: "PASSEPORT",
+        numeroPiece: " OP1234567 ",
+        heureArriveePrevue: "14:30",
+        demandeClient: "  Lit bébé  ",
+      });
+      expect(prisma.client.update).toHaveBeenCalledWith({
+        where: { id: "client-1" },
+        data: { typePiece: "PASSEPORT", numeroPiece: "OP1234567", syncVersion: { increment: 1 } },
+      });
+      expect(prisma.reservation.update).toHaveBeenCalledWith({
+        where: { id: "r1" },
+        data: expect.objectContaining({ heureArriveePrevue: "14:30", demandeClient: "Lit bébé", syncVersion: { increment: 1 } }),
+      });
+      expect(notifications.emettre.mock.calls[0][0]).toMatchObject({ type: "PRE_ENREGISTREMENT" });
     });
   });
 

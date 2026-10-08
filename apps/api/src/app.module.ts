@@ -23,6 +23,7 @@ import { HotelSiteModule } from "./hotel-site/hotel-site.module";
 import { ReglagesHotelModule } from "./reglages-hotel/reglages-hotel.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { RapportsModule } from "./rapports/rapports.module";
+import { DepensesModule } from "./depenses/depenses.module";
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { RapportsModule } from "./rapports/rapports.module";
     ReglagesHotelModule,
     NotificationsModule,
     RapportsModule,
+    DepensesModule,
   ],
   providers: [
     {

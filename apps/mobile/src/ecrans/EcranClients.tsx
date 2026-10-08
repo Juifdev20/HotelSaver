@@ -2,6 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
+import { FeuilleModale } from "../composants/FeuilleModale";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
@@ -10,6 +11,7 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import {
   ClientMiroir,
   ReservationMiroir,
+  ecrireClientLocal,
   listerClientsMiroir,
   listerReservationsMiroir,
 } from "../stockage/reservationsMirroir";
@@ -38,7 +40,7 @@ const LABEL_STATUT: Record<string, string> = {
  * optimiste, marqué « en attente de synchro » jusqu'à son remoteId.
  */
 export function EcranClients({ onRetour }: EcranClientsProps) {
-  const { moteurSync } = useSession();
+  const { moteurSync, client: api } = useSession();
   const etatSync = useSyncEtat();
   const [clients, setClients] = useState<ClientMiroir[] | null>(null);
   const [reservations, setReservations] = useState<ReservationMiroir[]>([]);
@@ -46,6 +48,9 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
   const [clientChoisi, setClientChoisi] = useState<ClientMiroir | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
+  const [edition, setEdition] = useState(false);
+  const [saisie, setSaisie] = useState({ nom: "", telephone: "", email: "", typePiece: "", numeroPiece: "", notes: "" });
+  const [enCours, setEnCours] = useState(false);
 
   const recharger = useCallback(() => {
     Promise.all([listerClientsMiroir(), listerReservationsMiroir()])
@@ -84,6 +89,62 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
     return reservations.filter((r) => r.clientId === clientChoisi.id || r.clientId === clientChoisi.remoteId);
   }, [clientChoisi, reservations]);
 
+  /** Registre de police + notes : PATCH serveur puis écriture miroir locale
+   * — en ligne uniquement (la fiche concerne souvent le client au comptoir,
+   * le réseau est indispensable de toute façon pour valider l'id). */
+  async function enregistrerFiche() {
+    if (!clientChoisi) return;
+    if (!saisie.nom.trim()) {
+      setErreur("Le nom du client est obligatoire.");
+      return;
+    }
+    setEnCours(true);
+    setErreur(null);
+    try {
+      const modifie = await api.modifierClient(clientChoisi.remoteId ?? clientChoisi.id, {
+        nom: saisie.nom.trim(),
+        telephone: saisie.telephone.trim(),
+        email: saisie.email.trim(),
+        typePiece: saisie.typePiece.trim(),
+        numeroPiece: saisie.numeroPiece.trim(),
+        notes: saisie.notes.trim(),
+      });
+      await ecrireClientLocal(clientChoisi.id, {
+        nom: modifie.nom,
+        telephone: modifie.telephone ?? "",
+        email: modifie.email ?? "",
+        typePiece: modifie.typePiece ?? "",
+        numeroPiece: modifie.numeroPiece ?? "",
+        notes: modifie.notes ?? "",
+      });
+      setEdition(false);
+      recharger();
+      setClientChoisi((c) =>
+        c
+          ? { ...c, nom: modifie.nom, telephone: modifie.telephone, email: modifie.email, typePiece: modifie.typePiece, numeroPiece: modifie.numeroPiece, notes: modifie.notes }
+          : c
+      );
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Impossible d'enregistrer la fiche.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  function ouvrirEdition() {
+    if (!clientChoisi) return;
+    setSaisie({
+      nom: clientChoisi.nom,
+      telephone: clientChoisi.telephone ?? "",
+      email: clientChoisi.email ?? "",
+      typePiece: clientChoisi.typePiece ?? "",
+      numeroPiece: clientChoisi.numeroPiece ?? "",
+      notes: clientChoisi.notes ?? "",
+    });
+    setErreur(null);
+    setEdition(true);
+  }
+
   if (clientChoisi) {
     return (
       <View style={styles.page}>
@@ -93,10 +154,24 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
           <View style={styles.carte}>
             {clientChoisi.telephone && <Text style={styles.ligne}>{clientChoisi.telephone}</Text>}
             {clientChoisi.email && <Text style={styles.ligne}>{clientChoisi.email}</Text>}
-            {!clientChoisi.telephone && !clientChoisi.email && (
-              <Text style={styles.ligneSecondaire}>Aucune coordonnée enregistrée.</Text>
+            {(clientChoisi.typePiece || clientChoisi.numeroPiece) && (
+              <Text style={styles.ligneSecondaire}>
+                Pièce : {[clientChoisi.typePiece, clientChoisi.numeroPiece].filter(Boolean).join(" · ")}
+              </Text>
+            )}
+            {clientChoisi.notes && <Text style={styles.note}>{clientChoisi.notes}</Text>}
+            {!clientChoisi.telephone && !clientChoisi.email && !clientChoisi.typePiece && (
+              <Text style={styles.ligneSecondaire}>Aucune coordonnée ni pièce enregistrée.</Text>
             )}
             {clientChoisi.remoteId === null && <Text style={styles.horsLigne}>Créé hors ligne — en attente de synchronisation.</Text>}
+            {clientChoisi.remoteId !== null && etatSync.enLigne && (
+              <Pressable style={styles.boutonModifier} onPress={ouvrirEdition} accessibilityRole="button">
+                <Text style={styles.boutonModifierTexte}>Compléter la fiche</Text>
+              </Pressable>
+            )}
+            {clientChoisi.remoteId !== null && !etatSync.enLigne && (
+              <Text style={styles.horsLigne}>Modification disponible en ligne uniquement.</Text>
+            )}
           </View>
 
           <Text style={styles.titreSection}>Séjours ({sejoursDuClient.length})</Text>
@@ -110,6 +185,25 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
           ))}
           {sejoursDuClient.length === 0 && <Text style={styles.ligneSecondaire}>Aucun séjour enregistré.</Text>}
         </ConteneurFormulaire>
+
+        <FeuilleModale visible={edition} onFermer={() => setEdition(false)} titre="Fiche client">
+          {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+          <Text style={styles.champLabel}>Nom</Text>
+          <TextInput style={styles.champ} value={saisie.nom} onChangeText={(v) => setSaisie((s) => ({ ...s, nom: v }))} placeholder="Nom du client" placeholderTextColor={couleurs.encreFaible} />
+          <Text style={styles.champLabel}>Téléphone</Text>
+          <TextInput style={styles.champ} value={saisie.telephone} onChangeText={(v) => setSaisie((s) => ({ ...s, telephone: v }))} placeholder="+243 …" placeholderTextColor={couleurs.encreFaible} keyboardType="phone-pad" />
+          <Text style={styles.champLabel}>Email</Text>
+          <TextInput style={styles.champ} value={saisie.email} onChangeText={(v) => setSaisie((s) => ({ ...s, email: v }))} placeholder="Optionnel" placeholderTextColor={couleurs.encreFaible} keyboardType="email-address" autoCapitalize="none" />
+          <Text style={styles.champLabel}>Type de pièce</Text>
+          <TextInput style={styles.champ} value={saisie.typePiece} onChangeText={(v) => setSaisie((s) => ({ ...s, typePiece: v }))} placeholder="CNI, passeport, permis…" placeholderTextColor={couleurs.encreFaible} />
+          <Text style={styles.champLabel}>N° de pièce</Text>
+          <TextInput style={styles.champ} value={saisie.numeroPiece} onChangeText={(v) => setSaisie((s) => ({ ...s, numeroPiece: v }))} placeholder="Numéro de la pièce" placeholderTextColor={couleurs.encreFaible} />
+          <Text style={styles.champLabel}>Notes (suivi interne)</Text>
+          <TextInput style={[styles.champ, styles.champMulti]} value={saisie.notes} onChangeText={(v) => setSaisie((s) => ({ ...s, notes: v }))} placeholder="VIP, habitudes, restrictions…" placeholderTextColor={couleurs.encreFaible} multiline />
+          <Pressable style={styles.bouton} onPress={enregistrerFiche} disabled={enCours}>
+            <Text style={styles.boutonTexte}>{enCours ? "…" : "Enregistrer"}</Text>
+          </Pressable>
+        </FeuilleModale>
       </View>
     );
   }
@@ -185,6 +279,13 @@ const styles = StyleSheet.create({
   ligne: { fontSize: 14, color: couleurs.encre },
   ligneSecondaire: { fontSize: 12, color: couleurs.encreAttenuee },
   horsLigne: { fontSize: 12, color: couleurs.alerte, marginTop: espacements.s2 },
+  note: { fontSize: 13, color: couleurs.violet, fontStyle: "italic", marginTop: 2 },
+  boutonModifier: { marginTop: espacements.s3, alignSelf: "flex-start" },
+  boutonModifierTexte: { fontSize: 13, fontWeight: "700", color: couleurs.bleu },
+  champLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginTop: espacements.s2 },
+  champMulti: { minHeight: 64, textAlignVertical: "top", paddingTop: espacements.s3 },
+  bouton: { height: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center", marginTop: espacements.s3 },
+  boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
   titreSection: {
     fontSize: 12,
     fontWeight: "700",

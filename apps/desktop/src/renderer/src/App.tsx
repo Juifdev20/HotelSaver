@@ -19,6 +19,7 @@ import { EcranInscription } from "./screens/EcranInscription";
 import { EcranChambres } from "./screens/EcranChambres";
 import { EcranReservations } from "./screens/EcranReservations";
 import { EcranArriveesDeparts } from "./screens/EcranArriveesDeparts";
+import { EcranJourneeReception } from "./screens/EcranJourneeReception";
 import { EcranClients } from "./screens/EcranClients";
 import { EcranFacturation } from "./screens/EcranFacturation";
 import { EcranImprimante } from "./screens/EcranImprimante";
@@ -29,9 +30,13 @@ import { EcranSiteHotel } from "./screens/EcranSiteHotel";
 import { EcranCaisse } from "./screens/EcranCaisse";
 import { EcranComptesOuverts } from "./screens/EcranComptesOuverts";
 import { EcranCompteCafeteria } from "./screens/EcranCompteCafeteria";
+import { EcranCuisine } from "./screens/EcranCuisine";
+import { EcranRetraitCommande } from "./screens/EcranRetraitCommande";
 import { EcranMenu } from "./screens/EcranMenu";
 import { EcranStock } from "./screens/EcranStock";
+import { EcranInventaire } from "./screens/EcranInventaire";
 import { EcranRapports } from "./screens/EcranRapports";
+import { EcranDepenses } from "./screens/EcranDepenses";
 import { EcranBientot } from "./screens/EcranBientot";
 
 type Ecran = "chargement" | "connexion" | "inscription" | "application";
@@ -66,6 +71,8 @@ export function App() {
   // zéro à chaque navigation pour ne jamais montrer un détail périmé en
   // revenant sur l'une de ces deux pages (voir naviguer() plus bas).
   const [compteCafeteriaOuvert, setCompteCafeteriaOuvert] = useState<string | null>(null);
+  // Compte ouvert par « Vente rapide » : l'ajout s'ouvre directement, scanner prêt.
+  const [venteRapide, setVenteRapide] = useState(false);
   // Séjour à ouvrir directement dans l'écran Facturation (deep-link depuis
   // Réservations ou Arrivées et départs) — remis à zéro par naviguer().
   const [reservationAFacturer, setReservationAFacturer] = useState<string | null>(null);
@@ -171,10 +178,17 @@ export function App() {
   /** Clic sur une notification (cloche ou notification Windows) → l'écran concerné, si mon rôle y a droit. */
   const ouvrirLien = (lien: LienNotification) => {
     if (!utilisateur) return;
-    const autorisees = sectionsPourRole(utilisateur.role, peutOperer(utilisateur)).flatMap((section) => section.entrees.map((entree) => entree.id as string));
-    const cible = autorisees.includes(lien.ecran) ? (lien.ecran as IdPage) : "tableau-de-bord";
-    setCompteCafeteriaOuvert(null);
+    const autorisees = sectionsPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true).flatMap((section) => section.entrees.map((entree) => entree.id as string));
     setReservationAFacturer(null);
+    // Un lien « comptes-ouverts » porte l'id du compte : on ouvre le détail
+    // directement (notification commande web) plutôt que la liste.
+    if (lien.ecran === "comptes-ouverts" && lien.id && autorisees.includes("comptes-ouverts")) {
+      setCompteCafeteriaOuvert(lien.id);
+      setPage("comptes-ouverts");
+      return;
+    }
+    setCompteCafeteriaOuvert(null);
+    const cible = autorisees.includes(lien.ecran) ? (lien.ecran as IdPage) : "tableau-de-bord";
     setPage(cible);
   };
   const lienRef = useRef(ouvrirLien);
@@ -198,6 +212,28 @@ export function App() {
         setEcran("connexion");
       });
   }, [client]);
+
+  // Recharge le profil toutes les 30 s et au retour de focus : un réglage hôtel
+  // changé par le patron sur un autre appareil (ex. suivi cuisine) se propage
+  // sans relancer l'app. Le state n'est remplacé que si le profil a changé.
+  useEffect(() => {
+    if (!client || !utilisateur) return;
+    let annule = false;
+    const rafraichir = () =>
+      client
+        .moi()
+        .then((frais) => {
+          if (!annule) setUtilisateur((courant) => (JSON.stringify(courant) === JSON.stringify(frais) ? courant : frais));
+        })
+        .catch(() => undefined);
+    const minuteur = setInterval(rafraichir, 30_000);
+    window.addEventListener("focus", rafraichir);
+    return () => {
+      annule = true;
+      clearInterval(minuteur);
+      window.removeEventListener("focus", rafraichir);
+    };
+  }, [client, utilisateur?.userId]);
 
   async function seConnecter(email: string, motDePasse: string) {
     if (!configuration) return;
@@ -298,6 +334,8 @@ export function App() {
       contenu = <EcranReservations client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} peutOperer={peutOperer(utilisateur)} />;
     } else if (page === "arrivees-departs") {
       contenu = <EcranArriveesDeparts client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} peutOperer={peutOperer(utilisateur)} />;
+    } else if (page === "journal-journee") {
+      contenu = <EcranJourneeReception client={client} />;
     } else if (page === "clients") {
       contenu = <EcranClients client={client} />;
     } else if (page === "facturation") {
@@ -318,10 +356,20 @@ export function App() {
           utilisateur={utilisateur}
           compteId={compteCafeteriaOuvert}
           interfaceImprimante={configuration.imprimanteInterface}
-          onRetour={() => setCompteCafeteriaOuvert(null)}
+          ouvrirAjoutAuDemarrage={venteRapide}
+          onRetour={() => {
+            setCompteCafeteriaOuvert(null);
+            setVenteRapide(false);
+          }}
         />
       ) : page === "caisse" ? (
-        <EcranCaisse client={client} onCompteOuvert={setCompteCafeteriaOuvert} />
+        <EcranCaisse
+          client={client}
+          onCompteOuvert={(id, options) => {
+            setVenteRapide(options?.venteRapide === true);
+            setCompteCafeteriaOuvert(id);
+          }}
+        />
       ) : (
         <EcranComptesOuverts
           client={client}
@@ -330,10 +378,32 @@ export function App() {
           onOuvrirCompte={setCompteCafeteriaOuvert}
         />
       );
+    } else if (page === "cuisine") {
+      contenu = (
+        <EcranCuisine
+          client={client}
+          onOuvrirCompte={(compteId) => {
+            setCompteCafeteriaOuvert(compteId);
+            setPage("comptes-ouverts");
+          }}
+        />
+      );
+    } else if (page === "retrait-commande") {
+      contenu = (
+        <EcranRetraitCommande
+          client={client}
+          onOuvrirCompte={(compteId) => {
+            setCompteCafeteriaOuvert(compteId);
+            setPage("comptes-ouverts");
+          }}
+        />
+      );
     } else if (page === "menu") {
-      contenu = <EcranMenu client={client} utilisateur={utilisateur} />;
+      contenu = <EcranMenu client={client} utilisateur={utilisateur} interfaceImprimante={configuration.imprimanteInterface} />;
     } else if (page === "stock") {
       contenu = <EcranStock client={client} />;
+    } else if (page === "inventaire") {
+      contenu = <EcranInventaire client={client} utilisateur={utilisateur} />;
     } else if (page === "imprimante") {
       contenu = (
         <EcranImprimante
@@ -346,6 +416,8 @@ export function App() {
       contenu = <EcranSiteHotel client={client} />;
     } else if (page === "rapports") {
       contenu = <EcranRapports client={client} utilisateur={utilisateur} />;
+    } else if (page === "depenses") {
+      contenu = <EcranDepenses client={client} utilisateur={utilisateur} />;
     } else if (page === "utilisateurs") {
       contenu = <EcranUtilisateurs client={client} />;
     } else if (page === "parametres") {

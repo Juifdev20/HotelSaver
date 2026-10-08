@@ -20,10 +20,24 @@ export class ReservationsService {
   ) {}
 
   findAll(query: FindReservationsQueryDto, hotelId: string) {
+    // Plage [du, au) = vue planning : réservations qui chevauchent la fenêtre.
+    // Par défaut sur une plage on exclut les ANNULEE (elles n'occupent plus
+    // la chambre) sauf si statut est demandé explicitement.
+    const plage = query.du && query.au;
     return this.prisma.reservation.findMany({
-      where: { hotelId, statut: query.statut, chambreId: query.chambreId },
+      where: {
+        hotelId,
+        statut: query.statut ?? (plage ? { not: "ANNULEE" } : undefined),
+        chambreId: query.chambreId,
+        ...(plage
+          ? {
+              dateArrivee: { lt: new Date(query.au!) },
+              dateDepart: { gt: new Date(query.du!) },
+            }
+          : {}),
+      },
       include: { chambre: true, client: true, facture: true },
-      orderBy: { dateArrivee: "desc" },
+      orderBy: { dateArrivee: plage ? "asc" : "desc" },
     });
   }
 
@@ -68,20 +82,36 @@ export class ReservationsService {
     const clientId =
       dto.clientId ?? (await this.prisma.client.create({ data: { ...dto.client!, hotelId: currentUser.hotelId } })).id;
 
-    return this.prisma.reservation.create({
-      data: {
-        hotelId: currentUser.hotelId,
-        chambreId: dto.chambreId,
-        clientId,
-        dateArrivee,
-        dateDepart,
-        acompte: dto.acompte ?? 0,
-        statut: "CONFIRMEE",
-        origine: "RECEPTION",
-        createdBy: currentUser.userId,
-      },
-      include: { chambre: true, client: true },
-    });
+    // Arrivée express (walk-in) : le client est au comptoir — la réservation
+    // naît directement EN_COURS et la chambre passe OCCUPEE dans la même
+    // transaction, au lieu du cycle CONFIRMEE → check-in séparé.
+    const statut = dto.installerImmediatement ? "EN_COURS" : "CONFIRMEE";
+    const [reservation] = await this.prisma.$transaction([
+      this.prisma.reservation.create({
+        data: {
+          hotelId: currentUser.hotelId,
+          chambreId: dto.chambreId,
+          clientId,
+          dateArrivee,
+          dateDepart,
+          acompte: dto.acompte ?? 0,
+          note: dto.note,
+          statut,
+          origine: "RECEPTION",
+          createdBy: currentUser.userId,
+        },
+        include: { chambre: true, client: true },
+      }),
+      ...(dto.installerImmediatement
+        ? [
+            this.prisma.chambre.update({
+              where: { id: dto.chambreId, hotelId: currentUser.hotelId },
+              data: { statut: StatutChambre.OCCUPEE, syncVersion: { increment: 1 } },
+            }),
+          ]
+        : []),
+    ]);
+    return reservation;
   }
 
   async update(id: string, dto: UpdateReservationDto, hotelId: string) {
@@ -107,7 +137,14 @@ export class ReservationsService {
     // détection de conflit hors ligne (Phase 4).
     return this.prisma.reservation.update({
       where: { id, hotelId },
-      data: { dateArrivee, dateDepart, acompte: dto.acompte, syncVersion: { increment: 1 } },
+      data: {
+        dateArrivee,
+        dateDepart,
+        acompte: dto.acompte,
+        note: dto.note,
+        reponseReception: dto.reponseReception,
+        syncVersion: { increment: 1 },
+      },
       include: { chambre: true, client: true },
     });
   }

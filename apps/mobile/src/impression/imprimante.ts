@@ -39,29 +39,67 @@ export async function listerAppareilsAppaires(): Promise<AppareilImprimante[]> {
   return appareils.map((a) => ({ address: a.address, nom: a.name || a.address }));
 }
 
+function attendre(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Connexion SPP robuste. Erreur réelle constatée (08/10/2026) : « read failed,
+ * socket might closed or timeout, read ret: -1 » — beaucoup d'imprimantes
+ * thermiques bon marché refusent la socket RFCOMM *sécurisée* (défaut de la
+ * bibliothèque) ou ratent le premier essai. On arrête une éventuelle
+ * recherche Bluetooth (elle fait échouer connect()), puis on essaie :
+ * sécurisée, non sécurisée, non sécurisée après une pause.
+ */
 async function connecter(address: string): Promise<BluetoothDevice> {
   const dejaConnecte = await RNBluetoothClassic.isDeviceConnected(address).catch(() => false);
   if (dejaConnecte) {
     return RNBluetoothClassic.getConnectedDevice(address);
   }
-  return RNBluetoothClassic.connectToDevice(address);
-}
-
-function attendre(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  await RNBluetoothClassic.cancelDiscovery().catch(() => false);
+  const essais: { secure: boolean; pauseAvant: number }[] = [
+    { secure: true, pauseAvant: 0 },
+    { secure: false, pauseAvant: 400 },
+    { secure: false, pauseAvant: 1200 },
+  ];
+  let derniere: unknown = null;
+  for (const essai of essais) {
+    if (essai.pauseAvant) await attendre(essai.pauseAvant);
+    try {
+      return await RNBluetoothClassic.connectToDevice(address, { secure: essai.secure } as never);
+    } catch (e) {
+      derniere = e;
+      // Une socket à moitié ouverte bloque l'essai suivant : on la libère.
+      await RNBluetoothClassic.disconnectFromDevice(address).catch(() => false);
+    }
+  }
+  const detail = derniere instanceof Error ? ` (${derniere.message})` : "";
+  throw new Error(
+    "Impossible de joindre l'imprimante : vérifiez qu'elle est allumée, à moins de quelques mètres, " +
+      `et qu'aucun autre téléphone ou ordinateur n'y est connecté. Éteignez-la puis rallumez-la si besoin.${detail}`
+  );
 }
 
 async function envoyer(address: string, octets: Uint8Array): Promise<void> {
   await assurerPermissionsBluetooth();
   const device = await connecter(address);
   try {
-    await device.write(Buffer.from(octets));
+    // Par blocs de 2 Ko avec une courte pause : une longue série d'étiquettes
+    // (plus de limite de nombre, 08/10/2026) d'un seul bloc déborde la petite
+    // mémoire des imprimantes bon marché, qui perdent alors la fin.
+    const BLOC = 2048;
+    for (let debut = 0; debut < octets.length; debut += BLOC) {
+      await device.write(Buffer.from(octets.subarray(debut, debut + BLOC)));
+      if (debut + BLOC < octets.length) await attendre(120);
+    }
     // `write` se termine dès que les octets sont remis au socket Bluetooth,
     // pas une fois réellement transmis à l'imprimante — un `disconnect()`
     // immédiat coupe souvent la fin du ticket avant qu'elle ne parte
     // vraiment (constaté sur imprimante réelle : le ticket ne sortait pas
     // du tout malgré un `write` résolu avec succès).
-    await attendre(800);
+    // ~1 ms pour 10 octets au-delà du minimum : une série d'étiquettes est
+    // bien plus longue qu'un reçu.
+    await attendre(Math.max(800, Math.ceil(octets.length / 10)));
   } finally {
     await device.disconnect().catch(() => {});
   }

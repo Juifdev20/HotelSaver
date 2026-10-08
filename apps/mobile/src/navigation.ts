@@ -7,7 +7,7 @@ import { Role } from "@hotel-chicago/types";
  * les deux actions utilisées en continu (ouvrir une vente, reprendre un
  * compte) en onglet direct, Menu/Stock (consultés occasionnellement)
  * restent dans "Plus" (retour du patron, 28/09/2026). */
-export type IdOnglet = "tableau-de-bord" | "chambres" | "reservations" | "caisse" | "comptes-ouverts" | "plus";
+export type IdOnglet = "tableau-de-bord" | "chambres" | "reservations" | "caisse" | "comptes-ouverts" | "depenses" | "plus";
 
 export interface OngletNavigation {
   id: IdOnglet;
@@ -26,6 +26,9 @@ export const ONGLETS: OngletNavigation[] = [
   { id: "reservations", libelle: "Réserv.", roles: RECEPTION, disponible: true },
   { id: "caisse", libelle: "Caisse", roles: [Role.CAFETARIA], disponible: true },
   { id: "comptes-ouverts", libelle: "Comptes", roles: [Role.CAFETARIA], disponible: true },
+  // Dépenses (07/10/2026) : saisies par la réception et la cafétaria ; le
+  // patron, qui ne les saisit pas, les consulte depuis « Plus ».
+  { id: "depenses", libelle: "Dépenses", roles: [Role.RECEPTIONNISTE, Role.CAFETARIA], disponible: true },
   { id: "plus", libelle: "Plus", roles: TOUS, disponible: true },
 ];
 
@@ -74,6 +77,8 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
     titre: "Réception",
     entrees: [
       { id: "arrivees-departs", libelle: "Arrivées et départs", roles: RECEPTION, disponible: true },
+      { id: "planning", libelle: "Planning", roles: RECEPTION, disponible: true },
+      { id: "journal-journee", libelle: "Journal de la journée", roles: RECEPTION, disponible: true },
       { id: "clients", libelle: "Clients", roles: RECEPTION, disponible: true },
     ],
   },
@@ -85,8 +90,11 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
       // PATRON, qui n'a pas ces onglets, les garde accessibles depuis Plus.
       { id: "caisse", libelle: "Caisse", roles: [Role.PATRON], disponible: true },
       { id: "comptes-ouverts", libelle: "Comptes ouverts", roles: [Role.PATRON], disponible: true },
+      { id: "retrait-commande", libelle: "Retrait commande", roles: CAFETARIA_ROLES, disponible: true },
+      { id: "cuisine", libelle: "Cuisine", roles: CAFETARIA_ROLES, disponible: true },
       { id: "menu", libelle: "Menu", roles: CAFETARIA_ROLES, disponible: true },
       { id: "stock", libelle: "Stock", roles: CAFETARIA_ROLES, disponible: true },
+      { id: "inventaire", libelle: "Inventaire", roles: CAFETARIA_ROLES, disponible: true },
     ],
   },
   {
@@ -98,6 +106,8 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
       // Rapports mensuels PDF : le personnel voit/génère son département,
       // le patron consulte les deux (filtrage dans EcranRapports + API).
       { id: "rapports", libelle: "Rapports mensuels", roles: TOUS, disponible: true },
+      // Le personnel a l'onglet « Dépenses » ; le patron consulte ici.
+      { id: "depenses", libelle: "Dépenses", roles: [Role.PATRON], disponible: true },
     ],
   },
   {
@@ -112,10 +122,14 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
   },
 ];
 
-/** `operer` = `peutOperer(utilisateur)` : faux pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer ». */
-export function sectionsPlusPourRole(role: Role, operer = true): SectionMenuPlus[] {
+/** `operer` = `peutOperer(utilisateur)` ; `cuisineActivee` = réglage hôtel
+ * « suivi cuisine » (faux = vente au comptoir, l'écran Cuisine est masqué). */
+export function sectionsPlusPourRole(role: Role, operer = true, cuisineActivee = false): SectionMenuPlus[] {
   return SECTIONS_PLUS.map((section) => ({
     ...section,
-    entrees: section.entrees.filter((entree) => entree.roles.includes(role) && (operer || entree.id !== "caisse")),
+    entrees: section.entrees.filter(
+      (entree) =>
+        entree.roles.includes(role) && (operer || entree.id !== "caisse") && (cuisineActivee || entree.id !== "cuisine")
+    ),
   })).filter((section) => section.entrees.length > 0);
 }

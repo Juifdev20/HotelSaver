@@ -17,4 +17,7 @@ export type LigneRecu =
   | { type: "champ"; label: string; valeur: string }
   /** Libellé à gauche, montant aligné à droite (colonnes tabulaires —
    * prix, acompte, consommations, totaux, règlement, monnaie). */
-  | { type: "montant"; libelle: string; valeur: string };
+  | { type: "montant"; libelle: string; valeur: string }
+  /** Code-barres centré dessiné par l'imprimante (EAN-13 si 13 chiffres
+   * valides, sinon Code128) — étiquettes d'articles (08/10/2026). */
+  | { type: "codebarre"; valeur: string };

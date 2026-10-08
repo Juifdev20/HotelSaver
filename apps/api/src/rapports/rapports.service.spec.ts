@@ -31,6 +31,7 @@ function prismaMock(over: Partial<Record<string, unknown>> = {}) {
     facture: { findMany: jest.fn().mockResolvedValue([]) },
     chambre: { findMany: jest.fn().mockResolvedValue([]) },
     reservation: { findMany: jest.fn().mockResolvedValue([]), groupBy: jest.fn().mockResolvedValue([]) },
+    depense: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn().mockImplementation(async (fn) => fn({ rapportMensuel: over.rapportMensuel ?? { updateMany: jest.fn(), create: jest.fn().mockResolvedValue({ id: "rap-1" }) } })),
     ...over,
   } as any;
@@ -87,6 +88,34 @@ describe("RapportsService", () => {
       expect(chemin).toContain(HOTEL);
       expect(chemin).toContain("RAP-REC-202609-001.pdf");
       expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+    });
+  });
+
+  describe("generer — dépenses et solde net", () => {
+    it("ne lit que les dépenses non annulées du département, sur les jours du mois, et fige le solde net", async () => {
+      const rapportMensuel = {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: "rap-1" }),
+      };
+      const prisma = prismaMock({ rapportMensuel });
+      prisma.depense.findMany.mockResolvedValue([
+        { date: new Date("2026-09-10T00:00:00Z"), motif: "Carburant", montant: "30", devise: "USD", creeParNom: "Rita" },
+      ]);
+      const s = new RapportsService(prisma, storageMock() as any, notificationsMock() as any);
+      await s.generer(user(Role.RECEPTIONNISTE), { departement: "RECEPTION", mois: "2026-09" });
+      expect(prisma.depense.findMany.mock.calls[0][0].where).toEqual({
+        hotelId: HOTEL,
+        departement: "RECEPTION",
+        annulee: false,
+        date: { gte: new Date("2026-09-01T00:00:00Z"), lt: new Date("2026-10-01T00:00:00Z") },
+      });
+      const { chiffres } = rapportMensuel.create.mock.calls[0][0].data;
+      expect(chiffres).toMatchObject({
+        depenses: { nombre: 1, total: { usd: 30, cdf: 0 } },
+        soldeNet: { usd: -30, cdf: 0 },
+      });
     });
   });
 

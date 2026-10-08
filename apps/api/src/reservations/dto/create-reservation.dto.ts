@@ -1,7 +1,9 @@
 import { Type } from "class-transformer";
 import {
+  IsBoolean,
   IsDateString,
   IsOptional,
+  IsString,
   IsUUID,
   Min,
   ValidateNested,
@@ -32,4 +34,15 @@ export class CreateReservationDto {
   @Type(() => Number)
   @Min(0, { message: "L'acompte ne peut pas être négatif." })
   acompte?: number;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  /** Arrivée express (walk-in) : la réservation est créée puis passée en
+   * EN_COURS dans la même opération (la chambre devient OCCUPEE) — le client
+   * est déjà au comptoir, pas besoin du cycle EN_ATTENTE → CONFIRMEE. */
+  @IsOptional()
+  @IsBoolean()
+  installerImmediatement?: boolean;
 }

@@ -109,6 +109,11 @@ export function EcranArriveesDeparts({ client, onFacturer, peutOperer = true }: 
                     <td className="hc-text-body-strong">
                       {r.client.nom}
                       {r.origine === "SITE_PUBLIC" && <span className="badge-bientot" style={{ marginLeft: 8 }}>site public</span>}
+                      {r.preEnregistreLe && (
+                        <span className="badge-bientot" style={{ marginLeft: 8, color: "var(--hc-success)" }}>
+                          ✓ pré-enregistré{r.heureArriveePrevue ? ` · ${r.heureArriveePrevue}` : ""}
+                        </span>
+                      )}
                     </td>
                     <td className="texte-discret">{r.chambre.numero}</td>
                     <td className="texte-discret">{dateCourte(r.dateDepart)}</td>

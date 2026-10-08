@@ -1,4 +1,5 @@
 import { LigneRecu } from "./types";
+import { estEan13Valide } from "./code-barres";
 
 // Commandes ESC/POS de base (voir la doc Epson ESC/POS, standard repris par
 // la quasi-totalité des imprimantes thermiques génériques).
@@ -63,6 +64,25 @@ function ligneMontant(libelle: string, valeur: string, largeur: number): number[
 }
 
 /**
+ * Code-barres dessiné par l'imprimante elle-même (aucune image) : centré,
+ * hauteur 80 points (GS h), module de 2 (GS w), chiffres sous les barres
+ * (GS H 2). EAN-13 (GS k 67 13 …) quand le code est un EAN-13 valide, sinon
+ * Code128 jeu B (GS k 73 n « {B » …) qui accepte lettres et chiffres.
+ * Exporté pour le desktop, qui ajoute ces mêmes octets à node-thermal-printer.
+ */
+export function commandesCodeBarre(valeur: string): number[] {
+  const octets = [...ALIGNER_CENTRE, 0x1d, 0x68, 80, 0x1d, 0x77, 0x02, 0x1d, 0x48, 0x02];
+  if (estEan13Valide(valeur)) {
+    octets.push(0x1d, 0x6b, 67, 13, ...Array.from(valeur, (c) => c.charCodeAt(0)));
+  } else {
+    const donnees = [0x7b, 0x42, ...Array.from(valeur.slice(0, 32), (c) => c.charCodeAt(0) & 0x7f)];
+    octets.push(0x1d, 0x6b, 73, donnees.length, ...donnees);
+  }
+  octets.push(...SAUT_LIGNE, ...ALIGNER_GAUCHE);
+  return octets;
+}
+
+/**
  * Traduit un reçu (voir `construire-recu.ts`) en commandes ESC/POS brutes,
  * à envoyer telles quelles sur la connexion Bluetooth SPP (mobile — voir
  * `apps/mobile/src/impression`). Desktop n'utilise pas cette fonction :
@@ -88,6 +108,9 @@ export function genererCommandesEscPos(lignes: LigneRecu[], largeurColonnes = LA
         break;
       case "montant":
         octets.push(...ligneMontant(ligne.libelle, ligne.valeur, largeurColonnes), ...SAUT_LIGNE);
+        break;
+      case "codebarre":
+        octets.push(...commandesCodeBarre(ligne.valeur));
         break;
     }
   }

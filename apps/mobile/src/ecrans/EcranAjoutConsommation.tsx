@@ -1,15 +1,19 @@
 import * as React from "react";
-import { useMemo, useState } from "react";
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, Vibration, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Minus, Plus, Search, X } from "lucide-react-native";
-import { Devise, type Produit } from "@hotel-chicago/types";
+import { Camera, Minus, Plus, ScanBarcode, Search, Star, X } from "lucide-react-native";
+import { normaliserCodeBarres, trouverProduitParCode } from "@hotel-chicago/receipts";
+import { Devise, TypeProduit, type MenuDuJour, type Produit } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
-import { creerLigneLocal, type CompteCafeteriaMiroir, type SousCompteMiroir } from "../stockage/cafeteriaMirroir";
+import { useSyncEtat } from "../hooks/useSyncEtat";
+import { ScannerCodeBarres } from "../composants/ScannerCodeBarres";
+import { SelecteurProduit } from "../composants/SelecteurProduit";
+import { creerLigneLocal, ecrireCodeBarresLocal, type CompteCafeteriaMiroir, type SousCompteMiroir } from "../stockage/cafeteriaMirroir";
 
 export interface EcranAjoutConsommationProps {
   compte: CompteCafeteriaMiroir;
@@ -17,13 +21,31 @@ export interface EcranAjoutConsommationProps {
   produits: Produit[];
   /** Quantités ajoutées aujourd'hui par produit (les plus demandés passent en tête). */
   populaires: Map<string, number>;
+  /** Menu du jour actif, null si non défini. */
+  menuDuJour?: MenuDuJour | null;
   onRetour: () => void;
   /** Panier validé : l'écran du compte recharge ses données et revient à la vue d'ensemble. */
   onAjoute: () => void;
+  /** « Vente rapide » : la caméra s'ouvre dès l'arrivée sur l'écran. */
+  scannerAuDemarrage?: boolean;
 }
+
+/** Retour tactile à la caissière (sans dépendance) : court = ajouté,
+ * double long = code inconnu ou article épuisé. */
+const VIBRATION_OK = 60;
+const VIBRATION_ERREUR = [0, 180, 120, 180];
 
 const NB_POPULAIRES = 6;
 const TOUTES = "Tous";
+
+/** Quantité encore vendable : stock pour un article, portions pour un plat
+ * (null = illimité — un plat sans portions déclarées n'est jamais « épuisé »). */
+function limiteDisponible(produit: Produit): number | null {
+  if (produit.typeProduit === TypeProduit.PLAT) {
+    return produit.portionsDisponibles ?? null;
+  }
+  return Number(produit.stockActuel);
+}
 
 /** « Fanta » = « fanta » = « Fänta » : recherche insensible à la casse et aux accents. */
 function normaliser(texte: string): string {
@@ -38,14 +60,40 @@ type Ligne = { cle: string; titre: string } | { cle: string; produit: Produit };
  * coup. Écrit le miroir local tout de suite et met chaque ligne en file (marche hors ligne, comme
  * l'ancien formulaire) ; le serveur contrôle le stock à la synchronisation.
  */
-export function EcranAjoutConsommation({ compte, personne, produits, populaires, onRetour, onAjoute }: EcranAjoutConsommationProps) {
-  const { moteurSync } = useSession();
+export function EcranAjoutConsommation({
+  compte,
+  personne,
+  produits,
+  populaires,
+  menuDuJour,
+  onRetour,
+  onAjoute,
+  scannerAuDemarrage = false,
+}: EcranAjoutConsommationProps) {
+  const { client, moteurSync, utilisateur } = useSession();
+  const etatSync = useSyncEtat();
   const insets = useSafeAreaInsets();
   const [recherche, setRecherche] = useState("");
   const [categorie, setCategorie] = useState(TOUTES);
   const [panier, setPanier] = useState<Record<string, number>>({});
   const [enEnvoi, setEnEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+
+  // Scan (08/10/2026) : caméra, douchette (champ caché toujours focalisé, le
+  // clavier virtuel ne s'ouvre pas), code inconnu à associer.
+  const [scannerOuvert, setScannerOuvert] = useState(scannerAuDemarrage);
+  const [saisieDouchette, setSaisieDouchette] = useState("");
+  const [infoScan, setInfoScan] = useState<string | null>(null);
+  const [codeInconnu, setCodeInconnu] = useState<string | null>(null);
+  const [selecteurAssociation, setSelecteurAssociation] = useState(false);
+  const [codesAssocies, setCodesAssocies] = useState<Record<string, string>>({});
+  const champDouchette = useRef<TextInput>(null);
+  const panierRef = useRef(panier);
+  panierRef.current = panier;
+
+  useEffect(() => {
+    if (!scannerOuvert && !selecteurAssociation) champDouchette.current?.focus();
+  }, [scannerOuvert, selecteurAssociation]);
 
   const categories = useMemo(
     () => [TOUTES, ...Array.from(new Set(produits.map((p) => p.categorie.trim()).filter(Boolean))).sort()],
@@ -90,17 +138,68 @@ export function EcranAjoutConsommation({ compte, personne, produits, populaires,
   }, [panier, produitsParId]);
 
   function changer(produit: Produit, delta: number) {
-    const stock = Number(produit.stockActuel);
+    const limite = limiteDisponible(produit);
     setErreur(null);
     setPanier((courant) => {
       const quantite = Math.max(0, (courant[produit.id] ?? 0) + delta);
-      // Jamais plus que le stock connu (le serveur recontrôle de toute façon).
-      if (delta > 0 && stock > 0 && quantite > stock) return courant;
+      // Jamais plus que la limite connue, quand il y en a une (le serveur
+      // recontrôle de toute façon).
+      if (delta > 0 && limite != null && limite > 0 && quantite > limite) return courant;
       const suivant = { ...courant };
       if (quantite === 0) delete suivant[produit.id];
       else suivant[produit.id] = quantite;
       return suivant;
     });
+  }
+
+  /** Un code lu (caméra, douchette ou recherche) : ajoute l'article au panier
+   * si le catalogue le connaît. Recherche locale, instantanée et hors ligne. */
+  function ajouterParCode(brut: string): string {
+    const code = normaliserCodeBarres(brut);
+    if (!code) return "";
+    const idAssocie = codesAssocies[code];
+    const produit = (idAssocie && produitsParId.get(idAssocie)) || trouverProduitParCode(produits, code);
+    if (!produit) {
+      Vibration.vibrate(VIBRATION_ERREUR);
+      setCodeInconnu(code);
+      const message = `Code ${code} inconnu`;
+      setInfoScan(message);
+      return message;
+    }
+    const limite = limiteDisponible(produit);
+    const deja = panierRef.current[produit.id] ?? 0;
+    if (limite != null && deja + 1 > limite) {
+      Vibration.vibrate(VIBRATION_ERREUR);
+      const message = limite <= 0 ? `${produit.nom} : épuisé` : `${produit.nom} : plus que ${limite} en stock`;
+      setInfoScan(message);
+      return message;
+    }
+    changer(produit, 1);
+    Vibration.vibrate(VIBRATION_OK);
+    setCodeInconnu(null);
+    const message = `${produit.nom} ajouté (${deja + 1})`;
+    setInfoScan(message);
+    return message;
+  }
+
+  /** La caissière a choisi le produit correspondant au code inconnu : le
+   * code lui est associé côté serveur (route ouverte à la cafétaria), écrit
+   * dans le miroir, et l'article part au panier. */
+  async function associerCode(produit: Produit) {
+    const code = codeInconnu;
+    setSelecteurAssociation(false);
+    if (!code) return;
+    try {
+      await client.associerCodeBarres(produit.id, code);
+      await ecrireCodeBarresLocal(produit.id, code);
+      setCodesAssocies((courant) => ({ ...courant, [code]: produit.id }));
+      setCodeInconnu(null);
+      changer(produit, 1);
+      Vibration.vibrate(VIBRATION_OK);
+      setInfoScan(`Code associé à ${produit.nom} — ajouté au panier.`);
+    } catch (e) {
+      setInfoScan(e instanceof Error ? e.message : "Association impossible.");
+    }
   }
 
   function retour() {
@@ -123,7 +222,7 @@ export function EcranAjoutConsommation({ compte, personne, produits, populaires,
       for (const [produitId, quantite] of Object.entries(panier)) {
         const produit = produitsParId.get(produitId);
         if (!produit) continue;
-        const ligne = await creerLigneLocal(personne.id, produit, quantite);
+        const ligne = await creerLigneLocal(personne.id, produit, quantite, utilisateur.cuisineActivee === true);
         await moteurSync.mettreEnFile({
           entiteType: "LigneCommande",
           localId: ligne.id,
@@ -155,23 +254,88 @@ export function EcranAjoutConsommation({ compte, personne, produits, populaires,
       <EnteteMobile />
       <EnteteRetour titre={`Ajouter pour ${personne.nom}`} sousTitre={compte.tableOuNom} onRetour={retour} />
 
-      <View style={styles.rechercheConteneur}>
-        <Search size={18} color={couleurs.encreFaible} />
-        <TextInput
-          style={styles.champ}
-          value={recherche}
-          onChangeText={setRecherche}
-          placeholder="Rechercher un produit"
-          placeholderTextColor={couleurs.encreFaible}
-          autoCorrect={false}
-          returnKeyType="search"
-        />
-        {recherche.length > 0 && (
-          <Pressable onPress={() => setRecherche("")} hitSlop={10} accessibilityLabel="Effacer la recherche">
-            <X size={18} color={couleurs.encreAttenuee} />
-          </Pressable>
-        )}
+      {/* Douchette (clavier Bluetooth/USB) : invisible, focalisée, sans clavier virtuel. */}
+      <TextInput
+        ref={champDouchette}
+        style={styles.champCache}
+        value={saisieDouchette}
+        onChangeText={setSaisieDouchette}
+        onSubmitEditing={() => {
+          ajouterParCode(saisieDouchette);
+          setSaisieDouchette("");
+          champDouchette.current?.focus();
+        }}
+        showSoftInputOnFocus={false}
+        autoFocus
+        blurOnSubmit={false}
+        autoCorrect={false}
+        autoCapitalize="none"
+        importantForAccessibility="no"
+      />
+
+      <View style={styles.ligneRecherche}>
+        <View style={[styles.rechercheConteneur, { flex: 1, marginHorizontal: 0 }]}>
+          <Search size={18} color={couleurs.encreFaible} />
+          <TextInput
+            style={styles.champ}
+            value={recherche}
+            onChangeText={setRecherche}
+            // Une douchette qui écrit ici (champ focalisé) : code exact → ajout direct.
+            onSubmitEditing={() => {
+              if (trouverProduitParCode(produits, recherche) || codesAssocies[normaliserCodeBarres(recherche)]) {
+                ajouterParCode(recherche);
+                setRecherche("");
+              }
+            }}
+            onBlur={() => {
+              if (!scannerOuvert) champDouchette.current?.focus();
+            }}
+            placeholder="Rechercher un produit"
+            placeholderTextColor={couleurs.encreFaible}
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {recherche.length > 0 && (
+            <Pressable onPress={() => setRecherche("")} hitSlop={10} accessibilityLabel="Effacer la recherche">
+              <X size={18} color={couleurs.encreAttenuee} />
+            </Pressable>
+          )}
+        </View>
+        <Pressable style={styles.boutonScanner} onPress={() => setScannerOuvert(true)} accessibilityLabel="Scanner avec la caméra">
+          <Camera size={20} color="#fff" />
+        </Pressable>
       </View>
+
+      {infoScan && (
+        <View style={[styles.bandeauScan, codeInconnu ? styles.bandeauScanErreur : null]}>
+          <ScanBarcode size={16} color={codeInconnu ? couleurs.danger : couleurs.succes} />
+          <Text style={styles.bandeauScanTexte} numberOfLines={2}>
+            {infoScan}
+          </Text>
+          {codeInconnu && (
+            <Pressable
+              onPress={() =>
+                etatSync.enLigne
+                  ? setSelecteurAssociation(true)
+                  : setInfoScan(`Code ${codeInconnu} inconnu — associez-le quand le réseau revient.`)
+              }
+              hitSlop={8}
+            >
+              <Text style={styles.bandeauScanAction}>Associer</Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => {
+              setInfoScan(null);
+              setCodeInconnu(null);
+            }}
+            hitSlop={8}
+            accessibilityLabel="Fermer le message"
+          >
+            <X size={16} color={couleurs.encreAttenuee} />
+          </Pressable>
+        </View>
+      )}
 
       {categories.length > 2 && (
         <View>
@@ -190,6 +354,50 @@ export function EcranAjoutConsommation({ compte, personne, produits, populaires,
         keyExtractor={(l) => l.cle}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.liste}
+        ListHeaderComponent={
+          menuDuJour && menuDuJour.items.length > 0 ? (
+            <View style={styles.menuDuJour}>
+              <View style={styles.menuDuJourTitre}>
+                <Star size={13} color={couleurs.alerte} fill={couleurs.alerte} />
+                <Text style={styles.menuDuJourTitreTexte}>Menu du jour</Text>
+              </View>
+              {menuDuJour.items
+                .filter((item) => produits.find((p) => p.id === item.produitId))
+                .map((item) => {
+                  const p = produits.find((pp) => pp.id === item.produitId)!;
+                  const prixAffiche = item.prixSpecial ?? p.prix;
+                  const deviseAffichee = (item.deviseSpeciale ?? p.devise) as Devise;
+                  const quantite = panier[p.id] ?? 0;
+                  const limite = limiteDisponible(p);
+                  const epuise = limite != null && limite <= 0;
+                  return (
+                    <View key={item.produitId} style={[styles.carte, quantite > 0 && styles.carteChoisie, epuise && styles.carteEpuisee]}>
+                      <View style={styles.infos}>
+                        <Text style={styles.nom} numberOfLines={1}>{p.nom}</Text>
+                        <Text style={styles.prix}>{formatMontant(Number(prixAffiche), deviseAffichee)}</Text>
+                      </View>
+                      {!epuise && (quantite === 0 ? (
+                        <Pressable style={styles.boutonAjout} onPress={() => changer({ ...p, prix: prixAffiche, devise: deviseAffichee }, 1)} accessibilityLabel={`Ajouter ${p.nom}`}>
+                          <Plus size={20} color="#fff" />
+                        </Pressable>
+                      ) : (
+                        <View style={styles.stepper}>
+                          <Pressable style={styles.stepperBouton} onPress={() => changer({ ...p, prix: prixAffiche, devise: deviseAffichee }, -1)} hitSlop={6}>
+                            <Minus size={18} color={couleurs.bleu} />
+                          </Pressable>
+                          <Text style={styles.stepperValeur}>{quantite}</Text>
+                          <Pressable style={styles.stepperBouton} onPress={() => changer({ ...p, prix: prixAffiche, devise: deviseAffichee }, 1)} hitSlop={6}>
+                            <Plus size={18} color={couleurs.bleu} />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })}
+              <View style={styles.menuDuJourSeparateur} />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <Text style={styles.vide}>{recherche ? "Aucun produit ne correspond à la recherche." : "Aucun produit disponible."}</Text>
         }
@@ -197,9 +405,9 @@ export function EcranAjoutConsommation({ compte, personne, produits, populaires,
           if ("titre" in item) return <Text style={styles.titreSection}>{item.titre}</Text>;
           const p = item.produit;
           const quantite = panier[p.id] ?? 0;
-          const stock = Number(p.stockActuel);
-          const epuise = stock <= 0;
-          const bas = !epuise && stock <= Number(p.seuilAlerte);
+          const limite = limiteDisponible(p);
+          const epuise = limite != null && limite <= 0;
+          const bas = p.typeProduit !== TypeProduit.PLAT && !epuise && limite != null && limite <= Number(p.seuilAlerte);
           return (
             <View style={[styles.carte, quantite > 0 && styles.carteChoisie, epuise && styles.carteEpuisee]}>
               <View style={styles.infos}>
@@ -209,7 +417,10 @@ export function EcranAjoutConsommation({ compte, personne, produits, populaires,
                 <View style={styles.ligneMeta}>
                   <Text style={styles.prix}>{formatMontant(Number(p.prix), p.devise)}</Text>
                   {epuise && <Text style={styles.etatEpuise}>Épuisé</Text>}
-                  {bas && <Text style={styles.etatBas}>Stock bas · {stock}</Text>}
+                  {bas && <Text style={styles.etatBas}>Stock bas · {limite}</Text>}
+                  {p.typeProduit === TypeProduit.PLAT && limite != null && !epuise && (
+                    <Text style={styles.etatBas}>Reste {limite} portion{limite > 1 ? "s" : ""}</Text>
+                  )}
                 </View>
               </View>
               {epuise ? null : quantite === 0 ? (
@@ -230,6 +441,21 @@ export function EcranAjoutConsommation({ compte, personne, produits, populaires,
             </View>
           );
         }}
+      />
+
+      <ScannerCodeBarres
+        visible={scannerOuvert}
+        mode="continu"
+        onCode={ajouterParCode}
+        onFermer={() => setScannerOuvert(false)}
+        titre={`Scanner pour ${personne.nom}`}
+      />
+
+      <SelecteurProduit
+        visible={selecteurAssociation}
+        produits={produits.filter((p) => p.typeProduit !== TypeProduit.PLAT && !p.codeBarres)}
+        onChoisir={(p) => void associerCode(p)}
+        onFermer={() => setSelecteurAssociation(false)}
       />
 
       <View style={[styles.barre, { paddingBottom: espacements.s3 + Math.min(insets.bottom, 8) }]}>
@@ -267,6 +493,29 @@ const styles = StyleSheet.create({
     backgroundColor: couleurs.surface200,
   },
   champ: { flex: 1, fontSize: 15, color: couleurs.encre, paddingVertical: 0 },
+  champCache: { position: "absolute", width: 1, height: 1, opacity: 0, left: -10, top: -10 },
+  ligneRecherche: { flexDirection: "row", alignItems: "center", gap: espacements.s2, marginHorizontal: espacements.s4 },
+  boutonScanner: {
+    width: 46,
+    height: 46,
+    borderRadius: rayons.md,
+    backgroundColor: couleurs.bleu,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bandeauScan: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacements.s2,
+    marginHorizontal: espacements.s4,
+    marginTop: espacements.s2,
+    padding: espacements.s2,
+    borderRadius: rayons.sm,
+    backgroundColor: couleurs.succesClair,
+  },
+  bandeauScanErreur: { backgroundColor: couleurs.dangerClair },
+  bandeauScanTexte: { flex: 1, fontSize: 13, color: couleurs.encre },
+  bandeauScanAction: { fontSize: 13, fontWeight: "700", color: couleurs.bleu },
   puces: { gap: espacements.s2, paddingHorizontal: espacements.s4, paddingVertical: espacements.s3 },
   puce: {
     paddingHorizontal: espacements.s3,
@@ -326,4 +575,8 @@ const styles = StyleSheet.create({
   boutonValider: { height: 50, borderRadius: rayons.sm, backgroundColor: couleurs.succes, alignItems: "center", justifyContent: "center", paddingHorizontal: espacements.s3 },
   boutonDesactive: { opacity: 0.45 },
   boutonValiderTexte: { color: "#fff", fontWeight: "700", fontSize: 14, textAlign: "center" },
+  menuDuJour: { gap: espacements.s2, paddingBottom: espacements.s2 },
+  menuDuJourTitre: { flexDirection: "row", alignItems: "center", gap: 6 },
+  menuDuJourTitreTexte: { fontSize: 12, fontWeight: "700", color: couleurs.alerte, textTransform: "uppercase" },
+  menuDuJourSeparateur: { height: 1, backgroundColor: couleurs.bordure, marginTop: espacements.s2 },
 });

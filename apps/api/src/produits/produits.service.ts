@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
 import { PRISMA } from "../prisma/prisma.module";
 import { CreateProduitDto } from "./dto/create-produit.dto";
@@ -24,18 +24,68 @@ export class ProduitsService {
     return produit;
   }
 
-  create(dto: CreateProduitDto, hotelId: string) {
-    return this.prisma.produit.create({ data: { ...dto, hotelId, stockActuel: dto.stockActuel ?? 0 } });
+  /** « 6 001 234 » → « 6001234 » ; chaîne vide → null (pas de code). */
+  private static normaliserCode(code: string | null | undefined): string | null | undefined {
+    if (code === undefined || code === null) return code;
+    const net = code.replace(/\s+/g, "");
+    return net === "" ? null : net;
+  }
+
+  /** Un code-barres déjà pris dans l'hôtel (index unique hotelId+codeBarres)
+   * devient un 409 lisible qui nomme le produit concerné. */
+  private async ecrireAvecCodeUnique<T>(hotelId: string, code: string | null | undefined, ecrire: () => Promise<T>): Promise<T> {
+    try {
+      return await ecrire();
+    } catch (error) {
+      if (code && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const existant = await this.prisma.produit.findFirst({ where: { hotelId, codeBarres: code }, select: { nom: true } });
+        throw new ConflictException(`Ce code-barres est déjà utilisé par « ${existant?.nom ?? "un autre produit"} ».`);
+      }
+      throw error;
+    }
+  }
+
+  async create(dto: CreateProduitDto, hotelId: string) {
+    const codeBarres = ProduitsService.normaliserCode(dto.codeBarres);
+    if (codeBarres && dto.typeProduit === "PLAT") {
+      throw new BadRequestException("Un plat préparé n'a pas de code-barres : réservé aux articles de comptoir.");
+    }
+    return this.ecrireAvecCodeUnique(hotelId, codeBarres, () =>
+      this.prisma.produit.create({ data: { ...dto, codeBarres, hotelId, stockActuel: dto.stockActuel ?? 0 } })
+    );
   }
 
   async update(id: string, dto: UpdateProduitDto, hotelId: string) {
-    await this.findOne(id, hotelId);
+    const actuel = await this.findOne(id, hotelId);
+    const devientPlat = (dto.typeProduit ?? actuel.typeProduit) === "PLAT";
+    let codeBarres = ProduitsService.normaliserCode(dto.codeBarres);
+    if (devientPlat && codeBarres) {
+      throw new BadRequestException("Un plat préparé n'a pas de code-barres : réservé aux articles de comptoir.");
+    }
+    // Un article qui devient plat perd son code (sinon il resterait scannable).
+    if (devientPlat && actuel.codeBarres) codeBarres = null;
     // syncVersion incrémenté manuellement (voir ChambresService.update pour le
     // détail complet) — indispensable pour la détection de conflit hors ligne.
-    return this.prisma.produit.update({
-      where: { id, hotelId },
-      data: { ...dto, syncVersion: { increment: 1 } },
-    });
+    return this.ecrireAvecCodeUnique(hotelId, codeBarres, () =>
+      this.prisma.produit.update({
+        where: { id, hotelId },
+        data: { ...dto, ...(codeBarres !== undefined ? { codeBarres } : {}), syncVersion: { increment: 1 } },
+      })
+    );
+  }
+
+  /** PATCH /produits/:id/code-barres — la cafétaria associe le code d'un
+   * article inconnu pendant la vente, sans pouvoir toucher au prix ni au
+   * reste de la fiche (réservés au patron). */
+  async associerCodeBarres(id: string, code: string | null, hotelId: string) {
+    const actuel = await this.findOne(id, hotelId);
+    const codeBarres = ProduitsService.normaliserCode(code) ?? null;
+    if (codeBarres && actuel.typeProduit === "PLAT") {
+      throw new BadRequestException("Un plat préparé n'a pas de code-barres : réservé aux articles de comptoir.");
+    }
+    return this.ecrireAvecCodeUnique(hotelId, codeBarres, () =>
+      this.prisma.produit.update({ where: { id, hotelId }, data: { codeBarres, syncVersion: { increment: 1 } } })
+    );
   }
 
   async remove(id: string, hotelId: string) {

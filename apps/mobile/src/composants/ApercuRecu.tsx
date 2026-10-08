@@ -40,6 +40,13 @@ export function ApercuRecu({ lignes }: { lignes: LigneRecu[] }) {
                 <Text style={[styles.texte, styles.gras]}>{ligne.valeur}</Text>
               </View>
             );
+          case "codebarre":
+            // L'imprimante dessine les barres elle-même ; l'aperçu montre le code.
+            return (
+              <Text key={i} style={[styles.texte, styles.centre, styles.gras, { letterSpacing: 2 }]}>
+                ▌▍▌▌▍ {ligne.valeur} ▍▌▌▍▌
+              </Text>
+            );
         }
       })}
     </View>

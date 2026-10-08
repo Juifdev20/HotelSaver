@@ -1,4 +1,4 @@
-import { AuthController } from "./auth.controller";
+import { AuthController, urlSiteHotel } from "./auth.controller";
 
 const UTILISATEUR = {
   userId: "u-1",
@@ -19,12 +19,23 @@ describe("AuthController.moi", () => {
       nom: "Hôtel Test",
       adresse: " Avenue du Lac 12, Goma ",
       telephoneContact: "+243 970 000 000",
+      sousDomaine: "test",
+      domainePersonnalise: null,
+      domaineVerifie: false,
       site: { slogan: "  Votre escale de détente  " },
     });
     const profil = await controleur.moi(UTILISATEUR);
     expect(prisma.hotel.findUnique).toHaveBeenCalledWith({
       where: { id: "hotel-1" },
-      select: { nom: true, adresse: true, telephoneContact: true, site: { select: { slogan: true } } },
+      select: {
+        nom: true,
+        adresse: true,
+        telephoneContact: true,
+        sousDomaine: true,
+        domainePersonnalise: true,
+        domaineVerifie: true,
+        site: { select: { slogan: true } },
+      },
     });
     expect(profil).toEqual({
       ...UTILISATEUR,
@@ -32,7 +43,16 @@ describe("AuthController.moi", () => {
       hotelSlogan: "Votre escale de détente",
       hotelAdresse: "Avenue du Lac 12, Goma",
       hotelTelephone: "+243 970 000 000",
+      hotelUrlSite: expect.stringMatching(/\/\?hotel=test$/),
     });
+  });
+
+  it("hotelUrlSite : domaine personnalisé seulement une fois vérifié", () => {
+    expect(urlSiteHotel({ sousDomaine: "chicago", domainePersonnalise: "www.hotel-chicago.com", domaineVerifie: true })).toBe(
+      "https://www.hotel-chicago.com"
+    );
+    const sansDomaine = urlSiteHotel({ sousDomaine: "chicago", domainePersonnalise: "www.hotel-chicago.com", domaineVerifie: false });
+    expect(sansDomaine).toMatch(/^https?:\/\/[^?]+\/\?hotel=chicago$/);
   });
 
   it("slogan null quand le patron n'en a pas défini (ni site, ni slogan vide)", async () => {

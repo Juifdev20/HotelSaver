@@ -72,10 +72,15 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       categorie TEXT NOT NULL,
       prix TEXT NOT NULL,
       devise TEXT NOT NULL,
+      prixAchat TEXT,
       photo TEXT,
       stockActuel TEXT NOT NULL,
       seuilAlerte TEXT NOT NULL,
       actif INTEGER NOT NULL,
+      commandableEnLigne INTEGER NOT NULL DEFAULT 0,
+      description TEXT,
+      typeProduit TEXT NOT NULL DEFAULT 'ARTICLE',
+      portionsDisponibles INTEGER,
       updatedAt TEXT NOT NULL,
       syncVersion INTEGER NOT NULL
     );
@@ -85,6 +90,9 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       remoteId TEXT,
       tableOuNom TEXT NOT NULL,
       statut TEXT NOT NULL,
+      origine TEXT,
+      contactClient TEXT,
+      noteClient TEXT,
       ouvertPar TEXT NOT NULL,
       ouvertLe TEXT NOT NULL,
       fermeLe TEXT,
@@ -110,6 +118,10 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       quantite TEXT NOT NULL,
       prixUnitaire TEXT NOT NULL,
       devise TEXT NOT NULL,
+      statut TEXT NOT NULL DEFAULT 'EN_ATTENTE',
+      prisEnChargeA TEXT,
+      pretA TEXT,
+      note TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL,
       syncVersion INTEGER NOT NULL
@@ -126,6 +138,9 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       nom TEXT NOT NULL,
       telephone TEXT,
       email TEXT,
+      typePiece TEXT,
+      numeroPiece TEXT,
+      notes TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL,
       syncVersion INTEGER NOT NULL
@@ -142,8 +157,28 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       statut TEXT NOT NULL,
       origine TEXT NOT NULL,
       createdBy TEXT NOT NULL,
+      note TEXT,
       annuleLe TEXT,
       motifAnnulation TEXT,
+      updatedAt TEXT NOT NULL,
+      syncVersion INTEGER NOT NULL
+    );
+
+    -- Dépenses du département (07/10/2026) : id local stable, remoteId
+    -- renseigné après le push (même principe que reservations).
+    CREATE TABLE IF NOT EXISTS depenses (
+      id TEXT PRIMARY KEY,
+      remoteId TEXT,
+      departement TEXT NOT NULL,
+      date TEXT NOT NULL,
+      motif TEXT NOT NULL,
+      montant TEXT NOT NULL,
+      devise TEXT NOT NULL,
+      creeParId TEXT NOT NULL,
+      creeParNom TEXT NOT NULL,
+      annulee INTEGER NOT NULL DEFAULT 0,
+      annuleeLe TEXT,
+      createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL,
       syncVersion INTEGER NOT NULL
     );
@@ -155,4 +190,44 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   if (!colonnes.some((c) => c.name === "payeLe")) {
     await db.execAsync("ALTER TABLE sous_comptes ADD COLUMN payeLe TEXT");
   }
+
+  async function ajouterColonneSiAbsente(table: string, colonne: string, ddl: string) {
+    const infos = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`, []);
+    if (!infos.some((c) => c.name === colonne)) {
+      await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+    }
+  }
+  // Cuisine (cycle de vie des lignes) et prix d'achat produit — ajoutés
+  // après la première installation du miroir.
+  await ajouterColonneSiAbsente("lignes_commande", "statut", "statut TEXT NOT NULL DEFAULT 'EN_ATTENTE'");
+  await ajouterColonneSiAbsente("lignes_commande", "prisEnChargeA", "prisEnChargeA TEXT");
+  await ajouterColonneSiAbsente("lignes_commande", "pretA", "pretA TEXT");
+  await ajouterColonneSiAbsente("lignes_commande", "note", "note TEXT");
+  await ajouterColonneSiAbsente("produits", "prixAchat", "prixAchat TEXT");
+  // Commande en ligne depuis le site public : carte opt-in par produit et
+  // origine/contact du client sur les comptes (commandes SITE_PUBLIC).
+  await ajouterColonneSiAbsente("produits", "commandableEnLigne", "commandableEnLigne INTEGER NOT NULL DEFAULT 0");
+  await ajouterColonneSiAbsente("produits", "description", "description TEXT");
+  // Type de produit : PLAT = préparé (site/cuisine, sans stock), ARTICLE =
+  // comptoir stocké — défaut ARTICLE comme en base serveur.
+  await ajouterColonneSiAbsente("produits", "typeProduit", "typeProduit TEXT NOT NULL DEFAULT 'ARTICLE'");
+  // Portions limitées d'un plat (NULL = illimité).
+  await ajouterColonneSiAbsente("produits", "portionsDisponibles", "portionsDisponibles INTEGER");
+  // Code-barres des articles (scan à la caisse, 08/10/2026).
+  await ajouterColonneSiAbsente("produits", "codeBarres", "codeBarres TEXT");
+  await ajouterColonneSiAbsente("comptes_cafeteria", "origine", "origine TEXT");
+  await ajouterColonneSiAbsente("comptes_cafeteria", "contactClient", "contactClient TEXT");
+  await ajouterColonneSiAbsente("comptes_cafeteria", "noteClient", "noteClient TEXT");
+  // Réception moderne : demandes spéciales sur réservation, registre de
+  // police (pièce d'identité) et notes libres sur la fiche client.
+  await ajouterColonneSiAbsente("reservations", "note", "note TEXT");
+  await ajouterColonneSiAbsente("clients", "typePiece", "typePiece TEXT");
+  await ajouterColonneSiAbsente("clients", "numeroPiece", "numeroPiece TEXT");
+  await ajouterColonneSiAbsente("clients", "notes", "notes TEXT");
+  // Suivi client depuis le site + pré-enregistrement en ligne (07/10/2026).
+  await ajouterColonneSiAbsente("reservations", "jetonSuivi", "jetonSuivi TEXT");
+  await ajouterColonneSiAbsente("reservations", "heureArriveePrevue", "heureArriveePrevue TEXT");
+  await ajouterColonneSiAbsente("reservations", "demandeClient", "demandeClient TEXT");
+  await ajouterColonneSiAbsente("reservations", "preEnregistreLe", "preEnregistreLe TEXT");
+  await ajouterColonneSiAbsente("reservations", "reponseReception", "reponseReception TEXT");
 }

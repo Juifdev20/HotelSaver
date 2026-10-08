@@ -1,9 +1,11 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
+import { codeSuivi, lienSuivi } from "@hotel-chicago/types";
 import type { Reservation, ProfilConnecte } from "@hotel-chicago/types";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
+import { Link2, MessageCircle, Pencil } from "lucide-react";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
 import { StatusBadge } from "@hotel-chicago/ui";
 
@@ -53,7 +55,12 @@ export function EcranReservationDetail({
   const [arrivee, setArrivee] = useState("");
   const [depart, setDepart] = useState("");
   const [acompteSaisi, setAcompteSaisi] = useState("");
+  const [noteSaisie, setNoteSaisie] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [editionWhatsApp, setEditionWhatsApp] = useState(false);
+  const [messageWhatsApp, setMessageWhatsApp] = useState("");
+  const [editionReponse, setEditionReponse] = useState(false);
+  const [reponseSaisie, setReponseSaisie] = useState("");
 
   const charger = useCallback(() => {
     client
@@ -92,6 +99,7 @@ export function EcranReservationDetail({
       setErreur("Acompte invalide.");
       return;
     }
+    const noteModifiee = noteSaisie.trim() !== (reservation.note ?? "") ? noteSaisie.trim() : undefined;
     setEdition(false);
     void action(
       () =>
@@ -99,9 +107,80 @@ export function EcranReservationDetail({
           dateArrivee: a?.toISOString(),
           dateDepart: d?.toISOString(),
           acompte,
+          note: noteModifiee,
         }),
       "Réservation modifiée."
     );
+  }
+
+  /** Message WhatsApp pré-rempli, adapté au statut : pour une demande EN
+   * ATTENTE on « accuse réception » pour ouvrir la discussion avant de
+   * confirmer ; ensuite c'est la vraie confirmation avec montants. */
+  /** Lien « Ma réservation » du client (site de l'hôtel). */
+  const lienClient =
+    reservation?.jetonSuivi && utilisateur?.hotelUrlSite ? lienSuivi(utilisateur.hotelUrlSite, reservation.jetonSuivi) : null;
+  const suiviModifiable = reservation?.statut === "EN_ATTENTE" || reservation?.statut === "CONFIRMEE";
+
+  async function copierLien() {
+    if (!lienClient) return;
+    try {
+      await navigator.clipboard.writeText(lienClient);
+      setMessage("Lien de suivi copié — collez-le dans un message au client.");
+    } catch {
+      setErreur("Copie impossible — sélectionnez le lien à la main.");
+    }
+  }
+
+  function construireMessageWhatsApp(): string {
+    if (!reservation) return "";
+    const nuits = nombreDeNuits(reservation.dateArrivee, reservation.dateDepart);
+    const total = Number(reservation.chambre.prixParNuit) * nuits;
+    const lignes: (string | null)[] =
+      reservation.statut === "EN_ATTENTE"
+        ? [
+            utilisateur?.hotelNom ?? null,
+            "",
+            `Bonjour ${reservation.client.nom}, nous avons bien reçu votre demande de réservation :`,
+            `Chambre ${reservation.chambre.numero} (${reservation.chambre.type}) — du ${dateCourte(reservation.dateArrivee)} au ${dateCourte(reservation.dateDepart)}, ${nuits} nuit${nuits > 1 ? "s" : ""}`,
+            `Total estimé : ${formatMontant(total, reservation.chambre.devise)}`,
+            "Nous souhaitons échanger avec vous avant de confirmer votre réservation. Merci de nous répondre ici.",
+            lienClient ? `Suivez votre demande ici : ${lienClient}` : null,
+            "",
+            "Cordialement, la réception",
+          ]
+        : [
+            utilisateur?.hotelNom ?? null,
+            "",
+            "Confirmation de réservation",
+            `Client : ${reservation.client.nom}`,
+            `Chambre ${reservation.chambre.numero} (${reservation.chambre.type})`,
+            `Du ${dateCourte(reservation.dateArrivee)} au ${dateCourte(reservation.dateDepart)} — ${nuits} nuit${nuits > 1 ? "s" : ""}`,
+            `Total : ${formatMontant(total, reservation.chambre.devise)}`,
+            Number(reservation.acompte) > 0
+              ? `Acompte reçu : ${formatMontant(reservation.acompte, reservation.chambre.devise)} · Reste : ${formatMontant(Math.max(0, total - Number(reservation.acompte)), reservation.chambre.devise)}`
+              : null,
+            reservation.note ? `Note : ${reservation.note}` : null,
+            lienClient && suiviModifiable ? `Gagnez du temps à l'arrivée, pré-enregistrez-vous ici : ${lienClient}` : null,
+            "",
+            "À bientôt !",
+          ];
+    return lignes.filter((l): l is string => l !== null).join("\n");
+  }
+
+  /** Ouvre le panneau d'édition du message avant l'envoi vers WhatsApp. */
+  function ouvrirWhatsApp() {
+    if (!reservation) return;
+    setMessageWhatsApp(construireMessageWhatsApp());
+    setEditionWhatsApp(true);
+  }
+
+  /** wa.me dans le navigateur avec le texte édité — aucun backend. Sans
+   * numéro du client, le partage WhatsApp propose le contact à choisir. */
+  function envoyerWhatsApp() {
+    if (!reservation) return;
+    const numerique = (reservation.client.telephone ?? "").replace(/\D/g, "");
+    window.open(`https://wa.me/${numerique}?text=${encodeURIComponent(messageWhatsApp)}`, "_blank", "noopener");
+    setEditionWhatsApp(false);
   }
 
   function confirmerAnnulation() {
@@ -193,6 +272,12 @@ export function EcranReservationDetail({
                 <span className="texte-discret">Demande du site public</span>
               </div>
             )}
+            {reservation.note && (
+              <div className="parametres-ligne">
+                <span className="hc-text-body">Demandes spéciales</span>
+                <span className="hc-text-body-strong">{reservation.note}</span>
+              </div>
+            )}
             {statut === "ANNULEE" && reservation.motifAnnulation && (
               <div className="parametres-ligne">
                 <span className="hc-text-body">Motif d'annulation</span>
@@ -206,7 +291,124 @@ export function EcranReservationDetail({
             <p className="hc-text-body">{reservation.client.nom}</p>
             {reservation.client.telephone && <p className="hc-text-body texte-discret">{reservation.client.telephone}</p>}
             {reservation.client.email && <p className="hc-text-body texte-discret">{reservation.client.email}</p>}
+            {(reservation.client.typePiece || reservation.client.numeroPiece) && (
+              <p className="hc-text-body texte-discret">
+                Pièce : {[reservation.client.typePiece, reservation.client.numeroPiece].filter(Boolean).join(" · ")}
+              </p>
+            )}
+            <Button type="button" variant="secondary" onClick={ouvrirWhatsApp}>
+              <MessageCircle size={16} aria-hidden="true" />
+              Contacter le client par WhatsApp
+            </Button>
           </div>
+
+          <div className="carte-formulaire">
+            <div className="parametres-ligne">
+              <span className="hc-text-body-strong">Suivi en ligne</span>
+              {reservation.jetonSuivi && <span className="texte-discret">{codeSuivi(reservation.jetonSuivi)}</span>}
+            </div>
+            {reservation.preEnregistreLe ? (
+              <>
+                <p className="hc-text-body texte-succes">
+                  ✓ Pré-enregistré le {dateCourte(reservation.preEnregistreLe)}
+                  {reservation.heureArriveePrevue ? ` · arrivée vers ${reservation.heureArriveePrevue}` : ""}
+                </p>
+                {reservation.demandeClient && (
+                  <div className="parametres-ligne">
+                    <span className="hc-text-body">Demande du client</span>
+                    <span className="hc-text-body-strong">{reservation.demandeClient}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="hc-text-body texte-discret">
+                {suiviModifiable ? "Pas encore pré-enregistré — envoyez-lui le lien de suivi." : "Pas de pré-enregistrement."}
+              </p>
+            )}
+            {reservation.reponseReception && (
+              <div className="parametres-ligne">
+                <span className="hc-text-body">Votre réponse au client</span>
+                <span className="hc-text-body-strong">{reservation.reponseReception}</span>
+              </div>
+            )}
+            {suiviModifiable && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setReponseSaisie(reservation.reponseReception ?? "");
+                  setErreur(null);
+                  setEditionReponse(true);
+                }}
+              >
+                <Pencil size={16} aria-hidden="true" />
+                {reservation.reponseReception ? "Modifier votre réponse" : "Répondre au client"}
+              </Button>
+            )}
+            {lienClient && (
+              <p className="hc-text-caption texte-discret" style={{ wordBreak: "break-all" }}>
+                {lienClient}
+              </p>
+            )}
+            <Button type="button" variant="secondary" onClick={copierLien} disabled={!lienClient}>
+              <Link2 size={16} aria-hidden="true" />
+              Copier le lien de suivi
+            </Button>
+          </div>
+
+          {editionReponse && (
+            <div className="carte-formulaire formulaire">
+              <p className="hc-text-label texte-discret">Réponse au client — visible sur sa page de suivi « Ma réservation »</p>
+              <textarea
+                id="reponse-reception"
+                value={reponseSaisie}
+                onChange={(e) => setReponseSaisie(e.target.value)}
+                placeholder="Ex. Demande bien reçue — acompte de 30 $ attendu à l'arrivée."
+                rows={4}
+              />
+              <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
+                <Button
+                  type="button"
+                  onClick={() =>
+                    void action(
+                      () => client.modifierReservation(reservationId, { reponseReception: reponseSaisie.trim() }),
+                      "Réponse enregistrée — visible par le client."
+                    ).then(() => setEditionReponse(false))
+                  }
+                  disabled={enCours}
+                >
+                  Enregistrer
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setEditionReponse(false)}>
+                  Fermer
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {editionWhatsApp && (
+            <div className="carte-formulaire formulaire">
+              <p className="hc-text-label texte-discret">Message WhatsApp au client (modifiable)</p>
+              <textarea
+                id="whatsapp-message"
+                value={messageWhatsApp}
+                onChange={(e) => setMessageWhatsApp(e.target.value)}
+                rows={9}
+              />
+              <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
+                <Button type="button" onClick={envoyerWhatsApp}>
+                  <MessageCircle size={16} aria-hidden="true" />
+                  Ouvrir WhatsApp
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setMessageWhatsApp(construireMessageWhatsApp())}>
+                  Réinitialiser
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setEditionWhatsApp(false)}>
+                  Fermer
+                </Button>
+              </div>
+            </div>
+          )}
 
           {!edition && (
             <div style={{ display: "flex", gap: "var(--hc-space-2)", flexWrap: "wrap" }}>
@@ -228,6 +430,7 @@ export function EcranReservationDetail({
                     setArrivee(pourInputDate(reservation.dateArrivee));
                     setDepart(pourInputDate(reservation.dateDepart));
                     setAcompteSaisi(reservation.acompte !== "0" ? String(reservation.acompte) : "");
+                    setNoteSaisie(reservation.note ?? "");
                     setErreur(null);
                     setEdition(true);
                   }}
@@ -273,6 +476,16 @@ export function EcranReservationDetail({
                 inputMode="decimal"
                 value={acompteSaisi}
                 onChange={(e) => setAcompteSaisi(e.target.value)}
+              />
+              <label className="hc-text-label" htmlFor="edit-note">
+                Demandes spéciales
+              </label>
+              <textarea
+                id="edit-note"
+                value={noteSaisie}
+                onChange={(e) => setNoteSaisie(e.target.value)}
+                placeholder="Lit bébé, étage élevé…"
+                rows={3}
               />
               <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
                 <Button type="button" onClick={enregistrerModification} disabled={enCours}>

@@ -8,13 +8,15 @@ interface LigneChambreBrute {
   prixParNuit: string;
   devise: Chambre["devise"];
   statut: StatutChambre;
-  photos: string;
+  photos: string | null;
   updatedAt: string;
   syncVersion: number;
 }
 
 function depuisLigneBrute(ligne: LigneChambreBrute): Chambre {
-  return { ...ligne, photos: JSON.parse(ligne.photos) };
+  // photos peut être NULL sur une ligne ancienne ou écrite hors du miroir —
+  // JSON.parse(null) jetterait et viderait toute la liste (planning vide).
+  return { ...ligne, photos: ligne.photos ? JSON.parse(ligne.photos) : [] };
 }
 
 /** Lecture instantanée du miroir local — fonctionne hors ligne, jamais un

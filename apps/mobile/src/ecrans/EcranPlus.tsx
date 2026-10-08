@@ -3,10 +3,14 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   ArrowLeftRight,
+  BookOpenCheck,
+  CalendarDays,
+  ChefHat,
   ChevronRight,
   ClipboardList,
   Coins,
   FileText,
+  Wallet,
   LucideIcon,
   Package,
   Printer,
@@ -14,6 +18,7 @@ import {
   RefreshCw,
   Settings,
   ShoppingCart,
+  Ticket,
   UserCog,
   Globe,
   Users,
@@ -38,9 +43,14 @@ import { EcranUtilisateurs } from "./EcranUtilisateurs";
 import { EcranSiteHotel } from "./EcranSiteHotel";
 import { EcranReservations } from "./EcranReservations";
 import { EcranClients } from "./EcranClients";
+import { EcranJourneeReception } from "./EcranJourneeReception";
 import { EcranTauxChange } from "./EcranTauxChange";
 import { EcranJournalRecus } from "./EcranJournalRecus";
 import { EcranRapports } from "./EcranRapports";
+import { EcranDepenses } from "./EcranDepenses";
+import { EcranInventaire } from "./EcranInventaire";
+import { EcranCuisine } from "./EcranCuisine";
+import { EcranRetraitCommande } from "./EcranRetraitCommande";
 
 function initiales(nom: string): string {
   return nom
@@ -60,14 +70,21 @@ type VuePlus =
   | { id: "stock" }
   | { id: "comptes-ouverts" }
   | { id: "caisse" }
-  | { id: "compte"; compteId: string }
+  | { id: "retrait-commande" }
+  /** retour : écran vers lequel mène « Retour » du détail (liste par défaut). */
+  | { id: "compte"; compteId: string; retour?: "comptes-ouverts" | "cuisine" | "retrait-commande"; venteRapide?: boolean }
   | { id: "utilisateurs" }
   | { id: "site-hotel" }
   | { id: "arrivees-departs" }
+  | { id: "planning" }
+  | { id: "journal-journee" }
   | { id: "clients" }
   | { id: "taux-de-change" }
   | { id: "journal-recus" }
-  | { id: "rapports" };
+  | { id: "rapports" }
+  | { id: "depenses" }
+  | { id: "inventaire" }
+  | { id: "cuisine" };
 
 const VUE_LISTE: VuePlus = { id: "liste" };
 
@@ -75,16 +92,22 @@ const VUE_LISTE: VuePlus = { id: "liste" };
  * desktop (layout/Coquille.tsx) pour que les deux apps parlent pareil. */
 const ICONES_MENU: Record<string, LucideIcon> = {
   "arrivees-departs": ArrowLeftRight,
+  planning: CalendarDays,
+  "journal-journee": BookOpenCheck,
   clients: Users,
   caisse: ShoppingCart,
   "comptes-ouverts": ClipboardList,
+  "retrait-commande": Ticket,
   menu: UtensilsCrossed,
   stock: Package,
+  cuisine: ChefHat,
+  inventaire: ClipboardList,
   "journal-recus": ReceiptText,
   utilisateurs: UserCog,
   "site-hotel": Globe,
   "taux-de-change": Coins,
   rapports: FileText,
+  depenses: Wallet,
 };
 
 /** Ligne de menu standardisée : icône, libellé, chevron (ou badge « Bientôt »). */
@@ -125,15 +148,20 @@ function LigneMenu({
  * principe que le swap d'écrans déjà utilisé au niveau de App.tsx. */
 export function EcranPlus() {
   const { client, utilisateur, changerDeProfil, seDeconnecter, rechargerProfil } = useSession();
-  const sections = sectionsPlusPourRole(utilisateur.role, peutOperer(utilisateur));
+  const sections = sectionsPlusPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true);
   const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
   const etatSync = useSyncEtat();
   const { demandePlus, consommerDemandePlus } = useNotifications();
 
-  // Tap sur une notification (stock, arrivées…) : ouvre directement la vue concernée.
+  // Tap sur une notification (stock, arrivées, commande web…) : ouvre
+  // directement la vue concernée — le détail du compte si le lien porte un id.
   useEffect(() => {
     if (!demandePlus) return;
-    setVue({ id: demandePlus.vue });
+    if (demandePlus.vue === "compte") {
+      if (demandePlus.compteId) setVue({ id: "compte", compteId: demandePlus.compteId });
+    } else {
+      setVue({ id: demandePlus.vue });
+    }
     consommerDemandePlus();
   }, [demandePlus, consommerDemandePlus]);
 
@@ -173,13 +201,27 @@ export function EcranPlus() {
     return (
       <EcranCaisse
         onRetour={() => setVue(VUE_LISTE)}
-        onCompteOuvert={(compteId) => setVue({ id: "compte", compteId })}
+        onCompteOuvert={(compteId, options) => setVue({ id: "compte", compteId, venteRapide: options?.venteRapide })}
+      />
+    );
+  }
+  if (vue.id === "retrait-commande") {
+    return (
+      <EcranRetraitCommande
+        client={client}
+        onRetour={() => setVue(VUE_LISTE)}
+        onOuvrirCompte={(compteId) => setVue({ id: "compte", compteId, retour: "retrait-commande" })}
       />
     );
   }
   if (vue.id === "compte") {
     return (
-      <EcranCompteCafeteria client={client} compteId={vue.compteId} onRetour={() => setVue({ id: "comptes-ouverts" })} />
+      <EcranCompteCafeteria
+        client={client}
+        compteId={vue.compteId}
+        ouvrirAjoutAuDemarrage={vue.venteRapide === true}
+        onRetour={() => setVue(vue.retour ? { id: vue.retour } : { id: "comptes-ouverts" })}
+      />
     );
   }
   if (vue.id === "site-hotel") {
@@ -190,6 +232,12 @@ export function EcranPlus() {
   }
   if (vue.id === "arrivees-departs") {
     return <EcranReservations segmentInitial="aujourdhui" onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "planning") {
+    return <EcranReservations segmentInitial="planning" onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "journal-journee") {
+    return <EcranJourneeReception onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "clients") {
     return <EcranClients onRetour={() => setVue(VUE_LISTE)} />;
@@ -202,6 +250,21 @@ export function EcranPlus() {
   }
   if (vue.id === "rapports") {
     return <EcranRapports onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "depenses") {
+    return <EcranDepenses onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "inventaire") {
+    return <EcranInventaire client={client} utilisateur={utilisateur} onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "cuisine") {
+    return (
+      <EcranCuisine
+        client={client}
+        onRetour={() => setVue(VUE_LISTE)}
+        onOuvrirCompte={(compteId) => setVue({ id: "compte", compteId, retour: "cuisine" })}
+      />
+    );
   }
 
   return (
@@ -241,15 +304,21 @@ export function EcranPlus() {
                     id: entree.id as
                       | "caisse"
                       | "comptes-ouverts"
+                      | "retrait-commande"
+                      | "cuisine"
                       | "menu"
                       | "stock"
+                      | "inventaire"
                       | "utilisateurs"
                       | "site-hotel"
                       | "arrivees-departs"
+                      | "planning"
+                      | "journal-journee"
                       | "clients"
                       | "taux-de-change"
                       | "journal-recus"
-                      | "rapports",
+                      | "rapports"
+                      | "depenses",
                   })
                 }
               />

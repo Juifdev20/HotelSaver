@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDateString, IsOptional, Min } from "class-validator";
+import { IsDateString, IsOptional, IsString, Min } from "class-validator";
 
 export class UpdateReservationDto {
   @IsOptional()
@@ -14,4 +14,14 @@ export class UpdateReservationDto {
   @Type(() => Number)
   @Min(0, { message: "L'acompte ne peut pas être négatif." })
   acompte?: number;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  /** Message visible par le client sur sa page de suivi — réponse à sa
+   * demande avant confirmation (« acompte attendu à l'arrivée »…). */
+  @IsOptional()
+  @IsString()
+  reponseReception?: string;
 }

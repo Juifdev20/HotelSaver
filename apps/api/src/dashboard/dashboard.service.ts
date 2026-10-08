@@ -124,6 +124,74 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Journal de la journée réception (heure de Lubumbashi) : recette du jour,
+   * mouvements de chambres faits et restants, état du parc. RECEPTIONNISTE
+   * voit sa propre recette (comme recetteDuJour), PATRON voit tout. Sert à
+   * la remise de poste en fin de journée.
+   */
+  async journeeReception(currentUser: UtilisateurAuthentifie) {
+    const debut = debutJournee();
+    const fin = new Date(debut.getTime() + 24 * 3600_000);
+    const hotelId = currentUser.hotelId;
+    const estPatron = currentUser.role === Role.PATRON;
+
+    const plage = { gte: debut, lt: fin };
+    const [factures, ventes, arriveesJour, departsJour, chambres, comptesOuverts] = await Promise.all([
+      this.prisma.facture.findMany({
+        where: {
+          hotelId,
+          createdAt: plage,
+          annuleLe: null,
+          reservation: estPatron ? undefined : { createdBy: currentUser.userId },
+        },
+        select: { montantTotalUSD: true, montantTotalCDF: true },
+      }),
+      this.prisma.venteCafeteria.findMany({
+        where: {
+          hotelId,
+          createdAt: plage,
+          annuleLe: null,
+          createdBy: estPatron ? undefined : currentUser.userId,
+        },
+        select: { montantTotalUSD: true, montantTotalCDF: true },
+      }),
+      this.prisma.reservation.findMany({
+        where: { hotelId, dateArrivee: plage, statut: { not: "ANNULEE" } },
+        select: { statut: true, client: { select: { nom: true } }, chambre: { select: { numero: true } } },
+      }),
+      this.prisma.reservation.findMany({
+        where: { hotelId, dateDepart: plage, statut: { in: ["EN_COURS", "TERMINEE"] } },
+        select: { statut: true, client: { select: { nom: true } }, chambre: { select: { numero: true } } },
+      }),
+      this.occupation(hotelId),
+      this.prisma.compteCafeteria.count({ where: { hotelId, statut: "OUVERT" } }),
+    ]);
+
+    const recetteChambres = sommerParDevise(factures);
+    const recetteCafeteria = sommerParDevise(ventes);
+    const effectuees = arriveesJour.filter((r) => r.statut === "EN_COURS" || r.statut === "TERMINEE");
+    const restantes = arriveesJour.filter((r) => r.statut === "EN_ATTENTE" || r.statut === "CONFIRMEE");
+    const departsFaits = departsJour.filter((r) => r.statut === "TERMINEE");
+    const departsRestants = departsJour.filter((r) => r.statut === "EN_COURS");
+
+    return {
+      date: debut.toISOString(),
+      recette: {
+        chambres: { ...recetteChambres, nombreFactures: factures.length },
+        cafeteria: { ...recetteCafeteria, nombreVentes: ventes.length },
+        total: {
+          montantUSD: recetteChambres.montantUSD + recetteCafeteria.montantUSD,
+          montantCDF: recetteChambres.montantCDF + recetteCafeteria.montantCDF,
+        },
+      },
+      arrivees: { effectuees, restantes },
+      departs: { effectues: departsFaits, restants: departsRestants },
+      chambres,
+      comptesCafeteriaOuverts: comptesOuverts,
+    };
+  }
+
   /** RECEPTIONNISTE + PATRON uniquement (section 9.3, "Chambres"/"Statut chambre"). */
   async occupation(hotelId: string) {
     const chambres = await this.prisma.chambre.findMany({ where: { hotelId }, select: { statut: true } });

@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { ModifierClientDto } from "./dto/modifier-client.dto";
 import { PrismaClient } from "@hotel-chicago/database";
 import { PRISMA } from "../prisma/prisma.module";
 
@@ -47,5 +48,21 @@ export class ClientsService {
       throw new NotFoundException(`Aucun client trouvé avec l'identifiant ${id}.`);
     }
     return client;
+  }
+
+  /** Fiche client (pièce d'identité, notes, coordonnées) — syncVersion
+   * incrémenté comme partout pour la détection de conflit hors ligne. */
+  async update(id: string, dto: ModifierClientDto, hotelId: string) {
+    await this.findOne(id, hotelId);
+    return this.prisma.client.update({
+      where: { id, hotelId },
+      data: { ...dto, syncVersion: { increment: 1 } },
+      include: {
+        reservations: {
+          orderBy: { dateArrivee: "desc" },
+          include: { chambre: true, facture: true },
+        },
+      },
+    });
   }
 }

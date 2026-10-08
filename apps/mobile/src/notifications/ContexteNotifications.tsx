@@ -12,7 +12,23 @@ const INTERVALLE_MS = 30_000;
 
 /** Vue de l'onglet « Plus » à ouvrir (les écrans qui n'ont pas leur propre onglet). */
 export interface DemandePlus {
-  vue: "stock" | "arrivees-departs" | "rapports";
+  vue: "stock" | "arrivees-departs" | "rapports" | "comptes-ouverts" | "compte";
+  /** Compte cafétéria à ouvrir directement (deep-link notification). */
+  compteId?: string;
+  cle: number;
+}
+
+/** Demande d'ouverture d'un compte précis dans l'onglet « Comptes »
+ * (rôle CAFETARIA, qui possède cet onglet — le patron passe par « Plus »). */
+export interface DemandeCompte {
+  compteId: string;
+  cle: number;
+}
+
+/** Demande d'ouverture d'une réservation précise dans l'onglet « Réserv. »
+ * (RECEPTIONNISTE/PATRON) — arrivées, annulations, départs dépassés. */
+export interface DemandeReservation {
+  reservationId: string;
   cle: number;
 }
 
@@ -28,6 +44,10 @@ interface ValeurNotifications {
   ouvrirNotification: (notification: NotificationApp) => void;
   demandePlus: DemandePlus | null;
   consommerDemandePlus: () => void;
+  demandeCompte: DemandeCompte | null;
+  consommerDemandeCompte: () => void;
+  demandeReservation: DemandeReservation | null;
+  consommerDemandeReservation: () => void;
 }
 
 const Contexte = createContext<ValeurNotifications | null>(null);
@@ -41,13 +61,15 @@ export function cibleDeLien(lien: LienNotification, role: Role): { onglet: IdOng
       ? si("reservations")
       : lien.ecran === "chambres"
         ? si("chambres")
-        : lien.ecran === "stock"
-          ? si("plus", "stock")
-          : lien.ecran === "arrivees-departs"
-            ? si("plus", "arrivees-departs")
-            : lien.ecran === "rapports"
-              ? si("plus", "rapports")
-              : null;
+        : lien.ecran === "comptes-ouverts"
+          ? si("comptes-ouverts") ?? si("plus", "comptes-ouverts")
+          : lien.ecran === "stock"
+            ? si("plus", "stock")
+            : lien.ecran === "arrivees-departs"
+              ? si("plus", "arrivees-departs")
+              : lien.ecran === "rapports"
+                ? si("plus", "rapports")
+                : null;
   return cible ?? { onglet: "tableau-de-bord" };
 }
 
@@ -64,6 +86,8 @@ export function FournisseurNotifications({
   const [nonLues, setNonLues] = useState(0);
   const [centreOuvert, setCentreOuvert] = useState(false);
   const [demandePlus, setDemandePlus] = useState<DemandePlus | null>(null);
+  const [demandeCompte, setDemandeCompte] = useState<DemandeCompte | null>(null);
+  const [demandeReservation, setDemandeReservation] = useState<DemandeReservation | null>(null);
   const compteurDemandes = useRef(0);
   const enAttente = useRef<LienNotification | null>(null);
 
@@ -80,7 +104,25 @@ export function FournisseurNotifications({
   const naviguer = useCallback(
     (lien: LienNotification) => {
       const { onglet, plus } = cibleDeLien(lien, role);
-      if (plus) setDemandePlus({ vue: plus, cle: ++compteurDemandes.current });
+      // Un lien « comptes-ouverts » porte l'id du compte : on ouvre le détail
+      // directement — via l'onglet Comptes (CAFETARIA) ou la vue « compte »
+      // de Plus (PATRON, qui n'a pas cet onglet).
+      const compteId = lien.ecran === "comptes-ouverts" ? lien.id : undefined;
+      // Un lien « reservations » porte l'id du séjour : le détail s'ouvre
+      // directement dans l'onglet Réserv. (RECEPTIONNISTE et PATRON l'ont
+      // tous deux en bas — pas de fallback Plus nécessaire).
+      const reservationId = lien.ecran === "reservations" ? lien.id : undefined;
+      if (plus) {
+        setDemandePlus({
+          vue: plus === "comptes-ouverts" && compteId ? "compte" : plus,
+          compteId,
+          cle: ++compteurDemandes.current,
+        });
+      } else if (compteId) {
+        setDemandeCompte({ compteId, cle: ++compteurDemandes.current });
+      } else if (reservationId) {
+        setDemandeReservation({ reservationId, cle: ++compteurDemandes.current });
+      }
       if (navigationRef.isReady()) navigationRef.navigate(onglet as never);
       else enAttente.current = lien; // lancement à froid : appliqué dès que la navigation est prête
     },
@@ -189,8 +231,12 @@ export function FournisseurNotifications({
       },
       demandePlus,
       consommerDemandePlus: () => setDemandePlus(null),
+      demandeCompte,
+      consommerDemandeCompte: () => setDemandeCompte(null),
+      demandeReservation,
+      consommerDemandeReservation: () => setDemandeReservation(null),
     }),
-    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, demandePlus]
+    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, demandePlus, demandeCompte, demandeReservation]
   );
 
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;

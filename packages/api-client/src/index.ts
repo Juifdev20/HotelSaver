@@ -4,6 +4,7 @@ export type {
   DonneesChambre,
   DonneesCreationUtilisateur,
   DonneesModificationChambre,
+  DonneesModificationClient,
   DonneesModificationReservation,
   DonneesModificationUtilisateur,
   DonneesReservation,
@@ -12,6 +13,7 @@ export type {
   FiltresReservations,
   EntitePull,
   EntitePush,
+  JourneeReception,
   OperationPush,
   ReponsePull,
   ReservationAnnulee,
@@ -20,9 +22,9 @@ export type {
   TauxChange,
   Utilisateur,
 } from "./client";
-export { connecterAvecMotDePasse, rafraichirSession } from "./supabase-auth";
+export { connecterAvecMotDePasse, rafraichirSession, connecterViaApi, rafraichirViaApi } from "./supabase-auth";
 export type { ConfigSupabaseAuth, SessionSupabase } from "./supabase-auth";
-export { inscrireHotel, listerChambresDisponibles, listerMenu, creerDemandeReservationPublique, obtenirInfoPublique, listerHotelsPartenaires, demanderReinitialisationMotDePasse, reinitialiserMotDePasse } from "./public";
+export { inscrireHotel, listerChambresDisponibles, listerMenu, creerDemandeReservationPublique, obtenirSuiviReservation, annulerReservationPublique, preEnregistrerReservation, creerCommandeWeb, obtenirInfoPublique, listerHotelsPartenaires, demanderReinitialisationMotDePasse, reinitialiserMotDePasse } from "./public";
 export type { ConfigApiPublique } from "./public";
 export { ClientSuperAdmin } from "./super-admin";
 export type { DonneesCreationHotel, DonneesEnregistrementPaiement, DonneesAjoutDomaine } from "./super-admin";

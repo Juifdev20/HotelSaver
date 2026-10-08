@@ -2845,3 +2845,316 @@ Demande du patron : chaque mois, la cafétaria et la réception remettent un rap
 - **Stockage** : bucket privé `rapports` (créé à la demande, PDF ≤ 10 Mo), lecture par URL signée 5 min après contrôle du `hotelId` du JWT — jamais d'URL publique pour les chiffres de l'hôtel.
 - **Limites assumées (imprimées dans le document)** : occupation calculée sur les dates prévues (pas d'horodatage réel de check-in/out) ; annulation de vente sans retour de stock automatique.
 - **Rappels** : cron le 1er du mois 08:00 (Lubumbashi) « rapport à générer » aux deux rôles ; notification au patron à chaque génération.
+
+## Commande en ligne « Cuisine » sur le site public (03–04/10/2026)
+
+Demande du patron : un onglet « Cuisine » sur le site web de l'hôtel pour que le client commande en ligne ; la cafétaria reçoit le détail, le client paie au comptoir (reçu existant), la livraison suit le suivi de préparation.
+
+- **Réglage dédié `Hotel.commandeWebActivee`** (défaut false, PATRON seul via `PATCH /hotel/reglages`) — séparé de `cuisineActivee` (workflow interne) : un hôtel peut vendre en ligne sans KDS (les lignes arrivent alors directement `SERVI`), ou l'inverse.
+- **Produits opt-in** : `Produit.commandableEnLigne` + `description` ; `GET /public/menu` n'expose que les produits actifs ET commandables — rien n'est publié sans choix explicite du patron.
+- **Réutilisation de `CompteCafeteria`** plutôt qu'un modèle de commande dédié : `origine = "SITE_PUBLIC"`, `contactClient` (téléphone/chambre), `noteClient`, `ouvertPar = "SITE_PUBLIC"` (sentinelle déjà employée pour les réservations). Paiement, reçu, notifications, suivi cuisine et synchro mobile passent par les flux existants ; badge « Web » dans Comptes ouverts (mobile + desktop), bandeau « Commande web » avec contact et note sur le compte.
+- **`POST /public/commande`** : résolution de tenant identique aux autres routes publiques, **404 uniforme** si l'hôtel est inconnu/suspendu/option désactivée (ne pas révéler l'existence ni le réglage). Plafonds 20 lignes / 50 unités par ligne, quantités agrégées par produit.
+- **Prix toujours côté serveur** (snapshot nom/prix/devise sur `LigneCommande`, jamais le payload client) ; stock vérifié puis décrémenté avant les lignes. Pas de transaction interactive via le pooler : en cas d'échec en cours de route, `annulerCommandeWebPartielle` remonte le stock et supprime lignes/mouvements/sous-compte/compte (même raisonnement que la compensation de `ajouterLigne`).
+- **Notification `COMMANDE_WEB`** → CAFÉTARIA + PATRON (canal demandes clients), lien `comptes-ouverts` vers le compte (nouvelle destination de notification).
+- **Paiement au comptoir uniquement (v1)** : la confirmation du site l'annonce ; pas de Mobile Money/carte en ligne, pas de suivi client, pas d'endpoint `GET /public/commande/:ref`, pas d'extras/horaires — évolutions possibles.
+- Anti-abus minimal v1 : validation stricte + tout-ou-rien ; throttling/honeypot à ajouter si besoin.
+
+## Type de produit : plat préparé vs article de comptoir (04/10/2026)
+
+Retour du patron : tout était mélangé dans l'écran Menu — le formulaire demandait
+stock/seuil/prix d'achat même pour un plat cuisiné, et description/site même pour
+un article de stock. Désordre.
+
+- **`Produit.typeProduit`** (`TypeProduit` : `ARTICLE` par défaut — tous les
+  produits existants étaient des articles de stock ; `PLAT`).
+- **PLAT** = préparé à la commande : photo/description/publication site dans le
+  formulaire, **pas de stock compté** (ni contrôle, ni décrément, ni mouvement
+  d'audit dans `ajouterLigne` ; la dispo se règle via `actif`). Seuls les plats
+  sont exposés par `GET /public/menu` et acceptés par `POST /public/commande` —
+  la commande web ne touche donc plus du tout au stock, et `PublicService` ne
+  dépend plus de `StockService`.
+- **ARTICLE** = comptoir stocké : seuil/prix d'achat dans le formulaire, jamais
+  publiable ni commandable en ligne (un article marqué par erreur est rejeté
+  côté requête, le site ne filtre que `typeProduit = PLAT`).
+- **File de production** : seules les lignes de PLATS entrent en cuisine
+  (`EN_ATTENTE` si `cuisineActivee`) — vendre une bière n'encombre plus l'écran
+  du cuisinier ; les articles sont créés `SERVI` directement (mobile hors ligne
+  applique la même règle dans `creerLigneLocal`).
+- **Stock/Inventaire** : plats exclus de `preparerInventaire` (API) et des écrans
+  Stock mobile/desktop (mouvements, valeur marchande, sélecteurs).
+- Miroir mobile : colonne `typeProduit` (CREATE + ALTER pour téléphones déjà
+  installés), propagée par la synchro.
+
+### Compléments au formulaire produit (04/10/2026, retour patron)
+
+- **Photo du plat** : `Produit.photo` existait déjà mais aucun formulaire ne
+  l'exposait — `SelecteurPhotos` (usage `"produit"`, max 1, cadre 1024×768)
+  branché dans les formulaires mobile et desktop, nettoyage du stockage à
+  l'annulation/suppression comme pour les chambres.
+- **`Produit.portionsDisponibles Int?`** (PLAT uniquement) : null = illimité
+  (cuisine à la commande) ; sinon décrémenté à chaque vente (comptoir +
+  commande web) via `updateMany` conditionnel `gte`, remonté si la commande
+  web échoue ; à 0 le plat est « Épuisé » (comptoir + site). Vide → null en
+  modification pour repasser en illimité.
+- **Quantité initiale** d'un article proposée à la création (`stockActuel`
+  existait déjà dans CreateProduitDto) ; ensuite uniquement via l'écran Stock.
+- Placeholders du formulaire adaptés au type (plat : « Poulet braisé »…).
+- **Bug corrigé** : l'écran mobile « Ajouter » traitait `stockActuel = 0` des
+  plats comme « Épuisé » — plats invendables au comptoir. La limite est
+  désormais `portionsDisponibles` pour les plats, `stockActuel` pour les
+  articles ; `creerLigneLocal` prend `cuisineActivee` (un plat hors cuisine
+  active est `SERVI`, pas `EN_ATTENTE`).
+
+## Ticket PDF + retrait de commande web par référence (06/10/2026)
+
+Le client qui commande sur le site public obtient une **référence courte**
+(8 premiers caractères de l'id du compte — `slice(0,8).toUpperCase()`),
+affichée sur l'écran de confirmation et le ticket PDF.
+
+- **Ticket PDF** : `GET /public/commande/:compteId/ticket?sousDomaine=…`
+  (`StreamableFile`, `attachment`) — public (le client n'a pas de compte) mais
+  restreint aux commandes `SITE_PUBLIC` de l'hôtel résolu par sous-domaine ;
+  l'UUID complet fait office de capacité (non devinable en pratique).
+- **Retrait par référence** : `GET /cafeteria/comptes/par-reference/:reference`
+  (CAFETARIA + PATRON) — `startsWith` insensible à la casse sur les commandes
+  `SITE_PUBLIC`, préfère celle encore OUVERTE ; **409 « déjà réglée » si le
+  compte est FERME** — la référence devient obsolète après encaissement,
+  contre la réutilisation pour un second service gratuit. Pas de colonne
+  dédiée : le préfixe d'UUID suffit (collision quasi impossible sur un hôtel,
+  et un doublon retombe sur le compte ouvert).
+- **Deep-link notifications** : `LienNotification.id` portait déjà le
+  compteId mais était jeté par `cibleDeLien`. Désormais : CAFETARIA → onglet
+  Comptes + `demandeCompte` consommée par `EcranOngletComptesOuverts` ;
+  PATRON (sans cet onglet) → Plus + vue `compte` (`demandePlus.compteId`).
+  Desktop : `ouvrirLien` pose `compteCafeteriaOuvert` avant la page.
+- **Cuisine → compte** : l'en-tête de chaque carte KDS ouvre le détail du
+  compte (mobile : vue `compte` de Plus avec retour vers Cuisine ; desktop :
+  page Comptes ouverts avec le compte déplié).
+
+## Réception moderne : planning, fiche client, arrivée express, journal (06/10/2026)
+
+Six chantiers validés pour rendre la réception « moderne » sur mobile et
+desktop. Décisions structurantes :
+
+- **`Reservation.note` + `Client.typePiece/numeroPiece/notes`** : colonnes
+  ajoutées au schéma (ALTER TABLE via pooler, consignées dans
+  `apply_manually.sql`). La fiche client se complète par `PATCH /clients/:id`
+  — en ligne seulement (registre de police saisi au comptoir, le réseau est
+  requis de toute façon) ; le miroir SQLite est mis à jour par
+  `ecrireClientLocal` pour l'affichage immédiat, le pull suivant réconcilie.
+- **Planning visuel** : `GET /reservations?du=…&au=…` renvoie les
+  réservations qui chevauchent la fenêtre (sauf ANNULEE). Mobile = 7 jours
+  (segment « Planning » de l'onglet Réserv., lit le miroir — fonctionne hors
+  ligne) ; desktop = 14 jours (toggle Liste/Planning, appels API). Cellule
+  vide → formulaire pré-rempli (chambre + arrivée) ; barre → détail.
+- **Arrivée express (walk-in)** : `installerImmediatement` sur
+  `POST /reservations` — la réservation naît `EN_COURS` et la chambre passe
+  `OCCUPEE` dans **la même transaction** que le create. Remplace l'ancien
+  enchaînement create + check-in en deux appels, qui laissait une
+  réservation CONFIRMEE orpheline quand le check-in échouait.
+- **Journal de la journée** : `GET /dashboard/journee-reception`
+  (RECEPTIONNISTE + PATRON) — encaissements du jour par département/devise
+  (scopé `createdBy` pour le réceptionniste comme `recetteDuJour`),
+  arrivées/départs faits et restants, état du parc, comptes cafétéria
+  ouverts. Heure de Lubumbashi (`debutJournee` partagé). Sert à la remise
+  de poste.
+- **WhatsApp client** : bouton `wa.me` sur le détail réservation (mobile +
+  desktop), message pré-rempli (hôtel, chambre, dates, total, reste à
+  payer, note) — zéro backend, ouverture dans l'app/le navigateur.
+- **Deep-link réservation** : `demandeReservation` dans
+  `ContexteNotifications` (même mécanisme que `demandeCompte`) — les liens
+  `reservations` portant l'id du séjour ouvrent l'onglet Réserv. directement
+  sur le détail (remontage par `key` = id de la demande).
+
+## Client API multi-URL : câble USB ET Wi-Fi (06/10/2026)
+
+Le téléphone de dev doit joindre le serveur local aussi bien par le câble
+(`adb reverse` → 127.0.0.1) que par le Wi-Fi (IP locale du PC, qui change à
+chaque réseau). Une URL unique en `.env` cassait dès que l'utilisateur
+changeait de Wi-Fi ou que le tunnel sautait.
+
+- **`ClientApi` accepte `baseUrl: string | string[]`** — chaque requête
+  essaie la dernière URL qui a répondu puis les autres, et bascule
+  UNIQUEMENT sur erreur réseau (fetch qui jette). Une réponse HTTP, même
+  4xx/5xx, prouve qu'on parle au bon serveur : pas de basculement. Le
+  `super-admin` et les fonctions publiques (`ConfigApiPublique.url`) ont le
+  même comportement.
+- **Candidates mobiles** (`candidatsApi()`, configuration.ts) : l'URL du
+  build, puis `http://<ip>:3000` dérivée de `Constants.expoConfig.hostUri`
+  (le dev-client connaît déjà l'IP Wi-Fi du PC via Metro — elle suit les
+  changements de réseau sans jamais être codée en dur), puis
+  `http://127.0.0.1:3000`. En production (pas de hostUri), seule l'URL
+  publique du build sert — comportement inchangé.
+
+## Relais d'authentification /auth/connexion + /auth/rafraichir (06/10/2026)
+
+Sur un hotspot de dev, le téléphone voit l'API locale (Wi-Fi/USB) mais pas
+toujours Supabase (filtrage des plages IP observé : timeouts alors que
+l'Internet ordinaire passe). `connecterAvecMotDePasse` et
+`rafraichirSession` tapaient Supabase directement → connexion impossible.
+
+- **`AuthProxyController`** (public, sans garde) : `POST /auth/connexion`
+  {email, motDePasse} et `POST /auth/rafraichir` {refreshToken} relaient
+  vers `${SUPABASE_URL}/auth/v1/token?grant_type=…` avec la clé anon côté
+  serveur ; statut et corps transmis tels quels (même mapping d'erreurs en
+  français côté client, MESSAGES_PAR_CODE). Supabase injoignable → 502.
+- **api-client** : `connecterViaApi`/`rafraichirViaApi` (même failover
+  multi-URL que ClientApi). Mobile : `connecter()`/`rafraichir()` dans
+  App.tsx préfèrent le relais ; ErreurApi 404 (vieille API) → appel direct
+  Supabase en secours. Le téléphone n'a donc plus besoin d'Internet direct
+  pour s'authentifier : le LAN suffit.
+
+## Dépenses par département : réception et cafétaria (07/10/2026)
+
+Demande : la réception et la cafétaria notent leurs dépenses (date, motif,
+montant) et téléchargent la liste ; le patron n'en saisit pas.
+
+- **Modèle `Depense`** (migration `20261007090000_depenses`, RLS activée
+  sans policy comme `RapportMensuel`) : `departement` (enum
+  `DepartementRapport` réutilisé), `date` en `@db.Date`, `motif`,
+  `montant`/`devise` (jamais convertis), instantané `creeParId/creeParNom`,
+  `updatedAt/syncVersion` pour la synchro. **Pas de suppression** : une
+  erreur se corrige ou s'annule (`annulee` + `annuleeLe`, définitif) — même
+  règle de traçabilité que les réservations et factures.
+- **Le département vient du rôle, côté serveur** (`common/departement.ts`,
+  partagé avec les rapports) : RECEPTIONNISTE → RECEPTION, CAFETARIA →
+  CAFETERIA. Le client ne l'envoie jamais.
+- **Le patron consulte seulement**, même si l'hôtel a activé
+  `patronPeutOperer` : `@Roles(RECEPTIONNISTE, CAFETARIA)` sur l'écriture,
+  pas `@Operationnel` (qui laisserait passer un patron « opérant »). Lecture
+  et PDF : les trois rôles, le personnel limité à son département.
+- **Hors ligne sur mobile** : `Depense` est dans `ENTITES_PUSH`. Le pull
+  générique ne filtrait que par hôtel ; il gagne un `FILTRE_LECTURE` par
+  entité (seul `Depense` l'utilise) pour qu'un réceptionniste ne reçoive pas
+  les dépenses de la cafétaria. Le payload de synchro ne passe pas par le
+  ValidationPipe : toute la validation est dans `DepensesService`. Une
+  dépense pas encore synchronisée ne se corrige pas (l'UPDATE exige
+  `remoteId` + `baseSyncVersion`, même règle que les réservations).
+- **PDF de période** (`GET /depenses/pdf?du&au`) : généré à la demande,
+  déposé dans le bucket privé `rapports` sous `{hotelId}/depenses/`, URL
+  signée de 5 min. Les dépenses annulées en sont exclues. Le mobile force
+  une synchro avant, pour que les saisies hors ligne y figurent.
+- **Rapport mensuel** : section « 8. Dépenses du mois et solde net »
+  (recettes − dépenses, devise par devise) et `depenses`/`soldeNet` figés
+  dans `chiffres`. Calculé dans `RapportsService.generer`, pas dans les
+  agrégats partagés avec le tableau de bord (qui ne change pas). Les
+  rapports déjà générés restent tels quels ; une régénération inclut les
+  dépenses.
+- **Navigation** : onglet « Dépenses » (mobile) pour RECEPTIONNISTE et
+  CAFETARIA, entrée « Plus » pour le patron ; page « Dépenses » (desktop,
+  section Rapports) pour tous, en ligne seulement.
+
+## Suivi de réservation par le client + pré-enregistrement en ligne (07/10/2026)
+
+Avant : après une demande sur le site, le client n'avait aucun retour (« l'hôtel
+vous contactera »). Maintenant chaque réservation a un lien « Ma réservation ».
+
+- **`Reservation.jetonSuivi`** (UUID v4, `@unique`, généré par Prisma ; les
+  réservations existantes l'ont reçu via `gen_random_uuid()` dans la migration
+  `20261007120000_suivi_reservation`). C'est le seul secret du lien : pas de
+  compte client. Code lisible `RES-XXXXXXXX` calculé (`codeSuivi`), jamais stocké.
+- **Routes publiques** `GET /public/suivi/:jeton`, `POST …/annuler`,
+  `POST …/pre-enregistrement`, toujours avec `?sousDomaine=` : la réservation doit
+  appartenir à l'hôtel du site consulté, sinon **404 uniforme**. Réponse réduite :
+  jamais le numéro de pièce (`pieceRenseignee: boolean`), jamais le motif interne
+  d'une annulation par l'hôtel (statut public « NON_RETENUE »). Une annulation par
+  le client porte le motif préfixé « Annulée par le client depuis le site » —
+  c'est ce préfixe qui distingue « ANNULEE » de « NON_RETENUE ».
+- Annulation / pré-enregistrement possibles si EN_ATTENTE ou CONFIRMEE, jusqu'à la
+  fin du jour d'arrivée. L'écriture d'annulation est dupliquée depuis
+  `ReservationsService.annuler` : `PublicService` ne dépend pas du module
+  Réservations (règle existante). Réception + patron notifiés (nouveau type
+  `PRE_ENREGISTREMENT`, et `RESERVATION_ANNULEE` « par le client (site web) »).
+- **`demandeClient`** séparé de `note` : `note` appartient à la réception, le
+  client ne doit pas pouvoir l'écraser. La pièce va sur `Client` (registre).
+- `POST /public/reservations` ne renvoie plus la réservation complète (elle
+  contenait la fiche client) mais `{ id, statut, jetonSuivi }` ; le site redirige
+  vers `/ma-reservation/:jeton`.
+- **Lien côté réception, hors ligne** : `/auth/me` expose `hotelUrlSite`
+  (domaine personnalisé vérifié, sinon `SITE_WEB_URL/?hotel=<sousDomaine>`) ;
+  `lienSuivi(hotelUrlSite, jeton)` (packages/types) construit le lien depuis le
+  miroir local. Ajouté au message WhatsApp existant ; « Partager » (mobile, API
+  `Share`, pas de module natif ajouté) / « Copier » (desktop).
+- **Retirage mobile** : le pull est incrémental sur `updatedAt` ; la migration
+  `20261007130000_suivi_reservation_retirage` touche `updatedAt` une fois pour que
+  les téléphones retéléchargent les réservations existantes avec leur jeton.
+- **Pas de throttler** sur les routes publiques : le jeton (122 bits aléatoires)
+  rend l'énumération impraticable. À ajouter (`@nestjs/throttler`) si des abus
+  apparaissent.
+- Corrigé au passage : le message WhatsApp de la réservation commençait par
+  « [object Object] » (`enteteHotel()` renvoie un objet depuis l'en-tête de reçu
+  par hôtel) — il
+  affiche le nom de l'hôtel.
+
+## Réponse du réceptionniste sur le suivi client (07/10/2026)
+
+- `Reservation.reponseReception` (migration `20261007180000_reponse_reception`) :
+  texte du personnel **rendu public** sur la page « Ma réservation » — la voix
+  de l'hôtel dans l'échange demande → confirmation (ex. « acompte attendu à
+  l'arrivée »). Distinct de `note` (interne) et de `demandeClient` (sens
+  inverse, client → hôtel).
+- Passage par `PATCH /reservations/:id` existant (bloqué uniquement sur
+  ANNULEE/TERMINEE — éditable dès EN_ATTENTE, là où la réponse est utile).
+  Côté mobile, écriture optimiste + file UPDATE (`modifierReservationLocale`)
+  → fonctionne hors ligne ; l'action n'apparaît que si la réservation est
+  synchronisée (remoteId requis).
+- `SuiviReservationPublic.reponseReception` exposé par
+  `GET /public/suivi/:jeton` ; carte « Message de la réception » sur le site
+  (`EcranSuiviReservation`, styles `suivi-texte`).
+- Règle de visibilité UI : le bouton « Répondre au client » suit
+  `suiviModifiable` (EN_ATTENTE/CONFIRMEE) — après check-in, la réponse
+  publique n'a plus de sens (le client est sur place).
+
+## Scan des articles à la caisse cafétaria : douchette + caméra (08/10/2026)
+
+Adaptation à HotelSaver d'un plan « scanner comme en supermarché ».
+
+- **`Produit.codeBarres`** (migration `20261008090000_code_barres_produit`),
+  `@@unique([hotelId, codeBarres])` (NULL autorisé plusieurs fois). **ARTICLE
+  seulement** : un PLAT le refuse (400), un article qui devient plat le perd.
+  Code du fabricant, ou **EAN-13 interne préfixe 2** (plage GS1 « usage en
+  magasin ») généré par l'app — 11 chiffres aléatoires + clé ; unicité garantie
+  par l'index, un 409 sur un code généré déclenche simplement un nouvel essai.
+- **Le code ne contient jamais le prix** : changer un prix ne réimprime rien, une
+  étiquette ne peut pas être falsifiée.
+- Doublon → **409 en français** qui nomme le produit concerné (P2002 traduit dans
+  `ProduitsService`).
+- **`PATCH /produits/:id/code-barres`** ouvert à CAFETARIA + PATRON : la caissière
+  associe le code d'un article inconnu pendant la vente sans pouvoir toucher au
+  prix ni au reste de la fiche (toujours `@Roles(PATRON)`).
+- **Recherche locale** : le code est cherché dans le catalogue déjà chargé
+  (miroir SQLite sur mobile) — instantané et hors ligne, aucune route « par
+  code-barres ». Le scan alimente le **panier existant** de « Ajouter une
+  consommation » (`changer(produit, +1)`, mêmes limites de stock).
+- **`packages/receipts`** : `code-barres.ts` (clé EAN-13, générateur,
+  `trouverProduitParCode`, `DetecteurRafale` pour la douchette,
+  `construireEtiquette`) ; ligne de reçu `codebarre` encodée en ESC/POS natif
+  (`GS h/w/H` puis `GS k 67 13` EAN-13, sinon Code128 `GS k 73`). Le desktop
+  ajoute ces mêmes octets à node-thermal-printer (`append`) : un seul encodeur.
+- **Mobile** : `expo-camera` (ML Kit, module natif → **reconstruire l'APK**) en
+  mode continu (vente) ou unique (fiche produit), même code ignoré 1,5 s ;
+  douchette via un `TextInput` caché focalisé (`showSoftInputOnFocus={false}`) ;
+  retour par `Vibration` (pas de dépendance audio).
+- **Desktop** : douchette = écoute `keydown` globale (`useDouchette`, rafale
+  < 40 ms terminée par Entrée) ; webcam = `@zxing/browser` (`BarcodeDetector`
+  n'existe pas sous Chromium Windows) ; bip WebAudio.
+- **Vente rapide** (Caisse) : compte « Comptoir HH:MM » + personne « Client »,
+  ouverture directe de l'ajout, scanner prêt. Le scan marche avant la synchro ;
+  la validation du panier attend, comme avant, que la personne existe côté
+  serveur (règle existante des lignes de commande).
+
+## Synchronisation plus rapide pour la caisse (08/10/2026)
+
+Constat : à la cafétaria, après « Ouvrir le compte » ou « Ajouter », les boutons
+(Ajouter, Encaisser) restaient grisés plusieurs secondes, parfois ~20 s.
+
+- **Écriture pendant un cycle en cours** : `mettreEnFile` se rattachait au cycle
+  déjà lancé, qui avait lu la file avant l'écriture → l'opération attendait le
+  poll suivant (20 s). `MoteurSync` mémorise maintenant `envoiDemande` et
+  enchaîne un cycle dès la fin du précédent.
+- **Écrans prévenus après l'envoi** : `dernierePousseeLe` est mis à jour dès que
+  le push est confirmé (ids serveur connus), avant la réception des autres
+  données — les écrans rechargent leur miroir et réactivent les boutons.
+- **Pas de ping avant chaque envoi** si le serveur a répondu il y a < 15 s.
+- **`/sync/pull` en parallèle** côté serveur (borné par le pool `pg`, max 5) :
+  mesuré sur la base réelle depuis Kasindi, 11 entités 3,1 s → 0,8 s.

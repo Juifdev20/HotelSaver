@@ -71,6 +71,15 @@ export const messages = {
     };
   },
 
+  preEnregistrement(p: { client: string; chambre: string; arrivee: Date; heure: string; reservationId: string }): MessageNotification {
+    return {
+      type: "PRE_ENREGISTREMENT",
+      titre: "Client pré-enregistré",
+      corps: `${p.client} · Ch. ${p.chambre} · arrivée le ${dateCourte(p.arrivee)} vers ${p.heure}`,
+      lien: { ecran: "reservations", id: p.reservationId },
+    };
+  },
+
   reservationAnnulee(p: { client: string; chambre: string; motif: string; reservationId: string; par?: string }): MessageNotification {
     return {
       type: "RESERVATION_ANNULEE",
@@ -153,6 +162,19 @@ export const messages = {
       titre: `Rapport ${p.departement} de ${p.mois} disponible`,
       corps: `${p.numero} — prêt à consulter et à signer.`,
       lien: { ecran: "rapports" },
+    };
+  },
+
+  commandeWeb(p: { client: string; articles: number; totalUSD: number; totalCDF: number; compteId: string }): MessageNotification {
+    const montants = [
+      p.totalUSD > 0 ? montant(p.totalUSD, "USD") : null,
+      p.totalCDF > 0 ? montant(p.totalCDF, "CDF") : null,
+    ].filter(Boolean);
+    return {
+      type: "COMMANDE_WEB",
+      titre: "Nouvelle commande depuis le site web",
+      corps: `${p.client} · ${pluriel(p.articles, "article", "articles")} · ${montants.join(" + ")} — en attente au comptoir`,
+      lien: { ecran: "comptes-ouverts", id: p.compteId },
     };
   },
 };

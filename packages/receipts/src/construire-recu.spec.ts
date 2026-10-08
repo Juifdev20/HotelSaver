@@ -20,7 +20,18 @@ function creerChambre(surcharge: Partial<Chambre> = {}): Chambre {
 }
 
 function creerClient(surcharge: Partial<Client> = {}): Client {
-  return { id: "cl1", nom: "Jean Dupont", telephone: null, email: null, updatedAt: new Date().toISOString(), syncVersion: 1, ...surcharge };
+  return {
+    id: "cl1",
+    nom: "Jean Dupont",
+    telephone: null,
+    email: null,
+    typePiece: null,
+    numeroPiece: null,
+    notes: null,
+    updatedAt: new Date().toISOString(),
+    syncVersion: 1,
+    ...surcharge,
+  };
 }
 
 function creerReservation(surcharge: Partial<Reservation> = {}): Reservation {
@@ -35,6 +46,12 @@ function creerReservation(surcharge: Partial<Reservation> = {}): Reservation {
     acompte: "0",
     statut: "EN_COURS",
     origine: "SUR_PLACE",
+    note: null,
+    jetonSuivi: "jeton-test",
+    heureArriveePrevue: null,
+    demandeClient: null,
+    preEnregistreLe: null,
+    reponseReception: null,
     annuleLe: null,
     motifAnnulation: null,
     facture: null,

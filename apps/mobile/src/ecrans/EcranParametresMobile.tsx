@@ -33,11 +33,37 @@ export interface EcranParametresMobileProps {
 export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie }: EcranParametresMobileProps) {
   const [enregistrement, setEnregistrement] = useState(false);
   const patronOpere = utilisateur?.patronPeutOperer === true;
+  const cuisineActivee = utilisateur?.cuisineActivee === true;
+  const commandeWebActivee = utilisateur?.commandeWebActivee === true;
 
   async function basculerPatronOpere(valeur: boolean) {
     setEnregistrement(true);
     try {
       await client.modifierReglagesHotel({ patronPeutOperer: valeur });
+      onProfilModifie?.();
+    } catch (e) {
+      Alert.alert("Réglage non enregistré", e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function basculerCuisine(valeur: boolean) {
+    setEnregistrement(true);
+    try {
+      await client.modifierReglagesHotel({ cuisineActivee: valeur });
+      onProfilModifie?.();
+    } catch (e) {
+      Alert.alert("Réglage non enregistré", e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
+  async function basculerCommandeWeb(valeur: boolean) {
+    setEnregistrement(true);
+    try {
+      await client.modifierReglagesHotel({ commandeWebActivee: valeur });
       onProfilModifie?.();
     } catch (e) {
       Alert.alert("Réglage non enregistré", e instanceof Error ? e.message : "Erreur inconnue.");
@@ -77,6 +103,27 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
                   </Text>
                 </View>
                 <Switch value={patronOpere} onValueChange={(v) => void basculerPatronOpere(v)} disabled={enregistrement} />
+              </View>
+              <View style={styles.compteLigne}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compteNom}>Suivi des commandes en cuisine</Text>
+                  <Text style={styles.compteRole}>
+                    Activez si des plats sont préparés par une équipe séparée : les commandes partent sur l'écran Cuisine jusqu'à
+                    leur service. Laissez éteint pour une vente au comptoir (articles servis immédiatement).
+                  </Text>
+                </View>
+                <Switch value={cuisineActivee} onValueChange={(v) => void basculerCuisine(v)} disabled={enregistrement} />
+              </View>
+              <View style={styles.compteLigne}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compteNom}>Commande en ligne sur le site</Text>
+                  <Text style={styles.compteRole}>
+                    Un onglet « Cuisine » apparaît sur le site web de l'hôtel : les clients y commandent les produits
+                    marqués « Visible et commandable sur le site » (écran Menu). La cafétéria est notifiée et le client
+                    paie au comptoir.
+                  </Text>
+                </View>
+                <Switch value={commandeWebActivee} onValueChange={(v) => void basculerCommandeWeb(v)} disabled={enregistrement} />
               </View>
             </View>
           )}

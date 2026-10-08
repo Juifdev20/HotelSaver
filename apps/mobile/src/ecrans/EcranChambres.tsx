@@ -7,6 +7,7 @@ import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
+import { EnteteRetour } from "../composants/EnteteRetour";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { SelecteurPhotos, nettoyerImages } from "../composants/SelecteurPhotos";
 import { MAX_PHOTOS_CHAMBRE } from "@hotel-chicago/types";
@@ -40,7 +41,8 @@ const TOUS_LES_STATUTS = [StatutChambre.LIBRE, StatutChambre.RESERVEE, StatutCha
  * modification en file — elle part dès que possible, avec conflit visible
  * dans "Synchronisation" si le `syncVersion` a bougé entre-temps.
  */
-export function EcranChambres() {
+/** `onRetour` : « ‹ Retour » vers l'Accueil (onglet sans stack, cf. EnteteRetour). */
+export function EcranChambres({ onRetour }: { onRetour: () => void }) {
   const { client, moteurSync, utilisateur } = useSession();
   const etatSync = useSyncEtat();
   const [chambres, setChambres] = useState<Chambre[] | null>(null);
@@ -193,14 +195,11 @@ export function EcranChambres() {
   return (
     <View style={styles.page}>
       <EnteteMobile />
-      <View style={styles.entete}>
-        <View>
-          <Text style={styles.titre}>Chambres</Text>
-          <Text style={styles.sousTitre}>
-            {chambres ? `${chambres.length} chambre${chambres.length > 1 ? "s" : ""}` : "Chargement…"}
-          </Text>
-        </View>
-      </View>
+      <EnteteRetour
+        titre="Chambres"
+        sousTitre={chambres ? `${chambres.length} chambre${chambres.length > 1 ? "s" : ""}` : "Chargement…"}
+        onRetour={onRetour}
+      />
 
       {erreur && <Text style={styles.erreur}>{erreur}</Text>}
 
@@ -305,9 +304,6 @@ export function EcranChambres() {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.surface100 },
-  entete: { padding: espacements.s4, paddingBottom: espacements.s2 },
-  titre: { fontSize: 22, fontWeight: "700", color: couleurs.navy },
-  sousTitre: { fontSize: 13, color: couleurs.encreAttenuee, marginTop: 2 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
   // 88px de marge basse : le FAB ne recouvre pas la dernière carte.
   liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },

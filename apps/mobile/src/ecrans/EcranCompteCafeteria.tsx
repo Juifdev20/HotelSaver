@@ -1,11 +1,11 @@
 import * as React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Devise, ModePaiement, Produit, StatutCompte, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
+import { Devise, MenuDuJour, ModePaiement, Produit, StatutCompte, StatutLigne, LIBELLE_STATUT_LIGNE, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
-import { Check, Plus, UserPlus } from "lucide-react-native";
+import { Check, Globe, Plus, UserPlus } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -20,9 +20,11 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { imprimerLignes } from "../impression/imprimante";
 import {
   CompteCafeteriaMiroir,
+  LigneCommandeMiroir,
   SousCompteMiroir,
   creerSousCompteLocal,
   listerProduitsMiroir,
+  majStatutLigneLocal,
   marquerPersonnePayeeLocal,
   obtenirCompteMiroir,
   produitsPopulairesAujourdhuiMiroir,
@@ -32,6 +34,10 @@ export interface EcranCompteCafeteriaProps {
   client: ClientApi;
   compteId: string;
   onRetour: () => void;
+  /** « Vente rapide » : ouvre tout de suite l'ajout pour la première personne,
+   * caméra prête. Le scan remplit le panier même avant la synchronisation ;
+   * seule la validation attend que la personne existe côté serveur. */
+  ouvrirAjoutAuDemarrage?: boolean;
 }
 
 /**
@@ -45,7 +51,7 @@ export interface EcranCompteCafeteriaProps {
  * bloqué tant que des lignes/sous-comptes de ce compte sont encore en
  * attente d'envoi, sans quoi le total facturé serait incomplet.
  */
-export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompteCafeteriaProps) {
+export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAuDemarrage = false }: EcranCompteCafeteriaProps) {
   const { utilisateur, moteurSync } = useSession();
   const etatSync = useSyncEtat();
   const [compte, setCompte] = useState<CompteCafeteriaMiroir | null>(null);
@@ -61,7 +67,10 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
 
   // Niveau 2 : id de la personne pour qui on ajoute des consommations (null = vue d'ensemble).
   const [personneEnAjout, setPersonneEnAjout] = useState<string | null>(null);
+  const [scanAuDemarrage, setScanAuDemarrage] = useState(false);
+  const ajoutDemarrageFait = useRef(false);
   const [populaires, setPopulaires] = useState<Map<string, number>>(new Map());
+  const [menuDuJour, setMenuDuJour] = useState<MenuDuJour | null>(null);
 
   const [modaleEncaissement, setModaleEncaissement] = useState(false);
   // Qui l'on encaisse : une personne (son id local) ou « tout » ce qui reste à régler.
@@ -85,6 +94,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
 
   const [enEnvoi, setEnEnvoi] = useState(false);
   const [erreurAction, setErreurAction] = useState<string | null>(null);
+  const [serviEnCours, setServiEnCours] = useState<Set<string>>(new Set());
 
   // Le MÊME reçu sert à l'aperçu et à l'impression : ce qu'on voit est ce qui sort imprimé.
   const lignesRecu = useMemo(
@@ -102,12 +112,23 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
     rechargerCompte();
     listerProduitsMiroir().then(setProduits).catch(() => {});
     produitsPopulairesAujourdhuiMiroir().then(setPopulaires).catch(() => {});
+    client.menuDuJour().then(setMenuDuJour).catch(() => {});
     moteurSync.forcerSynchronisation();
   }, [rechargerCompte, moteurSync]);
 
   useEffect(() => {
     if (etatSync.dernierePousseeLe) rechargerCompte();
   }, [etatSync.dernierePousseeLe, rechargerCompte]);
+
+  // Vente rapide : une seule fois, dès que le compte est lu du miroir.
+  useEffect(() => {
+    if (!ouvrirAjoutAuDemarrage || ajoutDemarrageFait.current || !compte) return;
+    const premiere = compte.sousComptes[0];
+    if (!premiere) return;
+    ajoutDemarrageFait.current = true;
+    setScanAuDemarrage(true);
+    setPersonneEnAjout(premiere.id);
+  }, [ouvrirAjoutAuDemarrage, compte]);
 
   // Suit quels ids (compte/sous-comptes/lignes) sont encore en file d'attente
   // pour désactiver "Ajouter une personne"/sélection d'une personne pas
@@ -189,6 +210,28 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
     setPersonneEnAjout(sousCompte.id);
   }
 
+  /** Marque une ligne « prête » comme servie au client. En ligne uniquement
+   * (comme l'encaissement) : le serveur impose la transition PRET → SERVI.
+   * Le miroir est mis à jour tout de suite pour refléter l'action. */
+  async function marquerServi(ligne: LigneCommandeMiroir) {
+    if (!ligne.remoteId || serviEnCours.has(ligne.id)) return;
+    setServiEnCours((courant) => new Set(courant).add(ligne.id));
+    setErreurAction(null);
+    try {
+      await client.majStatutLigne(ligne.remoteId, StatutLigne.SERVI);
+      await majStatutLigneLocal(ligne.id, StatutLigne.SERVI);
+      rechargerCompte();
+    } catch (e) {
+      setErreurAction(e instanceof Error ? e.message : "Impossible de marquer la ligne comme servie.");
+    } finally {
+      setServiEnCours((courant) => {
+        const suivant = new Set(courant);
+        suivant.delete(ligne.id);
+        return suivant;
+      });
+    }
+  }
+
   /** Une personne est « en attente » tant qu'elle ou ses lignes n'ont pas atteint le serveur. */
   function personneEnAttente(sc: SousCompteMiroir): boolean {
     return sc.remoteId === null || idsSousCompteEnAttente.has(sc.id) || sc.lignes.some((l) => idsLigneEnAttente.has(l.id));
@@ -268,6 +311,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
   const compteOuvert = compte?.statut === StatutCompte.OUVERT;
   // Séparation des tâches : le patron (sauf réglage de l'hôtel) consulte le compte mais n'y ajoute ni n'y encaisse rien.
   const operer = peutOperer(utilisateur);
+  const cuisineActivee = utilisateur.cuisineActivee === true;
   const { visibles: personnesVisibles, revoyables } = compte
     ? sousComptesVisibles(compte.sousComptes, maintenant, masquees)
     : { visibles: [] as SousCompteMiroir[], revoyables: [] as SousCompteMiroir[] };
@@ -290,8 +334,14 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
         personne={personneChoisie}
         produits={produits}
         populaires={populaires}
-        onRetour={() => setPersonneEnAjout(null)}
+        menuDuJour={menuDuJour}
+        scannerAuDemarrage={scanAuDemarrage}
+        onRetour={() => {
+          setScanAuDemarrage(false);
+          setPersonneEnAjout(null);
+        }}
         onAjoute={() => {
+          setScanAuDemarrage(false);
           setPersonneEnAjout(null);
           rechargerCompte();
           produitsPopulairesAujourdhuiMiroir().then(setPopulaires).catch(() => {});
@@ -314,6 +364,20 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
             {!compteOuvert && (
               <View style={styles.bandeauFerme}>
                 <Text style={styles.bandeauFermeTexte}>Ce compte est déjà encaissé.</Text>
+              </View>
+            )}
+
+            {compte.origine === "SITE_PUBLIC" && (
+              <View style={styles.bandeauWeb}>
+                <Globe size={16} color={couleurs.bleu} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.bandeauWebTitre}>Commande passée depuis le site web</Text>
+                  <Text style={styles.bandeauWebReference}>
+                    Référence : {compte.id.slice(0, 8).toUpperCase()}
+                  </Text>
+                  {compte.contactClient && <Text style={styles.bandeauWebTexte}>Contact : {compte.contactClient}</Text>}
+                  {compte.noteClient && <Text style={styles.bandeauWebTexte}>« {compte.noteClient} »</Text>}
+                </View>
               </View>
             )}
 
@@ -352,16 +416,43 @@ export function EcranCompteCafeteria({ client, compteId, onRetour }: EcranCompte
                       )
                     )}
                   </View>
-                  {sousCompte.lignes.map((ligne) => (
+                  {sousCompte.lignes.map((ligne) => {
+                    const styleBadge =
+                      ligne.statut === StatutLigne.EN_ATTENTE
+                        ? styles.badgeStatut_EN_ATTENTE
+                        : ligne.statut === StatutLigne.EN_PREPARATION
+                          ? styles.badgeStatut_EN_PREPARATION
+                          : styles.badgeStatut_PRET;
+                    return (
                     <View key={ligne.id} style={styles.ligneCommande}>
-                      <Text style={styles.ligneTexte}>
-                        {ligne.quantite}x {ligne.produit.nom}
-                      </Text>
-                      <Text style={styles.ligneMontant}>
-                        {formatMontant(Number(ligne.prixUnitaire) * Number(ligne.quantite), ligne.devise)}
-                      </Text>
+                      <View style={styles.ligneGauche}>
+                        <Text style={styles.ligneTexte}>
+                          {ligne.quantite}x {ligne.produit.nom}
+                        </Text>
+                        {cuisineActivee && ligne.statut && ligne.statut !== StatutLigne.SERVI && (
+                          <Text style={[styles.badgeStatut, styleBadge]}>
+                            {LIBELLE_STATUT_LIGNE[ligne.statut]}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={styles.ligneDroite}>
+                        {cuisineActivee && ligne.statut === StatutLigne.PRET && ligne.remoteId && (
+                          <Pressable
+                            style={[styles.boutonServi, serviEnCours.has(ligne.id) && styles.boutonDesactive]}
+                            onPress={() => void marquerServi(ligne)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Marquer ${ligne.produit.nom} comme servi`}
+                          >
+                            <Text style={styles.boutonServiTexte}>{serviEnCours.has(ligne.id) ? "…" : "Servi"}</Text>
+                          </Pressable>
+                        )}
+                        <Text style={styles.ligneMontant}>
+                          {formatMontant(Number(ligne.prixUnitaire) * Number(ligne.quantite), ligne.devise)}
+                        </Text>
+                      </View>
                     </View>
-                  ))}
+                    );
+                  })}
                   {(totalPersonne.usd > 0 || totalPersonne.cdf > 0) && (
                     <View style={styles.totauxSousCompte}>
                       {totalPersonne.usd > 0 && <Text style={styles.totalSousCompteTexte}>{formatMontant(totalPersonne.usd, Devise.USD)}</Text>}
@@ -548,6 +639,17 @@ const styles = StyleSheet.create({
   contenu: { padding: espacements.s4, paddingBottom: espacements.s7, gap: espacements.s3 },
   bandeauFerme: { backgroundColor: couleurs.dangerClair, borderRadius: rayons.md, padding: espacements.s3 },
   bandeauFermeTexte: { color: couleurs.danger, fontSize: 13, fontWeight: "600" },
+  bandeauWeb: {
+    backgroundColor: couleurs.bleuClair,
+    borderRadius: rayons.md,
+    padding: espacements.s3,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: espacements.s2,
+  },
+  bandeauWebTitre: { color: couleurs.bleu, fontSize: 13, fontWeight: "700" },
+  bandeauWebTexte: { color: couleurs.encreAttenuee, fontSize: 13, marginTop: 2 },
+  bandeauWebReference: { color: couleurs.bleu, fontSize: 15, fontWeight: "700", letterSpacing: 1, marginTop: 2 },
   carteSousCompte: {
     backgroundColor: couleurs.surface200,
     borderRadius: rayons.lg,
@@ -573,9 +675,17 @@ const styles = StyleSheet.create({
   nomSousCompte: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
   badgeEnAttente: { fontSize: 11, fontWeight: "600", color: couleurs.encreAttenuee, fontStyle: "italic" },
   vide: { fontSize: 13, color: couleurs.encreAttenuee, fontStyle: "italic" },
-  ligneCommande: { flexDirection: "row", justifyContent: "space-between" },
+  ligneCommande: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  ligneGauche: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
+  ligneDroite: { flexDirection: "row", alignItems: "center", gap: 8 },
   ligneTexte: { fontSize: 14, color: couleurs.encre, flexShrink: 1 },
   ligneMontant: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
+  badgeStatut: { fontSize: 11, fontWeight: "600", paddingHorizontal: 8, paddingVertical: 2, borderRadius: rayons.pill, overflow: "hidden" },
+  badgeStatut_EN_ATTENTE: { backgroundColor: "#FFFAEB", color: "#F79009" },
+  badgeStatut_EN_PREPARATION: { backgroundColor: couleurs.bleuClair, color: "#2E90FA" },
+  badgeStatut_PRET: { backgroundColor: couleurs.succesClair, color: couleurs.succes },
+  boutonServi: { backgroundColor: couleurs.succes, borderRadius: rayons.sm, paddingHorizontal: 10, paddingVertical: 4 },
+  boutonServiTexte: { color: "#fff", fontSize: 12, fontWeight: "700" },
   totauxSousCompte: { flexDirection: "row", gap: espacements.s3, marginTop: 4, borderTopWidth: 1, borderTopColor: couleurs.bordure, paddingTop: 6 },
   totalSousCompteTexte: { fontSize: 13, fontWeight: "700", color: couleurs.encreAttenuee },
   boutonSecondaire: {

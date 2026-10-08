@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import type { Reservation, StatutReservation } from "@hotel-chicago/types";
 import { Button, StatusBadge, StatusTone, formatMontant } from "@hotel-chicago/ui";
-import { CalendarDays, Plus, Search } from "lucide-react";
+import { CalendarDays, CalendarRange, Plus, Search } from "lucide-react";
 import type { IdPage } from "../navigation";
 import { EcranReservationDetail } from "./EcranReservationDetail";
 import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
+import { EcranPlanning } from "./EcranPlanning";
 
 export interface EcranReservationsProps {
   client: ClientApi;
@@ -17,7 +18,12 @@ export interface EcranReservationsProps {
   peutOperer?: boolean;
 }
 
-type Vue = { id: "liste" } | { id: "detail"; reservationId: string } | { id: "nouvelle" };
+type Vue =
+  | { id: "liste" }
+  | { id: "detail"; reservationId: string }
+  | { id: "nouvelle"; chambreInitialeId?: string; dateArriveeInitiale?: string };
+
+type Affichage = "liste" | "planning";
 
 export const LABEL_STATUT: Record<StatutReservation, string> = {
   EN_ATTENTE: "En attente",
@@ -61,6 +67,7 @@ function nombreDeNuits(dateArrivee: string, dateDepart: string): number {
  */
 export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer = true }: EcranReservationsProps) {
   const [vue, setVue] = useState<Vue>({ id: "liste" });
+  const [affichage, setAffichage] = useState<Affichage>("liste");
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [filtreStatut, setFiltreStatut] = useState<StatutReservation | null>(null);
@@ -105,6 +112,8 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
     return (
       <EcranNouvelleReservation
         client={client}
+        chambreInitialeId={vue.chambreInitialeId}
+        dateArriveeInitiale={vue.dateArriveeInitiale}
         onRetour={() => setVue({ id: "liste" })}
         onCreee={(id) => {
           charger();
@@ -123,12 +132,28 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
             {reservations ? `${liste.length} séjour${liste.length > 1 ? "s" : ""}` : "Chargement…"}
           </p>
         </div>
-        {peutOperer && (
-          <Button type="button" onClick={() => setVue({ id: "nouvelle" })}>
-            <Plus size={18} aria-hidden="true" />
-            Nouvelle réservation
-          </Button>
-        )}
+        <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
+          <div className="puces" role="group" aria-label="Mode d'affichage">
+            <button type="button" className="puce" aria-pressed={affichage === "liste"} onClick={() => setAffichage("liste")}>
+              Liste
+            </button>
+            <button
+              type="button"
+              className="puce"
+              aria-pressed={affichage === "planning"}
+              onClick={() => setAffichage("planning")}
+            >
+              <CalendarRange size={14} aria-hidden="true" style={{ verticalAlign: "-2px", marginRight: 4 }} />
+              Planning
+            </button>
+          </div>
+          {peutOperer && (
+            <Button type="button" onClick={() => setVue({ id: "nouvelle" })}>
+              <Plus size={18} aria-hidden="true" />
+              Nouvelle réservation
+            </Button>
+          )}
+        </div>
       </header>
       {!peutOperer && (
         <p className="hc-text-caption texte-discret bandeau-lecture-seule" role="note">
@@ -142,6 +167,16 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
         </p>
       )}
 
+      {affichage === "planning" ? (
+        <EcranPlanning
+          client={client}
+          onNouvelleReservation={(chambreId, date) =>
+            peutOperer && setVue({ id: "nouvelle", chambreInitialeId: chambreId, dateArriveeInitiale: date })
+          }
+          onOuvrirReservation={(id) => setVue({ id: "detail", reservationId: id })}
+        />
+      ) : (
+        <>
       <div className="barre-filtres">
         <label className="champ-recherche">
           <Search size={18} aria-hidden="true" />
@@ -210,6 +245,8 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
             </tbody>
           </table>
         </div>
+      )}
+        </>
       )}
     </div>
   );

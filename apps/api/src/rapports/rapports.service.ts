@@ -9,7 +9,6 @@ import {
 import { createHash } from "crypto";
 import { PrismaClient } from "@hotel-chicago/database";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
-import sharp from "sharp";
 import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseStorageService } from "../common/supabase-storage/supabase-storage.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -17,8 +16,11 @@ import { messages } from "../notifications/messages";
 import { bornesDuMois } from "./agregats/bornes";
 import { agregatCafeteria } from "./agregats/cafeteria";
 import { agregatReception } from "./agregats/reception";
+import { agregatDepenses, soldeNet } from "./agregats/depenses";
 import { LigneConcordance, ParDevise } from "./agregats/types";
 import { BrandingPdf } from "./pdf/commun";
+import { chargerBrandingPdf } from "./pdf/branding";
+import { departementDuRole } from "../common/departement";
 import { rendreRapportCafeteria } from "./pdf/cafeteria";
 import { rendreRapportReception } from "./pdf/reception";
 import { DepartementRapportDto, GenererRapportDto } from "./dto/generer-rapport.dto";
@@ -55,12 +57,8 @@ export class RapportsService {
   ) {}
 
   private static departementAutorise(user: UtilisateurAuthentifie, departement: DepartementRapportDto): void {
-    const attendu: Partial<Record<Role, DepartementRapportDto>> = {
-      RECEPTIONNISTE: "RECEPTION",
-      CAFETARIA: "CAFETERIA",
-    };
     if (user.role === Role.PATRON) return; // « peut opérer » déjà vérifié par le garde
-    if (attendu[user.role] !== departement) {
+    if (departementDuRole(user.role) !== departement) {
       throw new ForbiddenException("Vous ne pouvez générer que le rapport de votre propre département.");
     }
   }
@@ -74,32 +72,8 @@ export class RapportsService {
     return bornes;
   }
 
-  private async brandingDe(hotelId: string): Promise<BrandingPdf> {
-    const hotel = await this.prisma.hotel.findUniqueOrThrow({
-      where: { id: hotelId },
-      include: { branding: true },
-    });
-    const palette = hotel.branding?.palette as { light?: { navy?: string } } | null;
-    let logo: Buffer | null = null;
-    const logoUrl = hotel.branding?.logoUrl;
-    if (logoUrl) {
-      try {
-        const reponse = await fetch(logoUrl);
-        if (reponse.ok) {
-          // Le logo peut être WebP (stockage images) : pdfkit ne lit que PNG/JPEG.
-          logo = await sharp(Buffer.from(await reponse.arrayBuffer())).png().toBuffer();
-        }
-      } catch (erreur) {
-        this.logger.warn(`Logo de l'hôtel ${hotelId} illisible, rapport sans logo : ${(erreur as Error).message}`);
-      }
-    }
-    return {
-      nom: hotel.nom,
-      adresse: hotel.adresse,
-      telephone: hotel.telephoneContact,
-      logo,
-      couleur: palette?.light?.navy ?? undefined,
-    };
+  private brandingDe(hotelId: string): Promise<BrandingPdf> {
+    return chargerBrandingPdf(this.prisma, hotelId, this.logger);
   }
 
   private static empreinteDe(chiffres: unknown): string {
@@ -145,16 +119,35 @@ export class RapportsService {
 
     let pdf: Buffer;
     let chiffres: Record<string, unknown>;
+    // Dépenses du département (07/10/2026) : section « Dépenses » + solde net.
+    const depenses = await agregatDepenses(this.prisma, user.hotelId, dto.departement, bornes);
+    const resumeDepenses = { nombre: depenses.nombre, total: depenses.total };
     if (dto.departement === "CAFETERIA") {
       const data = await agregatCafeteria(this.prisma, user.hotelId, bornes);
       const concordance = RapportsService.concordance("Recette nette cafétaria", [data.recetteNette]);
-      pdf = await rendreRapportCafeteria(data, { ...ctx, concordance }, branding, RapportsService.empreinteDe(data));
-      chiffres = { departement: "CAFETERIA", periode: dto.mois, synthese: data.recetteNette, nombreVentes: data.nombreVentes, concordance };
+      pdf = await rendreRapportCafeteria(data, { ...ctx, concordance, depenses }, branding, RapportsService.empreinteDe({ ...data, depenses }));
+      chiffres = {
+        departement: "CAFETERIA",
+        periode: dto.mois,
+        synthese: data.recetteNette,
+        nombreVentes: data.nombreVentes,
+        depenses: resumeDepenses,
+        soldeNet: soldeNet(data.recetteNette, depenses.total),
+        concordance,
+      };
     } else {
       const data = await agregatReception(this.prisma, user.hotelId, bornes);
       const concordance = RapportsService.concordance("Recette chambres", [data.recetteChambres]);
-      pdf = await rendreRapportReception(data, { ...ctx, concordance }, branding, RapportsService.empreinteDe(data));
-      chiffres = { departement: "RECEPTION", periode: dto.mois, synthese: data.recetteChambres, nombreFactures: data.nombreFactures, concordance };
+      pdf = await rendreRapportReception(data, { ...ctx, concordance, depenses }, branding, RapportsService.empreinteDe({ ...data, depenses }));
+      chiffres = {
+        departement: "RECEPTION",
+        periode: dto.mois,
+        synthese: data.recetteChambres,
+        nombreFactures: data.nombreFactures,
+        depenses: resumeDepenses,
+        soldeNet: soldeNet(data.recetteChambres, depenses.total),
+        concordance,
+      };
     }
     const empreinte = RapportsService.empreinteDe(chiffres);
 
@@ -201,11 +194,7 @@ export class RapportsService {
 
   /** PATRON : tout ; personnel : son département seulement. */
   async lister(user: UtilisateurAuthentifie, mois?: string, departement?: DepartementRapportDto) {
-    const attendu: Partial<Record<Role, DepartementRapportDto>> = {
-      RECEPTIONNISTE: "RECEPTION",
-      CAFETARIA: "CAFETERIA",
-    };
-    const filtreDepartement = user.role === Role.PATRON ? departement : attendu[user.role];
+    const filtreDepartement = user.role === Role.PATRON ? departement : departementDuRole(user.role) ?? undefined;
     return this.prisma.rapportMensuel.findMany({
       where: {
         hotelId: user.hotelId,
@@ -235,11 +224,7 @@ export class RapportsService {
       where: { id, hotelId: user.hotelId },
     });
     if (!rapport) throw new NotFoundException("Rapport introuvable.");
-    const attendu: Partial<Record<Role, DepartementRapportDto>> = {
-      RECEPTIONNISTE: "RECEPTION",
-      CAFETARIA: "CAFETERIA",
-    };
-    if (user.role !== Role.PATRON && attendu[user.role] !== (rapport.departement as string)) {
+    if (user.role !== Role.PATRON && departementDuRole(user.role) !== rapport.departement) {
       throw new ForbiddenException("Ce rapport appartient à un autre département.");
     }
     return { url: await this.storage.urlSigneeRapport(rapport.fichier, DUREE_URL_SIGNEE) };

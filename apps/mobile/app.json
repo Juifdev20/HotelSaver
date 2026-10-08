@@ -42,6 +42,13 @@
         }
       ],
       [
+        "expo-camera",
+        {
+          "cameraPermission": "HotelSaver utilise la caméra pour scanner le code-barres des articles à la caisse.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "expo-system-ui",
         {
           "backgroundColor": "#053483"

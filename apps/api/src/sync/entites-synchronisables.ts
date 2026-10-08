@@ -22,6 +22,8 @@ export const ENTITES_PUSH = [
   "CompteCafeteria",
   "SousCompte",
   "LigneCommande",
+  // Dépenses (07/10/2026) : saisies hors ligne sur mobile par la réception et la cafétaria.
+  "Depense",
 ] as const;
 export type EntitePush = (typeof ENTITES_PUSH)[number];
 
@@ -40,4 +42,5 @@ export const ACCESSEUR_PRISMA: Record<EntitePull, string> = {
   LigneCommande: "ligneCommande",
   Facture: "facture",
   VenteCafeteria: "venteCafeteria",
+  Depense: "depense",
 };

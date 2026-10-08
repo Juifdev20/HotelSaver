@@ -1,6 +1,6 @@
 import { resolve } from "path";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
-import react from "@vitejs/plugin-react";
+import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig({
   main: {
@@ -16,8 +16,20 @@ export default defineConfig({
       },
     },
     plugins: [react()],
-    // Serveur de développement local uniquement : les paquets (ex. la police Inter) vivent dans le
-    // magasin pnpm, hors du dossier de l'app, et Vite répondait 403. Sans effet sur le build.
     server: { fs: { strict: false } },
+    optimizeDeps: {
+      // Pré-bundler les packages workspace et les dépendances lourdes dès le
+      // premier démarrage → mis en cache dans node_modules/.vite, démarrages
+      // suivants quasi-instantanés.
+      include: [
+        "@hotel-chicago/ui",
+        "@hotel-chicago/api-client",
+        "@hotel-chicago/types",
+        "@hotel-chicago/receipts",
+        "lucide-react",
+        "react",
+        "react-dom",
+      ],
+    },
   },
 });

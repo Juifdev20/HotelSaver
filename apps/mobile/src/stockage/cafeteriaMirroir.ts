@@ -1,5 +1,5 @@
 import { randomUUID } from "expo-crypto";
-import { CompteCafeteria, Devise, LigneCommande, Produit, SousCompte, StatutCompte } from "@hotel-chicago/types";
+import { CompteCafeteria, Devise, LigneCommande, Produit, SousCompte, StatutCompte, StatutLigne, TypeProduit } from "@hotel-chicago/types";
 import { obtenirBase } from "./sqlite";
 
 /**
@@ -12,8 +12,12 @@ import { obtenirBase } from "./sqlite";
  * stable. Voir aussi `idsEnAttente` (MoteurSync) pour savoir si l'un des ids
  * ci-dessous est encore en attente.
  */
+export interface LigneCommandeMiroir extends LigneCommande {
+  remoteId: string | null;
+}
 export interface SousCompteMiroir extends SousCompte {
   remoteId: string | null;
+  lignes: LigneCommandeMiroir[];
 }
 export interface CompteCafeteriaMiroir extends CompteCafeteria {
   remoteId: string | null;
@@ -25,6 +29,9 @@ interface CompteLigneBrute {
   remoteId: string | null;
   tableOuNom: string;
   statut: string;
+  origine: string | null;
+  contactClient: string | null;
+  noteClient: string | null;
   ouvertPar: string;
   ouvertLe: string;
   fermeLe: string | null;
@@ -44,11 +51,16 @@ interface SousCompteLigneBrute {
 
 interface LigneCommandeLigneBrute {
   id: string;
+  remoteId: string | null;
   sousCompteId: string;
   produitId: string;
   quantite: string;
   prixUnitaire: string;
   devise: string;
+  statut: string;
+  prisEnChargeA: string | null;
+  pretA: string | null;
+  note: string | null;
   createdAt: string;
   updatedAt: string;
   syncVersion: number;
@@ -60,16 +72,29 @@ interface ProduitLigneBrute {
   categorie: string;
   prix: string;
   devise: string;
+  prixAchat: string | null;
   photo: string | null;
   stockActuel: string;
   seuilAlerte: string;
   actif: number;
+  commandableEnLigne: number;
+  description: string | null;
+  typeProduit: string;
+  portionsDisponibles: number | null;
+  codeBarres: string | null;
   updatedAt: string;
   syncVersion: number;
 }
 
 function produitDepuisBrut(brut: ProduitLigneBrute): Produit {
-  return { ...brut, devise: brut.devise as Devise, actif: brut.actif === 1 };
+  return {
+    ...brut,
+    prixAchat: brut.prixAchat ?? undefined,
+    devise: brut.devise as Devise,
+    typeProduit: brut.typeProduit as TypeProduit,
+    actif: brut.actif === 1,
+    commandableEnLigne: brut.commandableEnLigne === 1,
+  };
 }
 
 /** Reconstruit la forme imbriquée CompteCafeteria.sousComptes[].lignes[].produit
@@ -85,17 +110,22 @@ async function assemblerComptes(db: Awaited<ReturnType<typeof obtenirBase>>, com
   ]);
 
   const produitsParId = new Map(produitsBruts.map((p) => [p.id, produitDepuisBrut(p)]));
-  const lignesParSousCompte = new Map<string, LigneCommande[]>();
+  const lignesParSousCompte = new Map<string, LigneCommandeMiroir[]>();
   for (const brut of lignesBrutes) {
     const produit = produitsParId.get(brut.produitId);
     if (!produit) continue; // Produit pas encore synchronisé localement — ne devrait pas arriver (Produit pull avant Cafétaria).
-    const ligne: LigneCommande = {
+    const ligne: LigneCommandeMiroir = {
       id: brut.id,
+      remoteId: brut.remoteId,
       sousCompteId: brut.sousCompteId,
       produitId: brut.produitId,
       quantite: brut.quantite,
       prixUnitaire: brut.prixUnitaire,
       devise: brut.devise as Devise,
+      statut: brut.statut as StatutLigne,
+      prisEnChargeA: brut.prisEnChargeA,
+      pretA: brut.pretA,
+      note: brut.note,
       produit,
     };
     const liste = lignesParSousCompte.get(brut.sousCompteId) ?? [];
@@ -137,6 +167,9 @@ async function assemblerComptes(db: Awaited<ReturnType<typeof obtenirBase>>, com
       remoteId: brut.remoteId,
       tableOuNom: brut.tableOuNom,
       statut: brut.statut as StatutCompte,
+      origine: brut.origine,
+      contactClient: brut.contactClient,
+      noteClient: brut.noteClient,
       ouvertPar: brut.ouvertPar,
       ouvertLe: brut.ouvertLe,
       fermeLe: brut.fermeLe,
@@ -170,6 +203,13 @@ export async function obtenirCompteMiroir(id: string): Promise<CompteCafeteriaMi
   if (!compteBrut) return null;
   const [compte] = await assemblerComptes(db, [compteBrut]);
   return compte;
+}
+
+/** Après un PATCH /produits/:id/code-barres réussi : le code est utilisable
+ * tout de suite (le pull suivant réconcilie avec la version serveur). */
+export async function ecrireCodeBarresLocal(produitId: string, codeBarres: string | null): Promise<void> {
+  const db = await obtenirBase();
+  await db.runAsync("UPDATE produits SET codeBarres = ? WHERE id = ?", [codeBarres, produitId]);
 }
 
 export async function listerProduitsMiroir(): Promise<Produit[]> {
@@ -254,17 +294,35 @@ export async function supprimerEcritureCafeteriaLocale(entiteType: string, local
  * commande (même règle que côté serveur, `ajouterLigne`) — le serveur
  * recalculera indépendamment à la synchronisation ; un écart (prix changé
  * entre-temps) se corrige silencieusement au pull suivant. */
-export async function creerLigneLocal(sousCompteId: string, produit: Produit, quantite: number): Promise<LigneCommande> {
+export async function creerLigneLocal(
+  sousCompteId: string,
+  produit: Produit,
+  quantite: number,
+  cuisineActivee = false
+): Promise<LigneCommande> {
   const db = await obtenirBase();
   const id = randomUUID();
   const maintenant = new Date().toISOString();
   const quantiteTexte = String(quantite);
+  // Même règle que le serveur (`ajouterLigne`) : seul un plat entre dans la
+  // file de préparation, et seulement si le suivi cuisine est activé ; un
+  // article de comptoir est servi dès la vente.
+  const statut =
+    produit.typeProduit === TypeProduit.PLAT && cuisineActivee ? StatutLigne.EN_ATTENTE : StatutLigne.SERVI;
+  // Portions limitées d'un plat : décrément optimiste du miroir (le serveur
+  // recontrôle à la synchronisation, comme pour le stock des articles).
+  if (produit.portionsDisponibles != null) {
+    await db.runAsync(
+      "UPDATE produits SET portionsDisponibles = portionsDisponibles - ? WHERE id = ? AND portionsDisponibles IS NOT NULL",
+      [quantite, produit.id]
+    );
+  }
   await db.runAsync(
-    `INSERT INTO lignes_commande (id, remoteId, sousCompteId, produitId, quantite, prixUnitaire, devise, createdAt, updatedAt, syncVersion)
-     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 1)`,
-    [id, sousCompteId, produit.id, quantiteTexte, produit.prix, produit.devise, maintenant, maintenant]
+    `INSERT INTO lignes_commande (id, remoteId, sousCompteId, produitId, quantite, prixUnitaire, devise, statut, prisEnChargeA, pretA, note, createdAt, updatedAt, syncVersion)
+     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, 1)`,
+    [id, sousCompteId, produit.id, quantiteTexte, produit.prix, produit.devise, statut, maintenant, maintenant]
   );
-  return { id, sousCompteId, produitId: produit.id, quantite: quantiteTexte, prixUnitaire: produit.prix, devise: produit.devise, produit };
+  return { id, sousCompteId, produitId: produit.id, quantite: quantiteTexte, prixUnitaire: produit.prix, devise: produit.devise, statut, prisEnChargeA: null, pretA: null, note: null, produit };
 }
 
 /**
@@ -289,4 +347,11 @@ export async function produitsPopulairesAujourdhuiMiroir(maintenant: Date = new 
 export async function marquerPersonnePayeeLocal(sousCompteId: string): Promise<void> {
   const db = await obtenirBase();
   await db.runAsync("UPDATE sous_comptes SET payeLe = ? WHERE id = ?", [new Date().toISOString(), sousCompteId]);
+}
+
+/** Met à jour le statut cuisine d'une ligne dans le miroir, sans attendre le prochain pull.
+ * `ligneId` accepte l'id local ou l'id serveur (`remoteId`). */
+export async function majStatutLigneLocal(ligneId: string, statut: StatutLigne): Promise<void> {
+  const db = await obtenirBase();
+  await db.runAsync("UPDATE lignes_commande SET statut = ? WHERE id = ? OR remoteId = ?", [statut, ligneId, ligneId]);
 }

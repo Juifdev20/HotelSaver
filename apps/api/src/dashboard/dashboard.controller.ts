@@ -31,6 +31,13 @@ export class DashboardController {
     return this.dashboardService.recetteDuMois(currentUser, mois);
   }
 
+  /** Journal de la journée pour la remise de poste (heure de Lubumbashi). */
+  @Get("journee-reception")
+  @Roles(Role.RECEPTIONNISTE, Role.PATRON)
+  journeeReception(@CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.dashboardService.journeeReception(currentUser);
+  }
+
   @Get("occupation")
   @Roles(Role.RECEPTIONNISTE, Role.PATRON)
   occupation(@CurrentUser() currentUser: UtilisateurAuthentifie) {
