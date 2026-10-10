@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist/esm",
+    "rootDir": "src",
+    "lib": ["ES2022", "DOM"],
+    // Consommé tel quel par apps/desktop (Vite) et apps/mobile (Metro) — voir
+    // packages/ui/tsconfig.json pour l'explication complète du problème
+    // d'interop CJS→ESM que ceci évite pour ces deux bundlers.
+    "module": "ESNext",
+    "moduleResolution": "bundler"
+  },
+  "include": ["src"]
+}

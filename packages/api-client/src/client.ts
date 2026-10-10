@@ -37,6 +37,21 @@ import {
   VentesRecentes,
 } from "@hotel-chicago/types";
 
+/** Signal d'annulation après `ms` millisecondes. `AbortSignal.timeout` n'existe pas partout (anciens moteurs mobiles). */
+function signalAvecDelai(ms: number): AbortSignal | undefined {
+  try {
+    if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") return AbortSignal.timeout(ms);
+    if (typeof AbortController !== "undefined") {
+      const controleur = new AbortController();
+      setTimeout(() => controleur.abort(), ms);
+      return controleur.signal;
+    }
+  } catch {
+    // pas de délai plutôt qu'un échec de la requête
+  }
+  return undefined;
+}
+
 export class ErreurApi extends Error {
   constructor(
     public readonly statusCode: number,
@@ -895,7 +910,7 @@ export class ClientApi {
     return this.requete<ReponsePull>(`/sync/pull?${params.toString()}`);
   }
 
-  private async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {
+  protected async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {
     const token = await this.getAccessToken();
     // Un FormData fixe lui-même son Content-Type (avec la frontière multipart).
     const estFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
@@ -912,7 +927,8 @@ export class ClientApi {
     let reponse: Response | null = null;
     for (const url of candidates) {
       try {
-        reponse = await fetch(`${url}${chemin}`, { ...options, headers: enTetes });
+        // Délai maximum : sans lui, une connexion « captive » (Wi-Fi sans internet) ferait attendre l'écran indéfiniment.
+        reponse = await fetch(`${url}${chemin}`, { signal: signalAvecDelai(estFormData ? 120_000 : 30_000), ...options, headers: enTetes });
         this.urlCourante = url;
         break;
       } catch {

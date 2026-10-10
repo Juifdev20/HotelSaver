@@ -3,3 +3,8 @@ export * from "./persistance-memoire";
 export * from "./persistance-indexeddb";
 export * from "./references";
 export * from "./stockage-documents";
+export * from "./contexte";
+export * from "./vues";
+export * from "./ecritures";
+export * from "./client-hors-ligne";
+export * from "./ouvrir-miroir";

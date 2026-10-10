@@ -110,8 +110,18 @@ export class MoteurSync {
     void this.cycle();
   }
 
+  /** Une écriture locale vient d'être enregistrée (avec sa ligne de file) par l'appelant : met à jour les compteurs et envoie
+   * tout de suite si possible. Variante de `mettreEnFile` pour qui écrit la file ET ses propres données en une seule transaction. */
+  async notifierEcritureLocale(): Promise<void> {
+    await this.rafraichirCompteurs();
+    if (this.cycleEnCours) this.envoiDemande = true;
+    void this.cycle();
+  }
+
   /** Pull-to-refresh manuel : pousse la file puis tire les changements. */
   async forcerSynchronisation(): Promise<void> {
+    // Demande explicite (bouton « Synchroniser maintenant ») : on n'attend pas la fin du délai d'attente après une panne.
+    this.prochainEssaiAu = 0;
     await this.cycle();
   }
 

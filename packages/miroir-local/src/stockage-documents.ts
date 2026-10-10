@@ -1,7 +1,7 @@
 import type { EntitePull, EntitePush } from "@hotel-chicago/api-client";
 import type { ConflitSync, LigneFileAttente, StockageLocal } from "@hotel-chicago/sync-engine";
 import { MagasinDocuments, type OperationMagasin } from "./magasin";
-import { reecrireReferences, uuid } from "./references";
+import { CLES_REFERENCE, reecrireReferences, uuid } from "./references";
 
 export const FILE = "_file";
 export const CONFLITS = "_conflits";
@@ -25,7 +25,14 @@ interface LigneFile extends LigneFileAttente {
  * reste résoluble (table d'alias) pour un écran resté ouvert dessus.
  */
 export class StockageDocuments implements StockageLocal {
-  constructor(readonly magasin: MagasinDocuments) {}
+  /**
+   * @param seuilEchec nombre de refus du serveur après lequel une action est « échouée » : elle ne bloque plus la mise à jour
+   *   des lignes qu'elle touchait (le serveur a dit non, c'est sa version qui fait foi). Doit valoir SEUIL_ECHEC_DEFINITIF du moteur.
+   */
+  constructor(
+    readonly magasin: MagasinDocuments,
+    private readonly seuilEchec = 3
+  ) {}
 
   // ------------------------------------------------------------------ meta
   lireMeta<T = unknown>(cle: string): T | undefined {
@@ -56,6 +63,22 @@ export class StockageDocuments implements StockageLocal {
     return publique;
   }
 
+  /**
+   * Enregistre, en UNE transaction, les écritures locales d'une action ET son entrée dans la file d'envoi : on ne peut jamais
+   * avoir une vente visible à l'écran sans l'ordre qui l'enverra au serveur (ni l'inverse), même si l'application s'arrête au
+   * milieu.
+   */
+  async enregistrerAction(ecritures: OperationMagasin[], operation?: Omit<LigneFileAttente, "id" | "createdAt" | "attempts" | "lastError">): Promise<void> {
+    const ops = [...ecritures];
+    if (operation) {
+      const ordre = (this.lireMeta<number>("compteurFile") ?? 0) + 1;
+      const ligne: LigneFile = { ...operation, id: uuid(), createdAt: new Date().toISOString(), attempts: 0, ordre };
+      ops.push({ type: "ecrire", collection: FILE, id: ligne.id, valeur: ligne });
+      ops.push({ type: "ecrire", collection: META, id: "compteurFile", valeur: { id: "compteurFile", valeur: ordre } });
+    }
+    await this.magasin.appliquer(ops);
+  }
+
   async retirerFileAttente(id: string): Promise<void> {
     await this.magasin.supprimer(FILE, id);
   }
@@ -69,6 +92,7 @@ export class StockageDocuments implements StockageLocal {
   async idsEnAttente(entiteType: EntitePush): Promise<Set<string>> {
     const ids = new Set<string>();
     for (const l of this.lignesFile()) {
+      if (l.attempts >= this.seuilEchec) continue; // refusée par le serveur : sa version fait foi, plus rien à protéger
       if (l.entiteType === entiteType) ids.add(l.remoteId ?? l.localId);
       for (const t of l.touche ?? []) if (t.entiteType === entiteType) ids.add(t.id);
     }
@@ -179,6 +203,55 @@ export class StockageDocuments implements StockageLocal {
     const ligne = donneesServeur as { id?: string } | null;
     if (!ligne?.id || !COLLECTIONS_MIROIR.includes(entiteType as EntitePull)) return;
     await this.magasin.ecrire(entiteType, { ...ligne, id: ligne.id });
+  }
+
+  /**
+   * Abandonne une action que le serveur a refusée (ou que la personne retire) : ce qu'elle avait créé localement disparaît, ce
+   * qu'elle avait modifié est relu auprès du serveur, et les actions suivantes qui en dépendaient sont retirées avec elle (sans
+   * quoi elles seraient refusées à leur tour). Renvoie les actions retirées, pour information.
+   */
+  async abandonnerOperation(id: string): Promise<LigneFileAttente[]> {
+    const toutes = this.lignesFile();
+    const depart = toutes.find((l) => l.id === id);
+    if (!depart) return [];
+    const retirees: LigneFile[] = [];
+    const idsAbandonnes = new Set<string>();
+    const ops: OperationMagasin[] = [];
+    const aTraiter: LigneFile[] = [depart];
+    while (aTraiter.length > 0) {
+      const l = aTraiter.pop()!;
+      if (retirees.some((x) => x.id === l.id)) continue;
+      retirees.push(l);
+      ops.push({ type: "supprimer", collection: FILE, id: l.id });
+      if (l.operation === "CREATE") {
+        const p = l.payload as Record<string, unknown>;
+        const cree = [l.localId, ...(Array.isArray(p.ventesLocalIds) ? (p.ventesLocalIds as string[]) : []), p.clientLocalId, p.premierSousCompteLocalId].filter((x): x is string => typeof x === "string");
+        for (const c of cree) idsAbandonnes.add(c);
+        for (const collection of COLLECTIONS_MIROIR) for (const c of cree) if (this.magasin.obtenir(collection, c)) ops.push({ type: "supprimer", collection, id: c });
+        // Les lignes rattachées à ce qui vient d'être supprimé (lignes d'un compte créé hors ligne…).
+        for (const collection of COLLECTIONS_MIROIR) {
+          for (const doc of this.magasin.lister<Record<string, any>>(collection)) {
+            if (CLES_REFERENCE.some((cle) => typeof doc[cle] === "string" && idsAbandonnes.has(doc[cle]))) ops.push({ type: "supprimer", collection, id: doc.id });
+          }
+        }
+      }
+      // Actions suivantes qui citent ce qui est abandonné.
+      for (const suivante of toutes) {
+        if (suivante.id === l.id || retirees.some((x) => x.id === suivante.id)) continue;
+        const refs = [suivante.remoteId, ...CLES_REFERENCE.map((cle) => (suivante.payload as Record<string, unknown>)[cle])].filter((x): x is string => typeof x === "string");
+        if (refs.some((r) => idsAbandonnes.has(r))) aTraiter.push(suivante);
+      }
+    }
+    // Ce que ces actions avaient modifié localement est relu auprès du serveur au prochain cycle (curseur ramené à l'origine : les
+    // lignes identiques côté version ne sont pas réécrites, seules celles que l'action avait changées le sont).
+    const types = new Set<EntitePull>();
+    for (const l of retirees) {
+      if (COLLECTIONS_MIROIR.includes(l.entiteType as EntitePull)) types.add(l.entiteType as EntitePull);
+      for (const t of l.touche ?? []) types.add(t.entiteType);
+    }
+    for (const t of types) ops.push({ type: "ecrire", collection: META, id: `dernierePull:${t}`, valeur: { id: `dernierePull:${t}`, valeur: new Date(0).toISOString() } });
+    await this.magasin.appliquer(ops);
+    return retirees.map(({ ordre: _o, ...ligne }) => ligne);
   }
 
   // ------------------------------------------------------------------ aides pour les lectures / écritures locales

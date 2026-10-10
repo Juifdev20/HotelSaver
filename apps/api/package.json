@@ -33,6 +33,9 @@
     "sharp": "^0.35.5"
   },
   "devDependencies": {
+    "@hotel-chicago/api-client": "workspace:*",
+    "@hotel-chicago/miroir-local": "workspace:*",
+    "@hotel-chicago/sync-engine": "workspace:*",
     "@nestjs/testing": "^10.4.4",
     "@swc-node/register": "^1.12.1",
     "@swc/core": "^1.16.13",
