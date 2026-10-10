@@ -6,11 +6,12 @@ import { ProduitsModule } from "../produits/produits.module";
 import { StockModule } from "../stock/stock.module";
 import { CafeteriaModule } from "../cafeteria/cafeteria.module";
 import { DepensesModule } from "../depenses/depenses.module";
+import { FacturesModule } from "../factures/factures.module";
 import { SyncController } from "./sync.controller";
 import { SyncService } from "./sync.service";
 
 @Module({
-  imports: [PrismaModule, ChambresModule, ReservationsModule, ProduitsModule, StockModule, CafeteriaModule, DepensesModule],
+  imports: [PrismaModule, ChambresModule, ReservationsModule, ProduitsModule, StockModule, CafeteriaModule, DepensesModule, FacturesModule],
   controllers: [SyncController],
   providers: [SyncService],
 })

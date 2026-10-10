@@ -422,6 +422,8 @@ model Facture {
   deviseMonnaieRendue   Devise?
   montantMonnaieRendue  Decimal?
   numeroRecu            String
+  /// Numéro du reçu provisoire remis au client quand l'encaissement a été fait hors ligne (TEMP-…) ; le vrai numéro est `numeroRecu`.
+  numeroProvisoire      String?
   imprimeLe             DateTime?
   annuleLe              DateTime?
   motifAnnulation       String?
@@ -431,6 +433,7 @@ model Facture {
 
   @@unique([hotelId, numeroRecu])
   @@index([hotelId])
+  @@index([hotelId, numeroProvisoire])
 }
 
 model Produit {
@@ -595,6 +598,8 @@ model VenteCafeteria {
   // Renseigné pour un encaissement « une personne » (reçu individuel), vide pour un règlement groupé.
   sousCompteId          String?
   numeroRecu            String
+  /// Numéro du reçu provisoire remis au client quand l'encaissement a été fait hors ligne (TEMP-…) ; le vrai numéro est `numeroRecu`.
+  numeroProvisoire      String?
   imprimeLe             DateTime?
   annuleLe              DateTime?
   motifAnnulation       String?
@@ -606,6 +611,7 @@ model VenteCafeteria {
   @@unique([hotelId, numeroRecu])
   @@index([compteId])
   @@index([hotelId])
+  @@index([hotelId, numeroProvisoire])
 }
 
 /// Rapport mensuel PDF officiel remis au patron par chaque département

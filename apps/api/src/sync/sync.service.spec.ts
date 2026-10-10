@@ -17,6 +17,8 @@ function creerPrismaMock() {
     suppression: { findMany: jest.fn().mockResolvedValue([]) },
     syncCorrespondance: {
       create: jest.fn().mockResolvedValue({ id: "corr-1" }),
+      findMany: jest.fn().mockResolvedValue([]),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
       findUnique: jest.fn().mockResolvedValue(null),
       update: jest.fn().mockResolvedValue({}),
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -37,6 +39,7 @@ describe("SyncService", () => {
   let stockService: any;
   let cafeteriaService: any;
   let depensesService: any;
+  let facturesService: any;
   let service: SyncService;
 
   beforeEach(() => {
@@ -47,7 +50,8 @@ describe("SyncService", () => {
     stockService = { create: jest.fn() };
     cafeteriaService = { ouvrirCompte: jest.fn(), ajouterSousCompte: jest.fn(), ajouterLigne: jest.fn() };
     depensesService = { creer: jest.fn(), modifier: jest.fn() };
-    service = new SyncService(prisma, chambresService, reservationsService, produitsService, stockService, cafeteriaService, depensesService);
+    facturesService = { create: jest.fn() };
+    service = new SyncService(prisma, chambresService, reservationsService, produitsService, stockService, cafeteriaService, depensesService, facturesService);
   });
 
   describe("push — CREATE", () => {
@@ -76,7 +80,14 @@ describe("SyncService", () => {
 
       const { resultats } = await service.push(
         {
-          operations: [{ entiteType: "Reservation", localId: "local-2", operation: "CREATE", payload: {} }],
+          operations: [
+            {
+              entiteType: "Reservation",
+              localId: "local-2",
+              operation: "CREATE",
+              payload: { chambreId: "6f1c2f0e-8f3a-4c1b-9c55-0a1b2c3d4e5f", clientId: "7a1c2f0e-8f3a-4c1b-9c55-0a1b2c3d4e5f", dateArrivee: "2026-10-12", dateDepart: "2026-10-14" },
+            },
+          ],
         } as any,
         receptionniste
       );
@@ -105,7 +116,8 @@ describe("SyncService", () => {
       expect(cafeteriaService.ajouterLigne).toHaveBeenCalledWith(
         "compte-1",
         { sousCompteId: "sc-1", produitId: "p-1", quantite: 2 },
-        cafetaria
+        cafetaria,
+        { horsLigne: true }
       );
     });
 

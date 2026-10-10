@@ -7,5 +7,6 @@ import { FacturesService } from "./factures.service";
   imports: [PrismaModule],
   controllers: [FacturesController],
   providers: [FacturesService],
+  exports: [FacturesService],
 })
 export class FacturesModule {}

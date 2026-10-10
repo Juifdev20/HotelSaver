@@ -1,4 +1,6 @@
 import { BadRequestException, HttpException, Inject, Injectable, Logger } from "@nestjs/common";
+import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie, peutOperer } from "@hotel-chicago/types";
 import { MESSAGE_PATRON_NON_OPERANT } from "../common/guards/roles.guard";
@@ -9,8 +11,14 @@ import { ProduitsService } from "../produits/produits.service";
 import { StockService } from "../stock/stock.service";
 import { CafeteriaService } from "../cafeteria/cafeteria.service";
 import { DepensesService } from "../depenses/depenses.service";
+import { FacturesService } from "../factures/factures.service";
+import { CreateReservationDto } from "../reservations/dto/create-reservation.dto";
+import { CreateFactureDto } from "../factures/dto/create-facture.dto";
+import { EncaisserCompteDto } from "../cafeteria/dto/encaisser-compte.dto";
+import { MajStatutLigneDto } from "../cafeteria/dto/maj-statut-ligne.dto";
+import { ConflitTransitoireException } from "../common/conflit-transitoire.exception";
 import { departementDuRole } from "../common/departement";
-import { ACCESSEUR_PRISMA, ENTITES_PULL, EntitePull, EntitePush } from "./entites-synchronisables";
+import { ACCESSEUR_PRISMA, ACTIONS_RESERVATION, ENTITES_PULL, EntitePull, EntitePush, TypeOperationPush } from "./entites-synchronisables";
 import { SyncPushDto } from "./dto/sync-push.dto";
 import { PushOperationDto } from "./dto/push-operation.dto";
 import { SyncPullQueryDto } from "./dto/sync-pull.query.dto";
@@ -76,7 +84,13 @@ const FILTRE_LECTURE: Partial<Record<EntitePull, (user: UtilisateurAuthentifie) 
 
 /** Opérations du quotidien (séparation des tâches) : la synchronisation applique la même règle que les routes
  * HTTP marquées @Operationnel — sinon le patron les contournerait en passant par l'écriture hors ligne. */
-const ENTITES_OPERATIONNELLES: ReadonlySet<EntitePush> = new Set<EntitePush>(["Reservation", "CompteCafeteria", "SousCompte", "LigneCommande"]);
+const ENTITES_OPERATIONNELLES: ReadonlySet<TypeOperationPush> = new Set<TypeOperationPush>([
+  "Reservation", "CompteCafeteria", "SousCompte", "LigneCommande", "Facture", "VenteCafeteria", "ActionReservation",
+]);
+
+/** Champs du payload qui désignent une autre ligne. Hors ligne, l'appareil ne connaît parfois que l'identifiant LOCAL d'une
+ * ligne créée plus tôt dans la même file (réservation puis check-in puis facture…) : le serveur le remplace par le vrai. */
+const CLES_REFERENCE = ["chambreId", "clientId", "reservationId", "reservationLieeId", "compteId", "sousCompteId", "produitId", "ligneId"] as const;
 
 /** Une réservation « EN_COURS » plus ancienne que ça vient d'un traitement interrompu (serveur arrêté en plein travail). */
 const DELAI_RESERVATION_PERIMEE_MS = 2 * 60_000;
@@ -93,7 +107,7 @@ const CODES_PRISMA_PASSAGERS = new Set(["P1001", "P1002", "P1008", "P1017", "P20
 @Injectable()
 export class SyncService {
   private readonly logger = new Logger(SyncService.name);
-  private readonly config: Record<EntitePush, ConfigEntite>;
+  private readonly config: Record<TypeOperationPush, ConfigEntite>;
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
@@ -102,7 +116,8 @@ export class SyncService {
     private readonly produitsService: ProduitsService,
     private readonly stockService: StockService,
     private readonly cafeteriaService: CafeteriaService,
-    private readonly depensesService: DepensesService
+    private readonly depensesService: DepensesService,
+    private readonly facturesService: FacturesService
   ) {
     // Chaque entité délègue à son service métier existant plutôt qu'à un
     // passthrough Prisma générique : ça réutilise gratuitement toute la
@@ -121,7 +136,8 @@ export class SyncService {
         rolesCreate: [Role.RECEPTIONNISTE, Role.PATRON],
         rolesUpdate: [Role.RECEPTIONNISTE, Role.PATRON],
         create: async (payload, currentUser) => {
-          const cree = await this.reservationsService.create(payload as any, currentUser);
+          // Même validation que POST /reservations (dates, identifiants) : le payload de /sync/push ne passe pas par le ValidationPipe.
+          const cree = await this.reservationsService.create(await this.valider(CreateReservationDto, payload), currentUser);
           // Un client inline (payload.client, nouveau client) est créé
           // implicitement côté serveur — même mécanisme que le premier
           // sous-compte cafétaria : si l'appareil a envoyé l'id local de sa
@@ -185,7 +201,8 @@ export class SyncService {
           if (!compteId) {
             throw new BadRequestException("compteId est obligatoire dans le payload pour LigneCommande.");
           }
-          return this.cafeteriaService.ajouterLigne(compteId, dto as any, currentUser);
+          // Une vente faite hors ligne a déjà eu lieu : le stock du serveur peut devenir négatif plutôt que de refuser la ligne.
+          return this.cafeteriaService.ajouterLigne(compteId, dto as any, currentUser, { horsLigne: true });
         },
       },
       // Jamais le patron : il consulte les dépenses, il ne les saisit pas.
@@ -195,17 +212,92 @@ export class SyncService {
         create: (payload, currentUser) => this.depensesService.creer(payload as any, currentUser),
         update: (id, payload, currentUser) => this.depensesService.modifier(id, payload as any, currentUser),
       },
+      // Encaissements : l'appareil n'envoie que l'intention ; totaux, taux de change et numéro de reçu définitif sont recalculés ici.
+      Facture: {
+        rolesCreate: [Role.RECEPTIONNISTE, Role.PATRON],
+        rolesUpdate: [],
+        create: async (payload, currentUser) => {
+          const dto = await this.valider(CreateFactureDto, payload);
+          const facture = await this.facturesService.create(dto, currentUser.hotelId, { numeroProvisoire: texteCourt(payload.numeroProvisoire) });
+          return { id: facture.id, syncVersion: facture.syncVersion };
+        },
+      },
+      VenteCafeteria: {
+        rolesCreate: [Role.CAFETARIA, Role.PATRON],
+        rolesUpdate: [],
+        create: async (payload, currentUser) => {
+          const compteId = texteCourt(payload.compteId);
+          if (!compteId) throw new BadRequestException("compteId est obligatoire pour encaisser un compte.");
+          const dto = await this.valider(EncaisserCompteDto, payload);
+          const ventesLocalIds = listeTextes(payload.ventesLocalIds);
+          const ventes = await this.cafeteriaService.encaisser(compteId, dto, currentUser, { numerosProvisoires: listeTextes(payload.numerosProvisoires) });
+          const [premiere, ...autres] = ventes;
+          // Plusieurs reçus (un par personne, ou partage égal) : le premier porte l'opération, les autres reviennent en « enfants ».
+          const enfants = autres.flatMap((v, i) =>
+            ventesLocalIds[i + 1] ? [{ entiteType: "VenteCafeteria" as const, localId: ventesLocalIds[i + 1], remoteId: v.id, syncVersion: v.syncVersion }] : []
+          );
+          return { id: premiere.id, syncVersion: premiere.syncVersion, enfants };
+        },
+      },
+      // Ordres (check-in, annulation…) : voir COMMANDES_PUSH.
+      ActionReservation: {
+        rolesCreate: [Role.RECEPTIONNISTE, Role.PATRON],
+        rolesUpdate: [],
+        create: async (payload, currentUser) => {
+          const reservationId = texteCourt(payload.reservationId);
+          const action = payload.action;
+          if (!reservationId) throw new BadRequestException("reservationId est obligatoire.");
+          if (typeof action !== "string" || !(ACTIONS_RESERVATION as readonly string[]).includes(action)) {
+            throw new BadRequestException(`action doit être l'une de : ${ACTIONS_RESERVATION.join(", ")}.`);
+          }
+          const { hotelId } = currentUser;
+          if (action === "CONFIRMER") await this.reservationsService.confirmer(reservationId, hotelId);
+          else if (action === "CHECK_IN") await this.reservationsService.checkIn(reservationId, hotelId);
+          else if (action === "CHECK_OUT") await this.reservationsService.checkOut(reservationId, hotelId);
+          else {
+            const motif = typeof payload.motif === "string" ? payload.motif.trim() : "";
+            if (!motif) throw new BadRequestException("Le motif d'annulation est obligatoire.");
+            await this.reservationsService.annuler(reservationId, { motif: motif.slice(0, 500) }, hotelId, currentUser);
+          }
+          const apres = await this.prisma.reservation.findUnique({ where: { id: reservationId, hotelId }, select: { syncVersion: true } });
+          return { id: reservationId, syncVersion: apres?.syncVersion ?? 1 };
+        },
+      },
+      ActionLigne: {
+        rolesCreate: [Role.CAFETARIA, Role.PATRON],
+        rolesUpdate: [],
+        create: async (payload, currentUser) => {
+          const ligneId = texteCourt(payload.ligneId);
+          if (!ligneId) throw new BadRequestException("ligneId est obligatoire.");
+          const dto = await this.valider(MajStatutLigneDto, payload);
+          const ligne = await this.cafeteriaService.majStatutLigne(ligneId, dto, currentUser.hotelId);
+          return { id: ligneId, syncVersion: ligne.syncVersion };
+        },
+      },
     };
   }
 
   async push(dto: SyncPushDto, currentUser: UtilisateurAuthentifie) {
     const resultats: ResultatOperation[] = [];
+    // Actions du lot qui n'ont pas abouti : celles qui en dépendent (même identifiant local cité dans leur payload) ne
+    // sont pas tentées — « plus tard » si la panne est passagère, « refusée » si le parent l'est.
+    const echecs = new Map<string, "temporaire" | "definitif">();
     // Séquentiel, jamais Promise.all : les opérations d'un même lot peuvent se
     // référencer entre elles dans l'ordre (ex. ouvrir un compte puis y ajouter
     // une ligne juste après), donc l'ordre chronologique d'arrivée doit être
     // respecté (section 10.2).
     for (const operation of dto.operations) {
-      resultats.push(await this.traiterOperation(operation, currentUser));
+      const parent = [...referencesDe(operation)].map((r) => echecs.get(r)).find(Boolean);
+      let resultat: ResultatOperation;
+      if (parent === "temporaire") {
+        resultat = { ...this.erreur(operation, "En attente de l'action précédente, qui n'a pas encore pu être traitée."), temporaire: true };
+      } else if (parent === "definitif") {
+        resultat = this.erreur(operation, "Cette action dépend d'une action précédente qui a été refusée.");
+      } else {
+        resultat = await this.traiterOperation(operation, currentUser);
+      }
+      if (resultat.statut === "ERROR") echecs.set(operation.localId, resultat.temporaire ? "temporaire" : "definitif");
+      resultats.push(resultat);
     }
     // `serveurLe` : l'heure du serveur, pour que l'appareil mesure le décalage de son horloge.
     return { resultats, serveurLe: new Date().toISOString() };
@@ -217,11 +309,14 @@ export class SyncService {
   ): Promise<ResultatOperation> {
     const config = this.config[operation.entiteType];
 
-    if (ENTITES_OPERATIONNELLES.has(operation.entiteType) && !peutOperer(currentUser)) {
+    // L'annulation d'une réservation reste ouverte au patron (comme la route HTTP, qui n'est pas @Operationnel).
+    const operationnel = operation.entiteType === "ActionReservation" ? operation.payload?.action !== "ANNULER" : ENTITES_OPERATIONNELLES.has(operation.entiteType);
+    if (operationnel && !peutOperer(currentUser)) {
       return this.erreur(operation, MESSAGE_PATRON_NON_OPERANT);
     }
 
     try {
+      operation = await this.resoudreReferencesLocales(operation, currentUser.hotelId);
       if (operation.operation === "CREATE") {
         if (!config.rolesCreate.includes(currentUser.role)) {
           return this.erreur(operation, `Le rôle ${currentUser.role} ne peut pas créer une entité ${operation.entiteType}.`);
@@ -243,7 +338,7 @@ export class SyncService {
         return this.erreur(operation, "baseSyncVersion est obligatoire pour une opération UPDATE.");
       }
 
-      const accesseur = ACCESSEUR_PRISMA[operation.entiteType];
+      const accesseur = ACCESSEUR_PRISMA[operation.entiteType as EntitePull];
       const actuel = await (this.prisma as any)[accesseur].findUnique({
         where: { id: operation.remoteId, hotelId: currentUser.hotelId },
       });
@@ -334,7 +429,18 @@ export class SyncService {
       this.logger.error(`Création ${operation.entiteType} ${cree.id} réussie mais non enregistrée pour la reprise : ${(error as Error).message}`);
     }
 
-    if (ENTITES_HORODATEES.has(operation.entiteType)) await this.appliquerHorodatageClient(operation, cree.id, currentUser.hotelId);
+    // Les enfants créés en même temps (client inline, premier sous-compte, reçus supplémentaires) peuvent être cités par
+    // la suite de la file : on retient aussi leur correspondance.
+    if (cree.enfants?.length) {
+      await db.syncCorrespondance
+        .createMany({
+          data: cree.enfants.map((e) => ({ hotelId: currentUser.hotelId, entiteType: e.entiteType, localId: e.localId, statut: "SYNCED", remoteId: e.remoteId, syncVersion: e.syncVersion ?? null })),
+          skipDuplicates: true,
+        })
+        .catch((error: Error) => this.logger.warn(`Correspondance des enfants non enregistrée : ${error.message}`));
+    }
+
+    if (ENTITES_HORODATEES.has(operation.entiteType as EntitePush)) await this.appliquerHorodatageClient(operation, cree.id, currentUser.hotelId);
 
     return { localId: operation.localId, remoteId: cree.id, syncVersion: cree.syncVersion, statut: "SYNCED", enfants: cree.enfants };
   }
@@ -347,10 +453,43 @@ export class SyncService {
     const maintenant = Date.now();
     const borne = Math.min(Math.max(voulu, maintenant - FENETRE_HORODATAGE_MS), maintenant);
     try {
-      await (this.prisma as any)[ACCESSEUR_PRISMA[operation.entiteType]].update({ where: { id, hotelId }, data: { createdAt: new Date(borne) } });
+      await (this.prisma as any)[ACCESSEUR_PRISMA[operation.entiteType as EntitePull]].update({ where: { id, hotelId }, data: { createdAt: new Date(borne) } });
     } catch (error) {
       this.logger.warn(`Horodatage client non appliqué pour ${operation.entiteType} ${id} : ${(error as Error).message}`);
     }
+  }
+
+  /** Valide un payload avec les mêmes règles que la route HTTP équivalente (le payload de /sync/push n'est pas passé au
+   * ValidationPipe) ; les champs inconnus (hotelId, id…) sont retirés. */
+  private async valider<T extends object>(Classe: new () => T, payload: Record<string, unknown>): Promise<T> {
+    const instance = plainToInstance(Classe, payload);
+    const erreurs = await validate(instance, { whitelist: true });
+    if (erreurs.length > 0) {
+      throw new BadRequestException(erreurs.flatMap((e) => Object.values(e.constraints ?? {})).join(" "));
+    }
+    return instance;
+  }
+
+  /**
+   * Remplace les identifiants LOCAUX cités par une opération (créés plus tôt dans la file de l'appareil) par les vrais
+   * identifiants serveur, d'après les créations déjà enregistrées pour CET hôtel. Un identifiant inconnu est laissé tel quel :
+   * la règle métier de l'action répondra « introuvable ».
+   */
+  private async resoudreReferencesLocales(operation: PushOperationDto, hotelId: string): Promise<PushOperationDto> {
+    const refs = referencesDe(operation);
+    if (refs.size === 0) return operation;
+    const lignes = await this.prisma.syncCorrespondance.findMany({
+      where: { hotelId, localId: { in: [...refs] }, statut: "SYNCED", remoteId: { not: null } },
+      select: { localId: true, remoteId: true },
+    });
+    if (lignes.length === 0) return operation;
+    const vers = new Map(lignes.map((l) => [l.localId, l.remoteId!]));
+    const payload = { ...operation.payload };
+    for (const cle of CLES_REFERENCE) {
+      const v = payload[cle];
+      if (typeof v === "string" && vers.has(v)) payload[cle] = vers.get(v);
+    }
+    return { ...operation, payload, remoteId: operation.remoteId ? vers.get(operation.remoteId) ?? operation.remoteId : operation.remoteId };
   }
 
   private erreur(operation: PushOperationDto, message: string): ResultatOperation {
@@ -360,6 +499,7 @@ export class SyncService {
   /** Règle métier refusée (HttpException) = définitif ; panne de connexion ou de base = passager. */
   private erreurDepuisException(operation: PushOperationDto, error: unknown): ResultatOperation {
     const message = error instanceof Error ? error.message : "Erreur inconnue.";
+    if (error instanceof ConflitTransitoireException) return { ...this.erreur(operation, message), temporaire: true };
     if (error instanceof HttpException) return this.erreur(operation, message);
     const passager =
       error instanceof Prisma.PrismaClientInitializationError ||
@@ -442,4 +582,24 @@ function memeValeur(a: unknown, b: unknown): boolean {
   if (typeof a === "object" && typeof (a as { toNumber?: unknown }).toNumber === "function") return Number(a) === Number(b);
   if (Array.isArray(a) || typeof a === "object") return JSON.stringify(a) === JSON.stringify(b);
   return a === b;
+}
+
+/** Texte non vide, borné (identifiants, numéros de reçu) ; autre chose = undefined. */
+function texteCourt(valeur: unknown, max = 80): string | undefined {
+  return typeof valeur === "string" && valeur.trim() !== "" ? valeur.trim().slice(0, max) : undefined;
+}
+
+function listeTextes(valeur: unknown, maxElements = 50): string[] {
+  return Array.isArray(valeur) ? valeur.slice(0, maxElements).flatMap((v) => (texteCourt(v) ? [texteCourt(v)!] : [])) : [];
+}
+
+/** Identifiants (locaux ou serveur) cités par une opération : son propre `remoteId` et les champs de CLES_REFERENCE. */
+function referencesDe(operation: PushOperationDto): Set<string> {
+  const refs = new Set<string>();
+  if (operation.remoteId) refs.add(operation.remoteId);
+  for (const cle of CLES_REFERENCE) {
+    const v = operation.payload?.[cle];
+    if (typeof v === "string") refs.add(v);
+  }
+  return refs;
 }

@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { Devise, PrismaClient } from "@hotel-chicago/database";
+import { Devise, Prisma, PrismaClient } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -7,6 +7,9 @@ import { messages } from "../notifications/messages";
 import { CreateFactureDto } from "./dto/create-facture.dto";
 import { AnnulerFactureDto } from "./dto/annuler-facture.dto";
 import { calculerEncaissement } from "./encaissement.util";
+
+/** Reprises quand deux postes tirent le même numéro de reçu au même instant. */
+const ESSAIS_NUMERO_RECU = 5;
 
 @Injectable()
 export class FacturesService {
@@ -34,7 +37,7 @@ export class FacturesService {
     return facture;
   }
 
-  async create(dto: CreateFactureDto, hotelId: string) {
+  async create(dto: CreateFactureDto, hotelId: string, options: { numeroProvisoire?: string } = {}) {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: dto.reservationId, hotelId },
       include: { chambre: true, facture: true },
@@ -92,26 +95,39 @@ export class FacturesService {
       cdfParUsd: dernierTaux ? Number(dernierTaux.cdfParUsd) : undefined,
     });
 
-    const numeroRecu = await this.genererNumeroRecu(hotelId);
-
-    return this.prisma.facture.create({
-      data: {
-        hotelId,
-        reservationId: dto.reservationId,
-        montantChambre,
-        deviseChambre,
-        montantTotalUSD,
-        montantTotalCDF,
-        modePaiement: dto.modePaiement,
-        deviseRegleeParClient: dto.deviseRegleeParClient,
-        montantRegleParClient: dto.montantRegleParClient,
-        tauxChangeApplique: encaissement.tauxChangeApplique,
-        deviseMonnaieRendue: encaissement.deviseMonnaieRendue,
-        montantMonnaieRendue: encaissement.montantMonnaieRendue,
-        numeroRecu,
-      },
-      include: { reservation: { include: { chambre: true, client: true } } },
-    });
+    // Deux postes qui facturent au même instant peuvent calculer le même « plus grand numéro + 1 » : la contrainte
+    // d'unicité (hôtel, numéro) en refuse un, qui repart avec le numéro suivant au lieu d'échouer.
+    for (let essai = 1; ; essai++) {
+      const numeroRecu = await this.genererNumeroRecu(hotelId);
+      try {
+        return await this.prisma.facture.create({
+          data: {
+            hotelId,
+            reservationId: dto.reservationId,
+            montantChambre,
+            deviseChambre,
+            montantTotalUSD,
+            montantTotalCDF,
+            modePaiement: dto.modePaiement,
+            deviseRegleeParClient: dto.deviseRegleeParClient,
+            montantRegleParClient: dto.montantRegleParClient,
+            tauxChangeApplique: encaissement.tauxChangeApplique,
+            deviseMonnaieRendue: encaissement.deviseMonnaieRendue,
+            montantMonnaieRendue: encaissement.montantMonnaieRendue,
+            numeroRecu,
+            numeroProvisoire: options.numeroProvisoire,
+          },
+          include: { reservation: { include: { chambre: true, client: true } } },
+        });
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+        // Doublon : soit quelqu'un vient de facturer ce séjour (vrai conflit), soit le numéro est pris (on repart avec le suivant).
+        if (await this.prisma.facture.findUnique({ where: { reservationId: dto.reservationId }, select: { id: true } })) {
+          throw new ConflictException("Cette réservation a déjà une facture. Utilisez l'annulation si elle est erronée.");
+        }
+        if (essai >= ESSAIS_NUMERO_RECU) throw error;
+      }
+    }
   }
 
   /** `par` = qui annule : le patron est prévenu des annulations de son équipe (pas des siennes). */

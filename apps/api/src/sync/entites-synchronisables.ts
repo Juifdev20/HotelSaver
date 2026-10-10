@@ -1,18 +1,7 @@
 /**
- * Section 7 : ces 9 tables portent `updatedAt`/`syncVersion`. Client ajouté
- * en Phase 16 (pull uniquement — un Client naît toujours implicitement dans
- * le payload `client` inline d'un CREATE Reservation, jamais en push
- * direct ; `updatedAt`/`syncVersion` ajoutés par migration pour le curseur
- * incrémental). Facture et
- * VenteCafeteria sont lisibles via GET /sync/pull (un appareil doit connaître
- * les factures/ventes créées par d'autres postes), mais volontairement
- * exclues de POST /sync/push : leur création implique un calcul serveur
- * complexe (numeroRecu séquentiel, montants multi-devises, intégration
- * cafétaria → facture chambre) qui ne se prête pas à un passthrough
- * générique, et le préfixe TEMP- de réimpression décrit section 11.3 (pour
- * les tickets créés hors ligne avant synchronisation) n'a pas encore de
- * consommateur réel (aucune app Electron/mobile hors ligne construite à ce
- * stade) — voir DECISIONS.md.
+ * Section 7 : tables synchronisées (elles portent `updatedAt`/`syncVersion`). `Client` : lecture seule (il naît toujours
+ * implicitement dans le payload `client` d'un CREATE Reservation). `Facture` et `VenteCafeteria` : créées hors ligne par un ordre
+ * d'encaissement que le serveur recalcule entièrement (voir DECISIONS.md, 10/10/2026).
  */
 export const ENTITES_PUSH = [
   "Chambre",
@@ -24,10 +13,30 @@ export const ENTITES_PUSH = [
   "LigneCommande",
   // Dépenses (07/10/2026) : saisies hors ligne sur mobile par la réception et la cafétaria.
   "Depense",
+  // Encaissements hors ligne (10/10/2026) : le serveur recalcule tout (totaux, taux, numéro de reçu définitif) ; l'appareil
+  // n'envoie que l'intention (mode de paiement, devise remise…) et le numéro du reçu provisoire qu'il a remis au client.
+  "Facture",
+  "VenteCafeteria",
 ] as const;
 export type EntitePush = (typeof ENTITES_PUSH)[number];
 
-export const ENTITES_PULL = [...ENTITES_PUSH, "Client", "Facture", "VenteCafeteria"] as const;
+/**
+ * Actions qui font évoluer une ligne existante sans être une création ni une simple modification de champs
+ * (check-in, annulation, avancement en cuisine…). Elles voyagent dans la file comme les autres opérations (CREATE d'un
+ * « ordre »), sont rejouables sans effet double, et le serveur applique ses règles habituelles : un ordre devenu
+ * impossible (réservation annulée entre-temps) est refusé avec son motif, jamais forcé.
+ */
+export const COMMANDES_PUSH = ["ActionReservation", "ActionLigne"] as const;
+export type CommandePush = (typeof COMMANDES_PUSH)[number];
+
+/** Tout ce que POST /sync/push accepte. */
+export const TYPES_OPERATION_PUSH = [...ENTITES_PUSH, ...COMMANDES_PUSH] as const;
+export type TypeOperationPush = (typeof TYPES_OPERATION_PUSH)[number];
+
+export const ACTIONS_RESERVATION = ["CONFIRMER", "ANNULER", "CHECK_IN", "CHECK_OUT"] as const;
+export type ActionReservation = (typeof ACTIONS_RESERVATION)[number];
+
+export const ENTITES_PULL = [...ENTITES_PUSH, "Client"] as const;
 export type EntitePull = (typeof ENTITES_PULL)[number];
 
 /** Nom de l'accesseur PrismaClient correspondant à chaque type d'entité. */

@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflitTransitoireException } from "../common/conflit-transitoire.exception";
 import { Prisma, PrismaClient, Produit } from "@hotel-chicago/database";
 import { Role } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
@@ -74,7 +75,8 @@ export class StockService {
   async decrementerStock(
     client: ClientOuTransaction,
     params: Pick<ParamsMouvement, "hotelId" | "produitId" | "type" | "quantite">,
-    produitDejaCharge?: Pick<Produit, "nom" | "stockActuel"> & Partial<Pick<Produit, "seuilAlerte">>
+    produitDejaCharge?: Pick<Produit, "nom" | "stockActuel"> & Partial<Pick<Produit, "seuilAlerte">>,
+    options: { autoriserNegatif?: boolean } = {}
   ): Promise<void> {
     const produit =
       produitDejaCharge ?? (await client.produit.findUnique({ where: { id: params.produitId, hotelId: params.hotelId } }));
@@ -105,7 +107,9 @@ export class StockService {
     }
 
     const nouveauStock = Number(produit.stockActuel) + delta;
-    if (nouveauStock < 0) {
+    // Une vente faite hors ligne a déjà eu lieu : on l'enregistre même si le stock du serveur est insuffisant (le stock devient
+    // négatif, l'alerte de rupture part, le patron régularise) plutôt que de perdre la trace d'une vente encaissée.
+    if (nouveauStock < 0 && !options.autoriserNegatif) {
       throw new ConflictException(
         `Stock insuffisant pour "${produit.nom}" : ${produit.stockActuel} en stock, ` +
           `${Math.abs(delta)} demandé(s).`
@@ -117,7 +121,7 @@ export class StockService {
       data: { stockActuel: nouveauStock, syncVersion: { increment: 1 } },
     });
     if (count === 0) {
-      throw new ConflictException(`Le stock de "${produit.nom}" a changé entre-temps, réessayez.`);
+      throw new ConflitTransitoireException(`Le stock de "${produit.nom}" a changé entre-temps, réessayez.`);
     }
 
     this.alerterSiSeuilFranchi(params, produit, nouveauStock, delta);

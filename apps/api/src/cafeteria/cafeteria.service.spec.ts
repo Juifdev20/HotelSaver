@@ -109,7 +109,8 @@ describe("CafeteriaService", () => {
       expect(stockService.decrementerStock).toHaveBeenCalledWith(
         prisma,
         expect.objectContaining({ produitId: "p1", type: "SORTIE_VENTE", quantite: 2 }),
-        expect.objectContaining({ nom: "Bière" })
+        expect.objectContaining({ nom: "Bière" }),
+        { autoriserNegatif: undefined }
       );
       expect(prisma.mouvementStock.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ produitId: "p1", type: "SORTIE_VENTE", quantite: 2 }) })

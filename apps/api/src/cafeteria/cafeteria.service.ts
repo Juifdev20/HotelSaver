@@ -20,6 +20,14 @@ const INCLUDE_COMPTE_COMPLET = {
   ventes: true,
 } satisfies Prisma.CompteCafeteriaInclude;
 
+/** Reprises quand deux postes tirent le même numéro de reçu au même instant. */
+const ESSAIS_NUMERO_RECU = 5;
+
+export interface OptionsEncaissement {
+  /** Numéros des reçus provisoires (TEMP-…) remis au client hors ligne, dans l'ordre des ventes créées. */
+  numerosProvisoires?: string[];
+}
+
 type CompteComplet = Prisma.CompteCafeteriaGetPayload<{ include: typeof INCLUDE_COMPTE_COMPLET }>;
 type LigneAvecProduit = CompteComplet["sousComptes"][number]["lignes"][number];
 
@@ -118,7 +126,7 @@ export class CafeteriaService {
     return this.prisma.sousCompte.create({ data: { hotelId, compteId, nom: dto.nom } });
   }
 
-  async ajouterLigne(compteId: string, dto: AjouterLigneDto, currentUser: UtilisateurAuthentifie) {
+  async ajouterLigne(compteId: string, dto: AjouterLigneDto, currentUser: UtilisateurAuthentifie, options: { horsLigne?: boolean } = {}) {
     // Deux lectures indépendantes (aucune n'a besoin du résultat de l'autre) :
     // en parallèle plutôt que l'une après l'autre — chaque aller-retour
     // compte sur une connexion internet lente (voir DECISIONS.md, Phase 6).
@@ -164,7 +172,8 @@ export class CafeteriaService {
       await this.stockService.decrementerStock(
         this.prisma,
         { hotelId: currentUser.hotelId, produitId: dto.produitId, type: "SORTIE_VENTE", quantite: dto.quantite },
-        produit
+        produit,
+        { autoriserNegatif: options.horsLigne }
       );
     } else if (produit.portionsDisponibles != null) {
       const { count } = await this.prisma.produit.updateMany({
@@ -215,7 +224,19 @@ export class CafeteriaService {
     return ligne;
   }
 
-  async encaisser(compteId: string, dto: EncaisserCompteDto, currentUser: UtilisateurAuthentifie) {
+  async encaisser(compteId: string, dto: EncaisserCompteDto, currentUser: UtilisateurAuthentifie, options: OptionsEncaissement = {}) {
+    // Deux postes qui encaissent au même instant peuvent tirer le même numéro de reçu : la contrainte d'unicité refuse
+    // l'un des deux ENTIER (la transaction est annulée, aucune part n'est marquée payée) et on repart avec les suivants.
+    for (let essai = 1; ; essai++) {
+      try {
+        return await this.encaisserUneFois(compteId, dto, currentUser, options);
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002" || essai >= ESSAIS_NUMERO_RECU) throw error;
+      }
+    }
+  }
+
+  private async encaisserUneFois(compteId: string, dto: EncaisserCompteDto, currentUser: UtilisateurAuthentifie, options: OptionsEncaissement) {
     const compteComplet = await this.findOneCompte(compteId, currentUser.hotelId);
     this.verifierCompteOuvert(compteComplet);
 
@@ -303,16 +324,16 @@ export class CafeteriaService {
 
       switch (dto.mode) {
         case "GROUPE":
-          return [await this.creerVenteGroupe(tx, compte, toutesLesLignes, dto, hotelId, userId)];
+          return [await this.creerVenteGroupe(tx, compte, toutesLesLignes, dto, hotelId, userId, undefined, options.numerosProvisoires?.[0])];
         case "UNE_PERSONNE":
-          return [await this.creerVenteGroupe(tx, compte, personne!.lignes, dto, hotelId, userId, personne!.id)];
+          return [await this.creerVenteGroupe(tx, compte, personne!.lignes, dto, hotelId, userId, personne!.id, options.numerosProvisoires?.[0])];
         case "PAR_SOUS_COMPTE":
-          return this.creerVentesParSousCompte(tx, compte, dto, hotelId, userId);
+          return this.creerVentesParSousCompte(tx, compte, dto, hotelId, userId, options.numerosProvisoires);
         case "PARTAGE_EGAL":
           if (!dto.nombrePersonnes) {
             throw new BadRequestException("nombrePersonnes est obligatoire pour un encaissement PARTAGE_EGAL.");
           }
-          return this.creerVentesPartageEgal(tx, compte, toutesLesLignes, dto, dto.nombrePersonnes, hotelId, userId);
+          return this.creerVentesPartageEgal(tx, compte, toutesLesLignes, dto, dto.nombrePersonnes, hotelId, userId, options.numerosProvisoires);
         default:
           throw new BadRequestException(`Mode d'encaissement inconnu : ${dto.mode}.`);
       }
@@ -402,7 +423,8 @@ export class CafeteriaService {
     dto: EncaisserCompteDto,
     hotelId: string,
     createdBy: string,
-    sousCompteId?: string
+    sousCompteId?: string,
+    numeroProvisoire?: string
   ) {
     const { usd, cdf } = this.sommerParDevise(lignes);
 
@@ -441,6 +463,7 @@ export class CafeteriaService {
         reservationLieeId: dto.reservationLieeId,
         createdBy,
         numeroRecu: await this.genererNumeroRecu(tx, hotelId),
+        numeroProvisoire,
       },
     });
   }
@@ -450,7 +473,8 @@ export class CafeteriaService {
     compte: CompteComplet,
     dto: EncaisserCompteDto,
     hotelId: string,
-    createdBy: string
+    createdBy: string,
+    numerosProvisoires?: string[]
   ) {
     const sousComptesAvecLignes = compte.sousComptes.filter((sc) => sc.lignes.length > 0);
     const ventes = [];
@@ -467,6 +491,7 @@ export class CafeteriaService {
             reservationLieeId: dto.reservationLieeId,
             createdBy,
             numeroRecu: await this.genererNumeroRecu(tx, hotelId),
+            numeroProvisoire: numerosProvisoires?.[i],
           },
         })
       );
@@ -481,7 +506,8 @@ export class CafeteriaService {
     dto: EncaisserCompteDto,
     n: number,
     hotelId: string,
-    createdBy: string
+    createdBy: string,
+    numerosProvisoires?: string[]
   ) {
     const { usd, cdf } = this.sommerParDevise(lignes);
     const partsUSD = repartirEnParts(usd, 2, n);
@@ -500,6 +526,7 @@ export class CafeteriaService {
             reservationLieeId: dto.reservationLieeId,
             createdBy,
             numeroRecu: await this.genererNumeroRecu(tx, hotelId),
+            numeroProvisoire: numerosProvisoires?.[i],
           },
         })
       );

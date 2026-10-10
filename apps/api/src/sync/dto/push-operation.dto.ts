@@ -1,9 +1,9 @@
 import { IsDateString, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, Min } from "class-validator";
-import { ENTITES_PUSH, EntitePush } from "../entites-synchronisables";
+import { TYPES_OPERATION_PUSH, TypeOperationPush } from "../entites-synchronisables";
 
 export class PushOperationDto {
-  @IsIn(ENTITES_PUSH, { message: `entiteType doit être l'un de : ${ENTITES_PUSH.join(", ")}.` })
-  entiteType!: EntitePush;
+  @IsIn(TYPES_OPERATION_PUSH, { message: `entiteType doit être l'un de : ${TYPES_OPERATION_PUSH.join(", ")}.` })
+  entiteType!: TypeOperationPush;
 
   /** UUID généré côté client (section 10.1), jamais réutilisé par le serveur. */
   @IsString()
