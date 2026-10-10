@@ -45,7 +45,10 @@ const CLE_THEME = "hotel-chicago:theme-sombre";
 
 function themeSombrePrefere(): boolean {
   try {
-    return localStorage.getItem(CLE_THEME) === "true";
+    const choisi = localStorage.getItem(CLE_THEME);
+    if (choisi !== null) return choisi === "true"; // choix explicite de l'utilisateur
+    // Pas de choix : le thème du système (Windows en mode sombre → application sombre).
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
   } catch {
     return false;
   }
@@ -555,6 +558,8 @@ export function App() {
           themeSombre={themeSombre}
           onBasculerTheme={() => setThemeSombre((v) => !v)}
           onProfilModifie={() => void client.moi().then(setUtilisateur).catch(() => undefined)}
+          preferencesSecurite={preferencesSession}
+          onChangerPreferencesSecurite={changerPreferencesSession}
         />
       );
     } else {

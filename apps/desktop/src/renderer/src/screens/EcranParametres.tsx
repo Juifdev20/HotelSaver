@@ -7,6 +7,7 @@ import { Bell, ChefHat, Coins, Globe, Moon, Printer, ShieldCheck, Sun, Users } f
 import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 import { lireTauxChange } from "@hotel-chicago/miroir-local";
+import { BlocSecurite, type PreferencesSecurite } from "./BlocSecurite";
 
 export interface EcranParametresProps {
   /** Présent seulement une fois connecté. */
@@ -21,6 +22,9 @@ export interface EcranParametresProps {
   onBasculerTheme: () => void;
   /** Appelé après modification d'un réglage de l'hôtel : l'app relit le profil pour mettre ses écrans à jour. */
   onProfilModifie?: () => void;
+  /** Réglages de sécurité de CE poste (verrous optionnels) et leur modification. */
+  preferencesSecurite?: PreferencesSecurite;
+  onChangerPreferencesSecurite?: (p: Partial<PreferencesSecurite>) => Promise<void>;
 }
 
 /** Taux de change USD/CDF (PATRON, section 9.4) : taux en vigueur, saisie
@@ -126,6 +130,8 @@ export function EcranParametres({
   themeSombre,
   onBasculerTheme,
   onProfilModifie,
+  preferencesSecurite,
+  onChangerPreferencesSecurite,
 }: EcranParametresProps) {
   const [enregistrementReglage, setEnregistrementReglage] = useState(false);
   const [erreurReglage, setErreurReglage] = useState<string | null>(null);
@@ -208,6 +214,10 @@ export function EcranParametres({
           avec Windows pour ne jamais les manquer.
         </p>
       </div>
+
+      {client && preferencesSecurite && onChangerPreferencesSecurite && (
+        <BlocSecurite client={client} preferences={preferencesSecurite} onChangerPreferences={onChangerPreferencesSecurite} />
+      )}
 
       {onNaviguer && (
         <div className="carte-formulaire">

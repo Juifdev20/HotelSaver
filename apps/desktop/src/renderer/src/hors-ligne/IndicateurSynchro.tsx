@@ -22,10 +22,13 @@ export function IndicateurSynchro({ etat, joursRestants, onOuvrir }: IndicateurS
       onClick={onOuvrir}
       title={`${resume.detail}${alerteDelai ? ` Reconnexion à Internet obligatoire dans ${joursRestants} jour(s).` : ""}`}
       data-testid="indicateur-synchro"
-      role="status"
     >
+      {/* Le rôle « status » ne peut pas être posé sur le bouton (il perdrait son rôle de bouton) : l'état est annoncé par un texte à part. */}
+      <span role="status" className="visuellement-cache">
+        {resume.titre}. {resume.detail}
+      </span>
       <span className="indicateur-synchro__point" aria-hidden="true" />
-      <span className="hc-text-caption">{resume.titre}</span>
+      <span className="hc-text-caption" aria-hidden="true">{resume.titre}</span>
       {alerteDelai && <span className="hc-text-caption indicateur-synchro__delai">· reconnexion dans {joursRestants} j</span>}
     </button>
   );
