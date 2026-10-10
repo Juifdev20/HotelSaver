@@ -5,6 +5,8 @@ import type { Chambre, Reservation, StatutReservation } from "@hotel-chicago/typ
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { ajouterJours, dateComplete, debutJournee, jourDeIso, jourDeLaSemaine, jourDuMois, jourLubumbashi, midiLubumbashi } from "../dates";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranPlanningProps {
   /** Cellule vide : nouvelle réservation pré-remplie (chambre + date d'arrivée). */
@@ -26,13 +28,9 @@ const COULEUR_STATUT: Record<StatutReservation, string> = {
 
 const STATUTS_VISIBLES = new Set<StatutReservation>(["EN_ATTENTE", "CONFIRMEE", "EN_COURS"]);
 
-function debutJournee(d = new Date()): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
+/** Midi (Lubumbashi) du jour de la colonne : date d'arrivée proposée pour une nouvelle réservation. */
 function isoJour(d: Date): string {
-  const d2 = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
-  return d2.toISOString();
+  return midiLubumbashi(jourDeIso(d)) ?? d.toISOString();
 }
 
 const LIBELLE_JOUR = ["di", "lu", "ma", "me", "je", "ve", "sa"];
@@ -57,8 +55,9 @@ export function EcranPlanning({ onNouvelleReservation, onOuvrirReservation }: Ec
       .then(([c, r]) => {
         setChambres(c);
         setReservations(r);
+        setErreur(null);
       })
-      .catch((e: Error) => setErreur(e.message));
+      .catch((e: unknown) => setErreur(messageErreur(e, "Le planning n'a pas pu être relu sur ce téléphone.")));
   }, [client]);
 
   useEffect(() => {
@@ -70,18 +69,17 @@ export function EcranPlanning({ onNouvelleReservation, onOuvrirReservation }: Ec
     if (etatSync.dernierePousseeLe) recharger();
   }, [etatSync.dernierePousseeLe, recharger]);
 
+  // Les 7 jours à partir d'aujourd'hui à Lubumbashi (minuit de chaque jour) ; recalculés si l'écran reste ouvert après minuit.
+  const jourCourant = jourLubumbashi();
   const jours = useMemo(() => {
     const aujourdhui = debutJournee();
-    return Array.from({ length: NB_JOURS }, (_, i) => {
-      const d = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), aujourdhui.getDate() + i);
-      return d;
-    });
-  }, []);
+    return Array.from({ length: NB_JOURS }, (_, i) => ajouterJours(aujourdhui, i));
+  }, [jourCourant]);
 
   // réservationsVisibles[chambreId][indexJour] = réservation couvrant ce jour
   const reservationsVisibles = useMemo(() => {
     const fenetreDebut = jours[0].getTime();
-    const fenetreFin = new Date(jours[jours.length - 1].getTime() + 86400000).getTime();
+    const fenetreFin = ajouterJours(jours[jours.length - 1], 1).getTime();
     const dansFenetre = reservations.filter(
       (r) =>
         STATUTS_VISIBLES.has(r.statut) &&
@@ -103,7 +101,11 @@ export function EcranPlanning({ onNouvelleReservation, onOuvrirReservation }: Ec
 
   return (
     <View style={styles.page}>
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
 
       <ScrollView contentContainerStyle={styles.contenu}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -115,12 +117,12 @@ export function EcranPlanning({ onNouvelleReservation, onOuvrirReservation }: Ec
               </View>
               {jours.map((j, i) => (
                 <View key={i} style={styles.celluleJour}>
-                  <Text style={styles.celluleJourNom}>{LIBELLE_JOUR[j.getDay()]}</Text>
+                  <Text style={styles.celluleJourNom}>{LIBELLE_JOUR[jourDeLaSemaine(j)]}</Text>
                   {/* Numéro du jour : cercle bleu centré sur aujourd'hui
                       (comme les calendriers natifs), rien sur les autres. */}
                   <View style={styles.numeroConteneur}>
                     <View style={i === 0 ? styles.cercleAujourdhui : undefined}>
-                      <Text style={[styles.celluleJourNumero, i === 0 && styles.numeroAujourdhui]}>{j.getDate()}</Text>
+                      <Text style={[styles.celluleJourNumero, i === 0 && styles.numeroAujourdhui]}>{jourDuMois(j)}</Text>
                     </View>
                   </View>
                 </View>
@@ -147,11 +149,12 @@ export function EcranPlanning({ onNouvelleReservation, onOuvrirReservation }: Ec
                       key={i}
                       style={[styles.celluleJour, { backgroundColor: COULEUR_STATUT[reservation.statut] }]}
                       onPress={() => onOuvrirReservation(reservation.id)}
-                      accessibilityLabel={`Réservation ${reservation.client.nom}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Chambre ${chambre.numero}, ${dateComplete(jour)} : réservation de ${reservation.client.nom}`}
                     >
                       {/* Premier jour de la barre : nom du client */}
                       <Text style={styles.celluleReservee} numberOfLines={1}>
-                        {new Date(reservation.dateArrivee).getTime() >= debutJournee(jour).getTime()
+                        {new Date(reservation.dateArrivee).getTime() >= jour.getTime()
                           ? reservation.client.nom.split(" ")[0]
                           : ""}
                       </Text>
@@ -161,7 +164,8 @@ export function EcranPlanning({ onNouvelleReservation, onOuvrirReservation }: Ec
                       key={i}
                       style={styles.celluleJour}
                       onPress={() => onNouvelleReservation(chambre.id, isoJour(jour))}
-                      accessibilityLabel={`Réserver chambre ${chambre.numero} le ${jour.toLocaleDateString("fr-FR")}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Réserver la chambre ${chambre.numero} le ${dateComplete(jour)}`}
                     >
                       <Text style={styles.celluleVide}>+</Text>
                     </Pressable>
@@ -206,7 +210,7 @@ const styles = StyleSheet.create({
   typeChambre: { fontSize: 10, color: couleurs.encreAttenuee },
   celluleJour: {
     width: LARGEUR_JOUR,
-    height: 44,
+    minHeight: 44,
     marginRight: 3,
     borderRadius: rayons.sm,
     borderWidth: 1,
@@ -227,7 +231,7 @@ const styles = StyleSheet.create({
   },
   celluleJourNumero: { fontSize: 13, fontWeight: "700", color: couleurs.encre },
   numeroAujourdhui: { color: "#fff" },
-  celluleReservee: { fontSize: 9, fontWeight: "700", color: "#fff" },
+  celluleReservee: { fontSize: 10, fontWeight: "700", color: "#fff" },
   celluleVide: { fontSize: 14, color: couleurs.encreFaible },
   legende: { flexDirection: "row", alignItems: "center", gap: espacements.s3, marginTop: espacements.s4, flexWrap: "wrap" },
   legendeItem: { flexDirection: "row", alignItems: "center", gap: 4 },

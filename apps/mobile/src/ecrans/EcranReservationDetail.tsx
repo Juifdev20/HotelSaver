@@ -14,7 +14,9 @@ import { FeuilleModale } from "../composants/FeuilleModale";
 import { SelecteurDate } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
 import { imprimerLignes } from "../impression/imprimante";
-import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
+import { estRecuProvisoire, lireMontant } from "@hotel-chicago/regles";
+import { dateComplete, midiLubumbashi } from "../dates";
+import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
 
 export interface EcranReservationDetailProps {
   /** Id de la réservation (local ou serveur — le miroir résout les deux). */
@@ -38,27 +40,25 @@ const COULEUR_STATUT: Record<StatutReservation, { fond: string; texte: string }>
   EN_ATTENTE: { fond: couleurs.alerteClair, texte: couleurs.alerte },
   CONFIRMEE: { fond: couleurs.bleuClair, texte: couleurs.bleu },
   EN_COURS: { fond: couleurs.succesClair, texte: couleurs.succes },
-  TERMINEE: { fond: couleurs.bordure, texte: couleurs.encreAttenuee },
+  TERMINEE: { fond: couleurs.bordure, texte: couleurs.encre },
   ANNULEE: { fond: couleurs.dangerClair, texte: couleurs.danger },
 };
 
+/** Dates affichées et saisies au jour de Lubumbashi, quel que soit le fuseau réglé sur le téléphone (dates.ts). */
 function dateCourte(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  return dateComplete(iso);
 }
 
+/** « JJ/MM/AAAA » → midi à Lubumbashi ce jour-là (ISO), null si la date n'existe pas. */
 function isoDepuisSaisie(saisie: string): string | null {
   const m = saisie.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!m) return null;
   const [, j, mo, a] = m;
-  const date = new Date(Number(a), Number(mo) - 1, Number(j), 12, 0, 0);
-  if (Number.isNaN(date.getTime()) || date.getDate() !== Number(j)) return null;
-  return date.toISOString();
+  return midiLubumbashi(`${a}-${mo}-${j}`);
 }
 
 function saisieDepuisIso(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  return dateComplete(iso);
 }
 
 /**
@@ -78,15 +78,17 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
   const [saisieAcompte, setSaisieAcompte] = useState("");
   const [saisieNote, setSaisieNote] = useState("");
   const [saisieReponse, setSaisieReponse] = useState("");
-  const [messageImpression, setMessageImpression] = useState<string | null>(null);
+  const [messageImpression, setMessageImpression] = useState<{ texte: string; reussie: boolean; provisoire?: boolean } | null>(null);
+  // Erreur de validation d'une feuille : affichée DANS la feuille, jamais derrière elle (retour U7).
+  const [erreurFeuille, setErreurFeuille] = useState<string | null>(null);
   const [messageWhatsApp, setMessageWhatsApp] = useState("");
 
   const recharger = useCallback(() => {
     client
       .obtenirReservation(reservationId)
       .then(setReservation)
-      .catch((e: Error) => setErreur(e.message));
-  }, [reservationId]);
+      .catch((e: unknown) => setErreur(messageErreur(e, "La réservation n'a pas pu être chargée. Réessayez.")));
+  }, [reservationId, client]);
 
   useEffect(recharger, [recharger]);
 
@@ -100,7 +102,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
       await action();
       onChange();
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "L'action n'a pas pu être faite. Réessayez."));
     } finally {
       setEnCours(null);
     }
@@ -123,11 +125,13 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
   }
 
   function annuler() {
-    if (!reservation || !motif.trim()) {
-      setErreur("Le motif d'annulation est obligatoire.");
+    if (!reservation) return;
+    if (!motif.trim()) {
+      setErreurFeuille("Le motif d'annulation est obligatoire.");
       return;
     }
     const motifFinal = motif.trim();
+    setErreurFeuille(null);
     setFeuille(null);
     setMotif("");
     void executer("annuler", async () => {
@@ -141,28 +145,29 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
     const dateArrivee = saisieArrivee.trim() ? isoDepuisSaisie(saisieArrivee) : undefined;
     const dateDepart = saisieDepart.trim() ? isoDepuisSaisie(saisieDepart) : undefined;
     if (saisieArrivee.trim() && !dateArrivee) {
-      setErreur("Date d'arrivée invalide — format JJ/MM/AAAA.");
+      setErreurFeuille("Date d'arrivée invalide — format JJ/MM/AAAA.");
       return;
     }
     if (saisieDepart.trim() && !dateDepart) {
-      setErreur("Date de départ invalide — format JJ/MM/AAAA.");
+      setErreurFeuille("Date de départ invalide — format JJ/MM/AAAA.");
       return;
     }
     const arriveeFinale = dateArrivee ?? reservation.dateArrivee;
     const departFinal = dateDepart ?? reservation.dateDepart;
     if (new Date(arriveeFinale) >= new Date(departFinal)) {
-      setErreur("La date de départ doit être postérieure à la date d'arrivée.");
+      setErreurFeuille("La date de départ doit être postérieure à la date d'arrivée.");
       return;
     }
     const acompteLu = saisieAcompte.trim()
       ? lireMontant(saisieAcompte, reservation.chambre.devise, { autoriserZero: true, max: 100_000_000 })
       : null;
     if (acompteLu && !acompteLu.ok) {
-      setErreur(`Acompte : ${acompteLu.message}`);
+      setErreurFeuille(`Acompte : ${acompteLu.message}`);
       return;
     }
     const acompte = acompteLu && acompteLu.ok ? acompteLu.valeur : undefined;
     const noteModifiee = saisieNote.trim() !== (reservation.note ?? "") ? saisieNote.trim() : undefined;
+    setErreurFeuille(null);
     setFeuille(null);
     void executer("modifier", async () => {
       await client.modifierReservation(idServeur, {
@@ -195,7 +200,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
       const factures = await client.listerFactures(idServeur);
       const facture = factures[0];
       if (!facture) {
-        setMessageImpression("Aucune facture liée à ce séjour.");
+        setMessageImpression({ texte: "Aucune facture liée à ce séjour.", reussie: false });
         return;
       }
       const [reservationComplete, ventes] = await Promise.all([
@@ -203,9 +208,9 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
         client.listerVentesCafeteria(idServeur),
       ]);
       await imprimerLignes(construireRecuFacture(facture, reservationComplete, utilisateur.nom, ventes, enteteHotel(utilisateur), { duplicata: true }));
-      setMessageImpression("Reçu envoyé à l'imprimante.");
+      setMessageImpression({ texte: messageImpressionEnvoyee(`Reçu ${facture.numeroRecu}`), reussie: true, provisoire: estRecuProvisoire(facture.numeroRecu) });
     } catch (e) {
-      setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
+      setMessageImpression({ texte: `Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`, reussie: false });
     } finally {
       setEnCours(null);
     }
@@ -293,6 +298,9 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
         style={[secondaire ? styles.boutonSecondaire : styles.bouton, inactif && styles.boutonInactif]}
         onPress={action}
         disabled={inactif || enCours !== null}
+        accessibilityRole="button"
+        accessibilityLabel={enCours === nom ? `${libelle}, en cours` : libelle}
+        accessibilityState={{ disabled: inactif || enCours !== null, busy: enCours === nom }}
       >
         <Text style={[secondaire ? styles.boutonSecondaireTexte : styles.boutonTexte]}>
           {enCours === nom ? "…" : libelle}
@@ -306,7 +314,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
       <View style={styles.page}>
         <EnteteMobile />
         <EnteteRetour titre="Réservation" onRetour={onRetour} />
-        <ActivityIndicator style={{ marginTop: espacements.s6 }} color={couleurs.bleu} />
+        <ActivityIndicator style={{ marginTop: espacements.s6 }} color={couleurs.bleu} accessibilityLabel="Chargement" />
       </View>
     );
   }
@@ -325,15 +333,34 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
         onRetour={onRetour}
       />
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
-      {messageImpression && <Text style={styles.messageInfo}>{messageImpression}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
+      {messageImpression && (
+        <View>
+          {messageImpression.provisoire && (
+            <View style={styles.badgeProvisoire} accessible accessibilityLabel="Reçu provisoire : numéro définitif attribué à la synchronisation">
+              <Text style={styles.badgeProvisoireTexte}>Provisoire</Text>
+            </View>
+          )}
+          <Text
+            style={messageImpression.reussie ? styles.messageInfo : styles.erreur}
+            accessibilityRole={messageImpression.reussie ? undefined : "alert"}
+            accessibilityLiveRegion="polite"
+          >
+            {messageImpression.texte}
+          </Text>
+        </View>
+      )}
 
       {reservation && statut && (
         <ConteneurFormulaire styleContenu={styles.contenu}>
           <View style={styles.carte}>
             <View style={styles.ligneEntete}>
               <Text style={styles.titre}>Séjour</Text>
-              <View style={[styles.badge, { backgroundColor: COULEUR_STATUT[statut].fond }]}>
+              <View style={[styles.badge, { backgroundColor: COULEUR_STATUT[statut].fond }]} accessible accessibilityLabel={`Statut : ${LABEL_STATUT[statut]}`}>
                 <Text style={[styles.badgeTexte, { color: COULEUR_STATUT[statut].texte }]}>{LABEL_STATUT[statut]}</Text>
               </View>
             </View>
@@ -364,8 +391,8 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
                 Pièce : {[reservation.client.typePiece, reservation.client.numeroPiece].filter(Boolean).join(" · ")}
               </Text>
             )}
-            <Pressable style={styles.whatsapp} onPress={ouvrirWhatsApp} accessibilityRole="button">
-              <MessageCircle size={16} color="#1FA855" />
+            <Pressable style={styles.whatsapp} onPress={ouvrirWhatsApp} accessibilityRole="button" accessibilityLabel="Contacter le client par WhatsApp">
+              <MessageCircle size={16} color="#0B7A48" />
               <Text style={styles.whatsappTexte}>Contacter le client par WhatsApp</Text>
             </Pressable>
           </View>
@@ -397,6 +424,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
                 onPress={() => {
                   setSaisieReponse(reservation.reponseReception ?? "");
                   setErreur(null);
+                  setErreurFeuille(null);
                   setFeuille("reponse");
                 }}
                 accessibilityRole="button"
@@ -435,6 +463,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
                   setSaisieAcompte(reservation.acompte !== "0" ? String(reservation.acompte) : "");
                   setSaisieNote(reservation.note ?? "");
                   setErreur(null);
+                  setErreurFeuille(null);
                   setFeuille("modifier");
                 },
                 true,
@@ -451,6 +480,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
                 () => {
                   setMotif("");
                   setErreur(null);
+                  setErreurFeuille(null);
                   setFeuille("annuler");
                 },
                 true,
@@ -462,54 +492,103 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
         </ConteneurFormulaire>
       )}
 
-      <FeuilleModale visible={feuille === "annuler"} onFermer={() => setFeuille(null)} titre="Annuler la réservation">
+      <FeuilleModale
+        visible={feuille === "annuler"}
+        onFermer={() => setFeuille(null)}
+        titre="Annuler la réservation"
+        modifie={motif.trim() !== ""}
+        enCours={enCours !== null}
+      >
         <Text style={styles.champLabel}>Motif d'annulation (obligatoire)</Text>
         <TextInput
           style={styles.champ}
           value={motif}
-          onChangeText={setMotif}
+          onChangeText={(v) => {
+            setMotif(v);
+            setErreurFeuille(null);
+          }}
+          accessibilityLabel="Motif d'annulation, obligatoire"
           placeholder="Ex. Le client ne se présente pas"
           placeholderTextColor={couleurs.encreFaible}
           multiline
         />
-        <Pressable style={styles.boutonDanger} onPress={annuler}>
+        {erreurFeuille && feuille === "annuler" && (
+          <Text style={styles.erreur} accessibilityRole="alert">
+            {erreurFeuille}
+          </Text>
+        )}
+        <Pressable style={styles.boutonDanger} onPress={annuler} accessibilityRole="button">
           <Text style={styles.boutonTexte}>Confirmer l'annulation</Text>
         </Pressable>
       </FeuilleModale>
 
-      <FeuilleModale visible={feuille === "modifier"} onFermer={() => setFeuille(null)} titre="Modifier la réservation">
+      <FeuilleModale
+        visible={feuille === "modifier"}
+        onFermer={() => setFeuille(null)}
+        titre="Modifier la réservation"
+        modifie={
+          reservation !== null &&
+          (saisieArrivee !== saisieDepuisIso(reservation.dateArrivee) ||
+            saisieDepart !== saisieDepuisIso(reservation.dateDepart) ||
+            saisieAcompte !== (reservation.acompte !== "0" ? String(reservation.acompte) : "") ||
+            saisieNote !== (reservation.note ?? ""))
+        }
+        enCours={enCours !== null}
+      >
         <Text style={styles.champLabel}>Arrivée (JJ/MM/AAAA)</Text>
         <SelecteurDate
+          libelle="Date d'arrivée"
           valeur={isoDepuisSaisie(saisieArrivee)?.slice(0, 10) ?? ""}
           onChange={(iso) => setSaisieArrivee(iso ? saisieDepuisIso(iso) : "")}
         />
         <Text style={styles.champLabel}>Départ (JJ/MM/AAAA)</Text>
         <SelecteurDate
+          libelle="Date de départ"
           valeur={isoDepuisSaisie(saisieDepart)?.slice(0, 10) ?? ""}
           onChange={(iso) => setSaisieDepart(iso ? saisieDepuisIso(iso) : "")}
         />
         <Text style={styles.champLabel}>Acompte ({reservation?.chambre.devise})</Text>
-        <TextInput style={styles.champ} value={saisieAcompte} onChangeText={setSaisieAcompte} placeholder="0" placeholderTextColor={couleurs.encreFaible} keyboardType="numeric" />
+        <TextInput
+          style={styles.champ}
+          value={saisieAcompte}
+          onChangeText={setSaisieAcompte}
+          accessibilityLabel={`Acompte en ${reservation?.chambre.devise ?? ""}`}
+          placeholder="0"
+          placeholderTextColor={couleurs.encreFaible}
+          keyboardType="numeric"
+        />
         <Text style={styles.champLabel}>Demandes spéciales</Text>
         <TextInput
           style={styles.champ}
           value={saisieNote}
           onChangeText={setSaisieNote}
+          accessibilityLabel="Demandes spéciales"
           placeholder="Lit bébé, étage élevé…"
           placeholderTextColor={couleurs.encreFaible}
           multiline
         />
-        <Pressable style={styles.bouton} onPress={modifier}>
+        {erreurFeuille && feuille === "modifier" && (
+          <Text style={styles.erreur} accessibilityRole="alert">
+            {erreurFeuille}
+          </Text>
+        )}
+        <Pressable style={styles.bouton} onPress={modifier} accessibilityRole="button">
           <Text style={styles.boutonTexte}>Enregistrer</Text>
         </Pressable>
       </FeuilleModale>
 
-      <FeuilleModale visible={feuille === "whatsapp"} onFermer={() => setFeuille(null)} titre="Message WhatsApp">
+      <FeuilleModale
+        visible={feuille === "whatsapp"}
+        onFermer={() => setFeuille(null)}
+        titre="Message WhatsApp"
+        modifie={feuille === "whatsapp" && messageWhatsApp !== construireMessageWhatsApp()}
+      >
         <Text style={styles.champLabel}>Message au client (modifiable)</Text>
         <TextInput
           style={styles.champMultiligne}
           value={messageWhatsApp}
           onChangeText={setMessageWhatsApp}
+          accessibilityLabel="Message au client"
           placeholder="Votre message…"
           placeholderTextColor={couleurs.encreFaible}
           multiline
@@ -518,22 +597,29 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
           <MessageCircle size={16} color="#fff" />
           <Text style={styles.boutonTexte}>Ouvrir WhatsApp</Text>
         </Pressable>
-        <Pressable style={styles.boutonSecondaire} onPress={() => setMessageWhatsApp(construireMessageWhatsApp())}>
+        <Pressable style={styles.boutonSecondaire} onPress={() => setMessageWhatsApp(construireMessageWhatsApp())} accessibilityRole="button">
           <Text style={styles.boutonSecondaireTexte}>Réinitialiser le texte</Text>
         </Pressable>
       </FeuilleModale>
 
-      <FeuilleModale visible={feuille === "reponse"} onFermer={() => setFeuille(null)} titre="Répondre au client">
+      <FeuilleModale
+        visible={feuille === "reponse"}
+        onFermer={() => setFeuille(null)}
+        titre="Répondre au client"
+        modifie={saisieReponse !== (reservation?.reponseReception ?? "")}
+        enCours={enCours !== null}
+      >
         <Text style={styles.champLabel}>Message visible sur la page de suivi du client</Text>
         <TextInput
           style={styles.champMultiligne}
           value={saisieReponse}
           onChangeText={setSaisieReponse}
+          accessibilityLabel="Réponse visible par le client"
           placeholder="Ex. Demande bien reçue — acompte de 30 $ attendu à l'arrivée."
           placeholderTextColor={couleurs.encreFaible}
           multiline
         />
-        <Pressable style={styles.bouton} onPress={repondre}>
+        <Pressable style={styles.bouton} onPress={repondre} accessibilityRole="button">
           <Text style={styles.boutonTexte}>Enregistrer</Text>
         </Pressable>
       </FeuilleModale>
@@ -566,9 +652,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: espacements.s2,
     marginTop: espacements.s2,
-    minHeight: 36,
+    minHeight: 44,
   },
-  whatsappTexte: { fontSize: 14, fontWeight: "600", color: "#1FA855" },
+  whatsappTexte: { fontSize: 14, fontWeight: "600", color: "#0B7A48" },
   badge: { paddingHorizontal: espacements.s2, paddingVertical: 3, borderRadius: rayons.pill },
   badgeTexte: { fontSize: 11, fontWeight: "700" },
   actions: { gap: espacements.s2 },
@@ -586,6 +672,8 @@ const styles = StyleSheet.create({
   boutonSecondaireTexte: { color: couleurs.encre, fontWeight: "700", fontSize: 14 },
   boutonDanger: { minHeight: 48, borderRadius: rayons.sm, backgroundColor: couleurs.danger, alignItems: "center", justifyContent: "center" },
   boutonInactif: { opacity: 0.45 },
+  badgeProvisoire: { alignSelf: "flex-start", marginLeft: espacements.s4, backgroundColor: couleurs.alerteClair, borderWidth: 1, borderColor: couleurs.alerte, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
+  badgeProvisoireTexte: { fontSize: 11, fontWeight: "700", color: couleurs.alerte },
   champLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },
   champ: {
     borderWidth: 1,
@@ -612,7 +700,7 @@ const styles = StyleSheet.create({
   boutonWhatsApp: {
     minHeight: 48,
     borderRadius: rayons.sm,
-    backgroundColor: "#1FA855",
+    backgroundColor: "#0B7A48",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

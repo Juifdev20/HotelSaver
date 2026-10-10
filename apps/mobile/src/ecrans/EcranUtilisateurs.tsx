@@ -11,6 +11,8 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { useDonnee } from "../hooks/useDonnee";
+import { confirmerAction } from "../confirmer";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranUtilisateursProps {
   client: ClientApi;
@@ -54,6 +56,8 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
   const [edition, setEdition] = useState<Utilisateur | null>(null);
   const [formEdition, setFormEdition] = useState<FormulaireEdition>({ nom: "", email: "", motDePasse: "" });
   const [erreurEdition, setErreurEdition] = useState<string | null>(null);
+  // Erreur d'un changement d'état (désactiver / réactiver) : affichée en haut de la liste, jamais derrière une modale (retour U7).
+  const [erreurListe, setErreurListe] = useState<string | null>(null);
 
   /** Rôles déjà dotés d'un compte — un seul compte par rôle par hôtel
    * (règle API, UtilisateursService.create). */
@@ -88,7 +92,7 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
       setModaleOuverte(false);
       recharger();
     } catch (e) {
-      setErreurFormulaire(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreurFormulaire(messageErreur(e, "Le compte n'a pas pu être créé. Réessayez."));
     } finally {
       setEnEnvoi(false);
     }
@@ -122,10 +126,27 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
       setEdition(null);
       recharger();
     } catch (e) {
-      setErreurEdition(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreurEdition(messageErreur(e, "Le compte n'a pas pu être modifié. Réessayez."));
     } finally {
       setEnEnvoi(false);
     }
+  }
+
+  /** Désactiver un compte coupe l'accès de la personne : on la nomme avant (retour U3). Réactiver ne demande rien. */
+  function demanderBascule(utilisateur: Utilisateur) {
+    setErreurListe(null);
+    if (!utilisateur.actif) {
+      void basculerActif(utilisateur);
+      return;
+    }
+    confirmerAction({
+      titre: `Désactiver le compte de ${utilisateur.nom} ?`,
+      message: `${LIBELLE_ROLE[utilisateur.role]}${utilisateur.email ? ` · ${utilisateur.email}` : ""}.\nCette personne ne pourra plus se connecter ni utiliser l'application. Vous pourrez réactiver le compte plus tard.`,
+      libelleConfirmer: "Désactiver le compte",
+      libelleRefuser: "Garder actif",
+      destructif: true,
+      onConfirmer: () => basculerActif(utilisateur),
+    });
   }
 
   async function basculerActif(utilisateur: Utilisateur) {
@@ -135,7 +156,7 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
       recharger();
     } catch (e) {
       // Erreur affichée en haut de liste (ex. "vous ne pouvez pas désactiver votre propre compte").
-      setErreurFormulaire(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreurListe(messageErreur(e, "Le changement n'a pas pu être fait. Réessayez."));
     } finally {
       setIdsEnCours((s) => {
         const suivant = new Set(s);
@@ -154,7 +175,11 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
         onRetour={onRetour}
       />
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {(erreurListe || erreur) && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreurListe ?? erreur}
+        </Text>
+      )}
 
       {utilisateurs?.length === 0 && (
         <View style={styles.videConteneur}>
@@ -184,13 +209,15 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
                 {item.actif ? "Actif" : "Désactivé"}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: espacements.s3 }}>
-                <Pressable onPress={() => ouvrirEdition(item)} hitSlop={8} accessibilityLabel={`Modifier ${item.nom}`}>
+                <Pressable onPress={() => ouvrirEdition(item)} hitSlop={8} style={styles.zoneLien} accessibilityRole="button" accessibilityLabel={`Modifier ${item.nom}`}>
                   <Text style={styles.lienModifier}>Modifier</Text>
                 </Pressable>
                 <Switch
                   value={item.actif}
-                  onValueChange={() => basculerActif(item)}
+                  onValueChange={() => demanderBascule(item)}
                   disabled={idsEnCours.has(item.id)}
+                  accessibilityLabel={`Compte de ${item.nom} actif`}
+                  accessibilityHint={item.actif ? "Désactive le compte après confirmation" : "Réactive le compte"}
                 />
               </View>
             </View>
@@ -198,12 +225,20 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
         )}
       />
 
-      <FeuilleModale visible={modaleOuverte} onFermer={() => setModaleOuverte(false)} titre="Nouveau compte">
+      <FeuilleModale
+        visible={modaleOuverte}
+        onFermer={() => setModaleOuverte(false)}
+        titre="Nouveau compte"
+        modifie={formulaire.nom !== "" || formulaire.email !== "" || formulaire.motDePasse !== ""}
+        enCours={enEnvoi}
+      >
         <Text style={styles.label}>Nom</Text>
         <TextInput
           style={styles.champ}
           value={formulaire.nom}
           onChangeText={(v) => setFormulaire((f) => ({ ...f, nom: v }))}
+          accessibilityLabel="Nom du membre du personnel"
+          autoComplete="name"
           placeholder="Ex. Jeanne Kabila"
           placeholderTextColor={couleurs.encreFaible}
         />
@@ -213,6 +248,8 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
           style={styles.champ}
           value={formulaire.email}
           onChangeText={(v) => setFormulaire((f) => ({ ...f, email: v }))}
+          accessibilityLabel="Email du compte"
+          autoComplete="email"
           placeholder="jeanne@exemple.com"
           placeholderTextColor={couleurs.encreFaible}
           autoCapitalize="none"
@@ -224,6 +261,8 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
           style={styles.champ}
           value={formulaire.motDePasse}
           onChangeText={(v) => setFormulaire((f) => ({ ...f, motDePasse: v }))}
+          accessibilityLabel="Mot de passe du compte, 8 caractères minimum"
+          autoComplete="new-password"
           placeholder="8 caractères minimum"
           placeholderTextColor={couleurs.encreFaible}
           secureTextEntry
@@ -239,6 +278,9 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
                 style={[styles.optionRole, formulaire.role === r && styles.optionRoleActive, pris && styles.optionRoleDesactive]}
                 disabled={pris}
                 onPress={() => setFormulaire((f) => ({ ...f, role: r }))}
+                accessibilityRole="radio"
+                accessibilityLabel={`Rôle ${LIBELLE_ROLE[r]}${pris ? ", déjà créé" : ""}`}
+                accessibilityState={{ checked: formulaire.role === r, disabled: pris }}
               >
                 <Text style={[styles.optionRoleTexte, formulaire.role === r && styles.optionRoleTexteActif, pris && styles.optionRoleTexteDesactive]}>
                   {LIBELLE_ROLE[r]}
@@ -255,9 +297,13 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
           </Text>
         )}
 
-        {erreurFormulaire && <Text style={styles.erreurFormulaire}>{erreurFormulaire}</Text>}
+        {erreurFormulaire && (
+          <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+            {erreurFormulaire}
+          </Text>
+        )}
 
-        <Pressable style={styles.bouton} onPress={creer} disabled={enEnvoi}>
+        <Pressable style={styles.bouton} onPress={creer} disabled={enEnvoi} accessibilityRole="button" accessibilityState={{ disabled: enEnvoi, busy: enEnvoi }}>
           <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Créer le compte"}</Text>
         </Pressable>
       </FeuilleModale>
@@ -266,6 +312,11 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
         visible={edition !== null}
         onFermer={() => setEdition(null)}
         titre={edition ? `Modifier — ${LIBELLE_ROLE[edition.role]}` : "Modifier"}
+        modifie={
+          edition !== null &&
+          (formEdition.nom !== edition.nom || formEdition.email !== (edition.email ?? "") || formEdition.motDePasse !== "")
+        }
+        enCours={enEnvoi}
       >
         <Text style={styles.aide}>
           Changez le nom, l'email ou le mot de passe pour transmettre le compte à un nouvel employé.
@@ -275,6 +326,7 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
         <TextInput
           style={styles.champ}
           value={formEdition.nom}
+          accessibilityLabel="Nom du membre du personnel"
           onChangeText={(v) => setFormEdition((f) => ({ ...f, nom: v }))}
           placeholderTextColor={couleurs.encreFaible}
         />
@@ -283,6 +335,8 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
         <TextInput
           style={styles.champ}
           value={formEdition.email}
+          accessibilityLabel="Email du compte"
+          autoComplete="email"
           onChangeText={(v) => setFormEdition((f) => ({ ...f, email: v }))}
           placeholderTextColor={couleurs.encreFaible}
           autoCapitalize="none"
@@ -294,14 +348,20 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
           style={styles.champ}
           value={formEdition.motDePasse}
           onChangeText={(v) => setFormEdition((f) => ({ ...f, motDePasse: v }))}
+          accessibilityLabel="Nouveau mot de passe, laisser vide pour ne pas le changer"
+          autoComplete="new-password"
           placeholder="Laisser vide pour ne pas le changer"
           placeholderTextColor={couleurs.encreFaible}
           secureTextEntry
         />
 
-        {erreurEdition && <Text style={styles.erreurFormulaire}>{erreurEdition}</Text>}
+        {erreurEdition && (
+          <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+            {erreurEdition}
+          </Text>
+        )}
 
-        <Pressable style={styles.bouton} onPress={enregistrerEdition} disabled={enEnvoi}>
+        <Pressable style={styles.bouton} onPress={enregistrerEdition} disabled={enEnvoi} accessibilityRole="button" accessibilityState={{ disabled: enEnvoi, busy: enEnvoi }}>
           <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Enregistrer"}</Text>
         </Pressable>
       </FeuilleModale>
@@ -336,6 +396,7 @@ const styles = StyleSheet.create({
   statutActif: { fontSize: 13, fontWeight: "600", color: couleurs.succes },
   statutInactif: { fontSize: 13, fontWeight: "600", color: couleurs.danger },
   lienModifier: { fontSize: 13, fontWeight: "600", color: couleurs.bleu },
+  zoneLien: { minHeight: 44, minWidth: 44, justifyContent: "center", alignItems: "center" },
   aide: { fontSize: 12, color: couleurs.encreAttenuee, marginTop: espacements.s2, lineHeight: 17 },
   optionRoleDesactive: { opacity: 0.45 },
   optionRoleTexteDesactive: { color: couleurs.encreFaible },

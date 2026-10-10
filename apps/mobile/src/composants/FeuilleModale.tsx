@@ -53,7 +53,7 @@ export function FeuilleModale({ visible, onFermer, titre, children, avecDefileme
     <Modal visible={visible} transparent animationType="fade" onRequestClose={demanderFermeture}>
       <KeyboardAvoidingView style={styles.fond} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <Pressable style={styles.fondPressable} onPress={demanderFermeture} accessible={false}>
-          <Pressable style={styles.feuille} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={styles.feuille} onPress={(e) => e.stopPropagation()} accessible={false}>
             {avecDefilement ? (
               <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.contenuScroll}>
                 {contenu}

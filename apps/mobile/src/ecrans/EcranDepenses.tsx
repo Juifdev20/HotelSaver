@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Linking, Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
+import { Linking, Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
 import { FileDown } from "lucide-react-native";
 import { Devise, Role, type DepartementRapport, type Depense } from "@hotel-chicago/types";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
@@ -12,7 +12,10 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
+import { lireMontant } from "@hotel-chicago/regles";
+import { formaterLubumbashi, jourLubumbashi, midiLubumbashi } from "../dates";
+import { confirmerAction } from "../confirmer";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranDepensesProps {
   /** « ‹ Retour » vers l'Accueil (onglet) ou la liste Plus (patron). */
@@ -23,23 +26,29 @@ type Periode = "mois" | "mois-dernier" | "jour" | "libre";
 
 const LIBELLE_DEPARTEMENT: Record<DepartementRapport, string> = { RECEPTION: "Réception", CAFETERIA: "Cafétaria" };
 
+/** « AAAA-MM-JJ » du jour de Lubumbashi (dates.ts), pas celui du fuseau réglé sur le téléphone. */
 function iso(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return jourLubumbashi(d);
 }
 
 function bornesPeriode(periode: Exclude<Periode, "libre">): { du: string; au: string } {
-  const maintenant = new Date();
-  if (periode === "jour") return { du: iso(maintenant), au: iso(maintenant) };
-  if (periode === "mois") return { du: iso(new Date(maintenant.getFullYear(), maintenant.getMonth(), 1)), au: iso(maintenant) };
+  const aujourdhui = jourLubumbashi();
+  if (periode === "jour") return { du: aujourdhui, au: aujourdhui };
+  const [a, m] = aujourdhui.split("-").map(Number) as [number, number];
+  const deux = (n: number) => String(n).padStart(2, "0");
+  if (periode === "mois") return { du: `${a}-${deux(m)}-01`, au: aujourdhui };
+  // Mois dernier : du 1er au dernier jour (jour 0 du mois courant = dernier jour du mois précédent).
+  const dernierJour = new Date(Date.UTC(a, m - 1, 0));
   return {
-    du: iso(new Date(maintenant.getFullYear(), maintenant.getMonth() - 1, 1)),
-    au: iso(new Date(maintenant.getFullYear(), maintenant.getMonth(), 0)),
+    du: `${dernierJour.getUTCFullYear()}-${deux(dernierJour.getUTCMonth() + 1)}-01`,
+    au: `${dernierJour.getUTCFullYear()}-${deux(dernierJour.getUTCMonth() + 1)}-${deux(dernierJour.getUTCDate())}`,
   };
 }
 
 /** « mardi 7 octobre 2026 » — en-tête de section de la liste. */
 function jourLisible(jour: string): string {
-  return new Date(`${jour}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const midi = midiLubumbashi(jour);
+  return midi ? formaterLubumbashi(midi, { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : jour;
 }
 
 function totaux(depenses: Depense[]): { usd: number; cdf: number } {
@@ -93,8 +102,12 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
     if (!periodeValide) return;
     client
       .listerDepenses({ du, au, departement: departementFiltre })
-      .then(setDepenses)
-      .catch((e: Error) => setErreur(e.message));
+      .then((liste) => {
+        setDepenses(liste);
+        setErreur(null);
+      })
+      // Les dépenses déjà affichées restent à l'écran si le rechargement échoue.
+      .catch((e: unknown) => setErreur(messageErreur(e, "Les dépenses n'ont pas pu être actualisées.")));
   }, [client, du, au, departementFiltre, periodeValide]);
 
   useEffect(() => {
@@ -181,33 +194,29 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
       setFormulaire(null);
       recharger();
     } catch (e) {
-      setErreurFormulaire(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreurFormulaire(messageErreur(e, "La dépense n'a pas pu être enregistrée. Réessayez."));
     } finally {
       setEnCours(false);
     }
   }
 
   function annuler(depense: Depense) {
-    Alert.alert(
-      "Annuler cette dépense ?",
-      `« ${depense.motif} » — ${formatMontant(depense.montant, depense.devise)}.\nElle restera visible, barrée, et ne comptera plus dans les totaux. C'est définitif.`,
-      [
-        { text: "Retour", style: "cancel" },
-        {
-          text: "Annuler la dépense",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await client.modifierDepense(depense.id, { annulee: true });
-              setFormulaire(null);
-              recharger();
-            } catch (e) {
-              setErreurFormulaire(e instanceof Error ? e.message : "Erreur inconnue.");
-            }
-          },
-        },
-      ]
-    );
+    confirmerAction({
+      titre: "Annuler cette dépense ?",
+      message: `« ${depense.motif} » — ${formatMontant(depense.montant, depense.devise)}.\nElle restera visible, barrée, et ne comptera plus dans les totaux. C'est définitif.`,
+      libelleConfirmer: "Annuler la dépense",
+      libelleRefuser: "Retour",
+      destructif: true,
+      onConfirmer: async () => {
+        try {
+          await client.modifierDepense(depense.id, { annulee: true });
+          setFormulaire(null);
+          recharger();
+        } catch (e) {
+          setErreurFormulaire(messageErreur(e, "La dépense n'a pas pu être annulée. Réessayez."));
+        }
+      },
+    });
   }
 
   async function telechargerPdf() {
@@ -221,7 +230,7 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
       const { url } = await client.urlPdfDepenses({ du, au, departement: departementFiltre });
       await Linking.openURL(url);
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Impossible de télécharger le PDF.");
+      setErreur(`Le PDF n'a pas pu être téléchargé : ${messageErreur(e, "vérifiez la connexion puis réessayez.")}`);
     } finally {
       setTelechargement(false);
     }
@@ -243,7 +252,14 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
               ["mois-dernier", "Mois dernier"],
             ] as const
           ).map(([p, libelle]) => (
-            <Pressable key={p} style={[styles.puce, periode === p && styles.puceActive]} onPress={() => choisirPeriode(p)}>
+            <Pressable
+              key={p}
+              style={[styles.puce, periode === p && styles.puceActive]}
+              onPress={() => choisirPeriode(p)}
+              accessibilityRole="button"
+              accessibilityLabel={`Période : ${libelle}`}
+              accessibilityState={{ selected: periode === p }}
+            >
               <Text style={[styles.puceTexte, periode === p && styles.puceTexteActif]}>{libelle}</Text>
             </Pressable>
           ))}
@@ -252,6 +268,7 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
           <View style={styles.colonneDate}>
             <Text style={styles.champLabel}>Du</Text>
             <SelecteurDate
+              libelle="Date de début"
               key={`du-${du}`}
               valeur={du}
               onChange={(v) => {
@@ -263,6 +280,7 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
           <View style={styles.colonneDate}>
             <Text style={styles.champLabel}>Au</Text>
             <SelecteurDate
+              libelle="Date de fin"
               key={`au-${au}`}
               valeur={au}
               onChange={(v) => {
@@ -272,7 +290,11 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
             />
           </View>
         </View>
-        {!periodeValide && <Text style={styles.erreur}>La date de fin doit suivre la date de début.</Text>}
+        {!periodeValide && (
+          <Text style={styles.erreur} accessibilityRole="alert">
+            La date de fin doit suivre la date de début.
+          </Text>
+        )}
 
         {!departementPersonnel && (
           <View style={styles.puces}>
@@ -287,6 +309,9 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
                 key={libelle}
                 style={[styles.puce, departementFiltre === d && styles.puceActive]}
                 onPress={() => setDepartementFiltre(d)}
+                accessibilityRole="button"
+                accessibilityLabel={`Département : ${libelle}`}
+                accessibilityState={{ selected: departementFiltre === d }}
               >
                 <Text style={[styles.puceTexte, departementFiltre === d && styles.puceTexteActif]}>{libelle}</Text>
               </Pressable>
@@ -313,7 +338,11 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
           </Pressable>
         </View>
         {!etatSync.enLigne && <Text style={styles.infoHorsLigne}>Hors ligne : le PDF se télécharge avec une connexion internet.</Text>}
-        {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+        {erreur && (
+          <Text style={styles.erreur} accessibilityRole="alert">
+            {erreur}
+          </Text>
+        )}
       </View>
 
       <SectionList
@@ -332,7 +361,14 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
           </View>
         )}
         renderItem={({ item }) => (
-          <Pressable style={[styles.carte, item.annulee && styles.carteAnnulee]} onPress={() => ouvrirCorrection(item)} disabled={!peutSaisir}>
+          <Pressable
+            style={[styles.carte, item.annulee && styles.carteAnnulee]}
+            onPress={() => ouvrirCorrection(item)}
+            disabled={!peutSaisir}
+            accessibilityRole={peutSaisir && !item.annulee ? "button" : "text"}
+            accessibilityLabel={`${item.motif}, ${formatMontant(item.montant, item.devise)}${item.annulee ? ", annulée" : ""}${miroir.estCreationEnAttente(item.id) ? ", en attente de synchronisation" : ""}`}
+            accessibilityHint={peutSaisir && !item.annulee ? "Ouvre la correction de la dépense" : undefined}
+          >
             <View style={styles.carteLigne}>
               <Text style={[styles.motif, item.annulee && styles.texteBarre]} numberOfLines={3}>
                 {item.motif}
@@ -355,14 +391,25 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
         visible={formulaire !== null}
         onFermer={() => setFormulaire(null)}
         titre={formulaire?.depense ? "Corriger la dépense" : "Nouvelle dépense"}
+        modifie={
+          formulaire !== null &&
+          (formulaire.depense
+            ? date !== formulaire.depense.date ||
+              motif !== formulaire.depense.motif ||
+              montant !== String(Number(formulaire.depense.montant)) ||
+              devise !== formulaire.depense.devise
+            : motif.trim() !== "" || montant.trim() !== "")
+        }
+        enCours={enCours}
       >
         <Text style={styles.champLabel}>Date</Text>
-        <SelecteurDate valeur={date} onChange={setDate} />
+        <SelecteurDate libelle="Date de la dépense" valeur={date} onChange={setDate} />
         <Text style={styles.champLabel}>Motif</Text>
         <TextInput
           style={[styles.champ, styles.champMulti]}
           value={motif}
           onChangeText={setMotif}
+          accessibilityLabel="Motif de la dépense"
           placeholder="Ex. carburant du groupe électrogène"
           placeholderTextColor={couleurs.encreFaible}
           multiline
@@ -374,12 +421,20 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
             style={[styles.champ, { flex: 1 }]}
             value={montant}
             onChangeText={setMontant}
+            accessibilityLabel="Montant de la dépense"
             placeholder="0"
             placeholderTextColor={couleurs.encreFaible}
             keyboardType="decimal-pad"
           />
           {[Devise.USD, Devise.CDF].map((d) => (
-            <Pressable key={d} style={[styles.optionDevise, devise === d && styles.puceActive]} onPress={() => setDevise(d)}>
+            <Pressable
+              key={d}
+              style={[styles.optionDevise, devise === d && styles.puceActive]}
+              onPress={() => setDevise(d)}
+              accessibilityRole="radio"
+              accessibilityLabel={d === Devise.USD ? "Dollars (USD)" : "Francs congolais (CDF)"}
+              accessibilityState={{ checked: devise === d }}
+            >
               <Text style={[styles.puceTexte, devise === d && styles.puceTexteActif]}>{d === Devise.USD ? "USD $" : "CDF FC"}</Text>
             </Pressable>
           ))}
@@ -387,12 +442,22 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
         {formulaire?.depense && (
           <Text style={styles.infoHorsLigne}>Saisie du {saisieDepuisIso(formulaire.depense.date)} par {formulaire.depense.creeParNom}</Text>
         )}
-        {erreurFormulaire && <Text style={styles.erreurFormulaire}>{erreurFormulaire}</Text>}
-        <Pressable style={[styles.bouton, enCours && styles.boutonDesactive]} onPress={enregistrer} disabled={enCours}>
+        {erreurFormulaire && (
+          <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+            {erreurFormulaire}
+          </Text>
+        )}
+        <Pressable
+          style={[styles.bouton, enCours && styles.boutonDesactive]}
+          onPress={enregistrer}
+          disabled={enCours}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: enCours, busy: enCours }}
+        >
           <Text style={styles.boutonTexte}>{enCours ? "Enregistrement…" : "Enregistrer"}</Text>
         </Pressable>
         {formulaire?.depense && (
-          <Pressable style={styles.boutonAnnuler} onPress={() => annuler(formulaire.depense!)} disabled={enCours}>
+          <Pressable style={styles.boutonAnnuler} onPress={() => annuler(formulaire.depense!)} disabled={enCours} accessibilityRole="button">
             <Text style={styles.boutonAnnulerTexte}>Annuler cette dépense</Text>
           </Pressable>
         )}
@@ -408,7 +473,8 @@ const styles = StyleSheet.create({
   puces: { flexDirection: "row", gap: espacements.s2 },
   puce: {
     flex: 1,
-    paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: "center",
     borderRadius: rayons.pill,
     borderWidth: 1,
     borderColor: couleurs.bordure,

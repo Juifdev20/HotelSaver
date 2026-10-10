@@ -9,6 +9,7 @@ import { LIBELLE_ROLE } from "../navigation";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranParametresMobileProps {
   client: ClientApi;
@@ -42,7 +43,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
       await client.modifierReglagesHotel({ patronPeutOperer: valeur });
       onProfilModifie?.();
     } catch (e) {
-      Alert.alert("Réglage non enregistré", e instanceof Error ? e.message : "Erreur inconnue.");
+      Alert.alert("Réglage non enregistré", messageErreur(e, "Le réglage n'a pas pu être enregistré. Vérifiez la connexion puis réessayez."));
     } finally {
       setEnregistrement(false);
     }
@@ -54,7 +55,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
       await client.modifierReglagesHotel({ cuisineActivee: valeur });
       onProfilModifie?.();
     } catch (e) {
-      Alert.alert("Réglage non enregistré", e instanceof Error ? e.message : "Erreur inconnue.");
+      Alert.alert("Réglage non enregistré", messageErreur(e, "Le réglage n'a pas pu être enregistré. Vérifiez la connexion puis réessayez."));
     } finally {
       setEnregistrement(false);
     }
@@ -66,7 +67,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
       await client.modifierReglagesHotel({ commandeWebActivee: valeur });
       onProfilModifie?.();
     } catch (e) {
-      Alert.alert("Réglage non enregistré", e instanceof Error ? e.message : "Erreur inconnue.");
+      Alert.alert("Réglage non enregistré", messageErreur(e, "Le réglage n'a pas pu être enregistré. Vérifiez la connexion puis réessayez."));
     } finally {
       setEnregistrement(false);
     }
@@ -102,7 +103,12 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
                     travaillez seul. Administration, rapports et annulations restent au patron.
                   </Text>
                 </View>
-                <Switch value={patronOpere} onValueChange={(v) => void basculerPatronOpere(v)} disabled={enregistrement} />
+                <Switch
+                  value={patronOpere}
+                  onValueChange={(v) => void basculerPatronOpere(v)}
+                  disabled={enregistrement}
+                  accessibilityLabel="Le patron peut aussi opérer : réserver, facturer et encaisser"
+                />
               </View>
               <View style={styles.compteLigne}>
                 <View style={{ flex: 1 }}>
@@ -112,7 +118,12 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
                     leur service. Laissez éteint pour une vente au comptoir (articles servis immédiatement).
                   </Text>
                 </View>
-                <Switch value={cuisineActivee} onValueChange={(v) => void basculerCuisine(v)} disabled={enregistrement} />
+                <Switch
+                  value={cuisineActivee}
+                  onValueChange={(v) => void basculerCuisine(v)}
+                  disabled={enregistrement}
+                  accessibilityLabel="Suivi des commandes en cuisine"
+                />
               </View>
               <View style={styles.compteLigne}>
                 <View style={{ flex: 1 }}>
@@ -123,7 +134,12 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
                     paie au comptoir.
                   </Text>
                 </View>
-                <Switch value={commandeWebActivee} onValueChange={(v) => void basculerCommandeWeb(v)} disabled={enregistrement} />
+                <Switch
+                  value={commandeWebActivee}
+                  onValueChange={(v) => void basculerCommandeWeb(v)}
+                  disabled={enregistrement}
+                  accessibilityLabel="Commande en ligne sur le site de l'hôtel"
+                />
               </View>
             </View>
           )}
@@ -141,13 +157,13 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
               </View>
               {utilisateur.role === Role.PATRON ? (
                 onChangerProfil && (
-                  <Pressable style={styles.boutonSecondaire} onPress={onChangerProfil}>
+                  <Pressable style={styles.boutonSecondaire} onPress={onChangerProfil} accessibilityRole="button">
                     <Text style={styles.boutonSecondaireTexte}>Changer de profil</Text>
                   </Pressable>
                 )
               ) : (
                 onSeDeconnecter && (
-                  <Pressable style={styles.boutonDanger} onPress={confirmerDeconnexion}>
+                  <Pressable style={styles.boutonDanger} onPress={confirmerDeconnexion} accessibilityRole="button">
                     <LogOut size={16} color="#fff" />
                     <Text style={styles.boutonDangerTexte}>Se déconnecter</Text>
                   </Pressable>

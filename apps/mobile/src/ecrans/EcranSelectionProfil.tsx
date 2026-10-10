@@ -1,9 +1,10 @@
 import * as React from "react";
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { UserPlus } from "lucide-react-native";
+import { Trash2, UserPlus } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import type { ProfilEnregistre } from "../stockage/profils";
 import { LIBELLE_ROLE } from "../navigation";
+import { confirmerAction } from "../confirmer";
 
 function initiales(nom: string): string {
   return nom
@@ -22,6 +23,18 @@ export interface EcranSelectionProfilProps {
   onOublierProfil: (profil: ProfilEnregistre) => void;
 }
 
+/** Retirer un profil efface ses accès rapides de cet appareil : on le nomme avant (retour U3, U8). */
+function demanderRetrait(profil: ProfilEnregistre, onOublierProfil: (profil: ProfilEnregistre) => void) {
+  confirmerAction({
+    titre: `Retirer le profil de ${profil.nom} ?`,
+    message: `${LIBELLE_ROLE[profil.role]}.\nCette personne devra se reconnecter avec son email et son mot de passe pour réutiliser ce téléphone. Son compte n'est pas supprimé.`,
+    libelleConfirmer: "Retirer le profil",
+    libelleRefuser: "Garder",
+    destructif: true,
+    onConfirmer: () => onOublierProfil(profil),
+  });
+}
+
 /** Section 5 : "sélection de profil au démarrage" — plusieurs membres du
  * personnel partagent le même téléphone. */
 export function EcranSelectionProfil({ profils, onChoisir, onAjouterCompte, onOublierProfil }: EcranSelectionProfilProps) {
@@ -30,31 +43,44 @@ export function EcranSelectionProfil({ profils, onChoisir, onAjouterCompte, onOu
       <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
       <Text style={styles.titre}>HotelSaver</Text>
       <Text style={styles.sousTitre}>Qui utilise l'appareil ?</Text>
-      {profils.length > 0 && <Text style={styles.astuce}>Appui long sur un profil pour le retirer de cet appareil.</Text>}
+      {profils.length > 0 && <Text style={styles.astuce}>Touchez la corbeille (ou appuyez longuement sur un profil) pour le retirer de cet appareil.</Text>}
 
       <FlatList
         data={profils}
         keyExtractor={(p) => p.utilisateurId}
         contentContainerStyle={styles.liste}
         renderItem={({ item }) => (
-          <Pressable
-            style={styles.carte}
-            onPress={() => onChoisir(item)}
-            onLongPress={() => onOublierProfil(item)}
-            delayLongPress={500}
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarTexte}>{initiales(item.nom)}</Text>
-            </View>
-            <View style={styles.identite}>
-              <Text style={styles.nom}>{item.nom}</Text>
-              <Text style={styles.role}>{LIBELLE_ROLE[item.role]}</Text>
-            </View>
-          </Pressable>
+          <View style={styles.carte}>
+            <Pressable
+              style={styles.zoneProfil}
+              onPress={() => onChoisir(item)}
+              onLongPress={() => demanderRetrait(item, onOublierProfil)}
+              delayLongPress={500}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.nom}, ${LIBELLE_ROLE[item.role]}`}
+              accessibilityHint="Ouvre ce profil. Appui long pour le retirer de l'appareil."
+            >
+              <View style={styles.avatar}>
+                <Text style={styles.avatarTexte}>{initiales(item.nom)}</Text>
+              </View>
+              <View style={styles.identite}>
+                <Text style={styles.nom}>{item.nom}</Text>
+                <Text style={styles.role}>{LIBELLE_ROLE[item.role]}</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              style={styles.boutonRetirer}
+              onPress={() => demanderRetrait(item, onOublierProfil)}
+              accessibilityRole="button"
+              accessibilityLabel={`Retirer le profil de ${item.nom} de cet appareil`}
+            >
+              <Trash2 size={18} color={couleurs.danger} />
+            </Pressable>
+          </View>
         )}
       />
 
-      <Pressable style={styles.boutonAjouter} onPress={onAjouterCompte}>
+      <Pressable style={styles.boutonAjouter} onPress={onAjouterCompte} accessibilityRole="button" accessibilityLabel="Ajouter un compte">
         <UserPlus size={18} color={couleurs.bleu} />
         <Text style={styles.boutonAjouterTexte}>Ajouter un compte</Text>
       </Pressable>
@@ -77,13 +103,16 @@ const styles = StyleSheet.create({
   carte: {
     flexDirection: "row",
     alignItems: "center",
-    gap: espacements.s3,
-    padding: espacements.s4,
+    gap: espacements.s2,
+    paddingLeft: espacements.s4,
+    paddingRight: espacements.s2,
     backgroundColor: couleurs.surface200,
     borderRadius: rayons.lg,
     borderWidth: 1,
     borderColor: couleurs.bordure,
   },
+  zoneProfil: { flex: 1, flexDirection: "row", alignItems: "center", gap: espacements.s3, minHeight: 44, paddingVertical: espacements.s4 },
+  boutonRetirer: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   avatar: {
     width: 44,
     height: 44,
@@ -103,6 +132,7 @@ const styles = StyleSheet.create({
     gap: espacements.s2,
     marginTop: espacements.s4,
     paddingVertical: espacements.s3,
+    minHeight: 48,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bleu,

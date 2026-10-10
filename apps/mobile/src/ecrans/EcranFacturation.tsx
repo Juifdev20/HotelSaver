@@ -14,7 +14,7 @@ import { useSession } from "../contexteSession";
 import { imprimerLignes } from "../impression/imprimante";
 import { lireMontant } from "@hotel-chicago/regles";
 import { confirmerAction } from "../confirmer";
-import { messageErreur } from "../messagesErreur";
+import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
 
 export interface EcranFacturationProps {
   reservationId: string;
@@ -187,7 +187,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
     try {
       await imprimerLignes(construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur)));
       // On n'arrive ici que si l'envoi a réellement réussi.
-      setMessageImpression({ texte: "Reçu envoyé à l'imprimante.", reussie: true });
+      setMessageImpression({ texte: messageImpressionEnvoyee(), reussie: true });
     } catch (e) {
       setMessageImpression({ texte: `Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`, reussie: false });
     } finally {
@@ -255,7 +255,8 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
   return (
     <View style={styles.page}>
       <EnteteMobile />
-      <EnteteRetour titre="Facturation" onRetour={onRetour} />
+      {/* Pas de retour pendant l'envoi : la facture se crée quand même, mieux vaut voir le résultat. */}
+      <EnteteRetour titre="Facturation" onRetour={() => !enCours && onRetour()} />
 
       {!reservation && !erreur && <ActivityIndicator style={styles.chargement} color={couleurs.bleu} accessibilityLabel="Chargement" />}
       {erreur && (

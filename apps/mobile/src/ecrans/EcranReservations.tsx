@@ -14,6 +14,8 @@ import { EcranReservationDetail } from "./EcranReservationDetail";
 import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
 import { EcranFacturation } from "./EcranFacturation";
 import { EcranPlanning } from "./EcranPlanning";
+import { dateCourte, finJournee, memeJour } from "../dates";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranReservationsProps {
   /** Segment affiché à l'ouverture — "aujourdhui" quand l'écran sert de vue
@@ -53,29 +55,14 @@ const COULEUR_STATUT: Record<StatutReservation, { fond: string; texte: string }>
   EN_ATTENTE: { fond: couleurs.alerteClair, texte: couleurs.alerte },
   CONFIRMEE: { fond: couleurs.bleuClair, texte: couleurs.bleu },
   EN_COURS: { fond: couleurs.succesClair, texte: couleurs.succes },
-  TERMINEE: { fond: couleurs.bordure, texte: couleurs.encreAttenuee },
+  TERMINEE: { fond: couleurs.bordure, texte: couleurs.encre },
   ANNULEE: { fond: couleurs.dangerClair, texte: couleurs.danger },
 };
 
-function debutJournee(d = new Date()): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function memeJour(iso: string, jour: Date): boolean {
-  const d = new Date(iso);
-  const debut = debutJournee(jour);
-  const fin = new Date(debut.getFullYear(), debut.getMonth(), debut.getDate() + 1);
-  return d >= debut && d < fin;
-}
-
-function dateCourte(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
+/** « Aujourd'hui », « À venir » : le jour de Lubumbashi (dates.ts), quel que soit le fuseau réglé sur le téléphone. */
 function filtrer(reservations: Reservation[], segment: SegmentId): Reservation[] {
   const aujourdhui = new Date();
-  const finJournee = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), aujourdhui.getDate() + 1);
+  const finDuJour = finJournee(aujourdhui);
   switch (segment) {
     case "aujourdhui":
       // Arrivées du jour (encore à accueillir ou déjà en cours) + départs du jour.
@@ -86,7 +73,7 @@ function filtrer(reservations: Reservation[], segment: SegmentId): Reservation[]
       );
     case "avenir":
       return reservations.filter(
-        (r) => (r.statut === "CONFIRMEE" || r.statut === "EN_ATTENTE") && new Date(r.dateArrivee) >= finJournee
+        (r) => (r.statut === "CONFIRMEE" || r.statut === "EN_ATTENTE") && new Date(r.dateArrivee) >= finDuJour
       );
     case "encours":
       return reservations.filter((r) => r.statut === "EN_COURS");
@@ -125,7 +112,11 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
     client
       .listerReservations()
       .then(setReservations)
-      .catch(() => setReservations((courant) => courant ?? []));
+      .then(() => setErreur(null))
+      .catch((e: unknown) => {
+        setReservations((courant) => courant ?? []);
+        setErreur(messageErreur(e, "Les réservations n'ont pas pu être relues sur ce téléphone. Tirez pour réessayer."));
+      });
   }, [client]);
 
   useEffect(() => {
@@ -209,13 +200,20 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
             key={s.id}
             style={[styles.segment, segment === s.id && styles.segmentActif]}
             onPress={() => setSegment(s.id)}
+            accessibilityRole="tab"
+            accessibilityLabel={s.libelle}
+            accessibilityState={{ selected: segment === s.id }}
           >
             <Text style={[styles.segmentTexte, segment === s.id && styles.segmentTexteActif]}>{s.libelle}</Text>
           </Pressable>
         ))}
       </View>
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
 
       {segment === "planning" ? (
         <EcranPlanning
@@ -240,7 +238,12 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
             renderItem={({ item }) => {
               const tone = COULEUR_STATUT[item.statut];
               return (
-                <Pressable style={styles.carte} onPress={() => setVue({ id: "detail", reservationId: item.id })}>
+                <Pressable
+                  style={styles.carte}
+                  onPress={() => setVue({ id: "detail", reservationId: item.id })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.client.nom}, chambre ${item.chambre.numero}, du ${dateCourte(item.dateArrivee)} au ${dateCourte(item.dateDepart)}, ${LABEL_STATUT[item.statut]}${miroir.estCreationEnAttente(item.id) ? ", en attente de synchronisation" : ""}`}
+                >
                   <View style={styles.carteEntete}>
                     <Text style={styles.clientNom}>{item.client.nom}</Text>
                     <View style={[styles.badge, { backgroundColor: tone.fond }]}>
@@ -291,7 +294,8 @@ const styles = StyleSheet.create({
   segments: { flexDirection: "row", paddingHorizontal: espacements.s4, gap: espacements.s2, paddingBottom: espacements.s2 },
   segment: {
     flex: 1,
-    paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: "center",
     borderRadius: rayons.pill,
     borderWidth: 1,
     borderColor: couleurs.bordure,

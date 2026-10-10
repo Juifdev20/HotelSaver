@@ -7,6 +7,8 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { useSession } from "../contexteSession";
+import { heureCourte } from "../dates";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranCaisseProps {
   /** `venteRapide` : ouvrir directement l'ajout de consommations, caméra prête. */
@@ -32,7 +34,8 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
   /** `venteRapide` (scan au comptoir, 08/10/2026) : compte « Comptoir HH:MM »
    * créé sans rien saisir, puis ouverture directe de l'ajout avec la caméra. */
   async function ouvrir(venteRapide = false) {
-    const heure = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    // Heure de Lubumbashi (pas celle du fuseau réglé sur le téléphone).
+    const heure = heureCourte(new Date());
     const nom = venteRapide ? `Comptoir ${heure}` : tableOuNom.trim();
     if (!nom) {
       setErreur("Le nom de la table ou du client est obligatoire.");
@@ -49,7 +52,7 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
       setNomPremierSousCompte("");
       onCompteOuvert(compte.id, { venteRapide });
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "Le compte n'a pas pu être ouvert. Réessayez."));
     } finally {
       setEnCours(false);
     }
@@ -67,6 +70,8 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
             style={styles.champ}
             value={tableOuNom}
             onChangeText={setTableOuNom}
+            accessibilityLabel="Table ou nom du client"
+            returnKeyType="next"
             placeholder="Ex. Table 4"
             placeholderTextColor={couleurs.encreFaible}
           />
@@ -76,13 +81,25 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
             style={styles.champ}
             value={nomPremierSousCompte}
             onChangeText={setNomPremierSousCompte}
+            accessibilityLabel="Nom de la première personne, optionnel"
+            returnKeyType="done"
             placeholder="Personne 1"
             placeholderTextColor={couleurs.encreFaible}
           />
 
-          {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+          {erreur && (
+            <Text style={styles.erreur} accessibilityRole="alert">
+              {erreur}
+            </Text>
+          )}
 
-          <Pressable style={styles.bouton} onPress={() => ouvrir(false)} disabled={enCours}>
+          <Pressable
+            style={styles.bouton}
+            onPress={() => ouvrir(false)}
+            disabled={enCours}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: enCours, busy: enCours }}
+          >
             <Text style={styles.boutonTexte}>{enCours ? "…" : "Ouvrir le compte"}</Text>
           </Pressable>
         </View>
@@ -92,7 +109,14 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
           <Text style={styles.aideRapide}>
             Scannez directement les articles (caméra ou douchette) : un compte « Comptoir » est ouvert pour vous.
           </Text>
-          <Pressable style={[styles.bouton, styles.boutonRapide]} onPress={() => ouvrir(true)} disabled={enCours}>
+          <Pressable
+            style={[styles.bouton, styles.boutonRapide]}
+            onPress={() => ouvrir(true)}
+            disabled={enCours}
+            accessibilityRole="button"
+            accessibilityLabel="Vente rapide : ouvrir un compte comptoir et scanner les articles"
+            accessibilityState={{ disabled: enCours, busy: enCours }}
+          >
             <ScanBarcode size={18} color="#fff" />
             <Text style={styles.boutonTexte}>Vente rapide (scanner)</Text>
           </Pressable>

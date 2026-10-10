@@ -24,6 +24,11 @@ export const couleurs = {
   // suffixe « Vif » pour les fonds, points, icônes et graphiques.
   encreFaible: "#5F6B7E",
 
+  // Rapports de contraste WCAG (calculés le 10/10/2026) : texte encre/encreAttenuee/succes/alerte/danger/info/violet/bleu ≥ 4,5:1
+  // sur surface100/200/300 et sur chaque fond « Clair » ; texte blanc ≥ 4,5:1 sur bleu (5,1), succes (5,4), alerte (5,1),
+  // danger (5,9), info (5,8), violet (6,6), navy. Seule exception : `bordure` n'est PAS un fond de texte coloré
+  // (encreAttenuee dessus = 4,46:1) — y mettre `encre`. Les teintes « Vif/Vive » (≤ 3,8:1) ne servent jamais de texte
+  // ni de fond à texte blanc.
   succes: "#0B7A48",
   succesVif: "#12B76A",
   succesClair: "#ECFDF3",

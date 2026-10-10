@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { File } from "expo-file-system";
+import { messageErreur } from "../messagesErreur";
 import { ImagePlus, X } from "lucide-react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import type { UsageImage } from "@hotel-chicago/types";
@@ -56,7 +57,7 @@ export function SelecteurPhotos({ client, usage, photos, max, onChange, onEnvoye
         onChange(courantes);
       }
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Envoi impossible.");
+      setErreur(messageErreur(e, "L'envoi de la photo a échoué. Réessayez."));
     } finally {
       setEnCours(false);
     }
@@ -76,7 +77,7 @@ export function SelecteurPhotos({ client, usage, photos, max, onChange, onEnvoye
             <Pressable
               style={styles.retirer}
               onPress={() => onChange(photos.filter((p) => p !== url))}
-              hitSlop={8}
+              hitSlop={10}
               accessibilityRole="button"
               accessibilityLabel={`Retirer la photo ${i + 1}`}
             >
@@ -85,13 +86,17 @@ export function SelecteurPhotos({ client, usage, photos, max, onChange, onEnvoye
           </View>
         ))}
         {photos.length < max && (
-          <Pressable style={styles.ajouter} onPress={ajouter} disabled={enCours} accessibilityRole="button">
+          <Pressable style={styles.ajouter} onPress={ajouter} disabled={enCours} accessibilityRole="button" accessibilityLabel={enCours ? "Envoi de la photo en cours" : "Ajouter une photo"} accessibilityState={{ disabled: enCours, busy: enCours }}>
             {enCours ? <ActivityIndicator color={couleurs.bleu} /> : <ImagePlus size={24} color={couleurs.bleu} />}
             <Text style={styles.ajouterTexte}>{enCours ? "Envoi…" : "Ajouter"}</Text>
           </Pressable>
         )}
       </View>
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
     </View>
   );
 }

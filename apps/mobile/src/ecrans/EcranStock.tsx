@@ -12,7 +12,8 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { SelecteurProduit } from "../composants/SelecteurProduit";
 import { useDonnee } from "../hooks/useDonnee";
-import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
+import { lireQuantite } from "@hotel-chicago/regles";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranStockProps {
   client: ClientApi;
@@ -37,7 +38,7 @@ const LIBELLE_TYPE: Record<string, string> = {
  * à la main — seuls ENTREE/PERTE/AJUSTEMENT sont des mouvements manuels. */
 export function EcranStock({ client, onRetour }: EcranStockProps) {
   const { donnee: mouvements, erreur, enCours, recharger } = useDonnee(() => client.listerMouvementsStock(), client);
-  const { donnee: produits } = useDonnee(() => client.listerProduits(), client);
+  const { donnee: produits, erreur: erreurProduits, recharger: rechargerProduits } = useDonnee(() => client.listerProduits(), client);
 
   const [onglet, setOnglet] = useState<"mouvements" | "valeur">("mouvements");
   const [modaleOuverte, setModaleOuverte] = useState(false);
@@ -87,7 +88,7 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
       setModaleOuverte(false);
       recharger();
     } catch (e) {
-      setErreurFormulaire(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreurFormulaire(messageErreur(e, "Le mouvement n'a pas pu être enregistré. Réessayez."));
     } finally {
       setEnEnvoi(false);
     }
@@ -102,13 +103,36 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
         onRetour={onRetour}
       />
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
+      {erreurProduits && (
+        <Pressable onPress={rechargerProduits} accessibilityRole="button" accessibilityLabel="Réessayer de charger les produits" style={styles.zoneErreur}>
+          <Text style={styles.erreur} accessibilityRole="alert">
+            {erreurProduits} Touchez ici pour réessayer.
+          </Text>
+        </Pressable>
+      )}
 
       <View style={styles.onglets}>
-        <Pressable style={[styles.onglet, onglet === "mouvements" && styles.ongletActif]} onPress={() => setOnglet("mouvements")}>
+        <Pressable
+          style={[styles.onglet, onglet === "mouvements" && styles.ongletActif]}
+          onPress={() => setOnglet("mouvements")}
+          accessibilityRole="tab"
+          accessibilityLabel="Mouvements"
+          accessibilityState={{ selected: onglet === "mouvements" }}
+        >
           <Text style={[styles.ongletTexte, onglet === "mouvements" && styles.ongletTexteActif]}>Mouvements</Text>
         </Pressable>
-        <Pressable style={[styles.onglet, onglet === "valeur" && styles.ongletActif]} onPress={() => setOnglet("valeur")}>
+        <Pressable
+          style={[styles.onglet, onglet === "valeur" && styles.ongletActif]}
+          onPress={() => setOnglet("valeur")}
+          accessibilityRole="tab"
+          accessibilityLabel="Valeur du stock"
+          accessibilityState={{ selected: onglet === "valeur" }}
+        >
           <Text style={[styles.ongletTexte, onglet === "valeur" && styles.ongletTexteActif]}>Valeur stock</Text>
         </Pressable>
       </View>
@@ -172,9 +196,20 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
         />
       )}
 
-      <FeuilleModale visible={modaleOuverte} onFermer={() => setModaleOuverte(false)} titre="Enregistrer un mouvement">
+      <FeuilleModale
+        visible={modaleOuverte}
+        onFermer={() => setModaleOuverte(false)}
+        titre="Enregistrer un mouvement"
+        modifie={produit !== null || quantite.trim() !== "" || motif.trim() !== ""}
+        enCours={enEnvoi}
+      >
         <Text style={styles.label}>Produit</Text>
-        <Pressable style={styles.champProduit} onPress={() => setSelecteurOuvert(true)}>
+        <Pressable
+          style={styles.champProduit}
+          onPress={() => setSelecteurOuvert(true)}
+          accessibilityRole="button"
+          accessibilityLabel={produit ? `Produit : ${produit.nom}. Changer de produit` : "Choisir un produit"}
+        >
           <Text style={produit ? styles.champProduitTexte : styles.champProduitPlaceholder}>
             {produit ? produit.nom : "Choisir un produit"}
           </Text>
@@ -187,6 +222,9 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
               key={t.valeur}
               style={[styles.optionType, type === t.valeur && styles.optionTypeActive]}
               onPress={() => setType(t.valeur)}
+              accessibilityRole="radio"
+              accessibilityLabel={t.libelle}
+              accessibilityState={{ checked: type === t.valeur }}
             >
               <Text style={[styles.optionTypeTexte, type === t.valeur && styles.optionTypeTexteActif]}>{t.libelle}</Text>
             </Pressable>
@@ -198,6 +236,7 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
           style={styles.champ}
           value={quantite}
           onChangeText={setQuantite}
+          accessibilityLabel="Quantité"
           keyboardType="decimal-pad"
           placeholder="0"
           placeholderTextColor={couleurs.encreFaible}
@@ -208,13 +247,24 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
           style={styles.champ}
           value={motif}
           onChangeText={setMotif}
+          accessibilityLabel="Motif du mouvement, optionnel"
           placeholder="Ex. livraison fournisseur"
           placeholderTextColor={couleurs.encreFaible}
         />
 
-        {erreurFormulaire && <Text style={styles.erreurFormulaire}>{erreurFormulaire}</Text>}
+        {erreurFormulaire && (
+          <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+            {erreurFormulaire}
+          </Text>
+        )}
 
-        <Pressable style={styles.bouton} onPress={enregistrer} disabled={enEnvoi}>
+        <Pressable
+          style={styles.bouton}
+          onPress={enregistrer}
+          disabled={enEnvoi}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: enEnvoi, busy: enEnvoi }}
+        >
           <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Enregistrer"}</Text>
         </Pressable>
       </FeuilleModale>
@@ -238,6 +288,7 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
+  zoneErreur: { minHeight: 44, justifyContent: "center" },
   onglets: { flexDirection: "row", marginHorizontal: espacements.s4, marginTop: espacements.s3, borderRadius: rayons.md, borderWidth: 1, borderColor: couleurs.bordure, overflow: "hidden" },
   onglet: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", backgroundColor: couleurs.surface200 },
   ongletActif: { backgroundColor: couleurs.bleu },

@@ -171,7 +171,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
     try {
       const n = Math.max(1, Math.round(Number(exemplaires)) || 1);
       await imprimerLignes(construireEtiquette(produit, n));
-      setMessageEtiquette(`${n} étiquette${n > 1 ? "s" : ""} envoyée${n > 1 ? "s" : ""} à l'imprimante.`);
+      setMessageEtiquette(`${n} étiquette${n > 1 ? "s" : ""} envoyée${n > 1 ? "s" : ""} à l'imprimante. Vérifiez qu'elle${n > 1 ? "s sont" : " est"} bien sortie${n > 1 ? "s" : ""} ; sinon, réessayez.`);
     } catch (e) {
       setMessageEtiquette(`Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`);
     } finally {
@@ -292,7 +292,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         setMessageListe(`Impression de ${n} étiquette${n > 1 ? "s" : ""} pour « ${enregistre.nom} »…`);
         try {
           await imprimerLignes(construireEtiquette(enregistre, n));
-          setMessageListe(`✓ « ${enregistre.nom} » enregistré — ${n} étiquette${n > 1 ? "s" : ""} imprimée${n > 1 ? "s" : ""}.`);
+          setMessageListe(`✓ « ${enregistre.nom} » enregistré — ${n} étiquette${n > 1 ? "s" : ""} envoyée${n > 1 ? "s" : ""} à l'imprimante (vérifiez qu'elle${n > 1 ? "s sont" : " est"} sortie${n > 1 ? "s" : ""}).`);
         } catch (erreurImpression) {
           setMessageListe(null);
           ouvrirEtiquettes(enregistre, true, n);

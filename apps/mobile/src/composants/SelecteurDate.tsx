@@ -3,12 +3,15 @@ import { useMemo, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
+import { jourLubumbashi } from "../dates";
 
 export interface SelecteurDateProps {
   /** Date au format ISO "AAAA-MM-JJ" (chaîne vide = non renseignée). */
   valeur: string;
   onChange: (iso: string) => void;
   placeholder?: string;
+  /** Nom du champ pour les lecteurs d'écran (« Date d'arrivée »…). */
+  libelle?: string;
 }
 
 const JOURS_SEMAINE = ["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"];
@@ -31,9 +34,14 @@ function isoDuJour(a: number, mo: number, j: number): string {
   return `${a}-${String(mo + 1).padStart(2, "0")}-${String(j).padStart(2, "0")}`;
 }
 
+/** Le jour « d'aujourd'hui » est celui de Lubumbashi, pas celui du fuseau réglé sur le téléphone. */
 function aujourdhuiIso(): string {
-  const d = new Date();
-  return isoDuJour(d.getFullYear(), d.getMonth(), d.getDate());
+  return jourLubumbashi();
+}
+
+function jourCourantLubumbashi(): { a: number; mo: number; j: number } {
+  const [a, mo, j] = aujourdhuiIso().split("-").map(Number);
+  return { a: a!, mo: mo! - 1, j: j! };
 }
 
 /**
@@ -41,11 +49,15 @@ function aujourdhuiIso(): string {
  * ou choix dans un calendrier en dialogue centré. La valeur exposée reste
  * toujours l'ISO AAAA-MM-JJ attendu par l'API.
  */
-export function SelecteurDate({ valeur, onChange, placeholder = "JJ/MM/AAAA" }: SelecteurDateProps) {
+export function SelecteurDate({ valeur, onChange, placeholder = "JJ/MM/AAAA", libelle = "Date" }: SelecteurDateProps) {
   const [saisie, setSaisie] = useState(saisieDepuisIso(valeur));
   const [calendrierOuvert, setCalendrierOuvert] = useState(false);
-  const initiale = valeur.match(/^\d{4}-\d{2}-\d{2}$/) ? new Date(`${valeur}T12:00:00`) : new Date();
-  const [moisVisible, setMoisVisible] = useState({ a: initiale.getFullYear(), mo: initiale.getMonth() });
+  const [moisVisible, setMoisVisible] = useState(() => {
+    const m = valeur.match(/^(\d{4})-(\d{2})-\d{2}$/);
+    if (m) return { a: Number(m[1]), mo: Number(m[2]) - 1 };
+    const { a, mo } = jourCourantLubumbashi();
+    return { a, mo };
+  });
 
   function changerSaisie(texte: string) {
     setSaisie(texte);
@@ -99,11 +111,13 @@ export function SelecteurDate({ valeur, onChange, placeholder = "JJ/MM/AAAA" }: 
           placeholder={placeholder}
           placeholderTextColor={couleurs.encreFaible}
           keyboardType="numbers-and-punctuation"
+          accessibilityLabel={`${libelle}, format jour mois année`}
         />
         <Pressable
           style={styles.boutonCalendrier}
           onPress={() => setCalendrierOuvert(true)}
-          accessibilityLabel="Choisir dans le calendrier"
+          accessibilityRole="button"
+          accessibilityLabel={`${libelle} : choisir dans le calendrier`}
         >
           <CalendarDays size={20} color={couleurs.bleu} />
         </Pressable>
@@ -113,11 +127,11 @@ export function SelecteurDate({ valeur, onChange, placeholder = "JJ/MM/AAAA" }: 
         <Pressable style={styles.fond} onPress={() => setCalendrierOuvert(false)}>
           <Pressable style={styles.carte} onPress={(e) => e.stopPropagation()}>
             <View style={styles.enteteMois}>
-              <Pressable onPress={() => changerMois(-1)} hitSlop={10} accessibilityLabel="Mois précédent">
+              <Pressable onPress={() => changerMois(-1)} hitSlop={10} style={styles.boutonMois} accessibilityRole="button" accessibilityLabel="Mois précédent">
                 <ChevronLeft size={22} color={couleurs.encre} />
               </Pressable>
-              <Text style={styles.titreMois}>{titreMois}</Text>
-              <Pressable onPress={() => changerMois(1)} hitSlop={10} accessibilityLabel="Mois suivant">
+              <Text style={styles.titreMois} accessibilityRole="header">{titreMois}</Text>
+              <Pressable onPress={() => changerMois(1)} hitSlop={10} style={styles.boutonMois} accessibilityRole="button" accessibilityLabel="Mois suivant">
                 <ChevronRight size={22} color={couleurs.encre} />
               </Pressable>
             </View>
@@ -140,6 +154,9 @@ export function SelecteurDate({ valeur, onChange, placeholder = "JJ/MM/AAAA" }: 
                       key={k}
                       style={[styles.cellule, estAujourdHui && styles.celluleAujourdhui, selectionne && styles.celluleSelectionnee]}
                       onPress={() => choisir(jour)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${jour} ${titreMois}${estAujourdHui ? ", aujourd'hui" : ""}`}
+                      accessibilityState={{ selected: selectionne }}
                     >
                       <Text style={[styles.jour, estAujourdHui && styles.jourAujourdhui, selectionne && styles.jourSelectionne]}>
                         {jour}
@@ -153,10 +170,13 @@ export function SelecteurDate({ valeur, onChange, placeholder = "JJ/MM/AAAA" }: 
             <Pressable
               style={styles.boutonAujourdhui}
               onPress={() => {
-                const d = new Date();
-                setMoisVisible({ a: d.getFullYear(), mo: d.getMonth() });
-                choisir(d.getDate());
+                const { a, mo, j } = jourCourantLubumbashi();
+                onChange(isoDuJour(a, mo, j));
+                setSaisie(saisieDepuisIso(isoDuJour(a, mo, j)));
+                setMoisVisible({ a, mo });
+                setCalendrierOuvert(false);
               }}
+              accessibilityRole="button"
             >
               <Text style={styles.boutonAujourdhuiTexte}>Aujourd'hui</Text>
             </Pressable>
@@ -202,6 +222,7 @@ const styles = StyleSheet.create({
   jour: { fontSize: 14, color: couleurs.encre },
   jourAujourdhui: { color: couleurs.bleu, fontWeight: "700" },
   jourSelectionne: { color: "#fff", fontWeight: "700" },
-  boutonAujourdhui: { alignSelf: "center", paddingVertical: espacements.s2, paddingHorizontal: espacements.s4 },
+  boutonMois: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  boutonAujourdhui: { alignSelf: "center", minHeight: 44, justifyContent: "center", paddingHorizontal: espacements.s4 },
   boutonAujourdhuiTexte: { color: couleurs.bleu, fontWeight: "600", fontSize: 14 },
 });

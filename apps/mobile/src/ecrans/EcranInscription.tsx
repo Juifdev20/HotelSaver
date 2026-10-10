@@ -8,6 +8,8 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteAuth } from "../composants/EnteteAuth";
 import { ChampAuth } from "../composants/ChampAuth";
 import { EtapesAuth } from "../composants/EtapesAuth";
+import { useRetourAndroid } from "../hooks/useRetourAndroid";
+import { confirmerAction } from "../confirmer";
 
 export interface EcranInscriptionProps {
   erreur: string | null;
@@ -70,6 +72,29 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
 
   const erreurAffichee = erreurLocale ?? erreur;
 
+  /** Bouton Retour d'Android : étape 2 → étape 1 (la saisie est gardée) ; étape 1 → connexion, avec confirmation si on a déjà écrit. */
+  useRetourAndroid(() => {
+    if (enCours) return true;
+    if (etape === 2) {
+      setErreurLocale(null);
+      setEtape(1);
+      return true;
+    }
+    if (nom.trim() || sousDomaine || telephoneContact.trim() || adresse.trim()) {
+      confirmerAction({
+        titre: "Abandonner l'inscription ?",
+        message: "Les informations saisies seront perdues.",
+        libelleConfirmer: "Abandonner",
+        libelleRefuser: "Continuer l'inscription",
+        destructif: true,
+        onConfirmer: onRetourConnexion,
+      });
+    } else {
+      onRetourConnexion();
+    }
+    return true;
+  });
+
   return (
     <View style={styles.page}>
       <EnteteAuth />
@@ -91,6 +116,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 value={nom}
                 onChangeText={setNom}
                 valide={nom.trim().length > 1}
+                autoComplete="organization"
                 placeholder="Ex. Hôtel Le Grand Bleu"
               />
               <ChampAuth
@@ -110,6 +136,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 value={telephoneContact}
                 onChangeText={setTelephoneContact}
                 keyboardType="phone-pad"
+                autoComplete="tel"
                 placeholder="Ex. +243 970 000 000"
               />
               <ChampAuth
@@ -126,7 +153,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 </Text>
               )}
 
-              <Pressable style={styles.bouton} onPress={passerEtape2}>
+              <Pressable style={styles.bouton} onPress={passerEtape2} accessibilityRole="button" accessibilityLabel="Continuer vers l'étape 2">
                 <Text style={styles.boutonTexte}>Continuer</Text>
                 <ArrowRight size={18} color="#fff" />
               </Pressable>
@@ -141,6 +168,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 value={nomProprietaire}
                 onChangeText={setNomProprietaire}
                 valide={nomProprietaire.trim().length > 1}
+                autoComplete="name"
                 placeholder="Ex. Jean Mukendi"
               />
               <ChampAuth
@@ -152,6 +180,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 autoCapitalize="none"
                 keyboardType="email-address"
                 textContentType="emailAddress"
+                autoComplete="email"
                 placeholder="ex. hotel@monetablissement.com"
               />
               <ChampAuth
@@ -161,6 +190,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 onChangeText={setMotDePasse}
                 secureTextEntry
                 textContentType="newPassword"
+                autoComplete="new-password"
                 placeholder="Minimum 8 caractères"
               />
               <ChampAuth
@@ -170,6 +200,9 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 onChangeText={setConfirmationMotDePasse}
                 secureTextEntry
                 textContentType="newPassword"
+                autoComplete="new-password"
+                returnKeyType="go"
+                onSubmitEditing={soumettre}
               />
 
               {erreurAffichee && (
@@ -178,7 +211,14 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 </Text>
               )}
 
-              <Pressable style={[styles.bouton, enCours && styles.boutonDesactive]} onPress={soumettre} disabled={enCours}>
+              <Pressable
+                style={[styles.bouton, enCours && styles.boutonDesactive]}
+                onPress={soumettre}
+                disabled={enCours}
+                accessibilityRole="button"
+                accessibilityLabel={enCours ? "Création du compte en cours" : "Créer mon compte"}
+                accessibilityState={{ disabled: enCours, busy: enCours }}
+              >
                 {enCours ? <ActivityIndicator color="#fff" /> : <Text style={styles.boutonTexte}>Créer mon compte</Text>}
               </Pressable>
 
@@ -188,13 +228,15 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                   setErreurLocale(null);
                   setEtape(1);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Retour à l'étape 1"
               >
                 <Text style={styles.boutonRetourTexte}>Retour</Text>
               </Pressable>
             </>
           )}
 
-          <Pressable style={styles.boutonRetour} onPress={onRetourConnexion}>
+          <Pressable style={styles.boutonRetour} onPress={onRetourConnexion} accessibilityRole="button" accessibilityLabel="Vous avez déjà un compte ? Se connecter">
             <Text style={styles.boutonRetourTexte}>
               Vous avez déjà un compte ? <Text style={styles.lien}>Se connecter</Text>
             </Text>

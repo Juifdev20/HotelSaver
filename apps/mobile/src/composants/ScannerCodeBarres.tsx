@@ -101,6 +101,7 @@ export function ScannerCodeBarres({ visible, mode, onCode, onFermer, titre }: Sc
             <Pressable
               style={styles.bouton}
               onPress={() => (permission && !permission.canAskAgain ? Linking.openSettings() : demanderPermission())}
+              accessibilityRole="button"
             >
               <Text style={styles.boutonTexte}>{permission && !permission.canAskAgain ? "Ouvrir les réglages" : "Autoriser la caméra"}</Text>
             </Pressable>
@@ -109,7 +110,7 @@ export function ScannerCodeBarres({ visible, mode, onCode, onFermer, titre }: Sc
 
         <View style={styles.haut}>
           <Text style={styles.titre}>{titre ?? (mode === "continu" ? "Scanner les articles" : "Scanner le code-barres")}</Text>
-          <Pressable onPress={onFermer} hitSlop={12} accessibilityLabel="Fermer le scanner">
+          <Pressable onPress={onFermer} hitSlop={12} style={{ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }} accessibilityRole="button" accessibilityLabel="Fermer le scanner">
             <X size={26} color="#fff" />
           </Pressable>
         </View>
@@ -122,10 +123,10 @@ export function ScannerCodeBarres({ visible, mode, onCode, onFermer, titre }: Sc
               {compteur} article{compteur > 1 ? "s" : ""} scanné{compteur > 1 ? "s" : ""}
             </Text>
           )}
-          {message && <Text style={styles.message}>{message}</Text>}
+          {message && <Text style={styles.message} accessibilityLiveRegion="polite">{message}</Text>}
           {!message && <Text style={styles.aide}>Placez le code-barres dans le cadre.</Text>}
           {mode === "continu" && (
-            <Pressable style={styles.bouton} onPress={onFermer}>
+            <Pressable style={styles.bouton} onPress={onFermer} accessibilityRole="button">
               <Text style={styles.boutonTexte}>Terminer</Text>
             </Pressable>
           )}

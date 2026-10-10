@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   item: { alignItems: "center", width: 110, gap: 6 },
   pastille: { width: 30, height: 30, borderRadius: 15, backgroundColor: couleurs.bordure, alignItems: "center", justifyContent: "center" },
   pastilleActive: { backgroundColor: couleurs.bleu },
-  numero: { fontWeight: "700", color: couleurs.encreAttenuee },
+  numero: { fontWeight: "700", color: couleurs.encre },
   numeroActif: { color: "#fff" },
   libelle: { fontSize: 12, fontWeight: "600", color: couleurs.encreFaible },
   libelleActif: { color: couleurs.navy },

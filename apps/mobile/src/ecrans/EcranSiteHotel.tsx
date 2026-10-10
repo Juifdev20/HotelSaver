@@ -10,6 +10,8 @@ import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { SelecteurPhotos, nettoyerImages } from "../composants/SelecteurPhotos";
+import { confirmerAction } from "../confirmer";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranSiteHotelProps {
   client: ClientApi;
@@ -37,7 +39,7 @@ function Champ({
   return (
     <>
       <Text style={styles.label}>{libelle}</Text>
-      <TextInput {...reste} style={[styles.champ, reste.multiline && styles.champMultiligne]} value={valeur} onChangeText={surChangement} placeholderTextColor={couleurs.encreFaible} />
+      <TextInput accessibilityLabel={libelle} {...reste} style={[styles.champ, reste.multiline && styles.champMultiligne]} value={valeur} onChangeText={surChangement} placeholderTextColor={couleurs.encreFaible} />
     </>
   );
 }
@@ -51,22 +53,38 @@ export function EcranSiteHotel({ client, onRetour }: EcranSiteHotelProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
   const [imagesEnvoyees, setImagesEnvoyees] = useState<string[]>([]);
+  // Des changements n'ont pas encore été enregistrés : « Retour » le dit au lieu de les jeter (retour U5).
+  const [modifie, setModifie] = useState(false);
 
   useEffect(() => {
     client
       .obtenirSiteHotel()
       .then(setSite)
-      .catch((e: Error) => setErreur(e.message));
+      .catch((e: unknown) => setErreur(messageErreur(e, "Le site n'a pas pu être chargé. Quittez l'écran puis rouvrez-le.")));
   }, [client]);
+
+  function retour() {
+    if (!modifie || enCours) return onRetour();
+    confirmerAction({
+      titre: "Quitter sans enregistrer ?",
+      message: "Les modifications du site ne sont pas enregistrées.",
+      libelleConfirmer: "Quitter",
+      libelleRefuser: "Continuer la saisie",
+      destructif: true,
+      onConfirmer: onRetour,
+    });
+  }
 
   function maj<K extends keyof SiteHotelEditable>(cle: K, valeur: SiteHotelEditable[K]) {
     setSite((s) => (s ? { ...s, [cle]: valeur } : s));
     setMessage(null);
+    setModifie(true);
   }
 
   function majService(index: number, champs: Partial<ServiceHotel>) {
     setSite((s) => (s ? { ...s, services: s.services.map((x, i) => (i === index ? { ...x, ...champs } : x)) } : s));
     setMessage(null);
+    setModifie(true);
   }
 
   async function enregistrer() {
@@ -104,9 +122,10 @@ export function EcranSiteHotel({ client, onRetour }: EcranSiteHotelProps) {
       void nettoyerImages(client, [], imagesEnvoyees, gardees);
       setSite(enregistre);
       setImagesEnvoyees([]);
+      setModifie(false);
       setMessage("Modifications enregistrées. Votre site est à jour.");
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "Les modifications n'ont pas pu être enregistrées. Réessayez."));
     } finally {
       setEnCours(false);
     }
@@ -120,10 +139,12 @@ export function EcranSiteHotel({ client, onRetour }: EcranSiteHotelProps) {
       <EnteteRetour
         titre="Site de l'hôtel"
         sousTitre={site ? `${site.sousDomaine}.hotelsaver.com` : "Ce que vos clients voient en ligne"}
-        onRetour={onRetour}
+        onRetour={retour}
       />
       {!site ? (
-        <Text style={styles.info}>{erreur ?? "Chargement…"}</Text>
+        <Text style={styles.info} accessibilityRole={erreur ? "alert" : undefined}>
+          {erreur ?? "Chargement…"}
+        </Text>
       ) : (
         <ConteneurFormulaire styleContenu={styles.contenu}>
           <View style={styles.carte}>
@@ -169,23 +190,30 @@ export function EcranSiteHotel({ client, onRetour }: EcranSiteHotelProps) {
               <View key={i} style={styles.service}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.icones}>
                   {ICONES_SERVICE.map((ic) => (
-                    <Pressable key={ic} style={[styles.puce, s.icone === ic && styles.puceActive]} onPress={() => majService(i, { icone: ic })}>
+                    <Pressable
+                      key={ic}
+                      style={[styles.puce, s.icone === ic && styles.puceActive]}
+                      onPress={() => majService(i, { icone: ic })}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`Icône ${LIBELLE_ICONE_SERVICE[ic]}`}
+                      accessibilityState={{ checked: s.icone === ic }}
+                    >
                       <Text style={[styles.puceTexte, s.icone === ic && styles.puceTexteActif]}>{LIBELLE_ICONE_SERVICE[ic]}</Text>
                     </Pressable>
                   ))}
                 </ScrollView>
                 <View style={styles.ligneService}>
-                  <TextInput style={[styles.champ, { flex: 1 }]} value={s.titre} onChangeText={(v) => majService(i, { titre: v })} maxLength={60} placeholder="Titre (ex. Piscine)" placeholderTextColor={couleurs.encreFaible} />
+                  <TextInput style={[styles.champ, { flex: 1 }]} value={s.titre} onChangeText={(v) => majService(i, { titre: v })} maxLength={60} accessibilityLabel={`Titre du service ${i + 1}`} placeholder="Titre (ex. Piscine)" placeholderTextColor={couleurs.encreFaible} />
                   <Pressable
                     style={styles.supprimer}
                     onPress={() => maj("services", site.services.filter((_, k) => k !== i))}
                     accessibilityRole="button"
-                    accessibilityLabel="Supprimer ce service"
+                    accessibilityLabel={`Supprimer le service ${i + 1}${s.titre ? ` : ${s.titre}` : ""}`}
                   >
                     <Trash2 size={18} color={couleurs.danger} />
                   </Pressable>
                 </View>
-                <TextInput style={styles.champ} value={s.description ?? ""} onChangeText={(v) => majService(i, { description: v })} maxLength={200} placeholder="Description (facultative)" placeholderTextColor={couleurs.encreFaible} />
+                <TextInput style={styles.champ} value={s.description ?? ""} onChangeText={(v) => majService(i, { description: v })} maxLength={200} accessibilityLabel={`Description du service ${i + 1}`} placeholder="Description (facultative)" placeholderTextColor={couleurs.encreFaible} />
               </View>
             ))}
             {site.services.length < MAX_SERVICES && (
@@ -195,6 +223,8 @@ export function EcranSiteHotel({ client, onRetour }: EcranSiteHotelProps) {
                     key={ic}
                     style={styles.puceAjout}
                     onPress={() => maj("services", [...site.services, { icone: ic, titre: ic === "autre" ? "" : LIBELLE_ICONE_SERVICE[ic] }])}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ajouter le service ${LIBELLE_ICONE_SERVICE[ic]}`}
                   >
                     <Plus size={12} color={couleurs.bleu} />
                     <Text style={styles.puceAjoutTexte}>{LIBELLE_ICONE_SERVICE[ic]}</Text>
@@ -220,8 +250,13 @@ export function EcranSiteHotel({ client, onRetour }: EcranSiteHotelProps) {
               </View>
             </View>
             <View style={styles.ligneSwitch}>
-              <Text style={styles.switchTexte}>Réception ouverte 24 h/24</Text>
-              <Switch value={site.reception24h} onValueChange={(v) => maj("reception24h", v)} trackColor={{ true: couleurs.bleu }} />
+              <Text style={styles.switchTexte} importantForAccessibility="no">Réception ouverte 24 h/24</Text>
+              <Switch
+                value={site.reception24h}
+                onValueChange={(v) => maj("reception24h", v)}
+                trackColor={{ true: couleurs.bleu }}
+                accessibilityLabel="Réception ouverte 24 heures sur 24"
+              />
             </View>
           </View>
 
@@ -239,9 +274,23 @@ export function EcranSiteHotel({ client, onRetour }: EcranSiteHotelProps) {
             ))}
           </View>
 
-          {erreur && <Text style={styles.erreur}>{erreur}</Text>}
-          {message && <Text style={styles.succes}>{message}</Text>}
-          <Pressable style={[styles.bouton, enCours && styles.boutonDesactive]} onPress={enregistrer} disabled={enCours}>
+          {erreur && (
+            <Text style={styles.erreur} accessibilityRole="alert">
+              {erreur}
+            </Text>
+          )}
+          {message && (
+            <Text style={styles.succes} accessibilityLiveRegion="polite">
+              {message}
+            </Text>
+          )}
+          <Pressable
+            style={[styles.bouton, enCours && styles.boutonDesactive]}
+            onPress={enregistrer}
+            disabled={enCours}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: enCours, busy: enCours }}
+          >
             <Text style={styles.boutonTexte}>{enCours ? "Enregistrement…" : "Enregistrer"}</Text>
           </Pressable>
         </ConteneurFormulaire>

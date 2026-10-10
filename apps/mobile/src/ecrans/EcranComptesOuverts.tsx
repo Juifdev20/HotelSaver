@@ -7,6 +7,7 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
+import { messageErreur } from "../messagesErreur";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 
@@ -39,8 +40,11 @@ export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOu
   const rechargerMiroir = useCallback(() => {
     client
       .listerComptesCafeteria(StatutCompte.OUVERT)
-      .then(setComptes)
-      .catch((e: Error) => setErreur(e.message));
+      .then((liste) => {
+        setComptes(liste);
+        setErreur(null);
+      })
+      .catch((e: unknown) => setErreur(messageErreur(e, "Les comptes n'ont pas pu être actualisés.")));
   }, [client]);
 
   useEffect(() => {
@@ -70,7 +74,11 @@ export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOu
         onRetour={onRetour}
       />
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
 
       {comptes?.length === 0 && (
         <View style={styles.videConteneur}>
@@ -88,7 +96,16 @@ export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOu
           const total = totalCompte(item);
           const nombrePersonnes = item.sousComptes.length;
           return (
-            <Pressable style={styles.carte} onPress={() => onOuvrirCompte(item.id)}>
+            <Pressable
+              style={styles.carte}
+              onPress={() => onOuvrirCompte(item.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.tableOuNom}, ${nombrePersonnes} personne${nombrePersonnes > 1 ? "s" : ""}, ${
+                [total.usd > 0 ? formatMontant(total.usd, Devise.USD) : null, total.cdf > 0 ? formatMontant(total.cdf, Devise.CDF) : null]
+                  .filter(Boolean)
+                  .join(" et ") || "aucune ligne"
+              }`}
+            >
               <View style={styles.carteEntete}>
                 <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: espacements.s2 }}>
                   <Text style={styles.nom} numberOfLines={1}>{item.tableOuNom}</Text>

@@ -2,10 +2,11 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
-import type { ClientApi } from "@hotel-chicago/api-client";
+import type { ClientApi, DonneesEncaissement, TauxChange } from "@hotel-chicago/api-client";
 import { CompteCafeteria, Devise, LigneCommande, MenuDuJour, ModePaiement, Produit, SousCompte, StatutCompte, StatutLigne, LIBELLE_STATUT_LIGNE, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Check, Globe, Plus, UserPlus } from "lucide-react-native";
+import { estRecuProvisoire, lireMontant } from "@hotel-chicago/regles";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -18,6 +19,21 @@ import { nombreArticles, totalCompte, totalSousCompte } from "../totauxCafeteria
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { imprimerLignes } from "../impression/imprimante";
+import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
+
+/** Le serveur et la base locale acceptent déjà le détail du règlement en espèces (montant remis, devise, rendu) ; le type
+ * partagé de l'api-client ne le décrit pas encore. */
+type DonneesEncaissementEspeces = DonneesEncaissement & {
+  deviseRegleeParClient?: Devise;
+  montantRegleParClient?: number;
+  deviseRenduChoisie?: Devise;
+};
+
+/** Aperçu de la monnaie à rendre, même calcul qu'à la facturation (regles/encaissement.ts, recontrôlé par le serveur). */
+type ApercuMonnaie =
+  | { statut: "ok"; monnaie: number; deviseMonnaie: Devise }
+  | { statut: "insuffisant"; duReglee: number }
+  | { statut: "taux-manquant" };
 
 export interface EcranCompteCafeteriaProps {
   client: ClientApi;
@@ -42,7 +58,8 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   const [compte, setCompte] = useState<CompteCafeteria | null>(null);
   const [produits, setProduits] = useState<Produit[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
-
+  // Produits / menu du jour illisibles : on le dit au lieu de montrer un catalogue vide sans explication (retour U20).
+  const [erreurCatalogue, setErreurCatalogue] = useState<string | null>(null);
 
   const [modalePersonne, setModalePersonne] = useState(false);
   const [nomPersonne, setNomPersonne] = useState("");
@@ -63,7 +80,15 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   const [modePaiement, setModePaiement] = useState<ModePaiement>(ModePaiement.CASH);
   const [venteEncaissee, setVenteEncaissee] = useState<VenteCafeteria | null>(null);
   const [enImpression, setEnImpression] = useState(false);
-  const [messageImpression, setMessageImpression] = useState<string | null>(null);
+  const [messageImpression, setMessageImpression] = useState<{ texte: string; reussie: boolean } | null>(null);
+
+  // Règlement en espèces (retour U14) : devise et montant remis par le client, devise du rendu, taux du jour.
+  const [taux, setTaux] = useState<TauxChange | null>(null);
+  const [deviseReglee, setDeviseReglee] = useState<Devise>(Devise.USD);
+  const [montantRegle, setMontantRegle] = useState("");
+  const [deviseRendu, setDeviseRendu] = useState<Devise>(Devise.USD);
+  // Ce qui a été remis / rendu, figé au moment de l'encaissement pour l'afficher avec le reçu.
+  const [resumeReglement, setResumeReglement] = useState<{ remis: string; monnaie: string } | null>(null);
 
   // Personnes payées : écartées à la main (balayage) ou effacées d'elles-mêmes 1 minute après leur paiement.
   const [masquees, setMasquees] = useState<Set<string>>(new Set());
@@ -87,8 +112,11 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   const rechargerCompte = useCallback(() => {
     client
       .obtenirCompteCafeteria(compteId)
-      .then(setCompte)
-      .catch((e: Error) => setErreur(e.message));
+      .then((c) => {
+        setCompte(c);
+        setErreur(null);
+      })
+      .catch((e: unknown) => setErreur(messageErreur(e, "Le compte n'a pas pu être chargé. Réessayez.")));
   }, [client, compteId]);
 
   const rechargerPopulaires = useCallback(() => {
@@ -98,13 +126,25 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
       .catch(() => {});
   }, [client]);
 
+  const chargerCatalogue = useCallback(() => {
+    setErreurCatalogue(null);
+    client
+      .listerProduits()
+      .then(setProduits)
+      .catch((e: unknown) => setErreurCatalogue(messageErreur(e, "Les produits n'ont pas pu être chargés.")));
+    client
+      .menuDuJour()
+      .then(setMenuDuJour)
+      .catch((e: unknown) => setErreurCatalogue((courant) => courant ?? messageErreur(e, "Le menu du jour n'a pas pu être chargé.")));
+  }, [client]);
+
   useEffect(() => {
     rechargerCompte();
-    client.listerProduits().then(setProduits).catch(() => {});
+    chargerCatalogue();
     rechargerPopulaires();
-    client.menuDuJour().then(setMenuDuJour).catch(() => {});
+    client.tauxActuel().then(setTaux).catch(() => setTaux(null));
     moteurSync.forcerSynchronisation();
-  }, [client, rechargerCompte, rechargerPopulaires, moteurSync]);
+  }, [client, rechargerCompte, chargerCatalogue, rechargerPopulaires, moteurSync]);
 
   useEffect(() => {
     if (etatSync.dernierePousseeLe) rechargerCompte();
@@ -144,7 +184,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
       setModalePersonne(false);
       rechargerCompte();
     } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreurAction(messageErreur(e, "La personne n'a pas pu être ajoutée. Réessayez."));
     } finally {
       setEnEnvoi(false);
     }
@@ -166,7 +206,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
       await client.majStatutLigne(ligne.id, StatutLigne.SERVI);
       rechargerCompte();
     } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Impossible de marquer la ligne comme servie.");
+      setErreurAction(messageErreur(e, "Impossible de marquer la ligne comme servie."));
     } finally {
       setServiEnCours((courant) => {
         const suivant = new Set(courant);
@@ -184,37 +224,56 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   }
 
   function ouvrirEncaissement(cible: string) {
+    const totalDeLaCible = totalCompte({ ...(compte as CompteCafeteria), sousComptes: personnesCibles(cible) });
+    const deviseNote = totalDeLaCible.usd > 0 || totalDeLaCible.cdf === 0 ? Devise.USD : Devise.CDF;
     setCibleEncaissement(cible);
     setModePaiement(ModePaiement.CASH);
+    setDeviseReglee(deviseNote);
+    setDeviseRendu(deviseNote);
+    setMontantRegle("");
+    setResumeReglement(null);
     setVenteEncaissee(null);
     setMessageImpression(null);
     setErreurAction(null);
+    // Taux du jour relu à l'ouverture : le patron a pu le saisir depuis le chargement de l'écran.
+    client.tauxActuel().then(setTaux).catch(() => undefined);
     setModaleEncaissement(true);
   }
 
   async function encaisser() {
     if (!compte) return;
     const concernes = personnesCibles(cibleEncaissement);
-    if (concernes.length === 0) return;
+    if (concernes.length === 0 || enEnvoi) return;
+    const problemeEspeces = verifierEspeces();
+    if (problemeEspeces) {
+      setErreurAction(problemeEspeces);
+      return;
+    }
     setEnEnvoi(true);
     setErreurAction(null);
     try {
       const idCompte = compte.id;
-      const ventes =
+      // Détail du règlement : seulement en espèces et quand le calcul est possible (une seule devise due).
+      const detail = especesAvecDetail
+        ? { deviseRegleeParClient: deviseReglee, montantRegleParClient: regle, deviseRenduChoisie: deviseRendu }
+        : {};
+      const donnees: DonneesEncaissementEspeces =
         cibleEncaissement === "tout"
-          ? await client.encaisserCompte(idCompte, { mode: "GROUPE", modePaiement })
-          : await client.encaisserCompte(idCompte, {
-              mode: "UNE_PERSONNE",
-              modePaiement,
-              sousCompteId: concernes[0].id,
-            });
+          ? { mode: "GROUPE", modePaiement, ...detail }
+          : { mode: "UNE_PERSONNE", modePaiement, sousCompteId: concernes[0].id, ...detail };
+      const ventes = await client.encaisserCompte(idCompte, donnees);
+      setResumeReglement(
+        especesAvecDetail && apercuMonnaie?.statut === "ok"
+          ? { remis: formatMontant(regle, deviseReglee), monnaie: formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie) }
+          : null
+      );
       setVenteEncaissee(ventes[0]);
       setRecuCompte({ ...compte, sousComptes: concernes });
       // Plus personne à régler après celle(s)-ci → le compte est fermé côté serveur.
       setCompteSolde(personnesARegler.every((sc) => concernes.some((c) => c.id === sc.id)));
       rechargerCompte();
     } catch (e) {
-      setErreurAction(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreurAction(messageErreur(e, "L'encaissement n'a pas pu être enregistré. Réessayez."));
     } finally {
       setEnEnvoi(false);
     }
@@ -226,9 +285,9 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
     setMessageImpression(null);
     try {
       await imprimerLignes(lignesRecu);
-      setMessageImpression("Reçu envoyé à l'imprimante.");
+      setMessageImpression({ texte: messageImpressionEnvoyee(), reussie: true });
     } catch (e) {
-      setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
+      setMessageImpression({ texte: `Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`, reussie: false });
     } finally {
       setEnImpression(false);
     }
@@ -259,6 +318,43 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   const reste = compte ? totalCompte({ ...compte, sousComptes: personnesARegler }) : { usd: 0, cdf: 0 };
   const totalCible = totalCompte({ ...(compte as CompteCafeteria), sousComptes: personnesCibles(cibleEncaissement) });
 
+  // Règlement en espèces : le montant remis est obligatoire (comme à la facturation, mais ici sans option « exact »).
+  // Une note en deux devises (USD + CDF) ne peut pas être calculée en croisé : on encaisse alors sans détail, et on le dit.
+  const noteMixte = totalCible.usd > 0 && totalCible.cdf > 0;
+  const deviseNote: Devise | null = totalCible.usd > 0 ? Devise.USD : totalCible.cdf > 0 ? Devise.CDF : null;
+  const especesAvecDetail = modePaiement === ModePaiement.CASH && !noteMixte && deviseNote !== null;
+  const cdfParUsd = taux ? Number(taux.cdfParUsd) : undefined;
+  const regleLu = especesAvecDetail && montantRegle.trim() !== "" ? lireMontant(montantRegle, deviseReglee, { max: 1_000_000_000 }) : null;
+  const regle = regleLu && regleLu.ok ? regleLu.valeur : NaN;
+  const erreurMontantRegle = regleLu && !regleLu.ok ? regleLu.message : null;
+  const apercuMonnaie: ApercuMonnaie | null = (() => {
+    if (!especesAvecDetail || !deviseNote || !regleLu || !regleLu.ok) return null;
+    const du = deviseNote === Devise.USD ? totalCible.usd : totalCible.cdf;
+    const croise = deviseReglee !== deviseNote;
+    if (croise && !cdfParUsd) return { statut: "taux-manquant" };
+    const duReglee = croise ? (deviseNote === Devise.USD ? du * cdfParUsd! : du / cdfParUsd!) : du;
+    const reste = regle - duReglee;
+    if (reste < -0.005) return { statut: "insuffisant", duReglee };
+    const monnaieReglee = Math.max(0, reste);
+    const monnaieRendue =
+      deviseRendu === deviseReglee ? monnaieReglee : deviseReglee === Devise.USD ? monnaieReglee * cdfParUsd! : monnaieReglee / cdfParUsd!;
+    return {
+      statut: "ok",
+      monnaie: deviseRendu === Devise.CDF ? Math.round(monnaieRendue) : Math.round(monnaieRendue * 100) / 100,
+      deviseMonnaie: deviseRendu,
+    };
+  })();
+
+  /** Message à montrer quand le règlement en espèces n'est pas encore valide (null = on peut envoyer). */
+  function verifierEspeces(): string | null {
+    if (!especesAvecDetail) return null;
+    if (montantRegle.trim() === "") return "Espèces : saisissez le montant remis par le client.";
+    if (erreurMontantRegle) return `Montant remis : ${erreurMontantRegle}`;
+    if (apercuMonnaie?.statut === "insuffisant") return `Montant insuffisant : il faut ${formatMontant(apercuMonnaie.duReglee, deviseReglee)}.`;
+    if (apercuMonnaie?.statut === "taux-manquant") return "Aucun taux de change défini par le patron : le client doit régler dans la devise de la note.";
+    return null;
+  }
+
   const personneChoisie = compte?.sousComptes.find((sc) => sc.id === personneEnAjout);
   if (compte && personneChoisie && compteOuvert) {
     return (
@@ -288,8 +384,20 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
       <EnteteMobile />
       <EnteteRetour titre={compte ? compte.tableOuNom : "Compte cafétaria"} onRetour={onRetour} />
 
-      {!compte && !erreur && <ActivityIndicator style={styles.chargement} color={couleurs.bleu} />}
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {!compte && !erreur && <ActivityIndicator style={styles.chargement} color={couleurs.bleu} accessibilityLabel="Chargement" />}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
+      {erreurCatalogue && (
+        <View style={styles.bandeauCatalogue} accessibilityRole="alert">
+          <Text style={styles.bandeauCatalogueTexte}>{erreurCatalogue} Les produits proposés peuvent être incomplets.</Text>
+          <Pressable style={styles.boutonReessayer} onPress={chargerCatalogue} accessibilityRole="button" accessibilityLabel="Recharger les produits">
+            <Text style={styles.boutonReessayerTexte}>Réessayer</Text>
+          </Pressable>
+        </View>
+      )}
 
       {compte && (
         <>
@@ -314,6 +422,12 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
               </View>
             )}
 
+            {erreurAction && !modalePersonne && !modaleEncaissement && (
+              <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+                {erreurAction}
+              </Text>
+            )}
+
             {compteOuvert && !operer && (
               <Text style={styles.aide}>Lecture seule — ajouter des consommations et encaisser sont réservés au personnel de la cafétaria.</Text>
             )}
@@ -329,14 +443,16 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
                 <>
                   <View style={styles.enteteSousCompte}>
                     <View style={styles.identite}>
-                      <Text style={styles.nomSousCompte}>{sousCompte.nom}</Text>
+                      <Text style={styles.nomSousCompte} accessibilityRole="header">
+                        {sousCompte.nom}
+                      </Text>
                       <Text style={styles.resume}>
                         {nbArticles === 0 ? "Aucun article" : `${nbArticles} article${nbArticles > 1 ? "s" : ""}`}
                         {enAttenteSync ? " · Synchronisation…" : ""}
                       </Text>
                     </View>
                     {sousCompte.payeLe ? (
-                      <View style={styles.badgePaye}>
+                      <View style={styles.badgePaye} accessible accessibilityLabel={`${sousCompte.nom} a payé`}>
                         <Check size={14} color={couleurs.succes} />
                         <Text style={styles.badgePayeTexte}>Payé</Text>
                       </View>
@@ -373,8 +489,10 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
                           <Pressable
                             style={[styles.boutonServi, serviEnCours.has(ligne.id) && styles.boutonDesactive]}
                             onPress={() => void marquerServi(ligne)}
+                            disabled={serviEnCours.has(ligne.id)}
                             accessibilityRole="button"
                             accessibilityLabel={`Marquer ${ligne.produit.nom} comme servi`}
+                            accessibilityState={{ disabled: serviEnCours.has(ligne.id), busy: serviEnCours.has(ligne.id) }}
                           >
                             <Text style={styles.boutonServiTexte}>{serviEnCours.has(ligne.id) ? "…" : "Servi"}</Text>
                           </Pressable>
@@ -433,7 +551,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
             })}
 
             {compteOuvert && revoyables.length > 0 && (
-              <Pressable onPress={() => setVoirPayees((v) => !v)} accessibilityRole="button">
+              <Pressable onPress={() => setVoirPayees((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: voirPayeesActif }} style={styles.zoneLienPayees}>
                 <Text style={styles.lienPayees}>
                   {voirPayeesActif
                     ? "Masquer les personnes payées"
@@ -446,6 +564,8 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
               <Pressable
                 style={styles.boutonSecondaire}
                 onPress={ouvrirModalePersonne}
+                accessibilityRole="button"
+                accessibilityLabel="Ajouter une personne au compte"
               >
                 <UserPlus size={16} color={couleurs.bleu} />
                 <Text style={styles.boutonSecondaireTexte}>
@@ -476,6 +596,8 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
               <Pressable
                 style={styles.boutonToutEncaisser}
                 onPress={() => ouvrirEncaissement("tout")}
+                accessibilityRole="button"
+                accessibilityLabel="Tout encaisser. Quand une personne règle pour tout le monde"
               >
                 <Text style={styles.boutonToutEncaisserTexte}>
                   Tout encaisser
@@ -488,17 +610,29 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
       )}
 
       {/* Ajouter une personne */}
-      <FeuilleModale visible={modalePersonne} onFermer={() => setModalePersonne(false)} titre="Ajouter une personne">
+      <FeuilleModale
+        visible={modalePersonne}
+        onFermer={() => setModalePersonne(false)}
+        titre="Ajouter une personne"
+        modifie={nomPersonne.trim() !== ""}
+        enCours={enEnvoi}
+      >
         <Text style={styles.label}>Nom</Text>
         <TextInput
           style={styles.champ}
           value={nomPersonne}
           onChangeText={setNomPersonne}
+          accessibilityLabel="Nom de la personne"
+          returnKeyType="done"
           placeholder="Ex. Personne 2"
           placeholderTextColor={couleurs.encreFaible}
         />
-        {erreurAction && <Text style={styles.erreurFormulaire}>{erreurAction}</Text>}
-        <Pressable style={styles.bouton} onPress={ajouterPersonne} disabled={enEnvoi}>
+        {erreurAction && modalePersonne && (
+          <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+            {erreurAction}
+          </Text>
+        )}
+        <Pressable style={styles.bouton} onPress={ajouterPersonne} disabled={enEnvoi} accessibilityRole="button" accessibilityState={{ disabled: enEnvoi, busy: enEnvoi }}>
           <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Ajouter"}</Text>
         </Pressable>
       </FeuilleModale>
@@ -507,6 +641,8 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
       <FeuilleModale
         visible={modaleEncaissement}
         onFermer={terminerEncaissement}
+        modifie={!venteEncaissee && montantRegle.trim() !== ""}
+        enCours={enEnvoi}
         titre={cibleEncaissement === "tout" ? "Tout encaisser" : `Encaisser ${recuCompte?.sousComptes[0]?.nom ?? personnesCibles(cibleEncaissement)[0]?.nom ?? ""}`}
       >
         {venteEncaissee ? (
@@ -521,23 +657,60 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
                 <Text style={styles.montantTotal}>{formatMontant(venteEncaissee.montantTotalCDF, Devise.CDF)}</Text>
               )}
             </View>
-            {messageImpression && <Text style={styles.confirmation}>{messageImpression}</Text>}
-            <Pressable style={styles.boutonSecondaire} onPress={imprimerRecuVente} disabled={enImpression}>
+            {resumeReglement && (
+              <View style={styles.carteMonnaie} accessible accessibilityLabel={`Remis par le client : ${resumeReglement.remis}. Monnaie à rendre : ${resumeReglement.monnaie}.`}>
+                <Text style={styles.sousLabel}>Remis par le client : {resumeReglement.remis}</Text>
+                <Text style={styles.monnaieARendre}>Monnaie à rendre : {resumeReglement.monnaie}</Text>
+              </View>
+            )}
+            {estRecuProvisoire(venteEncaissee.numeroRecu) && (
+              <>
+                <View style={styles.badgeProvisoire} accessible accessibilityLabel="Reçu provisoire">
+                  <Text style={styles.badgeProvisoireTexte}>Provisoire</Text>
+                </View>
+                <Text style={styles.avertissement}>
+                  Reçu provisoire : le numéro définitif sera attribué à la synchronisation (le reçu reste valable).
+                </Text>
+              </>
+            )}
+            {messageImpression && (
+              <Text
+                style={messageImpression.reussie ? styles.confirmation : styles.erreurFormulaire}
+                accessibilityRole={messageImpression.reussie ? undefined : "alert"}
+                accessibilityLiveRegion="polite"
+              >
+                {messageImpression.texte}
+              </Text>
+            )}
+            <Pressable
+              style={styles.boutonSecondaire}
+              onPress={imprimerRecuVente}
+              disabled={enImpression}
+              accessibilityRole="button"
+              accessibilityLabel={enImpression ? "Impression en cours" : "Imprimer le reçu"}
+              accessibilityState={{ disabled: enImpression, busy: enImpression }}
+            >
               <Text style={styles.boutonSecondaireTexte}>{enImpression ? "…" : "Imprimer le reçu"}</Text>
             </Pressable>
-            <Pressable style={styles.bouton} onPress={terminerEncaissement}>
+            <Pressable style={styles.bouton} onPress={terminerEncaissement} accessibilityRole="button">
               <Text style={styles.boutonTexte}>{compteSolde ? "Terminer" : "Retour au compte"}</Text>
             </Pressable>
           </>
         ) : (
           <>
             <Text style={styles.label}>Mode de paiement</Text>
-            <View style={styles.selecteurPersonne}>
+            <View style={styles.selecteurPersonne} accessibilityRole="radiogroup" accessibilityLabel="Mode de paiement">
               {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
                 <Pressable
                   key={m}
                   style={[styles.optionPersonne, modePaiement === m && styles.optionPersonneActive]}
-                  onPress={() => setModePaiement(m)}
+                  onPress={() => {
+                    setModePaiement(m);
+                    setErreurAction(null);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: modePaiement === m }}
+                  accessibilityLabel={m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
                 >
                   <Text style={[styles.optionPersonneTexte, modePaiement === m && styles.optionPersonneTexteActif]}>
                     {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
@@ -552,9 +725,109 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
               {totalCible.cdf > 0 && <Text style={styles.montantTotal}>{formatMontant(totalCible.cdf, Devise.CDF)}</Text>}
             </View>
 
-            {erreurAction && <Text style={styles.erreurFormulaire}>{erreurAction}</Text>}
+            {modePaiement === ModePaiement.CASH && noteMixte && (
+              <Text style={styles.avertissement}>
+                Cette note mélange des articles en dollars et en francs : la monnaie ne peut pas être calculée ici. Encaissez chaque personne séparément pour la calculer.
+              </Text>
+            )}
 
-            <Pressable style={styles.bouton} onPress={encaisser} disabled={enEnvoi}>
+            {especesAvecDetail && deviseNote && (
+              <View style={styles.blocReglement}>
+                <Text style={styles.label}>Devise remise par le client</Text>
+                <View style={styles.selecteurPersonne} accessibilityRole="radiogroup" accessibilityLabel="Devise remise par le client">
+                  {[Devise.USD, Devise.CDF].map((d) => (
+                    <Pressable
+                      key={d}
+                      style={[styles.optionPersonne, deviseReglee === d && styles.optionPersonneActive]}
+                      onPress={() => {
+                        setDeviseReglee(d);
+                        setErreurAction(null);
+                      }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: deviseReglee === d }}
+                      accessibilityLabel={d === Devise.USD ? "Dollars (USD)" : "Francs congolais (CDF)"}
+                    >
+                      <Text style={[styles.optionPersonneTexte, deviseReglee === d && styles.optionPersonneTexteActif]}>{d}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {deviseReglee !== deviseNote && (
+                  <Text style={styles.equivalence}>
+                    {cdfParUsd
+                      ? `Dû : ${formatMontant(deviseNote === Devise.USD ? totalCible.usd * cdfParUsd : totalCible.cdf / cdfParUsd, deviseReglee)} (1 $ = ${formatMontant(cdfParUsd, Devise.CDF)})`
+                      : "Aucun taux de change défini par le patron — paiement croisé impossible."}
+                  </Text>
+                )}
+                <Text style={styles.label}>Montant remis</Text>
+                <TextInput
+                  style={styles.champ}
+                  value={montantRegle}
+                  onChangeText={(v) => {
+                    setMontantRegle(v);
+                    setErreurAction(null);
+                  }}
+                  placeholder={`Ex. ${deviseReglee === Devise.USD ? "20.00" : "56 000"}`}
+                  placeholderTextColor={couleurs.encreFaible}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  accessibilityLabel={`Montant remis par le client en ${deviseReglee}`}
+                />
+                {erreurMontantRegle && (
+                  <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+                    {erreurMontantRegle}
+                  </Text>
+                )}
+                {regleLu?.ok && (
+                  <>
+                    <Text style={styles.label}>Rendre la monnaie en</Text>
+                    <View style={styles.selecteurPersonne} accessibilityRole="radiogroup" accessibilityLabel="Devise de la monnaie rendue">
+                      {[Devise.USD, Devise.CDF].map((d) => (
+                        <Pressable
+                          key={d}
+                          style={[styles.optionPersonne, deviseRendu === d && styles.optionPersonneActive]}
+                          onPress={() => setDeviseRendu(d)}
+                          accessibilityRole="radio"
+                          accessibilityState={{ checked: deviseRendu === d }}
+                          accessibilityLabel={d === Devise.USD ? "Dollars (USD)" : "Francs congolais (CDF)"}
+                        >
+                          <Text style={[styles.optionPersonneTexte, deviseRendu === d && styles.optionPersonneTexteActif]}>{d}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
+                {apercuMonnaie?.statut === "insuffisant" && (
+                  <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+                    Montant insuffisant : il faut {formatMontant(apercuMonnaie.duReglee, deviseReglee)}.
+                  </Text>
+                )}
+                {apercuMonnaie?.statut === "taux-manquant" && (
+                  <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+                    Aucun taux de change défini par le patron.
+                  </Text>
+                )}
+                {apercuMonnaie?.statut === "ok" && (
+                  <Text style={styles.monnaieARendre} accessibilityLiveRegion="polite">
+                    Monnaie à rendre : {formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {erreurAction && modaleEncaissement && (
+              <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+                {erreurAction}
+              </Text>
+            )}
+
+            <Pressable
+              style={[styles.bouton, enEnvoi && styles.boutonDesactive]}
+              onPress={encaisser}
+              disabled={enEnvoi}
+              accessibilityRole="button"
+              accessibilityLabel={enEnvoi ? "Encaissement en cours" : "Confirmer l'encaissement"}
+              accessibilityState={{ disabled: enEnvoi, busy: enEnvoi }}
+            >
               <Text style={styles.boutonTexte}>{enEnvoi ? "…" : "Confirmer l'encaissement"}</Text>
             </Pressable>
           </>
@@ -601,6 +874,7 @@ const styles = StyleSheet.create({
   boutonToutEncaisser: { flex: 1, minHeight: 56, paddingVertical: 6, borderRadius: rayons.sm, borderWidth: 1, borderColor: couleurs.succes, alignItems: "center", justifyContent: "center" },
   aideToutEncaisser: { color: couleurs.encreAttenuee, fontSize: 11, marginTop: 1 },
   indiceBalayage: { fontSize: 11, color: couleurs.encreFaible, textAlign: "right", marginTop: 2 },
+  zoneLienPayees: { minHeight: 44, justifyContent: "center" },
   lienPayees: { fontSize: 13, fontWeight: "600", color: couleurs.bleu, textAlign: "center", paddingVertical: espacements.s2 },
   boutonToutEncaisserTexte: { color: couleurs.succes, fontWeight: "700", fontSize: 14 },
   boutonPersonneTexte: { color: "#fff", fontWeight: "700", fontSize: 13 },
@@ -613,10 +887,10 @@ const styles = StyleSheet.create({
   ligneTexte: { fontSize: 14, color: couleurs.encre, flexShrink: 1 },
   ligneMontant: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
   badgeStatut: { fontSize: 11, fontWeight: "600", paddingHorizontal: 8, paddingVertical: 2, borderRadius: rayons.pill, overflow: "hidden" },
-  badgeStatut_EN_ATTENTE: { backgroundColor: "#FFFAEB", color: "#F79009" },
-  badgeStatut_EN_PREPARATION: { backgroundColor: couleurs.bleuClair, color: "#2E90FA" },
+  badgeStatut_EN_ATTENTE: { backgroundColor: couleurs.alerteClair, color: couleurs.alerte },
+  badgeStatut_EN_PREPARATION: { backgroundColor: couleurs.bleuClair, color: couleurs.info },
   badgeStatut_PRET: { backgroundColor: couleurs.succesClair, color: couleurs.succes },
-  boutonServi: { backgroundColor: couleurs.succes, borderRadius: rayons.sm, paddingHorizontal: 10, paddingVertical: 4 },
+  boutonServi: { backgroundColor: couleurs.succes, borderRadius: rayons.sm, paddingHorizontal: 12, minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center" },
   boutonServiTexte: { color: "#fff", fontSize: 12, fontWeight: "700" },
   totauxSousCompte: { flexDirection: "row", gap: espacements.s3, marginTop: 4, borderTopWidth: 1, borderTopColor: couleurs.bordure, paddingTop: 6 },
   totalSousCompteTexte: { fontSize: 13, fontWeight: "700", color: couleurs.encreAttenuee },
@@ -704,6 +978,28 @@ const styles = StyleSheet.create({
   badgeBientot: { borderWidth: 1, borderColor: couleurs.bordure, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
   badgeBientotTexte: { fontSize: 10, fontWeight: "700", color: couleurs.encreAttenuee },
   erreurFormulaire: { color: couleurs.danger, fontSize: 13 },
+  bandeauCatalogue: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacements.s2,
+    marginHorizontal: espacements.s4,
+    marginBottom: espacements.s2,
+    padding: espacements.s3,
+    borderRadius: rayons.md,
+    backgroundColor: couleurs.alerteClair,
+  },
+  bandeauCatalogueTexte: { flex: 1, color: couleurs.alerte, fontSize: 13, fontWeight: "600" },
+  boutonReessayer: { minHeight: 44, minWidth: 44, justifyContent: "center", paddingHorizontal: espacements.s2 },
+  boutonReessayerTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 13 },
+  blocReglement: { gap: espacements.s2 },
+  sousLabel: { fontSize: 13, fontWeight: "600", color: couleurs.encre },
+  equivalence: { fontSize: 12, color: couleurs.bleu },
+  monnaieARendre: { fontSize: 16, fontWeight: "800", color: couleurs.succes },
+  carteMonnaie: { backgroundColor: couleurs.succesClair, borderRadius: rayons.md, padding: espacements.s3, gap: 2 },
+  avertissement: { color: couleurs.alerte, fontSize: 13 },
+  // Reçu provisoire (créé hors ligne) : le numéro définitif viendra à la synchro.
+  badgeProvisoire: { alignSelf: "flex-start", backgroundColor: couleurs.alerteClair, borderWidth: 1, borderColor: couleurs.alerte, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
+  badgeProvisoireTexte: { fontSize: 11, fontWeight: "700", color: couleurs.alerte },
   confirmation: { color: couleurs.succes, fontSize: 13, textAlign: "center" },
   bouton: { minHeight: 44, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center", marginTop: espacements.s2 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },

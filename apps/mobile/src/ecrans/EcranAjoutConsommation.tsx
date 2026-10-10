@@ -13,6 +13,7 @@ import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { ScannerCodeBarres } from "../composants/ScannerCodeBarres";
 import { SelecteurProduit } from "../composants/SelecteurProduit";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranAjoutConsommationProps {
   compte: CompteCafeteria;
@@ -196,7 +197,7 @@ export function EcranAjoutConsommation({
       Vibration.vibrate(VIBRATION_OK);
       setInfoScan(`Code associé à ${produit.nom} — ajouté au panier.`);
     } catch (e) {
-      setInfoScan(e instanceof Error ? e.message : "Association impossible.");
+      setInfoScan(messageErreur(e, "Association impossible."));
     }
   }
 
@@ -226,7 +227,7 @@ export function EcranAjoutConsommation({
       }
       onAjoute();
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "Les produits n'ont pas pu être ajoutés. Réessayez : ceux déjà enregistrés ne seront pas doublés."));
       setEnEnvoi(false);
     }
   }
@@ -279,24 +280,25 @@ export function EcranAjoutConsommation({
             onBlur={() => {
               if (!scannerOuvert) champDouchette.current?.focus();
             }}
+            accessibilityLabel="Rechercher un produit"
             placeholder="Rechercher un produit"
             placeholderTextColor={couleurs.encreFaible}
             autoCorrect={false}
             returnKeyType="search"
           />
           {recherche.length > 0 && (
-            <Pressable onPress={() => setRecherche("")} hitSlop={10} accessibilityLabel="Effacer la recherche">
+            <Pressable onPress={() => setRecherche("")} hitSlop={14} style={styles.zoneTactile} accessibilityRole="button" accessibilityLabel="Effacer la recherche">
               <X size={18} color={couleurs.encreAttenuee} />
             </Pressable>
           )}
         </View>
-        <Pressable style={styles.boutonScanner} onPress={() => setScannerOuvert(true)} accessibilityLabel="Scanner avec la caméra">
+        <Pressable style={styles.boutonScanner} onPress={() => setScannerOuvert(true)} accessibilityRole="button" accessibilityLabel="Scanner avec la caméra">
           <Camera size={20} color="#fff" />
         </Pressable>
       </View>
 
       {infoScan && (
-        <View style={[styles.bandeauScan, codeInconnu ? styles.bandeauScanErreur : null]}>
+        <View style={[styles.bandeauScan, codeInconnu ? styles.bandeauScanErreur : null]} accessibilityRole={codeInconnu ? "alert" : undefined} accessibilityLiveRegion="polite">
           <ScanBarcode size={16} color={codeInconnu ? couleurs.danger : couleurs.succes} />
           <Text style={styles.bandeauScanTexte} numberOfLines={2}>
             {infoScan}
@@ -309,6 +311,9 @@ export function EcranAjoutConsommation({
                   : setInfoScan(`Code ${codeInconnu} inconnu — associez-le quand le réseau revient.`)
               }
               hitSlop={8}
+              style={styles.zoneTactile}
+              accessibilityRole="button"
+              accessibilityLabel={`Associer le code ${codeInconnu} à un produit`}
             >
               <Text style={styles.bandeauScanAction}>Associer</Text>
             </Pressable>
@@ -319,6 +324,8 @@ export function EcranAjoutConsommation({
               setCodeInconnu(null);
             }}
             hitSlop={8}
+            style={styles.zoneTactile}
+            accessibilityRole="button"
             accessibilityLabel="Fermer le message"
           >
             <X size={16} color={couleurs.encreAttenuee} />
@@ -330,7 +337,14 @@ export function EcranAjoutConsommation({
         <View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.puces}>
             {categories.map((c) => (
-              <Pressable key={c} style={[styles.puce, categorie === c && styles.puceActive]} onPress={() => setCategorie(c)}>
+              <Pressable
+                key={c}
+                style={[styles.puce, categorie === c && styles.puceActive]}
+                onPress={() => setCategorie(c)}
+                accessibilityRole="button"
+                accessibilityLabel={`Catégorie ${c}`}
+                accessibilityState={{ selected: categorie === c }}
+              >
                 <Text style={[styles.puceTexte, categorie === c && styles.puceTexteActif]}>{c}</Text>
               </Pressable>
             ))}
@@ -366,16 +380,16 @@ export function EcranAjoutConsommation({
                         <Text style={styles.prix}>{formatMontant(Number(prixAffiche), deviseAffichee)}</Text>
                       </View>
                       {!epuise && (quantite === 0 ? (
-                        <Pressable style={styles.boutonAjout} onPress={() => changer({ ...p, prix: prixAffiche, devise: deviseAffichee }, 1)} accessibilityLabel={`Ajouter ${p.nom}`}>
+                        <Pressable style={styles.boutonAjout} onPress={() => changer({ ...p, prix: prixAffiche, devise: deviseAffichee }, 1)} accessibilityRole="button" accessibilityLabel={`Ajouter ${p.nom}`}>
                           <Plus size={20} color="#fff" />
                         </Pressable>
                       ) : (
                         <View style={styles.stepper}>
-                          <Pressable style={styles.stepperBouton} onPress={() => changer({ ...p, prix: prixAffiche, devise: deviseAffichee }, -1)} hitSlop={6}>
+                          <Pressable style={styles.stepperBouton} onPress={() => changer({ ...p, prix: prixAffiche, devise: deviseAffichee }, -1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Retirer un ${p.nom}`}>
                             <Minus size={18} color={couleurs.bleu} />
                           </Pressable>
-                          <Text style={styles.stepperValeur}>{quantite}</Text>
-                          <Pressable style={styles.stepperBouton} onPress={() => changer({ ...p, prix: prixAffiche, devise: deviseAffichee }, 1)} hitSlop={6}>
+                          <Text style={styles.stepperValeur} accessibilityLabel={`${quantite} ${p.nom}`}>{quantite}</Text>
+                          <Pressable style={styles.stepperBouton} onPress={() => changer({ ...p, prix: prixAffiche, devise: deviseAffichee }, 1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Ajouter un ${p.nom}`}>
                             <Plus size={18} color={couleurs.bleu} />
                           </Pressable>
                         </View>
@@ -413,16 +427,16 @@ export function EcranAjoutConsommation({
                 </View>
               </View>
               {epuise ? null : quantite === 0 ? (
-                <Pressable style={styles.boutonAjout} onPress={() => changer(p, 1)} accessibilityLabel={`Ajouter ${p.nom}`}>
+                <Pressable style={styles.boutonAjout} onPress={() => changer(p, 1)} accessibilityRole="button" accessibilityLabel={`Ajouter ${p.nom}`}>
                   <Plus size={20} color="#fff" />
                 </Pressable>
               ) : (
                 <View style={styles.stepper}>
-                  <Pressable style={styles.stepperBouton} onPress={() => changer(p, -1)} hitSlop={6} accessibilityLabel={`Retirer ${p.nom}`}>
+                  <Pressable style={styles.stepperBouton} onPress={() => changer(p, -1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Retirer un ${p.nom}`}>
                     <Minus size={18} color={couleurs.bleu} />
                   </Pressable>
-                  <Text style={styles.stepperValeur}>{quantite}</Text>
-                  <Pressable style={styles.stepperBouton} onPress={() => changer(p, 1)} hitSlop={6} accessibilityLabel={`Ajouter ${p.nom}`}>
+                  <Text style={styles.stepperValeur} accessibilityLabel={`${quantite} ${p.nom}`}>{quantite}</Text>
+                  <Pressable style={styles.stepperBouton} onPress={() => changer(p, 1)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Ajouter un ${p.nom}`}>
                     <Plus size={18} color={couleurs.bleu} />
                   </Pressable>
                 </View>
@@ -448,11 +462,17 @@ export function EcranAjoutConsommation({
       />
 
       <View style={[styles.barre, { paddingBottom: espacements.s3 + Math.min(insets.bottom, 8) }]}>
-        {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+        {erreur && (
+          <Text style={styles.erreur} accessibilityRole="alert">
+            {erreur}
+          </Text>
+        )}
         <Pressable
           style={[styles.boutonValider, (articles === 0 || enEnvoi) && styles.boutonDesactive]}
           onPress={valider}
           disabled={articles === 0 || enEnvoi}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: articles === 0 || enEnvoi, busy: enEnvoi }}
         >
           <Text style={styles.boutonValiderTexte}>
             {enEnvoi
@@ -540,11 +560,12 @@ const styles = StyleSheet.create({
   prix: { fontSize: 13, color: couleurs.encreAttenuee, fontWeight: "600" },
   etatEpuise: { fontSize: 11, fontWeight: "700", color: couleurs.danger },
   etatBas: { fontSize: 11, fontWeight: "700", color: couleurs.alerte },
-  boutonAjout: { width: 40, height: 40, borderRadius: rayons.pill, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
+  zoneTactile: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  boutonAjout: { width: 44, height: 44, borderRadius: rayons.pill, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
   stepper: { flexDirection: "row", alignItems: "center", gap: espacements.s2 },
   stepperBouton: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: rayons.pill,
     borderWidth: 1,
     borderColor: couleurs.bleu,

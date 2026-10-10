@@ -7,6 +7,7 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { AppareilImprimante, ecrireAppareilImprimante, lireAppareilImprimante } from "../impression/appareilImprimante";
 import { imprimerTicketDeTest, listerAppareilsAppaires } from "../impression/imprimante";
+import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
 
 export interface EcranImprimanteProps {
   onRetour: () => void;
@@ -34,8 +35,8 @@ export function EcranImprimante({ onRetour }: EcranImprimanteProps) {
     setAppareils(null);
     listerAppareilsAppaires()
       .then(setAppareils)
-      .catch((e: Error) => {
-        setErreur(e.message);
+      .catch((e: unknown) => {
+        setErreur(messageErreur(e, "La liste des appareils Bluetooth n'a pas pu être lue. Vérifiez que le Bluetooth est activé."));
         setAppareils([]);
       });
   }
@@ -50,9 +51,9 @@ export function EcranImprimante({ onRetour }: EcranImprimanteProps) {
     setMessageTest(null);
     try {
       await imprimerTicketDeTest(appareil.address);
-      setMessageTest("Ticket de test envoyé.");
+      setMessageTest(messageImpressionEnvoyee("Ticket de test"));
     } catch (e) {
-      setMessageTest(e instanceof Error ? e.message : "Échec de l'impression.");
+      setMessageTest(`Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`);
     } finally {
       setEnTest(null);
     }
@@ -69,10 +70,18 @@ export function EcranImprimante({ onRetour }: EcranImprimanteProps) {
           l'imprimante depuis les réglages Android, puis revenez ici.
         </Text>
 
-        {erreur && <Text style={styles.erreur}>{erreur}</Text>}
-        {messageTest && <Text style={styles.confirmation}>{messageTest}</Text>}
+        {erreur && (
+          <Text style={styles.erreur} accessibilityRole="alert">
+            {erreur}
+          </Text>
+        )}
+        {messageTest && (
+          <Text style={styles.confirmation} accessibilityLiveRegion="polite">
+            {messageTest}
+          </Text>
+        )}
 
-        {appareils === null && <ActivityIndicator style={styles.chargement} color={couleurs.bleu} />}
+        {appareils === null && <ActivityIndicator style={styles.chargement} color={couleurs.bleu} accessibilityLabel="Recherche des appareils" />}
 
         {appareils?.length === 0 && !erreur && (
           <Text style={styles.vide}>Aucun appareil Bluetooth appairé pour l'instant.</Text>
@@ -86,7 +95,13 @@ export function EcranImprimante({ onRetour }: EcranImprimanteProps) {
             const estChoisi = choisi?.address === item.address;
             return (
               <View style={[styles.carte, estChoisi && styles.carteChoisie]}>
-                <Pressable style={styles.carteContenu} onPress={() => choisir(item)}>
+                <Pressable
+                  style={styles.carteContenu}
+                  onPress={() => choisir(item)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Imprimante ${item.nom}, adresse ${item.address}`}
+                  accessibilityState={{ checked: estChoisi }}
+                >
                   <Bluetooth size={18} color={estChoisi ? couleurs.bleu : couleurs.encreAttenuee} />
                   <View style={styles.carteTexte}>
                     <Text style={styles.nom}>{item.nom}</Text>
@@ -94,7 +109,14 @@ export function EcranImprimante({ onRetour }: EcranImprimanteProps) {
                   </View>
                   {estChoisi && <Check size={18} color={couleurs.bleu} />}
                 </Pressable>
-                <Pressable style={styles.boutonTest} onPress={() => tester(item)} disabled={enTest === item.address}>
+                <Pressable
+                  style={styles.boutonTest}
+                  onPress={() => tester(item)}
+                  disabled={enTest === item.address}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Imprimer un ticket de test sur ${item.nom}`}
+                  accessibilityState={{ disabled: enTest === item.address, busy: enTest === item.address }}
+                >
                   <Text style={styles.boutonTestTexte}>{enTest === item.address ? "…" : "Imprimer un ticket de test"}</Text>
                 </Pressable>
               </View>
@@ -102,7 +124,7 @@ export function EcranImprimante({ onRetour }: EcranImprimanteProps) {
           }}
         />
 
-        <Pressable style={styles.boutonSecondaire} onPress={charger}>
+        <Pressable style={styles.boutonSecondaire} onPress={charger} accessibilityRole="button">
           <Text style={styles.boutonSecondaireTexte}>Actualiser la liste</Text>
         </Pressable>
       </View>
@@ -131,7 +153,7 @@ const styles = StyleSheet.create({
   carteTexte: { flex: 1 },
   nom: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
   adresse: { fontSize: 12, color: couleurs.encreAttenuee },
-  boutonTest: { borderTopWidth: 1, borderTopColor: couleurs.bordure, padding: espacements.s3, alignItems: "center" },
+  boutonTest: { borderTopWidth: 1, borderTopColor: couleurs.bordure, padding: espacements.s3, minHeight: 44, alignItems: "center", justifyContent: "center" },
   boutonTestTexte: { fontSize: 13, fontWeight: "600", color: couleurs.bleu },
   boutonSecondaire: {
     minHeight: 44,

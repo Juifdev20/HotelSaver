@@ -8,6 +8,8 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { useSession } from "../contexteSession";
+import { dateComplete, heureCourte } from "../dates";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranRapportsProps {
   onRetour: () => void;
@@ -31,14 +33,9 @@ function moisDisponibles(): { valeur: string; libelle: string }[] {
 
 const LIBELLES: Record<DepartementRapport, string> = { CAFETERIA: "Cafétaria", RECEPTION: "Réception" };
 
+/** Date et heure de Lubumbashi, quel que soit le fuseau réglé sur le téléphone. */
 function dateHeure(iso: string): string {
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
+  return `${dateComplete(iso)} ${heureCourte(iso)}`;
 }
 
 /**
@@ -60,8 +57,12 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
   const charger = useCallback(() => {
     client
       .listerRapports(moisChoisi)
-      .then(setRapports)
-      .catch((e: Error) => setErreur(e.message));
+      .then((liste) => {
+        setRapports(liste);
+        setErreur(null);
+      })
+      // Les rapports déjà affichés restent à l'écran si le rechargement échoue.
+      .catch((e: unknown) => setErreur(messageErreur(e, "Les rapports n'ont pas pu être chargés. Tirez pour réessayer ou rouvrez l'écran.")));
   }, [client, moisChoisi]);
 
   useEffect(charger, [charger]);
@@ -73,7 +74,7 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
       await client.genererRapport(departement, moisChoisi);
       charger();
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "Le rapport n'a pas pu être généré. Réessayez."));
     } finally {
       setEnCours(null);
     }
@@ -86,7 +87,7 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
       const { url } = await client.urlRapport(id);
       await Linking.openURL(url);
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Impossible d'ouvrir le PDF.");
+      setErreur(`Le PDF n'a pas pu être ouvert : ${messageErreur(e, "vérifiez la connexion et qu'une application peut lire les PDF.")}`);
     } finally {
       setEnCours(null);
     }
@@ -116,7 +117,13 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
       <EnteteRetour titre="Rapports mensuels" onRetour={onRetour} />
       <ConteneurFormulaire styleContenu={styles.contenu}>
         {/* Sélecteur de mois */}
-        <Pressable style={styles.selecteur} onPress={() => setMoisOuvert((v) => !v)} accessibilityRole="button">
+        <Pressable
+          style={styles.selecteur}
+          onPress={() => setMoisOuvert((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={`Mois : ${libelleMois}. Changer de mois`}
+          accessibilityState={{ expanded: moisOuvert }}
+        >
           <Text style={styles.selecteurTexte}>{libelleMois}</Text>
           {moisOuvert ? <ChevronUp size={18} color={couleurs.encre} /> : <ChevronDown size={18} color={couleurs.encre} />}
         </Pressable>
@@ -129,12 +136,19 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
                 setMoisChoisi(m.valeur);
                 setMoisOuvert(false);
               }}
+              accessibilityRole="button"
+              accessibilityLabel={m.libelle}
+              accessibilityState={{ selected: m.valeur === moisChoisi }}
             >
               <Text style={m.valeur === moisChoisi ? styles.moisOptionTexteActif : styles.moisOptionTexte}>{m.libelle}</Text>
             </Pressable>
           ))}
 
-        {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+        {erreur && (
+          <Text style={styles.erreur} accessibilityRole="alert">
+            {erreur}
+          </Text>
+        )}
         {rapports === null && !erreur && <Text style={styles.discret}>Chargement…</Text>}
 
         {rapports?.map &&
@@ -157,18 +171,18 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
                     </Text>
                     <View style={styles.badges}>
                       {actif.concordant ? (
-                        <View style={styles.badgeOk}>
+                        <View style={styles.badgeOk} accessible accessibilityLabel="Rapport concordant avec les reçus">
                           <CircleCheck size={13} color={couleurs.succes} />
                           <Text style={styles.badgeOkTexte}>Concordant</Text>
                         </View>
                       ) : (
-                        <View style={styles.badgeKo}>
+                        <View style={styles.badgeKo} accessible accessibilityLabel="Écart détecté entre le rapport et les reçus">
                           <FileWarning size={13} color={couleurs.danger} />
                           <Text style={styles.badgeKoTexte}>Écart détecté</Text>
                         </View>
                       )}
                       {actif.provisoire && (
-                        <View style={styles.badgeProvisoire}>
+                        <View style={styles.badgeProvisoire} accessible accessibilityLabel="Rapport provisoire : il contient des reçus provisoires">
                           <Text style={styles.badgeProvisoireTexte}>Provisoire</Text>
                         </View>
                       )}
@@ -222,6 +236,8 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
                   <Pressable
                     style={styles.revisions}
                     onPress={() => setRevisionsOuvertes((v) => ({ ...v, [departement]: !v[departement] }))}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: !!revisionsOuvertes[departement] }}
                   >
                     <Text style={styles.revisionsTexte}>Révisions précédentes ({remplaces.length})</Text>
                   </Pressable>
@@ -232,7 +248,13 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
                       <Text style={styles.revisionTexte}>
                         {r.numero} — {r.genereParNom}, {dateHeure(r.genereLe)}
                       </Text>
-                      <Pressable onPress={() => ouvrir(r.id)} disabled={enCours !== null}>
+                      <Pressable
+                        onPress={() => ouvrir(r.id)}
+                        disabled={enCours !== null}
+                        style={styles.zoneTactile}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Ouvrir la révision ${r.numero}`}
+                      >
                         <Text style={styles.revisionOuvrir}>Ouvrir</Text>
                       </Pressable>
                     </View>
@@ -260,7 +282,10 @@ const styles = StyleSheet.create({
     paddingVertical: espacements.s3,
   },
   selecteurTexte: { fontSize: 15, fontWeight: "600", color: couleurs.encre, textTransform: "capitalize" },
+  zoneTactile: { minHeight: 44, minWidth: 44, justifyContent: "center", alignItems: "center" },
   moisOption: {
+    minHeight: 44,
+    justifyContent: "center",
     backgroundColor: couleurs.surface200,
     borderRadius: rayons.sm,
     paddingHorizontal: espacements.s4,
@@ -311,12 +336,12 @@ const styles = StyleSheet.create({
   },
   badgeProvisoireTexte: { fontSize: 12, color: couleurs.info, fontWeight: "600" },
   actions: { flexDirection: "row", gap: espacements.s3, marginTop: espacements.s3 },
-  bouton: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: rayons.md, paddingVertical: 10, paddingHorizontal: 14 },
+  bouton: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: rayons.md, minHeight: 44, paddingHorizontal: 14 },
   boutonPrimaire: { backgroundColor: couleurs.bleu },
   boutonPrimaireTexte: { color: "#fff", fontSize: 14, fontWeight: "600" },
   boutonSecondaire: { borderWidth: 1, borderColor: couleurs.bleu, backgroundColor: couleurs.surface200 },
   boutonSecondaireTexte: { color: couleurs.bleu, fontSize: 14, fontWeight: "600" },
-  revisions: { marginTop: espacements.s3 },
+  revisions: { marginTop: espacements.s3, minHeight: 44, justifyContent: "center" },
   revisionsTexte: { fontSize: 13, color: couleurs.encreFaible, textDecorationLine: "underline" },
   revisionLigne: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: espacements.s2 },
   revisionTexte: { fontSize: 13, color: couleurs.encreFaible, flex: 1 },

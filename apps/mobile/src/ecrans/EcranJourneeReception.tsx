@@ -8,6 +8,8 @@ import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
+import { dateComplete } from "../dates";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranJourneeReceptionProps {
   onRetour?: () => void;
@@ -38,11 +40,12 @@ export function EcranJourneeReception({ onRetour }: EcranJourneeReceptionProps) 
   const [rafraichissement, setRafraichissement] = useState(false);
 
   const charger = useCallback(async () => {
-    setErreur(null);
     try {
       setJournal(await client.journeeReception());
+      setErreur(null);
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Impossible de charger le journal.");
+      // Le journal déjà affiché reste à l'écran ; on dit seulement qu'il n'a pas pu être actualisé.
+      setErreur(messageErreur(e, "Le journal n'a pas pu être chargé. Tirez pour réessayer."));
     }
   }, [client]);
 
@@ -60,23 +63,28 @@ export function EcranJourneeReception({ onRetour }: EcranJourneeReceptionProps) 
     <View style={styles.page}>
       <EnteteMobile />
       {onRetour ? (
-        <EnteteRetour titre="Journal de la journée" sousTitre="Remise de poste" onRetour={onRetour} />
+        <EnteteRetour titre="Journal de la journée" sousTitre={`Remise de poste · ${dateComplete(new Date())}`} onRetour={onRetour} />
       ) : (
         <View style={styles.entete}>
-          <Text style={styles.titre}>Journal de la journée</Text>
+          <Text style={styles.titre} accessibilityRole="header">Journal de la journée</Text>
+          <Text style={styles.ligneSecondaire}>Remise de poste · {dateComplete(new Date())}</Text>
         </View>
       )}
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
 
       {!journal ? (
-        <ActivityIndicator style={{ marginTop: espacements.s6 }} color={couleurs.bleu} />
+        <ActivityIndicator style={{ marginTop: espacements.s6 }} color={couleurs.bleu} accessibilityLabel="Chargement" />
       ) : (
         <ScrollView
           contentContainerStyle={styles.contenu}
           refreshControl={<RefreshControl refreshing={rafraichissement} onRefresh={actualiser} />}
         >
           <View style={styles.carte}>
-            <Text style={styles.titreCarte}>Encaissements du jour</Text>
+            <Text style={styles.titreCarte} accessibilityRole="header">Encaissements du jour</Text>
             <View style={styles.ligneMontant}>
               <Text style={styles.ligneSecondaire}>Chambres ({journal.recette.chambres.nombreFactures} facture{journal.recette.chambres.nombreFactures > 1 ? "s" : ""})</Text>
               <Text style={styles.montant}>
@@ -101,7 +109,7 @@ export function EcranJourneeReception({ onRetour }: EcranJourneeReceptionProps) 
           </View>
 
           <View style={styles.carte}>
-            <Text style={styles.titreCarte}>
+            <Text style={styles.titreCarte} accessibilityRole="header">
               Arrivées · {journal.arrivees.effectuees.length} faite{journal.arrivees.effectuees.length > 1 ? "s" : ""} ·{" "}
               {journal.arrivees.restantes.length} restante{journal.arrivees.restantes.length > 1 ? "s" : ""}
             </Text>
@@ -114,7 +122,7 @@ export function EcranJourneeReception({ onRetour }: EcranJourneeReceptionProps) 
           </View>
 
           <View style={styles.carte}>
-            <Text style={styles.titreCarte}>
+            <Text style={styles.titreCarte} accessibilityRole="header">
               Départs · {journal.departs.effectues.length} fait{journal.departs.effectues.length > 1 ? "s" : ""} ·{" "}
               {journal.departs.restants.length} restant{journal.departs.restants.length > 1 ? "s" : ""}
             </Text>
@@ -127,7 +135,7 @@ export function EcranJourneeReception({ onRetour }: EcranJourneeReceptionProps) 
           </View>
 
           <View style={styles.carte}>
-            <Text style={styles.titreCarte}>Parc de chambres ({journal.chambres.tauxOccupationPourcent}% occupé)</Text>
+            <Text style={styles.titreCarte} accessibilityRole="header">Parc de chambres ({journal.chambres.tauxOccupationPourcent}% occupé)</Text>
             <View style={styles.parc}>
               <View style={[styles.puce, { backgroundColor: couleurs.succesClair }]}>
                 <Text style={styles.puceValeur}>{journal.chambres.libres}</Text>

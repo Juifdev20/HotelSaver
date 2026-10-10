@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { TauxChange } from "@hotel-chicago/api-client";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -10,7 +10,13 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
+import { lireTauxChange } from "@hotel-chicago/regles";
+import { confirmerAction } from "../confirmer";
+import { dateComplete, heureCourte } from "../dates";
+import { messageErreur } from "../messagesErreur";
+
+/** L'historique affiche les derniers taux seulement : le reste n'apporte rien à la caisse. */
+const MAX_HISTORIQUE = 30;
 
 export interface EcranTauxChangeProps {
   onRetour: () => void;
@@ -33,8 +39,11 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
 
   const recharger = useCallback(() => {
     Promise.all([client.listerTauxChange()])
-      .then(([h]) => setHistorique(h))
-      .catch((e: Error) => setErreur(e.message));
+      .then(([h]) => {
+        setHistorique(h);
+        setErreur(null);
+      })
+      .catch((e: unknown) => setErreur(messageErreur(e, "L'historique des taux n'a pas pu être chargé. Réessayez.")));
   }, [client]);
 
   useEffect(recharger, [recharger]);
@@ -50,14 +59,13 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
     }
     setErreur(null);
     const ancien = actuel ? `Taux actuel : 1 $ = ${formatMontant(actuel.cdfParUsd, Devise.CDF)}.\n` : "";
-    Alert.alert(
-      "Confirmer le nouveau taux ?",
-      `${ancien}Nouveau taux : 1 $ = ${formatMontant(lu.valeur, Devise.CDF)}.\nIl servira aux prochains paiements croisés.`,
-      [
-        { text: "Corriger", style: "cancel" },
-        { text: "Enregistrer", onPress: () => void enregistrer(lu.valeur) },
-      ]
-    );
+    confirmerAction({
+      titre: "Confirmer le nouveau taux ?",
+      message: `${ancien}Nouveau taux : 1 $ = ${formatMontant(lu.valeur, Devise.CDF)}.\nIl servira aux prochains paiements croisés.`,
+      libelleConfirmer: "Enregistrer le taux",
+      libelleRefuser: "Corriger",
+      onConfirmer: () => enregistrer(lu.valeur),
+    });
   }
 
   async function enregistrer(valeur: number) {
@@ -70,7 +78,7 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
       setConfirmation(`Taux enregistré : 1 $ = ${formatMontant(valeur, Devise.CDF)}`);
       recharger();
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "Le taux n'a pas pu être enregistré. Réessayez."));
     } finally {
       setEnCours(false);
     }
@@ -92,7 +100,7 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
             {actuel ? `1 $ = ${formatMontant(actuel.cdfParUsd, Devise.CDF)}` : historique ? "Aucun taux défini" : "…"}
           </Text>
           {actuel && (
-            <Text style={styles.dateActuel}>Depuis le {new Date(actuel.createdAt).toLocaleDateString("fr-FR")}</Text>
+            <Text style={styles.dateActuel}>Depuis le {dateComplete(actuel.createdAt)}</Text>
           )}
         </View>
 
@@ -102,16 +110,27 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
             style={styles.champ}
             value={saisie}
             onChangeText={setSaisie}
+            accessibilityLabel="Nouveau taux : francs congolais pour 1 dollar"
             placeholder="Ex. 2800"
             placeholderTextColor={couleurs.encreFaible}
             keyboardType="numeric"
           />
-          {erreur && <Text style={styles.erreur}>{erreur}</Text>}
-          {confirmation && <Text style={styles.confirmation}>{confirmation}</Text>}
+          {erreur && (
+            <Text style={styles.erreur} accessibilityRole="alert">
+              {erreur}
+            </Text>
+          )}
+          {confirmation && (
+            <Text style={styles.confirmation} accessibilityLiveRegion="polite">
+              {confirmation}
+            </Text>
+          )}
           <Pressable
             style={[styles.bouton, !etatSync.enLigne && styles.boutonInactif]}
             onPress={demanderConfirmation}
             disabled={enCours || !etatSync.enLigne}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: enCours || !etatSync.enLigne, busy: enCours }}
           >
             <Text style={styles.boutonTexte}>{enCours ? "…" : "Enregistrer"}</Text>
           </Pressable>
@@ -123,7 +142,7 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
         {!historique && <ActivityIndicator color={couleurs.bleu} />}
         {historique && historique.length > 0 && (
           <FlatList
-            data={historique}
+            data={historique.slice(0, MAX_HISTORIQUE)}
             keyExtractor={(t) => t.id}
             scrollEnabled={false}
             contentContainerStyle={styles.historique}
@@ -131,7 +150,7 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
               <View style={styles.ligneHistorique}>
                 <Text style={styles.valeurHistorique}>1 $ = {formatMontant(item.cdfParUsd, Devise.CDF)}</Text>
                 <Text style={styles.dateHistorique}>
-                  {new Date(item.createdAt).toLocaleDateString("fr-FR")} {new Date(item.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                  {dateComplete(item.createdAt)} {heureCourte(item.createdAt)}
                 </Text>
               </View>
             )}

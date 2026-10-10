@@ -13,6 +13,7 @@ import { ChefHat, Clock, RefreshCw } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
+import { messageErreur } from "../messagesErreur";
 
 interface LigneCuisine {
   id: string;
@@ -54,17 +55,22 @@ export function EcranCuisine({ client, onRetour, onOuvrirCompte }: EcranCuisineP
   const [groupes, setGroupes] = useState<GroupeCuisine[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
+  // Échec d'un changement de statut (« Prendre en charge », « Prêt ») : à dire, la cuisine croirait sinon le plat signalé.
+  const [erreurAction, setErreurAction] = useState<string | null>(null);
   const [maintenant, setMaintenant] = useState(() => Date.now());
   const [enCours, setEnCours] = useState<Set<string>>(new Set());
 
   const charger = useCallback(
     (silencieux = false) => {
       if (!silencieux) setChargement(true);
-      setErreur(null);
       client
         .lignesPourCuisine()
-        .then((data) => setGroupes(data as GroupeCuisine[]))
-        .catch((e: Error) => setErreur(e.message))
+        .then((data) => {
+          setGroupes(data as GroupeCuisine[]);
+          setErreur(null);
+        })
+        // Les commandes déjà affichées restent à l'écran : on signale seulement que la liste n'est plus à jour.
+        .catch((e: unknown) => setErreur(messageErreur(e, "La liste des commandes n'a pas pu être actualisée.")))
         .finally(() => setChargement(false));
     },
     [client]
@@ -86,11 +92,12 @@ export function EcranCuisine({ client, onRetour, onOuvrirCompte }: EcranCuisineP
 
   async function avancerStatut(ligneId: string, statut: StatutLigne) {
     setEnCours((prev) => new Set(prev).add(ligneId));
+    setErreurAction(null);
     try {
       await client.majStatutLigne(ligneId, statut);
       charger(true);
-    } catch {
-      // Silencieux : le rafraîchissement automatique remettra l'état correct
+    } catch (e) {
+      setErreurAction(messageErreur(e, "Le statut du plat n'a pas pu être changé. Réessayez."));
     } finally {
       setEnCours((prev) => {
         const next = new Set(prev);
@@ -113,7 +120,7 @@ export function EcranCuisine({ client, onRetour, onOuvrirCompte }: EcranCuisineP
         }
         onRetour={onRetour}
         action={
-          <Pressable style={styles.boutonRafraichir} onPress={() => charger()}>
+          <Pressable style={styles.boutonRafraichir} onPress={() => charger()} accessibilityRole="button" accessibilityLabel="Actualiser les commandes">
             <RefreshCw size={18} color={couleurs.encre} />
           </Pressable>
         }
@@ -134,7 +141,17 @@ export function EcranCuisine({ client, onRetour, onOuvrirCompte }: EcranCuisineP
         </View>
       )}
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+          {groupes.length > 0 ? " Les commandes affichées peuvent ne pas être à jour." : ""}
+        </Text>
+      )}
+      {erreurAction && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreurAction}
+        </Text>
+      )}
 
       {chargement && groupes.length === 0 && (
         <View style={styles.videConteneur}>
@@ -211,6 +228,9 @@ export function EcranCuisine({ client, onRetour, onOuvrirCompte }: EcranCuisineP
                         avancerStatut(ligne.id, enAttente ? StatutLigne.EN_PREPARATION : StatutLigne.PRET)
                       }
                       disabled={occupee}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${enAttente ? "Prendre en charge" : "Marquer prêt"} : ${ligne.quantite} ${ligne.produit.nom}, ${groupe.tableOuNom}`}
+                      accessibilityState={{ disabled: occupee, busy: occupee }}
                     >
                       {occupee ? (
                         <ActivityIndicator size="small" color="#fff" />
@@ -262,7 +282,7 @@ const styles = StyleSheet.create({
   },
   boutonRetourTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encre },
   boutonRafraichir: {
-    width: 36, height: 36, borderRadius: rayons.sm,
+    width: 44, height: 44, borderRadius: rayons.sm,
     borderWidth: 1, borderColor: couleurs.bordure,
     alignItems: "center", justifyContent: "center",
     backgroundColor: couleurs.surface100,

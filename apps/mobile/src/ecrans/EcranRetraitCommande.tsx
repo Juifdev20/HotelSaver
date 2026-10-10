@@ -6,6 +6,7 @@ import { Ticket } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranRetraitCommandeProps {
   client: ClientApi;
@@ -33,7 +34,7 @@ export function EcranRetraitCommande({ client, onRetour, onOuvrirCompte }: Ecran
       const compte = await client.trouverCompteParReference(reference);
       onOuvrirCompte(compte.id);
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Recherche impossible pour le moment.");
+      setErreur(messageErreur(e, "Recherche impossible pour le moment. Vérifiez la référence puis réessayez."));
     } finally {
       setChargement(false);
     }
@@ -56,6 +57,7 @@ export function EcranRetraitCommande({ client, onRetour, onOuvrirCompte }: Ecran
             style={styles.champ}
             value={reference}
             onChangeText={setReference}
+            accessibilityLabel="Référence du ticket de la commande"
             placeholder="Ex. E6A5E231"
             placeholderTextColor={couleurs.encreFaible}
             autoCapitalize="characters"
@@ -63,11 +65,18 @@ export function EcranRetraitCommande({ client, onRetour, onOuvrirCompte }: Ecran
             returnKeyType="search"
             onSubmitEditing={() => void rechercher()}
           />
-          {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+          {erreur && (
+            <Text style={styles.erreur} accessibilityRole="alert">
+              {erreur}
+            </Text>
+          )}
           <Pressable
             style={[styles.bouton, (!reference.trim() || chargement) && styles.boutonDesactive]}
             disabled={!reference.trim() || chargement}
             onPress={() => void rechercher()}
+            accessibilityRole="button"
+            accessibilityLabel={chargement ? "Recherche en cours" : "Ouvrir la commande"}
+            accessibilityState={{ disabled: !reference.trim() || chargement, busy: chargement }}
           >
             {chargement ? (
               <ActivityIndicator color="#fff" size="small" />

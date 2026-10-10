@@ -13,6 +13,8 @@ import { SelecteurPhotos, nettoyerImages } from "../composants/SelecteurPhotos";
 import { MAX_PHOTOS_CHAMBRE } from "@hotel-chicago/types";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { confirmerAction } from "../confirmer";
+import { messageErreur } from "../messagesErreur";
 import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
 
 const COULEUR_PAR_STATUT: Record<StatutChambre, { fond: string; texte: string }> = {
@@ -96,7 +98,7 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
       // Écrit dans la base du téléphone ET dans la file d'envoi : marche sans réseau.
       await client.modifierStatutChambre(chambre.id, statut);
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "Le statut n'a pas pu être changé. Réessayez."));
     }
     rechargerMiroir();
   }
@@ -169,14 +171,27 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
       setFormulaire("ferme");
       await synchroniserApresAction();
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "La chambre n'a pas pu être enregistrée. Réessayez."));
     } finally {
       setEnCours(false);
     }
   }
 
-  async function supprimerChambre() {
+  /** Supprimer une chambre est définitif : on la nomme avant (retour U3). */
+  function demanderSuppression() {
     if (!chambreEnEdition) return;
+    confirmerAction({
+      titre: `Supprimer la chambre ${chambreEnEdition.numero} ?`,
+      message: `${chambreEnEdition.type} · ${formatMontant(chambreEnEdition.prixParNuit, chambreEnEdition.devise)} par nuit.\nLa chambre disparaît de la liste et ne pourra plus être réservée. Les séjours et factures déjà faits restent dans l'historique.`,
+      libelleConfirmer: "Supprimer la chambre",
+      libelleRefuser: "Garder",
+      destructif: true,
+      onConfirmer: supprimerChambre,
+    });
+  }
+
+  async function supprimerChambre() {
+    if (!chambreEnEdition || enCours) return;
     const cible = chambreEnEdition;
     setEnCours(true);
     setErreur(null);
@@ -185,11 +200,23 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
       setFormulaire("ferme");
       rechargerMiroir();
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "La chambre n'a pas pu être supprimée. Réessayez."));
     } finally {
       setEnCours(false);
     }
   }
+
+  /** Un champ du formulaire a été touché : la feuille demande avant d'abandonner (retour U12). */
+  const saisieModifiee =
+    formulaire === "creation"
+      ? numero !== "" || type !== "" || prix !== "" || photos.length > 0
+      : chambreEnEdition
+        ? numero !== chambreEnEdition.numero ||
+          type !== chambreEnEdition.type ||
+          prix !== chambreEnEdition.prixParNuit ||
+          devise !== chambreEnEdition.devise ||
+          photos.join("|") !== photosAvant.join("|")
+        : false;
 
   return (
     <View style={styles.page}>
@@ -200,7 +227,11 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
         onRetour={onRetour}
       />
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && formulaire === "ferme" && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
 
       {chambres?.length === 0 && (
         <View style={styles.videConteneur}>
@@ -217,7 +248,13 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
         renderItem={({ item }) => {
           const tone = COULEUR_PAR_STATUT[item.statut];
           return (
-            <Pressable style={styles.carte} onPress={() => setChambreChoisie(item)}>
+            <Pressable
+              style={styles.carte}
+              onPress={() => setChambreChoisie(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Chambre ${item.numero}, ${item.type}, ${LABEL_PAR_STATUT[item.statut]}, ${formatMontant(item.prixParNuit, item.devise)} par nuit`}
+              accessibilityHint="Ouvre les actions de la chambre"
+            >
               <View style={styles.carteEntete}>
                 <Text style={styles.numero}>{item.numero}</Text>
                 <View style={[styles.badge, { backgroundColor: tone.fond }]}>
@@ -238,13 +275,20 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
       >
         {peutOperer(utilisateur) &&
           TOUS_LES_STATUTS.map((statut) => (
-            <Pressable key={statut} style={styles.optionStatut} onPress={() => choisirStatut(statut)}>
+            <Pressable
+              key={statut}
+              style={styles.optionStatut}
+              onPress={() => choisirStatut(statut)}
+              accessibilityRole="button"
+              accessibilityLabel={`Passer la chambre en ${LABEL_PAR_STATUT[statut]}`}
+              accessibilityState={{ selected: chambreChoisie?.statut === statut }}
+            >
               <View style={[styles.pastilleStatut, { backgroundColor: COULEUR_PAR_STATUT[statut].texte }]} />
               <Text style={styles.optionStatutTexte}>{LABEL_PAR_STATUT[statut]}</Text>
             </Pressable>
           ))}
         {estPatron && chambreChoisie && (
-          <Pressable style={styles.optionModifier} onPress={() => ouvrirEdition(chambreChoisie)}>
+          <Pressable style={styles.optionModifier} onPress={() => ouvrirEdition(chambreChoisie)} accessibilityRole="button">
             <Text style={styles.optionModifierTexte}>Modifier la chambre (numéro, type, prix)</Text>
           </Pressable>
         )}
@@ -254,13 +298,15 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
         visible={formulaire !== "ferme"}
         onFermer={fermerFormulaire}
         titre={formulaire === "creation" ? "Nouvelle chambre" : `Chambre ${chambreEnEdition?.numero ?? ""}`}
+        modifie={saisieModifiee}
+        enCours={enCours}
       >
         <Text style={styles.champLabel}>Numéro</Text>
-        <TextInput style={styles.champ} value={numero} onChangeText={setNumero} placeholder="Ex. 104" placeholderTextColor={couleurs.encreFaible} />
+        <TextInput style={styles.champ} value={numero} onChangeText={setNumero} accessibilityLabel="Numéro de la chambre" placeholder="Ex. 104" placeholderTextColor={couleurs.encreFaible} />
         <Text style={styles.champLabel}>Type</Text>
-        <TextInput style={styles.champ} value={type} onChangeText={setType} placeholder="Ex. Standard, Suite…" placeholderTextColor={couleurs.encreFaible} />
+        <TextInput style={styles.champ} value={type} onChangeText={setType} accessibilityLabel="Type de la chambre" placeholder="Ex. Standard, Suite…" placeholderTextColor={couleurs.encreFaible} />
         <Text style={styles.champLabel}>Prix par nuit</Text>
-        <TextInput style={styles.champ} value={prix} onChangeText={setPrix} placeholder="Ex. 45" placeholderTextColor={couleurs.encreFaible} keyboardType="numeric" />
+        <TextInput style={styles.champ} value={prix} onChangeText={setPrix} accessibilityLabel="Prix par nuit" placeholder="Ex. 45" placeholderTextColor={couleurs.encreFaible} keyboardType="numeric" />
         <SelecteurPhotos
           client={client}
           usage="chambre"
@@ -277,17 +323,36 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
               key={d}
               style={[styles.optionDevise, devise === d && styles.optionDeviseActive]}
               onPress={() => setDevise(d)}
+              accessibilityRole="radio"
+              accessibilityLabel={`Devise ${d}`}
+              accessibilityState={{ checked: devise === d }}
             >
               <Text style={[styles.optionDeviseTexte, devise === d && styles.optionDeviseTexteActif]}>{d}</Text>
             </Pressable>
           ))}
         </View>
-        {erreur && <Text style={styles.erreur}>{erreur}</Text>}
-        <Pressable style={styles.boutonEnregistrer} onPress={enregistrerChambre} disabled={enCours}>
+        {erreur && (
+          <Text style={styles.erreur} accessibilityRole="alert">
+            {erreur}
+          </Text>
+        )}
+        <Pressable
+          style={styles.boutonEnregistrer}
+          onPress={enregistrerChambre}
+          disabled={enCours}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: enCours, busy: enCours }}
+        >
           <Text style={styles.boutonEnregistrerTexte}>{enCours ? "…" : "Enregistrer"}</Text>
         </Pressable>
         {formulaire === "edition" && (
-          <Pressable style={styles.boutonSupprimer} onPress={supprimerChambre} disabled={enCours}>
+          <Pressable
+            style={styles.boutonSupprimer}
+            onPress={demanderSuppression}
+            disabled={enCours}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: enCours, busy: enCours }}
+          >
             <Text style={styles.boutonSupprimerTexte}>{enCours ? "…" : "Supprimer la chambre"}</Text>
           </Pressable>
         )}
@@ -322,7 +387,7 @@ const styles = StyleSheet.create({
   badgeTexte: { fontSize: 11, fontWeight: "700" },
   type: { fontSize: 14, color: couleurs.encreAttenuee },
   prix: { fontSize: 16, fontWeight: "700", color: couleurs.encre, marginTop: 2 },
-  optionStatut: { flexDirection: "row", alignItems: "center", gap: espacements.s3, paddingVertical: espacements.s3 },
+  optionStatut: { flexDirection: "row", alignItems: "center", gap: espacements.s3, paddingVertical: espacements.s3, minHeight: 44 },
   pastilleStatut: { width: 12, height: 12, borderRadius: rayons.pill },
   optionStatutTexte: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
   optionModifier: {
@@ -330,6 +395,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: couleurs.bordure,
     paddingTop: espacements.s3,
+    minHeight: 44,
+    justifyContent: "center",
   },
   optionModifierTexte: { fontSize: 14, fontWeight: "600", color: couleurs.bleu },
   champLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },

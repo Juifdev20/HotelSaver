@@ -17,6 +17,7 @@ import { formatMontant } from "../formatMontant";
 import { Donut } from "../composants/Donut";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { useDonnee } from "../hooks/useDonnee";
+import { formaterLubumbashi, heureCourte } from "../dates";
 
 export interface EcranTableauDeBordProps {
   client: ClientApi;
@@ -25,12 +26,14 @@ export interface EcranTableauDeBordProps {
 }
 
 function dateDuJour(date: Date): string {
-  const texte = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(date);
+  // Jour de Lubumbashi, quel que soit le fuseau réglé sur le téléphone (dates.ts).
+  const texte = formaterLubumbashi(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return texte.charAt(0).toUpperCase() + texte.slice(1);
 }
 
 function heureCourante(date: Date): string {
-  return new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(date);
+  // Heure de Lubumbashi ; les secondes sont identiques sous tous les fuseaux (décalage d'heures entières).
+  return `${heureCourte(date)}:${String(date.getSeconds()).padStart(2, "0")}`;
 }
 
 /** Horloge vivante (secondes comprises) isolée dans ce hook : seul le petit
@@ -110,7 +113,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
       >
         <ImageBackgroundHero utilisateur={utilisateur} />
 
-        {recette.erreur && <Text style={styles.erreur}>{recette.erreur}</Text>}
+        {recette.erreur && <Text style={styles.erreur} accessibilityRole="alert">{recette.erreur}</Text>}
         <View style={styles.grilleKpi}>
           <Carte
             icone={<Wallet size={18} color={couleurs.bleu} />}
@@ -153,7 +156,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
         {voitChambres && (
           <View style={styles.bloc}>
             <Text style={styles.blocTitre}>Taux d'occupation</Text>
-            {occupation.erreur && <Text style={styles.erreur}>{occupation.erreur}</Text>}
+            {occupation.erreur && <Text style={styles.erreur} accessibilityRole="alert">{occupation.erreur}</Text>}
             <View style={styles.ligneOccupation}>
               <Donut
                 segments={[
@@ -170,7 +173,13 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
                   { libelle: "Libres", valeur: o?.libres, couleur: couleurs.succes },
                   { libelle: "Réservées", valeur: o?.reservees, couleur: couleurs.alerte },
                 ].map((ligne) => (
-                  <Pressable key={ligne.libelle} style={styles.ligneLegende} onPress={onAllerAuxChambres}>
+                  <Pressable
+                    key={ligne.libelle}
+                    style={styles.ligneLegende}
+                    onPress={onAllerAuxChambres}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${ligne.libelle} : ${ligne.valeur ?? "chargement"}. Ouvrir les chambres`}
+                  >
                     <View style={[styles.pastille, { backgroundColor: ligne.couleur }]} />
                     <Text style={styles.legendeTexte}>{ligne.libelle}</Text>
                     <Text style={styles.legendeValeur}>{ligne.valeur ?? "…"}</Text>
@@ -184,7 +193,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
         {voitStock && (
           <View style={styles.bloc}>
             <Text style={styles.blocTitre}>Stock bas</Text>
-            {stockBas.erreur && <Text style={styles.erreur}>{stockBas.erreur}</Text>}
+            {stockBas.erreur && <Text style={styles.erreur} accessibilityRole="alert">{stockBas.erreur}</Text>}
             {stockBas.donnee?.length === 0 && (
               <View style={styles.videConteneur}>
                 <Package size={26} color={couleurs.encreFaible} />
@@ -206,7 +215,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
 
         <View style={styles.bloc}>
           <Text style={styles.blocTitre}>Activité récente</Text>
-          {activite.erreur && <Text style={styles.erreur}>{activite.erreur}</Text>}
+          {activite.erreur && <Text style={styles.erreur} accessibilityRole="alert">{activite.erreur}</Text>}
           {activite.donnee && evenements.length === 0 && (
             <View style={styles.videConteneur}>
               <ReceiptText size={26} color={couleurs.encreFaible} />
@@ -350,7 +359,7 @@ const styles = StyleSheet.create({
   ligneOccupation: { flexDirection: "row", alignItems: "center", gap: espacements.s4 },
   donutTexte: { fontWeight: "700", fontSize: 16, color: couleurs.encre },
   legende: { flex: 1, gap: espacements.s1 },
-  ligneLegende: { flexDirection: "row", alignItems: "center", gap: espacements.s2, paddingVertical: 4 },
+  ligneLegende: { flexDirection: "row", alignItems: "center", gap: espacements.s2, minHeight: 44 },
   pastille: { width: 8, height: 8, borderRadius: rayons.pill },
   legendeTexte: { flex: 1, fontSize: 13, color: couleurs.encre },
   legendeValeur: { fontSize: 13, fontWeight: "700", color: couleurs.encre },

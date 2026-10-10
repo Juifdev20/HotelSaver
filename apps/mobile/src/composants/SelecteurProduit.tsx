@@ -27,7 +27,12 @@ export function SelecteurProduit({ visible, produits, onChoisir, onFermer }: Sel
           style={styles.liste}
           ItemSeparatorComponent={() => <View style={styles.separateur} />}
           renderItem={({ item }) => (
-            <Pressable style={styles.ligne} onPress={() => onChoisir(item)}>
+            <Pressable
+              style={styles.ligne}
+              onPress={() => onChoisir(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.nom}, ${item.categorie}, ${formatMontant(item.prix, item.devise)}`}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={styles.nom}>{item.nom}</Text>
                 <Text style={styles.categorie}>{item.categorie}</Text>
@@ -44,7 +49,7 @@ export function SelecteurProduit({ visible, produits, onChoisir, onFermer }: Sel
 const styles = StyleSheet.create({
   liste: { maxHeight: 360 },
   separateur: { height: 1, backgroundColor: couleurs.bordure },
-  ligne: { flexDirection: "row", alignItems: "center", paddingVertical: espacements.s3, gap: espacements.s3 },
+  ligne: { flexDirection: "row", alignItems: "center", paddingVertical: espacements.s3, minHeight: 44, gap: espacements.s3 },
   nom: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
   categorie: { fontSize: 12, color: couleurs.encreAttenuee, marginTop: 2 },
   prix: { fontSize: 14, fontWeight: "700", color: couleurs.encre },

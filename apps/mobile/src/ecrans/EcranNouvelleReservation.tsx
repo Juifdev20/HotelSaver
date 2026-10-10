@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import type { Chambre, Client, Reservation } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -9,7 +9,10 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { SelecteurDate, saisieDepuisIso } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
-import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
+import { lireMontant } from "@hotel-chicago/regles";
+import { ajouterJours, dateComplete, midiLubumbashi } from "../dates";
+import { confirmerAction } from "../confirmer";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranNouvelleReservationProps {
   onRetour: () => void;
@@ -22,19 +25,21 @@ export interface EcranNouvelleReservationProps {
 
 const STATUTS_OCCUPANTS = new Set(["CONFIRMEE", "EN_COURS"]); // mêmes que reservations.service.ts
 
+/** Aujourd'hui « JJ/MM/AAAA » au jour de Lubumbashi (pas celui du fuseau réglé sur le téléphone). */
 function aujourdhuiSaisie(): string {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  return dateComplete(new Date());
 }
 
+/** « JJ/MM/AAAA » → midi à Lubumbashi ce jour-là (ISO), null si la date n'existe pas. */
 function isoDepuisSaisie(saisie: string): string | null {
   const m = saisie.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!m) return null;
   const [, j, mo, a] = m;
-  const date = new Date(Number(a), Number(mo) - 1, Number(j), 12, 0, 0);
-  if (Number.isNaN(date.getTime()) || date.getDate() !== Number(j)) return null;
-  return date.toISOString();
+  return midiLubumbashi(`${a}-${mo}-${j}`);
 }
+
+/** Au-delà, la liste des clients demande d'affiner la recherche (les téléphones d'entrée de gamme rament sur de longues listes). */
+const MAX_CLIENTS_AFFICHES = 30;
 
 /** Chevauchement CONFIRMEE/EN_COURS sur la base locale — même règle que
  * verifierAbsenceDeConflit côté serveur (recalculée là-bas au push, mais
@@ -77,6 +82,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
   const [checkInImmediat, setCheckInImmediat] = useState(false);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [erreurChargement, setErreurChargement] = useState<string | null>(null);
 
   const charger = useCallback(() => {
     Promise.all([client.listerChambres(), client.listerReservations(), client.listerClients()])
@@ -89,7 +95,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
           if (initiale) setChambreChoisie(initiale);
         }
       })
-      .catch((e: Error) => setErreur(e.message));
+      .catch((e: unknown) => setErreurChargement(messageErreur(e, "Les chambres ou les clients n'ont pas pu être chargés. Réessayez.")));
   }, [client, chambreInitialeId]);
 
   useEffect(charger, [charger]);
@@ -97,9 +103,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
   const dateArrivee = isoDepuisSaisie(saisieArrivee);
   const dateDepart = useMemo(() => {
     if (!dateArrivee) return null;
-    const depart = new Date(dateArrivee);
-    depart.setDate(depart.getDate() + nuits);
-    return depart.toISOString();
+    return ajouterJours(new Date(dateArrivee), nuits).toISOString();
   }, [dateArrivee, nuits]);
 
   const chambresOccupees = useMemo(
@@ -116,6 +120,32 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
         (!terme || c.nom.toLowerCase().includes(terme) || (c.telephone ?? "").includes(rechercheClient.trim()))
     );
   }, [clients, rechercheClient]);
+  const clientsAffiches = clientsSelectionnables.slice(0, MAX_CLIENTS_AFFICHES);
+
+  /** Une saisie existe : « Retour » demande d'abord confirmation au lieu de la jeter (retour U5). */
+  const saisieEntamee =
+    nom.trim() !== "" ||
+    telephone.trim() !== "" ||
+    email.trim() !== "" ||
+    typePiece.trim() !== "" ||
+    numeroPiece.trim() !== "" ||
+    note.trim() !== "" ||
+    acompteSaisi.trim() !== "" ||
+    clientChoisi !== null ||
+    (chambreChoisie !== null && chambreChoisie.id !== chambreInitialeId);
+
+  function retour() {
+    if (enCours) return;
+    if (!saisieEntamee) return onRetour();
+    confirmerAction({
+      titre: "Abandonner cette réservation ?",
+      message: "Les informations saisies ne seront pas enregistrées.",
+      libelleConfirmer: "Abandonner",
+      libelleRefuser: "Continuer la saisie",
+      destructif: true,
+      onConfirmer: onRetour,
+    });
+  }
 
   const total = chambreChoisie ? Number(chambreChoisie.prixParNuit) * nuits : 0;
   const acompteLu = acompteSaisi.trim()
@@ -172,7 +202,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
       });
       onCree(creee.id);
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "La réservation n'a pas pu être créée. Réessayez."));
     } finally {
       setEnCours(false);
     }
@@ -181,38 +211,54 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
   return (
     <View style={styles.page}>
       <EnteteMobile />
-      <EnteteRetour titre="Nouvelle réservation" onRetour={onRetour} />
+      <EnteteRetour titre="Nouvelle réservation" onRetour={retour} />
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreurChargement && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreurChargement}
+        </Text>
+      )}
 
       <ConteneurFormulaire styleContenu={styles.contenu}>
         <View style={styles.carte}>
           <Text style={styles.champLabel}>Arrivée (JJ/MM/AAAA)</Text>
           <SelecteurDate
+            libelle="Date d'arrivée"
             valeur={isoDepuisSaisie(saisieArrivee)?.slice(0, 10) ?? ""}
             onChange={(iso) => setSaisieArrivee(iso ? saisieDepuisIso(iso) : "")}
           />
           <Text style={styles.champLabel}>Nombre de nuits</Text>
           <View style={styles.stepper}>
-            <Pressable style={styles.stepperBouton} onPress={() => setNuits(Math.max(1, nuits - 1))}>
+            <Pressable
+              style={styles.stepperBouton}
+              onPress={() => setNuits(Math.max(1, nuits - 1))}
+              accessibilityRole="button"
+              accessibilityLabel="Une nuit de moins"
+              accessibilityState={{ disabled: nuits <= 1 }}
+            >
               <Text style={styles.stepperTexte}>-</Text>
             </Pressable>
-            <Text style={styles.stepperValeur}>{nuits}</Text>
-            <Pressable style={styles.stepperBouton} onPress={() => setNuits(Math.min(60, nuits + 1))}>
+            <Text style={styles.stepperValeur} accessibilityLabel={`${nuits} nuit${nuits > 1 ? "s" : ""}`}>
+              {nuits}
+            </Text>
+            <Pressable
+              style={styles.stepperBouton}
+              onPress={() => setNuits(Math.min(60, nuits + 1))}
+              accessibilityRole="button"
+              accessibilityLabel="Une nuit de plus"
+              accessibilityState={{ disabled: nuits >= 60 }}
+            >
               <Text style={styles.stepperTexte}>+</Text>
             </Pressable>
-            {dateDepart && (
-              <Text style={styles.departInfo}>
-                Départ le {new Date(dateDepart).toLocaleDateString("fr-FR")}
-              </Text>
-            )}
+            {dateDepart && <Text style={styles.departInfo}>Départ le {dateComplete(dateDepart)}</Text>}
           </View>
         </View>
 
         <View style={styles.carte}>
           <Text style={styles.champLabel}>Chambre</Text>
           {dateArrivee && dateDepart && (
-            <View style={styles.listeChambres}>
+            // Liste bornée en hauteur et défilante : une centaine de chambres ne doit pas allonger toute la page.
+            <ScrollView style={styles.listeChambres} nestedScrollEnabled keyboardShouldPersistTaps="handled" accessibilityRole="radiogroup">
               {(chambres ?? []).map((chambre) => {
                 const occupee = chambresOccupees.has(chambre.id);
                 const choisie = chambreChoisie?.id === chambre.id;
@@ -222,6 +268,9 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
                     style={[styles.chambre, choisie && styles.chambreChoisie, occupee && styles.chambreOccupee]}
                     disabled={occupee}
                     onPress={() => setChambreChoisie(chambre)}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`Chambre ${chambre.numero}, ${chambre.type}, ${formatMontant(chambre.prixParNuit, chambre.devise)} par nuit${occupee ? ", occupée sur ces dates" : ""}`}
+                    accessibilityState={{ checked: choisie, disabled: occupee }}
                   >
                     <Text style={[styles.chambreNumero, occupee && styles.texteBarre]}>{chambre.numero}</Text>
                     <Text style={styles.chambreInfo} numberOfLines={1}>
@@ -231,7 +280,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
           )}
           {!chambres && <Text style={styles.info}>Chargement des chambres…</Text>}
         </View>
@@ -246,6 +295,9 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
                   setModeClient(m);
                   setClientChoisi(null);
                 }}
+                accessibilityRole="radio"
+                accessibilityLabel={m === "nouveau" ? "Nouveau client" : "Client existant"}
+                accessibilityState={{ checked: modeClient === m }}
               >
                 <Text style={[styles.selecteurTexte, modeClient === m && styles.selecteurTexteActif]}>
                   {m === "nouveau" ? "Nouveau client" : "Client existant"}
@@ -257,26 +309,29 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
           {modeClient === "nouveau" ? (
             <>
               <Text style={styles.champLabel}>Nom (obligatoire)</Text>
-              <TextInput style={styles.champ} value={nom} onChangeText={setNom} placeholder="Nom du client" placeholderTextColor={couleurs.encreFaible} />
+              <TextInput style={styles.champ} value={nom} onChangeText={setNom} accessibilityLabel="Nom du client, obligatoire" autoComplete="name" placeholder="Nom du client" placeholderTextColor={couleurs.encreFaible} />
               <Text style={styles.champLabel}>Téléphone</Text>
-              <TextInput style={styles.champ} value={telephone} onChangeText={setTelephone} placeholder="+243 …" placeholderTextColor={couleurs.encreFaible} keyboardType="phone-pad" />
+              <TextInput style={styles.champ} value={telephone} onChangeText={setTelephone} accessibilityLabel="Téléphone du client" autoComplete="tel" placeholder="+243 …" placeholderTextColor={couleurs.encreFaible} keyboardType="phone-pad" />
               <Text style={styles.champLabel}>Email</Text>
-              <TextInput style={styles.champ} value={email} onChangeText={setEmail} placeholder="Optionnel" placeholderTextColor={couleurs.encreFaible} keyboardType="email-address" autoCapitalize="none" />
+              <TextInput style={styles.champ} value={email} onChangeText={setEmail} accessibilityLabel="Email du client" autoComplete="email" placeholder="Optionnel" placeholderTextColor={couleurs.encreFaible} keyboardType="email-address" autoCapitalize="none" />
               <Text style={styles.champLabel}>Type de pièce (optionnel)</Text>
-              <TextInput style={styles.champ} value={typePiece} onChangeText={setTypePiece} placeholder="CNI, passeport, permis…" placeholderTextColor={couleurs.encreFaible} />
+              <TextInput style={styles.champ} value={typePiece} onChangeText={setTypePiece} accessibilityLabel="Type de pièce d'identité" placeholder="CNI, passeport, permis…" placeholderTextColor={couleurs.encreFaible} />
               <Text style={styles.champLabel}>N° de pièce (optionnel)</Text>
-              <TextInput style={styles.champ} value={numeroPiece} onChangeText={setNumeroPiece} placeholder="Numéro de la pièce d'identité" placeholderTextColor={couleurs.encreFaible} />
+              <TextInput style={styles.champ} value={numeroPiece} onChangeText={setNumeroPiece} accessibilityLabel="Numéro de la pièce d'identité" placeholder="Numéro de la pièce d'identité" placeholderTextColor={couleurs.encreFaible} />
             </>
           ) : (
             <>
               <Text style={styles.champLabel}>Rechercher (nom ou téléphone)</Text>
-              <TextInput style={styles.champ} value={rechercheClient} onChangeText={setRechercheClient} placeholder="Nom ou téléphone" placeholderTextColor={couleurs.encreFaible} />
-              <View style={styles.listeClients}>
-                {clientsSelectionnables.map((c) => (
+              <TextInput style={styles.champ} value={rechercheClient} onChangeText={setRechercheClient} accessibilityLabel="Rechercher un client par nom ou téléphone" returnKeyType="search" placeholder="Nom ou téléphone" placeholderTextColor={couleurs.encreFaible} />
+              <ScrollView style={styles.listeClients} nestedScrollEnabled keyboardShouldPersistTaps="handled" accessibilityRole="radiogroup">
+                {clientsAffiches.map((c) => (
                   <Pressable
                     key={c.id}
                     style={[styles.ligneClient, clientChoisi?.id === c.id && styles.ligneClientChoisie]}
                     onPress={() => setClientChoisi(c)}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`${c.nom}${c.telephone ? `, ${c.telephone}` : ""}`}
+                    accessibilityState={{ checked: clientChoisi?.id === c.id }}
                   >
                     <Text style={styles.ligneClientNom}>{c.nom}</Text>
                     {c.telephone && <Text style={styles.ligneClientInfo}>{c.telephone}</Text>}
@@ -285,7 +340,12 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
                 {clientsSelectionnables.length === 0 && (
                   <Text style={styles.info}>Aucun client ne correspond.</Text>
                 )}
-              </View>
+                {clientsSelectionnables.length > clientsAffiches.length && (
+                  <Text style={styles.info}>
+                    {clientsSelectionnables.length - clientsAffiches.length} autres clients : précisez la recherche pour les voir.
+                  </Text>
+                )}
+              </ScrollView>
             </>
           )}
         </View>
@@ -296,6 +356,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
             style={styles.champ}
             value={acompteSaisi}
             onChangeText={setAcompteSaisi}
+            accessibilityLabel={`Acompte versé${chambreChoisie ? ` en ${chambreChoisie.devise}` : ""}`}
             placeholder="0"
             placeholderTextColor={couleurs.encreFaible}
             keyboardType="numeric"
@@ -320,20 +381,39 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
             style={[styles.champ, styles.champMulti]}
             value={note}
             onChangeText={setNote}
+            accessibilityLabel="Demandes spéciales, optionnel"
             placeholder="Lit bébé, étage élevé, régime alimentaire…"
             placeholderTextColor={couleurs.encreFaible}
             multiline
           />
         </View>
 
-        <Pressable style={styles.checkInLigne} onPress={() => setCheckInImmediat(!checkInImmediat)}>
+        <Pressable
+          style={styles.checkInLigne}
+          onPress={() => setCheckInImmediat(!checkInImmediat)}
+          accessibilityRole="checkbox"
+          accessibilityLabel="Le client est déjà là : enregistrer l'arrivée tout de suite (check-in)"
+          accessibilityState={{ checked: checkInImmediat }}
+        >
           <View style={[styles.case, checkInImmediat && styles.caseCochee]}>
             {checkInImmediat && <Text style={styles.caseTexte}>✓</Text>}
           </View>
           <Text style={styles.checkInTexte}>Le client est déjà là — enregistrer l'arrivée tout de suite (check-in)</Text>
         </Pressable>
 
-        <Pressable style={styles.bouton} onPress={creer} disabled={enCours}>
+        {erreur && (
+          <Text style={styles.erreurBas} accessibilityRole="alert">
+            {erreur}
+          </Text>
+        )}
+
+        <Pressable
+          style={styles.bouton}
+          onPress={creer}
+          disabled={enCours}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: enCours, busy: enCours }}
+        >
           <Text style={styles.boutonTexte}>
             {enCours ? "…" : checkInImmediat ? "Créer et enregistrer l'arrivée" : "Créer la réservation"}
           </Text>
@@ -346,6 +426,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
+  erreurBas: { color: couleurs.danger, fontSize: 13, fontWeight: "600" },
   contenu: { padding: espacements.s4, gap: espacements.s3 },
   carte: {
     backgroundColor: couleurs.surface200,
@@ -368,8 +449,8 @@ const styles = StyleSheet.create({
   },
   stepper: { flexDirection: "row", alignItems: "center", gap: espacements.s3 },
   stepperBouton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bordure,
@@ -380,8 +461,10 @@ const styles = StyleSheet.create({
   stepperTexte: { fontSize: 20, fontWeight: "700", color: couleurs.encre },
   stepperValeur: { fontSize: 17, fontWeight: "700", color: couleurs.navy, minWidth: 24, textAlign: "center" },
   departInfo: { fontSize: 13, color: couleurs.encreAttenuee, flex: 1 },
-  listeChambres: { gap: espacements.s2, marginTop: espacements.s2 },
+  listeChambres: { marginTop: espacements.s2, maxHeight: 320 },
   chambre: {
+    marginBottom: espacements.s2,
+    minHeight: 44,
     borderWidth: 1,
     borderColor: couleurs.bordure,
     borderRadius: rayons.sm,
@@ -406,8 +489,10 @@ const styles = StyleSheet.create({
   selecteurOptionActive: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
   selecteurTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encre },
   selecteurTexteActif: { color: "#fff" },
-  listeClients: { gap: espacements.s1, marginTop: espacements.s2, maxHeight: 220 },
+  listeClients: { marginTop: espacements.s2, maxHeight: 260 },
   ligneClient: {
+    marginBottom: espacements.s1,
+    minHeight: 44,
     borderWidth: 1,
     borderColor: couleurs.bordure,
     borderRadius: rayons.sm,
@@ -421,7 +506,7 @@ const styles = StyleSheet.create({
   ligneApercu: { flexDirection: "row", justifyContent: "space-between" },
   libelleApercu: { fontSize: 13, color: couleurs.encreAttenuee },
   valeurApercu: { fontSize: 14, fontWeight: "700", color: couleurs.encre },
-  checkInLigne: { flexDirection: "row", alignItems: "center", gap: espacements.s3 },
+  checkInLigne: { flexDirection: "row", alignItems: "center", gap: espacements.s3, minHeight: 44 },
   case: {
     width: 22,
     height: 22,

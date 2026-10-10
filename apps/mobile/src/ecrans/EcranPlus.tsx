@@ -117,9 +117,12 @@ function LigneMenu({
   desactive,
   badge,
   onPress,
+  libelleAccessible,
 }: {
   icone: LucideIcon;
   libelle: string;
+  /** Phrase lue par le lecteur d'écran quand le badge porte une information (« 3 à envoyer »). */
+  libelleAccessible?: string;
   desactive?: boolean;
   badge?: React.ReactNode;
   onPress?: () => void;
@@ -130,6 +133,8 @@ function LigneMenu({
       onPress={onPress}
       disabled={desactive}
       accessibilityRole="button"
+      accessibilityLabel={desactive ? `${libelle}, bientôt disponible` : (libelleAccessible ?? libelle)}
+      accessibilityState={{ disabled: !!desactive }}
     >
       <Icone size={18} color={desactive ? couleurs.encreFaible : couleurs.encre} />
       <Text style={[styles.ligneTexte, desactive && styles.ligneTexteDesactive]}>{libelle}</Text>
@@ -336,6 +341,11 @@ export function EcranPlus() {
           <LigneMenu
             icone={RefreshCw}
             libelle="Synchronisation"
+            libelleAccessible={
+              etatSync.enAttente + etatSync.conflits > 0
+                ? `Synchronisation, ${etatSync.enAttente} à envoyer${etatSync.conflits > 0 ? `, ${etatSync.conflits} en conflit` : ""}`
+                : "Synchronisation"
+            }
             onPress={() => setVue({ id: "synchronisation" })}
             badge={
               etatSync.enAttente > 0 || etatSync.conflits > 0 ? (

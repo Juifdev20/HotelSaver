@@ -3295,3 +3295,31 @@ Fait (tests : `apps/api/test/integration/securite.e2e-spec.ts`, 16 cas) :
 
 À configurer en production : `CORS_ORIGIN` (sinon l'API répond à toutes les origines et l'écrit au démarrage), `TURNSTILE_SECRET`, `VITE_TURNSTILE_SITE_KEY`.
 
+
+## 10/10/2026 — Audit sécurité + ergonomie : phases 2 à 5
+
+Suite de `docs/PLAN-SECURITE-UX.md` (tests : `securite.e2e-spec.ts`, 22 cas, + tests de paquets).
+
+**Sessions et secrets**
+- Table `SessionUtilisateur` (migration `20261010140000`) : chaque requête vérifie que la session du jeton existe encore (cache 30 s) ; changement ou réinitialisation du mot de passe révoque
+  les autres sessions. Nouvelle route `POST /auth/mot-de-passe` (mot de passe actuel exigé), message d'erreur neutre sur la création de compte.
+- PBKDF2 à 600 000 itérations (ré-empreinte à la connexion), blocage persistant après 5 échecs (30 s doublées jusqu'à 15 min, calculé avec la pire des deux horloges).
+- **Copie locale chiffrée au repos** (AES-256-GCM, WebCrypto) : clé gardée par `safeStorage` d'Electron (IPC `securite:cle-locale`, jamais renvoyée au renderer). Pas d'effacement à la
+  déconnexion (le hors ligne en dépend) ; bouton « Effacer les données de cet appareil ». Les verrous (mot de passe au lancement pour le patron, verrou d'inactivité) sont des **préférences** :
+  inactivité désactivée par défaut, réglables dans Paramètres → Sécurité.
+- Electron : sandbox, DevTools et menu désactivés une fois packagé, CSP injectée au build (bureau, web, super-admin), refus des permissions, listes blanches IPC. Super-admin : jetons en `sessionStorage`.
+- Mobile : `allowBackup=false`, notifications en visibilité PRIVÉE sur l'écran verrouillé, adresses https obligatoires en production, `google-services.json` ignoré par git.
+
+**Intégrité du serveur**
+- Réservations : contrainte d'exclusion Postgres (`tsrange`, `btree_gist`, migration `20261010130000`) contre la double réservation ; acompte plafonné et notifié à la modification ;
+  annulation publique refusée si un acompte a été versé. Facture de séjour : totaux arrondis par `totauxFactureSejour` (mêmes règles serveur/appareils). Cafétéria : plafonds, stock compensé.
+- Paramètres de requête typés et bornés (pagination), dépendances corrigées (`multer`, `lodash`, `qs`, `shell-quote`).
+
+**Ergonomie et accessibilité** : rôles/étiquettes d'accessibilité, confirmations avant les actions d'argent, thème bureau suivant le système, indicateur de synchro lisible par lecteur d'écran,
+formats de montants unifiés (mobile et bureau).
+
+**Reporté** (voir plan) : double authentification du super-admin, Nest 11 (avis sur `@nestjs/core`), montée de version d'Electron, bascule d'utilisateur hors ligne sur mobile (U8, demande
+une bibliothèque de chiffrement native), TLS de la base (S25), réattribution des jetons push (S22), course sur la version des rapports (S28), antidatage (S20, accepté).
+
+**À faire par le patron** : exécuter `supabase-activer-rls.sql` dans l'éditeur SQL de Supabase ; définir `TURNSTILE_SECRET` (API), `VITE_TURNSTILE_SITE_KEY` (web), `CORS_ORIGIN` ;
+poser les en-têtes (`frame-ancestors`…) chez l'hébergeur du web ; régénérer le projet Android et reconstruire l'APK ; vérifier dans Supabase les options de révocation de session.

@@ -6,21 +6,20 @@ import { ArrowLeft, Bell, CalendarDays, Package, ShieldAlert, Sun } from "lucide
 import { CATEGORIE_PAR_TYPE, type NotificationApp } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useNotifications } from "../notifications/ContexteNotifications";
+import { ajouterJours, formaterLubumbashi, heureCourte, jourDeIso, jourLubumbashi } from "../dates";
 
 const ICONES = { reservations: CalendarDays, stock: Package, quotidien: Sun, securite: ShieldAlert };
 
+/** Jours « Aujourd'hui » / « Hier » au calendrier de Lubumbashi (dates.ts), pas à celui du fuseau du téléphone. */
 function libelleJour(iso: string): string {
-  const date = new Date(iso);
-  const aujourdhui = new Date();
-  const hier = new Date();
-  hier.setDate(hier.getDate() - 1);
-  if (date.toDateString() === aujourdhui.toDateString()) return "Aujourd'hui";
-  if (date.toDateString() === hier.toDateString()) return "Hier";
-  return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  const jour = jourDeIso(iso);
+  if (jour === jourLubumbashi()) return "Aujourd'hui";
+  if (jour === jourLubumbashi(ajouterJours(new Date(), -1))) return "Hier";
+  return formaterLubumbashi(iso, { weekday: "long", day: "numeric", month: "long" });
 }
 
 function heure(iso: string): string {
-  return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return heureCourte(iso);
 }
 
 type Ligne = { cle: string; jour: string } | { cle: string; notification: NotificationApp };
@@ -48,12 +47,12 @@ export function CentreNotifications() {
     <Modal visible={centreOuvert} animationType="slide" onRequestClose={fermerCentre}>
       <View style={styles.ecran}>
         <View style={[styles.entete, { paddingTop: insets.top + espacements.s2 }]}>
-          <Pressable onPress={fermerCentre} hitSlop={10} accessibilityLabel="Retour" style={styles.retour}>
+          <Pressable onPress={fermerCentre} hitSlop={10} accessibilityRole="button" accessibilityLabel="Retour" style={styles.retour}>
             <ArrowLeft size={22} color="#fff" />
           </Pressable>
-          <Text style={styles.titre}>Notifications</Text>
+          <Text style={styles.titre} accessibilityRole="header">Notifications</Text>
           {nonLues > 0 ? (
-            <Pressable onPress={() => void toutMarquerLu()} hitSlop={8} style={styles.cote}>
+            <Pressable onPress={() => void toutMarquerLu()} hitSlop={8} style={styles.cote} accessibilityRole="button" accessibilityLabel="Tout marquer comme lu">
               <Text style={styles.toutLire}>Tout marquer lu</Text>
             </Pressable>
           ) : (
@@ -80,6 +79,7 @@ export function CentreNotifications() {
                   style={[styles.carte, !n.lue && styles.carteNonLue]}
                   onPress={() => ouvrirNotification(n)}
                   accessibilityRole="button"
+                  accessibilityLabel={`${n.lue ? "" : "Non lue. "}${n.titre}. ${n.corps}`}
                 >
                   <View style={styles.icone}>
                     <Icone size={18} color={couleurs.bleu} />
@@ -112,10 +112,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: espacements.s3,
     paddingBottom: espacements.s3,
   },
-  retour: { width: 100 },
-  cote: { width: 100, alignItems: "flex-end" },
+  retour: { width: 100, minHeight: 44, justifyContent: "center" },
+  cote: { width: 100, minHeight: 44, justifyContent: "center", alignItems: "flex-end" },
   titre: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  toutLire: { color: "#fff", fontSize: 12 },
+  toutLire: { color: "#fff", fontSize: 13, fontWeight: "600" },
   jour: {
     fontSize: 12,
     fontWeight: "700",

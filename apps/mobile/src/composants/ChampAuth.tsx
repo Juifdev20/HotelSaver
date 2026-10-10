@@ -26,6 +26,10 @@ export function ChampAuth({ libelle, icone: Icone, valide, suffixe, secureTextEn
       <View style={[styles.boite, focus && styles.boiteFocus]}>
         <Icone size={18} color={couleurs.encreFaible} style={styles.icone} />
         <TextInput
+          // Valeurs par défaut utiles (suggestion de l'email / du mot de passe, touche « Suivant »), l'appelant peut les remplacer.
+          accessibilityLabel={suffixe ? `${libelle}, suivi de ${suffixe}` : libelle}
+          autoComplete={secureTextEntry ? "current-password" : reste.keyboardType === "email-address" ? "email" : "off"}
+          returnKeyType="next"
           {...reste}
           style={styles.saisie}
           secureTextEntry={secureTextEntry && !visible}
@@ -39,7 +43,7 @@ export function ChampAuth({ libelle, icone: Icone, valide, suffixe, secureTextEn
           </View>
         )}
         {valide && !secureTextEntry && (
-          <View style={styles.coche}>
+          <View style={styles.coche} accessible accessibilityLabel="Valide">
             <Check size={12} color="#fff" strokeWidth={3} />
           </View>
         )}
@@ -49,7 +53,8 @@ export function ChampAuth({ libelle, icone: Icone, valide, suffixe, secureTextEn
             onPress={() => setVisible((v) => !v)}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={visible ? "Masquer la saisie" : "Afficher la saisie"}
+            accessibilityLabel={visible ? `Masquer ${libelle.toLowerCase()}` : `Afficher ${libelle.toLowerCase()}`}
+            accessibilityState={{ checked: visible }}
           >
             {visible ? <EyeOff size={18} color={couleurs.encreAttenuee} /> : <Eye size={18} color={couleurs.encreAttenuee} />}
           </Pressable>
@@ -65,7 +70,7 @@ const styles = StyleSheet.create({
   boite: {
     flexDirection: "row",
     alignItems: "center",
-    height: 50,
+    minHeight: 50,
     borderWidth: 1,
     borderColor: couleurs.bordure,
     borderRadius: rayons.md,
@@ -93,5 +98,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  oeil: { width: 46, height: "100%", alignItems: "center", justifyContent: "center" },
+  oeil: { width: 46, minWidth: 44, height: "100%", alignItems: "center", justifyContent: "center" },
 });

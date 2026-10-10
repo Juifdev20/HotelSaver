@@ -40,3 +40,11 @@ export function messageErreur(erreur: unknown, parDefaut = "Une erreur est surve
   if (MOTIFS_TECHNIQUES.test(message) && !/[àâçéèêëîïôùûüœ]/i.test(message)) return parDefaut;
   return message;
 }
+
+/**
+ * Texte après une impression « réussie » : l'application sait seulement que les données sont parties vers l'imprimante
+ * Bluetooth, jamais que le papier est sorti (pas de retour de l'imprimante). On ne le laisse donc pas croire (retour U15).
+ */
+export function messageImpressionEnvoyee(objet = "Reçu"): string {
+  return `${objet} envoyé à l'imprimante. Vérifiez que le ticket est bien sorti ; sinon, réessayez.`;
+}

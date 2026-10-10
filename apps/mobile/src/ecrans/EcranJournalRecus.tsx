@@ -13,7 +13,7 @@ import { useSession } from "../contexteSession";
 import { imprimerLignes } from "../impression/imprimante";
 import { estRecuProvisoire } from "@hotel-chicago/regles";
 import { confirmerAction } from "../confirmer";
-import { messageErreur } from "../messagesErreur";
+import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
 import { dateComplete, heureCourte } from "../dates";
 
 export interface EcranJournalRecusProps {
@@ -140,7 +140,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
       ]);
       await imprimerLignes(construireRecuFacture(facture, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur), { duplicata: true }));
       // Atteint seulement si l'envoi a réussi.
-      setMessage({ texte: `Reçu ${facture.numeroRecu} envoyé à l'imprimante.`, reussi: true });
+      setMessage({ texte: messageImpressionEnvoyee(`Reçu ${facture.numeroRecu}`), reussi: true });
     } catch (e) {
       setMessage({ texte: `Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`, reussi: false });
     } finally {
@@ -154,7 +154,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
     try {
       const compte = await client.obtenirCompteCafeteria(vente.compteId);
       await imprimerLignes(construireRecuVente(vente, compte, utilisateur.nom, enteteHotel(utilisateur), { duplicata: true }));
-      setMessage({ texte: `Reçu ${vente.numeroRecu} envoyé à l'imprimante.`, reussi: true });
+      setMessage({ texte: messageImpressionEnvoyee(`Reçu ${vente.numeroRecu}`), reussi: true });
     } catch (e) {
       setMessage({ texte: `Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`, reussi: false });
     } finally {

@@ -8,15 +8,17 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { dateComplete } from "../dates";
+import { messageErreur } from "../messagesErreur";
 import type { ClientAvecSejours } from "@hotel-chicago/api-client";
 
 export interface EcranClientsProps {
   onRetour: () => void;
 }
 
+/** Date au jour de Lubumbashi (dates.ts), pas celui du fuseau du téléphone. */
 function dateCourte(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  return dateComplete(iso);
 }
 
 const LABEL_STATUT: Record<string, string> = {
@@ -41,6 +43,8 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
   const [recherche, setRecherche] = useState("");
   const [clientChoisi, setClientChoisi] = useState<ClientAvecSejours | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  // Erreur de la fiche en cours d'enregistrement : affichée DANS la feuille (retour U7).
+  const [erreurFiche, setErreurFiche] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [edition, setEdition] = useState(false);
   const [saisie, setSaisie] = useState({ nom: "", telephone: "", email: "", typePiece: "", numeroPiece: "", notes: "" });
@@ -52,8 +56,10 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
       .then((c) => {
         setClients(c);
         setClientChoisi((choisi) => (choisi ? (c.find((x) => x.id === choisi.id) ?? choisi) : choisi));
+        setErreur(null);
       })
-      .catch((e: Error) => setErreur(e.message));
+      // Les clients déjà affichés restent à l'écran ; on dit seulement que la liste n'est pas à jour.
+      .catch((e: unknown) => setErreur(messageErreur(e, "La liste des clients n'a pas pu être actualisée.")));
   }, [api]);
 
   useEffect(() => {
@@ -85,11 +91,11 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
   async function enregistrerFiche() {
     if (!clientChoisi) return;
     if (!saisie.nom.trim()) {
-      setErreur("Le nom du client est obligatoire.");
+      setErreurFiche("Le nom du client est obligatoire.");
       return;
     }
     setEnCours(true);
-    setErreur(null);
+    setErreurFiche(null);
     try {
       await api.modifierClient(clientChoisi.id, {
         nom: saisie.nom.trim(),
@@ -102,7 +108,7 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
       setEdition(false);
       recharger();
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Impossible d'enregistrer la fiche.");
+      setErreurFiche(messageErreur(e, "La fiche n'a pas pu être enregistrée. Réessayez."));
     } finally {
       setEnCours(false);
     }
@@ -118,7 +124,7 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
       numeroPiece: clientChoisi.numeroPiece ?? "",
       notes: clientChoisi.notes ?? "",
     });
-    setErreur(null);
+    setErreurFiche(null);
     setEdition(true);
   }
 
@@ -160,21 +166,38 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
           {sejoursDuClient.length === 0 && <Text style={styles.ligneSecondaire}>Aucun séjour enregistré.</Text>}
         </ConteneurFormulaire>
 
-        <FeuilleModale visible={edition} onFermer={() => setEdition(false)} titre="Fiche client">
-          {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+        <FeuilleModale
+          visible={edition}
+          onFermer={() => setEdition(false)}
+          titre="Fiche client"
+          modifie={
+            saisie.nom !== clientChoisi.nom ||
+            saisie.telephone !== (clientChoisi.telephone ?? "") ||
+            saisie.email !== (clientChoisi.email ?? "") ||
+            saisie.typePiece !== (clientChoisi.typePiece ?? "") ||
+            saisie.numeroPiece !== (clientChoisi.numeroPiece ?? "") ||
+            saisie.notes !== (clientChoisi.notes ?? "")
+          }
+          enCours={enCours}
+        >
+          {erreurFiche && (
+            <Text style={styles.erreur} accessibilityRole="alert">
+              {erreurFiche}
+            </Text>
+          )}
           <Text style={styles.champLabel}>Nom</Text>
-          <TextInput style={styles.champ} value={saisie.nom} onChangeText={(v) => setSaisie((s) => ({ ...s, nom: v }))} placeholder="Nom du client" placeholderTextColor={couleurs.encreFaible} />
+          <TextInput style={styles.champ} value={saisie.nom} onChangeText={(v) => setSaisie((s) => ({ ...s, nom: v }))} accessibilityLabel="Nom du client" autoComplete="name" placeholder="Nom du client" placeholderTextColor={couleurs.encreFaible} />
           <Text style={styles.champLabel}>Téléphone</Text>
-          <TextInput style={styles.champ} value={saisie.telephone} onChangeText={(v) => setSaisie((s) => ({ ...s, telephone: v }))} placeholder="+243 …" placeholderTextColor={couleurs.encreFaible} keyboardType="phone-pad" />
+          <TextInput style={styles.champ} value={saisie.telephone} onChangeText={(v) => setSaisie((s) => ({ ...s, telephone: v }))} accessibilityLabel="Téléphone du client" autoComplete="tel" placeholder="+243 …" placeholderTextColor={couleurs.encreFaible} keyboardType="phone-pad" />
           <Text style={styles.champLabel}>Email</Text>
-          <TextInput style={styles.champ} value={saisie.email} onChangeText={(v) => setSaisie((s) => ({ ...s, email: v }))} placeholder="Optionnel" placeholderTextColor={couleurs.encreFaible} keyboardType="email-address" autoCapitalize="none" />
+          <TextInput style={styles.champ} value={saisie.email} onChangeText={(v) => setSaisie((s) => ({ ...s, email: v }))} accessibilityLabel="Email du client" autoComplete="email" placeholder="Optionnel" placeholderTextColor={couleurs.encreFaible} keyboardType="email-address" autoCapitalize="none" />
           <Text style={styles.champLabel}>Type de pièce</Text>
-          <TextInput style={styles.champ} value={saisie.typePiece} onChangeText={(v) => setSaisie((s) => ({ ...s, typePiece: v }))} placeholder="CNI, passeport, permis…" placeholderTextColor={couleurs.encreFaible} />
+          <TextInput style={styles.champ} value={saisie.typePiece} onChangeText={(v) => setSaisie((s) => ({ ...s, typePiece: v }))} accessibilityLabel="Type de pièce d'identité" placeholder="CNI, passeport, permis…" placeholderTextColor={couleurs.encreFaible} />
           <Text style={styles.champLabel}>N° de pièce</Text>
-          <TextInput style={styles.champ} value={saisie.numeroPiece} onChangeText={(v) => setSaisie((s) => ({ ...s, numeroPiece: v }))} placeholder="Numéro de la pièce" placeholderTextColor={couleurs.encreFaible} />
+          <TextInput style={styles.champ} value={saisie.numeroPiece} onChangeText={(v) => setSaisie((s) => ({ ...s, numeroPiece: v }))} accessibilityLabel="Numéro de la pièce d'identité" placeholder="Numéro de la pièce" placeholderTextColor={couleurs.encreFaible} />
           <Text style={styles.champLabel}>Notes (suivi interne)</Text>
-          <TextInput style={[styles.champ, styles.champMulti]} value={saisie.notes} onChangeText={(v) => setSaisie((s) => ({ ...s, notes: v }))} placeholder="VIP, habitudes, restrictions…" placeholderTextColor={couleurs.encreFaible} multiline />
-          <Pressable style={styles.bouton} onPress={enregistrerFiche} disabled={enCours}>
+          <TextInput style={[styles.champ, styles.champMulti]} value={saisie.notes} onChangeText={(v) => setSaisie((s) => ({ ...s, notes: v }))} accessibilityLabel="Notes de suivi interne" placeholder="VIP, habitudes, restrictions…" placeholderTextColor={couleurs.encreFaible} multiline />
+          <Pressable style={styles.bouton} onPress={enregistrerFiche} disabled={enCours} accessibilityRole="button" accessibilityState={{ disabled: enCours, busy: enCours }}>
             <Text style={styles.boutonTexte}>{enCours ? "…" : "Enregistrer"}</Text>
           </Pressable>
         </FeuilleModale>
@@ -192,12 +215,18 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
           style={styles.champ}
           value={recherche}
           onChangeText={setRecherche}
+          accessibilityLabel="Rechercher un client par nom ou téléphone"
+          returnKeyType="search"
           placeholder="Rechercher par nom ou téléphone"
           placeholderTextColor={couleurs.encreFaible}
         />
       </View>
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
 
       {clients && liste.length === 0 && (
         <View style={styles.videConteneur}>
@@ -213,7 +242,12 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
         contentContainerStyle={styles.liste}
         refreshControl={<RefreshControl refreshing={rafraichissement} onRefresh={actualiser} />}
         renderItem={({ item }) => (
-          <Pressable style={styles.carte} onPress={() => setClientChoisi(item)}>
+          <Pressable
+            style={styles.carte}
+            onPress={() => setClientChoisi(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.nom}${item.telephone ? `, ${item.telephone}` : ""}${miroir.estCreationEnAttente(item.id) ? ", en attente de synchronisation" : ""}`}
+          >
             <Text style={styles.clientNom}>{item.nom}</Text>
             <Text style={styles.ligneSecondaire}>
               {[item.telephone, miroir.estCreationEnAttente(item.id) ? "en attente de synchro" : null].filter(Boolean).join(" · ") || "—"}
@@ -254,7 +288,7 @@ const styles = StyleSheet.create({
   ligneSecondaire: { fontSize: 12, color: couleurs.encreAttenuee },
   horsLigne: { fontSize: 12, color: couleurs.alerte, marginTop: espacements.s2 },
   note: { fontSize: 13, color: couleurs.violet, fontStyle: "italic", marginTop: 2 },
-  boutonModifier: { marginTop: espacements.s3, alignSelf: "flex-start" },
+  boutonModifier: { marginTop: espacements.s3, alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
   boutonModifierTexte: { fontSize: 13, fontWeight: "700", color: couleurs.bleu },
   champLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginTop: espacements.s2 },
   champMulti: { minHeight: 64, textAlignVertical: "top", paddingTop: espacements.s3 },

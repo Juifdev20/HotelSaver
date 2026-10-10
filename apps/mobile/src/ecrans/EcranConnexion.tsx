@@ -6,6 +6,8 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { EnteteAuth } from "../composants/EnteteAuth";
 import { ChampAuth } from "../composants/ChampAuth";
+import { messageErreur } from "../messagesErreur";
+import { useRetourAndroid } from "../hooks/useRetourAndroid";
 
 export interface EcranConnexionProps {
   emailInitial?: string;
@@ -48,7 +50,7 @@ export function EcranConnexion({
       await onMotDePasseOublie(email.trim());
       setEnvoye(true);
     } catch (e) {
-      setErreurOubli(e instanceof Error ? e.message : "Envoi impossible. Réessayez.");
+      setErreurOubli(messageErreur(e, "Envoi impossible. Réessayez."));
     } finally {
       setEnvoiEnCours(false);
     }
@@ -59,6 +61,19 @@ export function EcranConnexion({
     setEnvoye(false);
     setErreurOubli(null);
   }
+
+  // Bouton Retour d'Android : « mot de passe oublié » → connexion ; connexion → choix du profil quand il existe.
+  useRetourAndroid(() => {
+    if (mode === "oubli") {
+      retourConnexion();
+      return true;
+    }
+    if (onRetour && !enCours) {
+      onRetour();
+      return true;
+    }
+    return false;
+  });
 
   if (mode === "oubli") {
     return (
@@ -76,7 +91,7 @@ export function EcranConnexion({
                   Si un compte existe pour {email.trim()}, un e-mail vient d'être envoyé avec le lien de réinitialisation.
                   Pensez à vérifier les courriers indésirables.
                 </Text>
-                <Pressable style={styles.bouton} onPress={retourConnexion}>
+                <Pressable style={styles.bouton} onPress={retourConnexion} accessibilityRole="button">
                   <Text style={styles.boutonTexte}>Retour à la connexion</Text>
                 </Pressable>
               </>
@@ -94,6 +109,9 @@ export function EcranConnexion({
                   autoCapitalize="none"
                   keyboardType="email-address"
                   textContentType="emailAddress"
+                  autoComplete="email"
+                  returnKeyType="send"
+                  onSubmitEditing={envoyerLien}
                   placeholder="ex. hotel@monetablissement.com"
                 />
                 {erreurOubli && (
@@ -101,10 +119,17 @@ export function EcranConnexion({
                     {erreurOubli}
                   </Text>
                 )}
-                <Pressable style={[styles.bouton, envoiEnCours && styles.boutonDesactive]} onPress={envoyerLien} disabled={envoiEnCours}>
+                <Pressable
+                  style={[styles.bouton, envoiEnCours && styles.boutonDesactive]}
+                  onPress={envoyerLien}
+                  disabled={envoiEnCours}
+                  accessibilityRole="button"
+                  accessibilityLabel={envoiEnCours ? "Envoi du lien en cours" : "Envoyer le lien"}
+                  accessibilityState={{ disabled: envoiEnCours, busy: envoiEnCours }}
+                >
                   {envoiEnCours ? <ActivityIndicator color="#fff" /> : <Text style={styles.boutonTexte}>Envoyer le lien</Text>}
                 </Pressable>
-                <Pressable style={styles.boutonRetour} onPress={retourConnexion}>
+                <Pressable style={styles.boutonRetour} onPress={retourConnexion} accessibilityRole="button">
                   <Text style={styles.boutonRetourTexte}>Retour à la connexion</Text>
                 </Pressable>
               </>
@@ -123,7 +148,11 @@ export function EcranConnexion({
           <Text style={styles.titre}>Bon retour</Text>
           <Text style={styles.sousTitre}>Connectez-vous à votre espace hôtelier.</Text>
 
-          {message && <Text style={styles.message}>{message}</Text>}
+          {message && (
+            <Text style={styles.message} accessibilityLiveRegion="polite">
+              {message}
+            </Text>
+          )}
 
           <ChampAuth
             libelle="Adresse e-mail"
@@ -133,6 +162,8 @@ export function EcranConnexion({
             autoCapitalize="none"
             keyboardType="email-address"
             textContentType="emailAddress"
+            autoComplete="email"
+            returnKeyType="next"
             placeholder="ex. hotel@monetablissement.com"
           />
           <ChampAuth
@@ -142,6 +173,9 @@ export function EcranConnexion({
             onChangeText={setMotDePasse}
             secureTextEntry
             textContentType="password"
+            autoComplete="current-password"
+            returnKeyType="go"
+            onSubmitEditing={() => onConnexion(email.trim(), motDePasse)}
             placeholder="Votre mot de passe"
           />
 
@@ -161,6 +195,9 @@ export function EcranConnexion({
             style={[styles.bouton, enCours && styles.boutonDesactive]}
             onPress={() => onConnexion(email.trim(), motDePasse)}
             disabled={enCours}
+            accessibilityRole="button"
+            accessibilityLabel={enCours ? "Connexion en cours" : "Se connecter"}
+            accessibilityState={{ disabled: enCours, busy: enCours }}
           >
             {enCours ? <ActivityIndicator color="#fff" /> : <Text style={styles.boutonTexte}>Se connecter</Text>}
           </Pressable>
@@ -172,14 +209,14 @@ export function EcranConnexion({
                 <Text style={styles.separateurTexte}>Ou</Text>
                 <View style={styles.trait} />
               </View>
-              <Pressable style={styles.boutonContour} onPress={onCreerCompte}>
+              <Pressable style={styles.boutonContour} onPress={onCreerCompte} accessibilityRole="button">
                 <Text style={styles.boutonContourTexte}>Créer un compte</Text>
               </Pressable>
             </>
           )}
 
           {onRetour && (
-            <Pressable style={styles.boutonRetour} onPress={onRetour}>
+            <Pressable style={styles.boutonRetour} onPress={onRetour} accessibilityRole="button">
               <Text style={styles.boutonRetourTexte}>Retour</Text>
             </Pressable>
           )}
@@ -252,7 +289,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: espacements.s3,
   },
-  lienOubli: { alignSelf: "flex-end", minHeight: 36, justifyContent: "center", marginBottom: espacements.s1 },
+  lienOubli: { alignSelf: "flex-end", minHeight: 44, justifyContent: "center", marginBottom: espacements.s1 },
   lienOubliTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 13 },
   boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", minHeight: 44 },
   boutonRetourTexte: { color: couleurs.encreAttenuee, fontWeight: "600" },
