@@ -946,7 +946,7 @@ export class ClientApi {
 
     if (!reponse.ok) {
       const corps = await reponse.json().catch(() => ({}));
-      throw new ErreurApi(reponse.status, corps.message || `Erreur ${reponse.status} sur ${chemin}.`);
+      throw new ErreurApi(reponse.status, messageErreurHttp(reponse.status, corps));
     }
 
     // Corps vide possible sans 204 : NestJS sérialise `null`/`undefined` en
@@ -959,4 +959,26 @@ export class ClientApi {
       return undefined as T;
     }
   }
+}
+
+
+/**
+ * Phrase en français pour l'utilisateur à partir de la réponse d'erreur du serveur. Les messages métier du serveur (déjà en français,
+ * ex. « Cette chambre est déjà réservée… ») sont gardés ; la liste des erreurs de validation est jointe ; sans message exploitable, on
+ * dit quelque chose d'humain selon le code — jamais « Erreur 500 sur /factures/… ».
+ */
+export function messageErreurHttp(statut: number, corps: unknown): string {
+  const brut = (corps as { message?: unknown } | null)?.message;
+  const texte = Array.isArray(brut) ? brut.filter((m) => typeof m === "string").join(" ") : typeof brut === "string" ? brut : "";
+  const technique = /^(internal server error|bad request|unauthorized|forbidden|not found|conflict|service unavailable|bad gateway)$/i.test(texte.trim()) || /prisma|invocation|stack|undefined|ECONN/i.test(texte);
+  if (texte && !technique) return texte;
+  if (statut === 400 || statut === 422) return "Les informations saisies sont incomplètes ou incorrectes.";
+  if (statut === 401) return "Votre session a pris fin. Reconnectez-vous.";
+  if (statut === 403) return "Vous n'avez pas le droit d'effectuer cette action.";
+  if (statut === 404) return "Élément introuvable. Il a peut-être été supprimé.";
+  if (statut === 409) return "Cette action n'est plus possible : les données ont changé entre-temps. Actualisez puis réessayez.";
+  if (statut === 413) return "Le fichier envoyé est trop volumineux.";
+  if (statut === 429) return "Trop de demandes en peu de temps. Patientez un instant puis réessayez.";
+  if (statut >= 500) return "Le serveur rencontre un problème. Réessayez dans un instant.";
+  return "Une erreur est survenue. Réessayez.";
 }

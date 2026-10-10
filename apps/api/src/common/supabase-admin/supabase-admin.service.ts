@@ -103,7 +103,7 @@ export class SupabaseAdminService {
     // Autres échecs (SMTP non configuré, etc.) : journalisés pour l'exploitant,
     // mais jamais révélés au visiteur — même réponse que pour une adresse inconnue.
     // eslint-disable-next-line no-console
-    console.error(`[mot de passe oublié] Supabase a refusé (${reponse.status}) : ${json.msg || json.message || JSON.stringify(json)}`);
+    console.error(`[mot de passe oublié] Supabase a refusé (${reponse.status}) : ${json.error_code ?? json.code ?? "erreur"}`); // jamais le corps complet (peut citer l'adresse e-mail)
   }
 
   /** Identifiant Supabase Auth du détenteur d'un jeton d'accès, ou null si le

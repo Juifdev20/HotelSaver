@@ -161,3 +161,15 @@ describe("ClientApi", () => {
     });
   });
 });
+
+describe("messageErreurHttp", () => {
+  it("garde un message métier en français, joint les erreurs de validation, et ne montre jamais un chemin ou un détail technique", async () => {
+    const { messageErreurHttp } = await import("./client");
+    expect(messageErreurHttp(409, { message: "Cette chambre est déjà réservée." })).toBe("Cette chambre est déjà réservée.");
+    expect(messageErreurHttp(400, { message: ["Le nom est obligatoire.", "Le prix doit être positif."] })).toBe("Le nom est obligatoire. Le prix doit être positif.");
+    expect(messageErreurHttp(500, { message: "Internal server error" })).toBe("Le serveur rencontre un problème. Réessayez dans un instant.");
+    expect(messageErreurHttp(500, {})).not.toMatch(/500|\/factures/);
+    expect(messageErreurHttp(502, { message: "Invalid `prisma.facture.create()` invocation" })).toBe("Le serveur rencontre un problème. Réessayez dans un instant.");
+    expect(messageErreurHttp(429, null)).toContain("Trop de demandes");
+  });
+});

@@ -11,6 +11,8 @@ export interface VerificateurJwt {
   verifier(token: string): Promise<JetonVerifie>;
 }
 
+const supabaseUrlSansBarre = (url: string) => url.replace(/\/+$/, "");
+
 export const VERIFICATEUR_JWT = Symbol("VERIFICATEUR_JWT");
 
 function extraireSub(payload: string | jwt.JwtPayload | undefined): JetonVerifie {
@@ -30,7 +32,7 @@ function extraireSub(payload: string | jwt.JwtPayload | undefined): JetonVerifie
 export class VerificateurJwtSupabase implements VerificateurJwt {
   private readonly client: JwksClient;
 
-  constructor(supabaseUrl: string) {
+  constructor(private readonly supabaseUrl: string) {
     this.client = jwksClient({
       jwksUri: `${supabaseUrl}/auth/v1/.well-known/jwks.json`,
       cache: true,
@@ -51,7 +53,8 @@ export class VerificateurJwtSupabase implements VerificateurJwt {
             callback(null, cle.getPublicKey());
           });
         },
-        { algorithms: ["ES256", "RS256"] },
+        // Jeton émis par NOTRE projet Supabase pour un utilisateur connecté : émetteur et public contrôlés en plus de la signature.
+        { algorithms: ["ES256", "RS256"], issuer: `${supabaseUrlSansBarre(this.supabaseUrl)}/auth/v1`, audience: "authenticated" },
         (erreur, payload) => {
           if (erreur) {
             reject(erreur);

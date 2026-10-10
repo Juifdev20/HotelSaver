@@ -558,6 +558,10 @@ export class PublicService {
     if (!PublicService.modifiableParClient(reservation)) {
       throw new ConflictException("Cette réservation ne peut plus être annulée en ligne. Contactez l'hôtel.");
     }
+    // Un acompte déjà versé ne s'annule pas depuis un simple lien (relayé par WhatsApp, transmissible) : la réception décide du remboursement.
+    if (Number(reservation.acompte) > 0) {
+      throw new ConflictException("Un acompte a été versé pour cette réservation : contactez l'hôtel pour l'annuler.");
+    }
     const precision = dto.motif?.trim();
     const motif = precision ? `${MOTIF_ANNULATION_CLIENT} : ${precision}` : MOTIF_ANNULATION_CLIENT;
     await this.prisma.reservation.update({

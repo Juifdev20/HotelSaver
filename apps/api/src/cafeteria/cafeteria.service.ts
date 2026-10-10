@@ -192,7 +192,22 @@ export class CafeteriaService {
     // la ligne de commande sont deux écritures indépendantes (aucune n'a
     // besoin du résultat de l'autre) : envoyées en parallèle plutôt que l'une
     // après l'autre.
-    const [, ligne] = await Promise.all([
+    // Si l'une des deux écritures échoue APRÈS le décrément, le stock est remis (compensation) : sans cela une panne entre les deux laissait
+    // du stock « vendu » sans ligne ni trace d'audit.
+    const annulerDecrement = async () => {
+      if (!estPlat) {
+        await this.prisma.produit
+          .update({ where: { id: dto.produitId, hotelId: currentUser.hotelId }, data: { stockActuel: { increment: dto.quantite }, syncVersion: { increment: 1 } } })
+          .catch(() => undefined);
+      } else if (produit.portionsDisponibles != null) {
+        await this.prisma.produit
+          .update({ where: { id: dto.produitId, hotelId: currentUser.hotelId }, data: { portionsDisponibles: { increment: dto.quantite } } })
+          .catch(() => undefined);
+      }
+    };
+    let ecrit: [unknown, Awaited<ReturnType<typeof this.prisma.ligneCommande.create>>];
+    try {
+      ecrit = await Promise.all([
       estPlat
         ? Promise.resolve(null)
         : this.prisma.mouvementStock.create({
@@ -220,9 +235,13 @@ export class CafeteriaService {
         },
         include: { produit: true },
       }),
-    ]);
+    ]) as typeof ecrit;
+    } catch (erreur) {
+      await annulerDecrement();
+      throw erreur;
+    }
 
-    return ligne;
+    return ecrit[1];
   }
 
   async encaisser(compteId: string, dto: EncaisserCompteDto, currentUser: UtilisateurAuthentifie, options: OptionsEncaissement = {}) {

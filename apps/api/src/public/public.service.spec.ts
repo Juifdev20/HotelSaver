@@ -368,9 +368,15 @@ describe("PublicService", () => {
       });
     });
 
-    it("annulation par le client : motif reconnaissable et réception prévenue", async () => {
+    it("un acompte déjà versé ne s'annule pas depuis le lien : la réception décide", async () => {
+      prisma.reservation.findFirst.mockResolvedValueOnce(reservation());
+      await expect(service.annulerReservationPublique("jeton", q, {})).rejects.toThrow(/acompte/i);
+      expect(prisma.reservation.update).not.toHaveBeenCalled();
+    });
+
+    it("annulation par le client (sans acompte) : motif reconnaissable et réception prévenue", async () => {
       prisma.reservation.findFirst
-        .mockResolvedValueOnce(reservation())
+        .mockResolvedValueOnce(reservation({ acompte: "0" }))
         .mockResolvedValueOnce(reservation({ statut: "ANNULEE", motifAnnulation: "Annulée par le client depuis le site" }));
       const suivi = await service.annulerReservationPublique("jeton", q, { motif: "Vol annulé" });
       expect(prisma.reservation.update.mock.calls[0][0].data).toMatchObject({
