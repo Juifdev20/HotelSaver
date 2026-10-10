@@ -97,6 +97,12 @@ Chaque correctif de sécurité arrive avec un test qui échoue avant et passe ap
 
 ---
 
+## État d'avancement (10/10/2026)
+Phases 1 à 5 **réalisées** (détail dans `DECISIONS.md`, entrées du 10/10/2026). Vérifié : tests de paquets, tests unitaires API, tests d'intégration sur vraie base (dont Chromium pour le bureau), compilation TypeScript du mobile.
+**Non vérifié** (impossible ici) : exécution sur téléphone et sur Windows — reconstruire l'APK et dérouler le scénario du BACKLOG.
+**Reportés** : double authentification du super-admin, Nest 11, montée d'Electron, changement d'utilisateur hors ligne sur mobile (U8), TLS de la base (S25), jetons push (S22), version des rapports (S28), antidatage (S20, accepté).
+**À faire par vous** : exécuter `packages/database/prisma/supabase-activer-rls.sql` dans Supabase ; définir `TURNSTILE_SECRET`, `VITE_TURNSTILE_SITE_KEY`, `CORS_ORIGIN` ; en-têtes `frame-ancestors` chez l'hébergeur du web ; reconstruire l'APK (`allowBackup=false`).
+
 ## Décisions prises (10/10/2026, par le patron)
 - **Authentification à deux facteurs du super-admin** : reportée. **CAPTCHA** sur le site public (inscription, commande, demande de réservation) : oui.
 - **Verrou après inactivité** : OPTIONNEL, désactivé par défaut (les utilisateurs peu à l'aise ne doivent pas être gênés) ; chacun peut l'activer dans les réglages. Aucun nouveau

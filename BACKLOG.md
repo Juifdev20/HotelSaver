@@ -16,6 +16,7 @@ Plateforme multi-hôtels, **hors ligne partout** (mobile ET bureau), avec synchr
 | 6 | Connexion hors ligne, durée de grâce (14 j), effacement des données locales, tolérance d'horloge | **fait** (bureau + mobile) |
 | 7 | Indicateur d'état de synchronisation honnête | **fait** (bureau + mobile) |
 | 8 | README à jour | **fait** |
+| 10 | Audit sécurité + ergonomie (`docs/PLAN-SECURITE-UX.md`), phases 1 à 5 | **fait** — reste : essais sur téléphone/Windows, actions de configuration listées dans le plan |
 | 9 | Mobile : check-in/out, facturation, encaissement, cuisine, stock hors ligne (base partagée `expo-sqlite`) | **codé** — à essayer sur téléphone (voir « Mobile ») |
 
 ## Mobile : à essayer sur téléphone
@@ -29,7 +30,7 @@ dépense → réseau de retour → vérifier que tout part et que les reçus pre
 - Écrans du bureau : réception d'abord, puis cafétaria.
 
 ## À surveiller / idées
-- **Copie locale non chiffrée** (profil de l'application) : sur un ordinateur partagé, utiliser « Effacer les données de cet appareil ». Chiffrement possible avec `safeStorage` d'Electron (clé dans le coffre Windows).
+- **Copie locale** : chiffrée au repos sur le bureau (`safeStorage`) ; sur mobile la base SQLite reste en clair dans l'espace privé de l'application (sauvegarde Android désactivée) — chiffrement natif à prévoir. « Effacer les données de cet appareil » existe sur les deux.
 - Inventaire physique et menu du jour : encore en ligne seulement (le menu s'affiche hors ligne depuis la dernière copie).
 - Annuler un reçu ou une vente : en ligne seulement (inverser de l'argent exige l'état réel du serveur).
 - Tests de l'application Electron réelle (fenêtre, imprimante) : seul le renderer a été exercé (Chromium) ; relancer `apps/desktop/e2e` sur un poste Windows.
