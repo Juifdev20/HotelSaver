@@ -17,6 +17,8 @@ export interface Session {
   /** Déconnexion complète : le profil ET son jeton sont oubliés — la
    * reconnexion exige le mot de passe (employés, retour terrain 28/09). */
   seDeconnecter: () => void;
+  /** Efface la copie locale de l'hôtel et tous les comptes mémorisés sur cet appareil (les actions non envoyées sont perdues). */
+  effacerDonneesAppareil: () => Promise<void>;
   /** Démarré après connexion, arrêté dans changerDeProfil() — voir App.tsx. */
   moteurSync: MoteurSync;
   /** Base locale de l'hôtel : état « créé ici, pas encore enregistré », actions refusées à retirer… */

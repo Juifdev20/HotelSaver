@@ -138,9 +138,16 @@ export interface DonneesAjouterLigne {
 /** UNE_PERSONNE : règle la part d'une seule personne (reçu individuel), le compte reste ouvert pour les
  * autres. GROUPE : règle tout ce qui reste à payer. PAR_SOUS_COMPTE/PARTAGE_EGAL existent côté API
  * mais pas encore ici. */
+/** Détail du règlement en espèces (montant remis, devise remise, devise du rendu), recontrôlé par le serveur. */
+export interface DetailReglementEspeces {
+  deviseRegleeParClient?: Devise;
+  montantRegleParClient?: number;
+  deviseRenduChoisie?: Devise;
+}
+
 export type DonneesEncaissement =
-  | { mode: "GROUPE"; modePaiement: ModePaiement }
-  | { mode: "UNE_PERSONNE"; modePaiement: ModePaiement; sousCompteId: string };
+  | ({ mode: "GROUPE"; modePaiement: ModePaiement } & DetailReglementEspeces)
+  | ({ mode: "UNE_PERSONNE"; modePaiement: ModePaiement; sousCompteId: string } & DetailReglementEspeces);
 
 export interface FiltresReservations {
   statut?: StatutReservation;

@@ -1,6 +1,7 @@
 import * as React from "react";
+import { ouvrirLienSur } from "../liens";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { DepartementRapport, peutOperer, RapportMensuel, Role } from "@hotel-chicago/types";
 import { BedDouble, ChevronDown, ChevronUp, CircleCheck, Coffee, FileText, FileWarning, RefreshCw } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -85,7 +86,7 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
     setErreur(null);
     try {
       const { url } = await client.urlRapport(id);
-      await Linking.openURL(url);
+      await ouvrirLienSur(url);
     } catch (e) {
       setErreur(`Le PDF n'a pas pu être ouvert : ${messageErreur(e, "vérifiez la connexion et qu'une application peut lire les PDF.")}`);
     } finally {

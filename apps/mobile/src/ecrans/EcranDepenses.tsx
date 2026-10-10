@@ -1,6 +1,7 @@
 import * as React from "react";
+import { ouvrirLienSur } from "../liens";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
 import { FileDown } from "lucide-react-native";
 import { Devise, Role, type DepartementRapport, type Depense } from "@hotel-chicago/types";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
@@ -228,7 +229,7 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
       // de générer le PDF, sinon elles manqueraient au document.
       await moteurSync.forcerSynchronisation();
       const { url } = await client.urlPdfDepenses({ du, au, departement: departementFiltre });
-      await Linking.openURL(url);
+      await ouvrirLienSur(url);
     } catch (e) {
       setErreur(`Le PDF n'a pas pu être téléchargé : ${messageErreur(e, "vérifiez la connexion puis réessayez.")}`);
     } finally {

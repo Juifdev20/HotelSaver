@@ -36,6 +36,7 @@ import { FournisseurNotifications } from "./src/notifications/ContexteNotificati
 import { CentreNotifications } from "./src/composants/CentreNotifications";
 import { navigationRef } from "./src/notifications/navigationRef";
 import { retirerAppareil } from "./src/notifications/push";
+import { useVerrouInactivite } from "./src/hooks/useVerrouInactivite";
 
 type Ecran = "chargement" | "selection-profil" | "connexion" | "inscription" | "application";
 
@@ -530,6 +531,22 @@ export default function App() {
     retourSelectionProfil();
   }
 
+  /** « Effacer les données de cet appareil » : copie locale de l'hôtel, comptes mémorisés et jetons. Les actions non envoyées sont perdues
+   * (l'écran de réglages prévient avant). */
+  async function effacerDonneesAppareil() {
+    await retirerAppareil(client);
+    jetonRef.current = null;
+    setSessionActive(false);
+    await miroir?.magasin.effacerTout().catch(() => {});
+    for (const p of await listerProfils()) await oublierProfil(p.utilisateurId);
+    setUtilisateur(null);
+    retourSelectionProfil();
+  }
+
+  // Verrou d'inactivité facultatif (réglage « Sécurité », désactivé par défaut) : seul le patron peut avoir un profil à retrouver ;
+  // pour les employés, le retour à l'écran de profils redemande de toute façon le mot de passe.
+  useVerrouInactivite(sessionActive && utilisateur !== null, changerDeProfil);
+
   if (ecran === "selection-profil") {
     return (
       <EcranSelectionProfil
@@ -609,7 +626,7 @@ export default function App() {
       {contenuPret && (
         <SafeAreaProvider>
           <FrontiereErreur>
-          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync, miroir: miroir!, rechargerProfil: async () => {
+          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, effacerDonneesAppareil, moteurSync, miroir: miroir!, rechargerProfil: async () => {
             const frais = await client.moi();
             if (frais.userId !== utilisateur.userId) return;
             await ecrireProfilCache(frais.userId, frais);

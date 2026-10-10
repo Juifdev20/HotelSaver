@@ -1,10 +1,11 @@
 import * as React from "react";
+import { ouvrirLienSur } from "../liens";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
-  Linking,
+  
   Platform,
   Pressable,
   RefreshControl,
@@ -223,7 +224,7 @@ export function EcranInventaire({ client, utilisateur, onRetour }: EcranInventai
         const res = await client.urlInventaire(id);
         url = typeof res === "string" ? res : (res as { url: string }).url;
       }
-      if (url) await Linking.openURL(url);
+      if (url) await ouvrirLienSur(url);
     } catch (e) {
       setErreurPdf(`Le PDF n'a pas pu être ouvert : ${messageErreur(e, "vérifiez la connexion puis réessayez.")}`);
     }

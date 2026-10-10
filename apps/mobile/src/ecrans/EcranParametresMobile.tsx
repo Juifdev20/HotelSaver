@@ -10,6 +10,8 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { messageErreur } from "../messagesErreur";
+import { BlocSecuriteMobile } from "../composants/BlocSecuriteMobile";
+import { useSession } from "../contexteSession";
 
 export interface EcranParametresMobileProps {
   client: ClientApi;
@@ -33,6 +35,7 @@ export interface EcranParametresMobileProps {
  */
 export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie }: EcranParametresMobileProps) {
   const [enregistrement, setEnregistrement] = useState(false);
+  const { miroir, effacerDonneesAppareil } = useSession();
   const patronOpere = utilisateur?.patronPeutOperer === true;
   const cuisineActivee = utilisateur?.cuisineActivee === true;
   const commandeWebActivee = utilisateur?.commandeWebActivee === true;
@@ -142,6 +145,10 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
                 />
               </View>
             </View>
+          )}
+
+          {utilisateur && (
+            <BlocSecuriteMobile client={client} actionsEnAttente={miroir.actionsEnAttenteTotal()} onEffacerDonnees={effacerDonneesAppareil} />
           )}
 
           {utilisateur && (
