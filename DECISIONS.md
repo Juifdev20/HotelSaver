@@ -3211,3 +3211,59 @@ du moteur (`packages/sync-engine`, 32 tests).
   action refusée ; sinon on dit ce qui est vrai (hors ligne, N actions gardées sur l'appareil, conflit, horloge, données de plus de 24 h).
 
 Limite connue : plus de 5000 suppressions entre deux synchros ne seraient pas toutes transmises (voir BACKLOG).
+
+
+## 10/10/2026 — Bureau hors ligne : base locale, client « d'abord sur l'appareil », ordres, reçus provisoires, session
+
+Décision du patron : l'application doit fonctionner **sans connexion, partout** (bureau et mobile), avec synchronisation. Pas encore en
+production → tout a pu être repris sans migration de données. Le bureau est livré en entier ; le mobile garde son architecture actuelle (voir
+« Mobile » ci-dessous et `BACKLOG.md`).
+
+**Architecture (bureau)**
+- **Base locale = documents JSON en mémoire + IndexedDB** (`packages/miroir-local`, une base PAR hôtel : `hotelsaver-<hotelId>`). Choix contre
+  SQLite : aucune extension native à recompiler pour Electron (rien ne peut empêcher l'application de démarrer sur un poste), transactionnel,
+  testable en Node (`fake-indexeddb`) ET dans un vrai Chromium. Une écriture disque qui échoue n'est jamais visible à l'écran (disque d'abord,
+  mémoire ensuite).
+- **`ClientHorsLigne extends ClientApi`** : les écrans ne changent presque pas. Lectures servies par le miroir (mêmes formes que l'API :
+  réservation + chambre + client + facture, compte + personnes + lignes…) ; écritures = miroir + file d'envoi dans UNE transaction ;
+  tableaux de bord calculés localement (ventes pas encore envoyées incluses). Ce qui n'a de sens qu'en ligne (rapports PDF, utilisateurs,
+  site, images, annulation d'un reçu, taux de change, inventaire, menu) reste un appel serveur qui échoue proprement.
+  Tant qu'un poste n'a jamais synchronisé l'hôtel, les lectures passent par le serveur (le miroir est vide).
+- **Identifiants** : une ligne créée hors ligne a un identifiant LOCAL ; à la confirmation elle est renommée sous son identifiant serveur, toutes
+  les références (dans les autres lignes ET dans la file) suivent dans une écriture atomique, et l'ancien identifiant reste résoluble (alias) pour un
+  écran resté ouvert.
+- **Ordres** (`ActionReservation` : confirmer / annuler / check-in / check-out ; `ActionLigne` : avancement en cuisine) et créations
+  `Facture` / `VenteCafeteria` (= encaisser un compte) voyagent dans la même file ; le serveur recalcule TOUT (totaux, taux, numéro définitif) et applique ses règles
+  habituelles : un ordre devenu impossible (réservation annulée ailleurs) est refusé avec son motif, jamais forcé. L'appareil l'affiche dans
+  « Actions refusées » ; « Retirer » annule ses effets locaux et ceux des actions qui en dépendaient, et relit les lignes touchées.
+- **Références locales entre actions d'une même file** (réservation → check-in → facture) : résolues côté serveur par la table de correspondance (par hôtel).
+  Une action dont le parent n'a pas abouti n'est pas tentée (« en attente » si la panne est passagère, « refusée » sinon).
+- **Modifications enchaînées** d'une même ligne faites hors ligne l'une sur l'autre : pas de faux conflit (la version de départ de la suivante est celle produite
+  par la précédente, dans le lot côté serveur et entre lots côté appareil). Un vrai conflit (autre poste) reste un conflit.
+- **Numérotation des reçus** : plus de collision entre deux postes (reprise sur contrainte d'unicité) ; reçu provisoire `TEMP-<poste>-<AAAAMMJJ>-<n>`
+  (poste = 4 caractères propres à l'appareil), imprimé avec « REÇU PROVISOIRE », conservé côté serveur (`numeroProvisoire`) pour retrouver le vrai.
+  Le total d'un reçu provisoire est calculé avec le taux de change connu de l'appareil ; le reçu définitif fait foi s'il diffère.
+- **Vente déjà faite, stock insuffisant côté serveur** : la ligne est enregistrée (stock négatif + alerte de rupture) plutôt que refusée — l'argent a déjà été encaissé.
+- **Règles d'argent dans `packages/regles`** (encaissement croisé, partage égal, nuitées, totaux de séjour, reçus provisoires) : l'API et les appareils
+  utilisent le même code, jamais deux versions.
+
+**Session hors ligne** (`GestionnaireSession`, testé sans interface)
+- Reprise au lancement : renouvellement du jeton si le réseau est là, sinon profil mémorisé si l'appareil a parlé au serveur depuis moins de **14 jours** ;
+  au-delà, ou si la licence était suspendue au dernier contact : reconnexion obligatoire (message explicite).
+- Connexion sans Internet : seulement pour un compte déjà connecté sur ce poste, mot de passe vérifié contre une **empreinte PBKDF2 salée** (150 000 itérations,
+  e-mail inclus dans la dérivation ; jamais le mot de passe). 5 échecs ⇒ blocage de 30 s. Le mot de passe saisi est gardé en mémoire vive seulement, pour se
+  reconnecter au serveur au retour du réseau.
+- **Horloge** : la grâce se calcule sur une horloge qui ne recule jamais (plus grande heure vue depuis le dernier contact) ; reculer l'heure ne rallonge rien,
+  l'avancer par erreur n'enferme pas (un contact serveur remet les compteurs à l'heure du serveur). Un écart de plus de 5 min avec le serveur est signalé.
+- Déconnexion : les données de l'hôtel restent sur le poste (elles servent au travail hors ligne), le jeton de renouvellement est effacé, les actions non envoyées sont
+  annoncées avant. Un autre hôtel qui se connecte efface la copie du précédent SEULEMENT si tout y avait été envoyé. « Effacer les données de cet appareil » : refusé tant que
+  des actions n'ont pas été envoyées.
+- Limite connue : la copie locale n'est pas chiffrée (elle vit dans le profil de l'application, comme le reste de ses fichiers) — voir `BACKLOG.md`.
+
+**Vérification** : 140+ tests d'intégration sur vraie base (dont des appareils complets face au vrai serveur) et un scénario dans un vrai Chromium
+(connexion → coupure → redémarrage sans Internet → retour du réseau → facture TEMP→REC). L'application Electron elle-même (fenêtre, imprimante, zone de notification)
+n'a pas pu être lancée dans l'environnement de développement : à essayer sur un poste Windows.
+
+**Mobile** : garde son miroir SQLite par écran (chambres, réservations, clients, comptes/lignes, dépenses hors ligne). Il profite de toute la solidité côté serveur et
+de l'indicateur d'état honnête. Check-in/out, facturation et encaissement y restent EN LIGNE : les passer hors ligne demande de remplacer ses miroirs par la base partagée
+(adaptateur SQLite pour `Persistance` + écrans branchés sur `ClientHorsLigne`), chantier décrit dans `BACKLOG.md`.

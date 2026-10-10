@@ -5,38 +5,54 @@ Monorepo pnpm/Turborepo pour l'application de gestion de l'Hôtel Chicago
 racine pour la spécification complète du produit, et `DECISIONS.md` pour les
 hypothèses prises pendant la réalisation.
 
-**État actuel : le backend est fonctionnellement complet (toute la section 8)
-et vérifié en conditions réelles** (monorepo, schéma de base de données
-appliqué à Supabase de production, policies RLS appliquées, authentification,
-matrice de permissions testée de bout en bout, modules Chambres/Réservations/
-Factures/Produits/Stock/Cafétaria avec logique métier réelle — disponibilité,
-check-in/out, gestion de stock, comptes ouverts et sous-comptes, calcul
-multi-devises et paiement croisé, intégration ventes cafétaria → facture de
-chambre —, Dashboard patron scopé par rôle, endpoints publics du site
-vitrine, et synchronisation hors ligne avec détection de conflit).
+**HotelSaver est une plateforme multi-hôtels qui fonctionne SANS connexion Internet** (bureau Windows et mobile Android),
+puis se synchronise avec le serveur dès que le réseau revient. Chaque hôtel ne voit que ses propres données (testé sur une vraie
+base à deux hôtels), et le travail de la journée — réserver, installer, facturer, servir, encaisser — continue pendant une coupure.
 
-**L'app Electron a commencé** : connexion Supabase réelle + écran Chambres,
-testés de bout en bout avec Playwright sur la vraie app. Ce qui reste : les
-autres écrans Electron (réservations, facturation, cafétaria) et
-l'impression thermique, les bases SQLite locales qui consommeraient le
-module de sync, le mobile, et le site public lui-même (Next.js) — voir le
-README de chaque paquet dans `apps/` et `DECISIONS.md`.
+| Application | Sans connexion |
+|---|---|
+| **Bureau (Electron)** | **Complet** : réception (réservations, arrivées/départs, check-in/out, clients, facturation avec reçu provisoire), cafétaria (comptes, lignes, encaissement, cuisine), stock, dépenses, tableau de bord. Ouverture de l'application sans Internet (durée de grâce de 14 jours). |
+| **Mobile (Android)** | Réservations, chambres, clients, comptes et lignes de cafétaria, dépenses. **Pas encore** : check-in/out, facturation et encaissement sans connexion (voir `BACKLOG.md`). |
+| **API (NestJS)** | Prête pour les deux : envois rejouables sans doublon, ordres (check-in, annulation, facture, encaissement), reçus provisoires, suppressions, pagination, horloges. |
+| **Site public (Next.js)** | Pas encore construit. |
+
+**Comment ça marche, en bref**
+
+- Le bureau garde une copie des données de l'hôtel dans une **base locale par hôtel** (IndexedDB). Les écrans lisent cette copie
+  (instantané, identique avec ou sans réseau) ; chaque action est enregistrée dans la copie **et** dans une file d'envoi, dans la
+  même transaction.
+- Un **moteur de synchronisation** (`packages/sync-engine`) envoie la file dans l'ordre, reçoit les changements du serveur page par
+  page, détecte les conflits (le serveur gagne, la personne tranche) et dit la vérité dans un **indicateur** : « À jour » seulement
+  quand tout est vraiment envoyé.
+- Un encaissement fait hors ligne reçoit un **reçu provisoire `TEMP-<poste>-<jour>-<n>`**, imprimé avec la mention « REÇU
+  PROVISOIRE ». Au retour du réseau, le serveur attribue le vrai numéro (`REC-…` / `CAF-…`) et garde le numéro provisoire pour le
+  retrouver.
+- On peut **rouvrir l'application sans Internet** : le mot de passe est vérifié sur l'appareil (empreinte salée, jamais le mot de
+  passe), tant que l'appareil a parlé au serveur depuis moins de 14 jours (licence suspendue ou compte désactivé entre-temps ⇒
+  refus à la reconnexion). L'horloge de l'appareil ne peut pas servir à gagner du temps.
+- « Effacer les données de cet appareil » (écran Synchronisation) retire la copie locale ; refusé tant que des actions n'ont pas été
+  envoyées.
+
+Détail des décisions : `DECISIONS.md` (entrées du 10/10/2026). Reste à faire : `BACKLOG.md`.
 
 ## Structure
 
 ```
 apps/
-  api/       Backend NestJS — construit (Phase 1 : Auth/RBAC ; Phases 2-3 : Réception + Cafétaria)
-  web/       Site public Next.js — pas encore construit (Phase 7)
-  mobile/    App React Native — pas encore construite (Phase 5)
-  desktop/   App Electron — connexion + écran Chambres (reste à venir : autres écrans, impression)
+  api/       Backend NestJS (multi-hôtels, synchronisation, Prisma 7 + Postgres)
+  desktop/   Application Windows (Electron + React) — hors ligne complet
+  mobile/    Application Android (React Native / Expo)
+  web/       Site public Next.js — pas encore construit
 packages/
-  database/      Schéma Prisma + client, connecté à Supabase Postgres
-  types/         Types partagés (double build CJS pour l'API / ESM pour le renderer)
-  ui/            Design system (section 12) : jetons, Button, StatusBadge, RoomCard, formatMontant
+  database/      Schéma Prisma + client
+  types/         Types partagés
+  regles/        Règles métier pures (encaissement, partage, nuitées, reçus provisoires) : UNE version, API et appareils
   api-client/    Client HTTP typé + connexion Supabase Auth
-  sync-engine/   Moteur de synchronisation hors ligne — pas encore construit
-assets/      Ressources graphiques statiques (logo, icônes...) — voir section 5.1 du prompt
+  sync-engine/   Moteur de synchronisation (file d'envoi, réception paginée, conflits, indicateur d'état)
+  miroir-local/  Base locale hors ligne : documents persistants, client « d'abord sur l'appareil », session hors ligne
+  receipts/      Construction des reçus (chambre, cafétaria, provisoires) et ESC/POS
+  ui/            Design system
+assets/      Ressources graphiques statiques
 ```
 
 **Où trouver une image donnée** (section 5.1 du prompt) :
@@ -156,32 +172,40 @@ pnpm --filter api start:dev
   s'appliquerait à ce contrôleur — le site public n'a pas de compte
   (section 9.1).
 - `/sync/push`, `/sync/pull` (section 10.3) : synchronisation hors ligne.
-  Chaque opération de `push` délègue au service métier existant de son type
-  d'entité (Chambre, Réservation, Produit, MouvementStock, CompteCafeteria,
-  SousCompte, LigneCommande — Facture/VenteCafeteria exclues, voir
-  `DECISIONS.md`), avec détection de conflit par `syncVersion` : si la
-  version serveur a changé depuis la dernière lecture de l'appareil, le
-  serveur gagne et renvoie l'état actuel (statut `CONFLICT`), rien n'est
-  écrasé silencieusement (section 10.4). Une opération invalide renvoie un
-  statut `ERROR` pour elle seule, sans faire échouer tout le lot.
+  `push` accepte des créations (réservation, chambre, produit, mouvement de stock, compte/personne/ligne de cafétaria, dépense,
+  **facture de séjour**, **encaissement cafétaria**), des modifications (avec `syncVersion` : le serveur gagne en cas de conflit, rien
+  n'est écrasé en silence) et des **ordres** (check-in/out, annulation, confirmation, avancement en cuisine). Chaque opération
+  délègue au service métier existant ; une opération invalide renvoie `ERROR` pour elle seule. Une création rejouée ou envoyée en
+  double ne crée qu'une ligne (table `SyncCorrespondance`) ; une action qui cite l'identifiant local d'une ligne créée plus tôt dans
+  la même file est résolue côté serveur (par hôtel). `pull` est paginé (`limite`, `_meta.tronque`), renvoie l'heure du serveur
+  (`_meta.curseur`) et les suppressions (`_meta.suppressions`).
 
 ## Tests
 
 ```bash
-pnpm test                    # tous les tests unitaires (api, ui, api-client)
+pnpm test                    # tests unitaires de tous les paquets
 pnpm --filter api test       # API seule
 ```
 
-Tests E2E de l'app Electron (vraie app, vraie API, vrai compte Supabase) :
-voir `apps/desktop/README.md` — ignorés tant que les variables `E2E_*` ne
-sont pas définies.
+**Tests d'intégration sur une vraie base Postgres locale** (jamais Supabase — une garde refuse toute autre base) :
 
-Côté API, les tests vérifient notamment la matrice de permissions complète
-(`apps/api/test/roles.e2e-spec.ts`, requis section 14) : un rôle
-`CAFETARIA` reçoit bien 403 sur les routes Chambres/Réservations, un rôle
-`RECEPTIONNISTE` reçoit bien 403 sur les routes Produits/Stock/Cafétaria, et
-`PATRON` accède à tout. Ces tests utilisent un `PrismaClient` mocké — aucune
-connexion réseau à Supabase n'est nécessaire pour les faire passer.
+```bash
+createdb hotel_t
+prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script | psql hotel_t     # dans packages/database
+TEST_INTEGRATION=1 DATABASE_URL=postgresql://…@localhost:…/hotel_t pnpm --filter @hotel-chicago/api test:integration
+```
+
+| Fichier (`apps/api/test/integration/`) | Ce qu'il prouve |
+|---|---|
+| `isolation.e2e-spec.ts` | Avec DEUX hôtels, aucune route ne lit ni ne modifie les données de l'autre (82 vérifications) |
+| `sync.e2e-spec.ts` | Doublons, reprises, pagination, suppressions, horodatage borné, charges forgées |
+| `hors-ligne.e2e-spec.ts` | Une journée entière rejouée d'un coup : réservation → check-in → facture, cafétaria → encaissement, reçus provisoires |
+| `appareil.e2e-spec.ts` | De VRAIS appareils (base locale + client + moteur) face au vrai serveur, réseau coupé/rétabli, conflits, réponses perdues |
+| `navigateur.e2e-spec.ts` | L'application bureau dans un VRAI navigateur (Chromium) : connexion, coupure, redémarrage sans Internet, retour du réseau, facture TEMP→REC. Demande `TEST_NAVIGATEUR=1` et `pnpm --filter desktop build` |
+
+Tests E2E de l'app Electron packagée (vraie app, vraie API, vrai compte Supabase) : voir `apps/desktop/README.md`.
+
+La matrice de permissions (`apps/api/test/roles.e2e-spec.ts`, requis section 14) utilise un `PrismaClient` mocké : aucun accès réseau.
 
 ## Déploiement
 

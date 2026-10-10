@@ -17,7 +17,14 @@ section pour toute décision non triviale).
   Ils vident la base : une garde refuse toute base distante ou dont le nom n'est pas en `_t`/`test`. Schéma : `createdb hotel_t` puis
   `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script | psql hotel_t`. Sans `TEST_INTEGRATION=1` ils sont ignorés.
   `isolation.e2e-spec.ts` vérifie, avec DEUX hôtels, qu'aucune route ne lit ni ne modifie les données de l'autre — à relancer après tout changement de service/DTO.
-- Tests paquets : `pnpm --filter @hotel-chicago/sync-engine test`,
+  `sync.e2e-spec.ts` / `hors-ligne.e2e-spec.ts` / `appareil.e2e-spec.ts` couvrent la synchronisation (doublons, ordres, reçus provisoires, vrais appareils) ;
+  `navigateur.e2e-spec.ts` pilote le bureau dans Chromium (`TEST_NAVIGATEUR=1`, après `pnpm --filter desktop build`, Chromium dans `/opt/pw-browsers/chromium` ou `CHROMIUM_PATH`).
+  Les suites partagent la même base : elles tournent en série (`--runInBand`, déjà dans le script).
+- **Hors ligne (bureau)** : toute écriture passe par `packages/miroir-local` (`Ecritures`) — miroir local + file d'envoi en UNE transaction ; toute lecture par `ClientHorsLigne`.
+  Une nouvelle action métier hors ligne = (1) un type d'opération côté serveur (`sync.service.ts`, `entites-synchronisables.ts`, miroir dans `packages/api-client`), (2) la règle dans `Ecritures`
+  avec les MÊMES messages d'erreur que le serveur, (3) un scénario dans `appareil.e2e-spec.ts`. Les calculs d'argent vivent UNIQUEMENT dans `packages/regles`.
+- Après un changement de `packages/sync-engine`, `packages/miroir-local` ou `packages/api-client` : `pnpm --filter <paquet> build` (le bureau et le mobile lisent `dist/`) ; les tests d'intégration, eux, lisent les sources.
+- Tests paquets : `pnpm --filter @hotel-chicago/miroir-local test`, `pnpm --filter @hotel-chicago/regles test`, `pnpm --filter @hotel-chicago/sync-engine test`,
   `pnpm --filter @hotel-chicago/api-client test`,
   `pnpm --filter @hotel-chicago/receipts test`.
 - Mobile (Expo bare, appareil USB) : `adb reverse tcp:3000 tcp:3000 && adb
