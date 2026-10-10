@@ -11,7 +11,11 @@ import type { ProfilConnecte } from "@hotel-chicago/types";
 
 export const DELAI_GRACE_JOURS = 14;
 const JOUR_MS = 86_400_000;
-const ITERATIONS_PAR_DEFAUT = 150_000;
+/** Recommandation OWASP pour PBKDF2-SHA256 (2023). Une empreinte plus ancienne est recalculée à la prochaine connexion réussie. */
+export const ITERATIONS_RECOMMANDEES = 600_000;
+const ITERATIONS_PAR_DEFAUT = ITERATIONS_RECOMMANDEES;
+
+export const verificateurObsolete = (v: VerificateurMotDePasse): boolean => v.iterations < ITERATIONS_RECOMMANDEES;
 
 export interface VerificateurMotDePasse {
   sel: string;
@@ -31,6 +35,17 @@ export interface CompteLocal {
   verifieLe: string;
   /** Plus grande heure d'appareil vue depuis ce contact (ISO) : l'horloge utilisée pour la grâce ne recule jamais. */
   heureMax: string;
+  /** Choix de l'utilisateur sur ce poste (jamais imposés, sauf le mot de passe au lancement du patron, qu'il peut retirer). */
+  preferences?: PreferencesSession;
+  /** Tentatives hors ligne ratées : conservées sur disque, donc redémarrer l'application ne remet pas le compteur à zéro. */
+  echecs?: { nombre: number; blocageJusquau: string | null; blocages: number };
+}
+
+export interface PreferencesSession {
+  /** Redemander le mot de passe à chaque lancement de l'application. Par défaut : oui pour le patron (finances), non pour le personnel. */
+  verrouLancement?: boolean;
+  /** Verrouiller après N minutes sans activité. Désactivé par défaut (null) : l'application reste ouverte tant que l'utilisateur ne choisit pas. */
+  inactiviteMinutes?: number | null;
 }
 
 export type DecisionAcces =
@@ -91,6 +106,8 @@ export function memoriserContact(
     refreshToken: refreshToken ?? existant.refreshToken ?? null,
     verifieLe: serveurLe.toISOString(),
     heureMax: serveurLe.toISOString(),
+    preferences: existant.preferences,
+    echecs: undefined, // un contact réussi avec le serveur remet les tentatives à zéro
   };
 }
 

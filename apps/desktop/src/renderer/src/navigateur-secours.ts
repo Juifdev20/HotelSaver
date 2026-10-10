@@ -52,6 +52,8 @@ export function installerFilSecoursNavigateur(): void {
   const api: ApiPreload = {
     lireConfiguration: () => Promise.resolve(lire()),
     ecrireConfiguration: (partielle) => Promise.resolve(ecrire(partielle)),
+    // Hors Electron il n'y a pas de coffre du système : pas de clé, donc copie locale non chiffrée (mode de secours / tests seulement).
+    lireCleLocale: () => Promise.resolve(""),
     // Pas d'imprimante, ni de lien profond, hors Electron.
     imprimer: () => Promise.reject(new Error("L'impression n'est disponible que dans l'application Windows.")),
     imprimerTicketDeTest: () => Promise.reject(new Error("L'impression n'est disponible que dans l'application Windows.")),

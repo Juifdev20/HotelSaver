@@ -1,12 +1,13 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, shell, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, session, shell, Tray } from "electron";
 import { join, resolve } from "path";
-import { ecrireConfiguration, lireConfiguration } from "./config-store";
+import { cleChiffrementLocale, ecrireConfiguration, lireConfiguration } from "./config-store";
 import { imprimerLignes, imprimerTicketDeTest } from "./imprimante";
 
 // Permet de lancer une instance isolée (tests E2E, ou deux postes de test sur
 // la même machine) sans toucher à la configuration/session de l'instance
 // principale. Doit être appelé avant `ready`.
-if (process.env.HOTEL_CHICAGO_USER_DATA) {
+// (Réservé aux versions non installées : une variable d'environnement ne doit pas pouvoir rediriger les données d'un poste en production.)
+if (process.env.HOTEL_CHICAGO_USER_DATA && !app.isPackaged) {
   app.setPath("userData", process.env.HOTEL_CHICAGO_USER_DATA);
 }
 
@@ -74,7 +75,12 @@ function creerFenetrePrincipale(): BrowserWindow {
     icon: join(__dirname, "../../resources/icon.png"),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
-      sandbox: false,
+      // Le preload n'utilise que contextBridge/ipcRenderer : le bac à sable reste donc actif (un défaut du rendu ne donne pas accès au système).
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      // Outils de développement : désactivés dans l'application installée (ils donneraient accès à la base locale et aux jetons).
+      devTools: !app.isPackaged,
       // Fenêtre masquée : sans cela Chromium ralentit les minuteries et l'écoute des notifications s'endort.
       backgroundThrottling: false,
     },
@@ -110,7 +116,7 @@ function creerFenetrePrincipale(): BrowserWindow {
 
   // electron-vite définit ELECTRON_RENDERER_URL en mode dev (serveur Vite) ;
   // en production, le renderer est un fichier statique déjà buildé.
-  if (process.env["ELECTRON_RENDERER_URL"]) {
+  if (!app.isPackaged && process.env["ELECTRON_RENDERER_URL"]) {
     fenetre.loadURL(process.env["ELECTRON_RENDERER_URL"]);
   } else {
     fenetre.loadFile(join(__dirname, "../renderer/index.html"));
@@ -149,7 +155,14 @@ function creerZoneNotification(): void {
 
 if (premiereInstance) {
   app.whenReady().then(() => {
+    // Application installée : pas de barre de menus (donc pas de raccourci vers les outils de développement) et permissions limitées à ce
+    // dont l'application a besoin (caméra du lecteur de codes-barres, notifications).
+    if (app.isPackaged) Menu.setApplicationMenu(null);
+    session.defaultSession.setPermissionRequestHandler((_contenu, permission, rappel) => {
+      rappel(permission === "media" || permission === "notifications" || permission === "clipboard-sanitized-write");
+    });
     ipcMain.handle("configuration:lire", () => lireConfiguration());
+    ipcMain.handle("securite:cle-locale", () => cleChiffrementLocale());
     ipcMain.handle("configuration:ecrire", (_evenement, partielle) => ecrireConfiguration(partielle));
     ipcMain.handle("impression:imprimer", (_evenement, interfaceImprimante, lignes) => imprimerLignes(interfaceImprimante, lignes));
     ipcMain.handle("impression:test", (_evenement, interfaceImprimante) => imprimerTicketDeTest(interfaceImprimante));

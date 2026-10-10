@@ -2,7 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ErreurApi, demanderReinitialisationMotDePasse, inscrireHotel } from "@hotel-chicago/api-client";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { PersistanceIndexedDb, ouvrirMiroir, supprimerBaseIndexedDb, type GestionnaireSession, type Miroir } from "@hotel-chicago/miroir-local";
+import { ouvrirMiroir, supprimerBaseIndexedDb, type GestionnaireSession, type Miroir } from "@hotel-chicago/miroir-local";
 import type { EtatSync } from "@hotel-chicago/sync-engine";
 import { peutOperer } from "@hotel-chicago/types";
 import type { InscriptionHotelPayload, LienNotification, NotificationApp, ProfilConnecte } from "@hotel-chicago/types";
@@ -37,7 +37,7 @@ import { EcranBientot } from "./screens/EcranBientot";
 import { EcranSynchronisation } from "./screens/EcranSynchronisation";
 import { IndicateurSynchro } from "./hors-ligne/IndicateurSynchro";
 import { creerGestionnaireSession } from "./hors-ligne/session";
-import { purgerAncienHotel, nomBaseHotel } from "./hors-ligne/bases-locales";
+import { ouvrirPersistanceHotel, purgerAncienHotel, nomBaseHotel } from "./hors-ligne/bases-locales";
 
 type Ecran = "chargement" | "connexion" | "inscription" | "application";
 
@@ -111,7 +111,7 @@ export function App() {
       const nom = nomBaseHotel(profil.hotelId);
       void purgerAncienHotel(profil.hotelId);
       const m = await ouvrirMiroir({
-        persistance: new PersistanceIndexedDb(nom),
+        persistance: await ouvrirPersistanceHotel(nom),
         baseUrl: config.apiUrl,
         getAccessToken: () => g.accessToken(),
         utilisateur: () => profilRef.current ?? profil,
@@ -149,6 +149,7 @@ export function App() {
         }
         if (resultat.email) setEmailPreRempli(resultat.email);
         if (resultat.message) setMessageConnexion(resultat.message);
+        else if (resultat.verrou) setMessageConnexion("Pour protéger vos données, retapez votre mot de passe.");
       } catch {
         // Base locale illisible ou erreur imprévue : retour à l'écran de connexion, sans bloquer.
       }
@@ -207,8 +208,10 @@ export function App() {
           const decision = await g.persisterHorloge();
           if (decision?.autorise) setJoursRestants(decision.joursRestants);
           else if (decision && !decision.autorise) {
-            // Durée de grâce dépassée en cours de route : on ne coupe pas le travail en cours, mais on le dit clairement (voir bandeau).
+            // Durée de grâce dépassée (ou licence suspendue) alors que l'application est restée ouverte : l'accès s'arrête, comme au
+            // lancement. Rien n'est perdu : les données et les actions non envoyées restent sur l'ordinateur.
             setJoursRestants(0);
+            void verrouillerRef.current(decision.message);
           }
         }
       } catch {
@@ -350,6 +353,52 @@ export function App() {
     setPage("tableau-de-bord");
     setEcran("connexion");
   }
+
+  /** Retour à l'écran de connexion SANS effacer ni perdre quoi que ce soit (actions non envoyées comprises). Sert à la grâce expirée et au verrou choisi. */
+  async function verrouiller(message: string) {
+    const email = gestionnaire.current?.email() ?? undefined;
+    miroir?.fermer();
+    await gestionnaire.current?.deconnecter();
+    setMiroir(null);
+    setEtatSync(null);
+    setModeHorsLigne(false);
+    setJoursRestants(null);
+    setUtilisateur(null);
+    setPage("tableau-de-bord");
+    if (email) setEmailPreRempli(email);
+    setMessageConnexion(message);
+    setEcran("connexion");
+  }
+  const verrouillerRef = useRef(verrouiller);
+  verrouillerRef.current = verrouiller;
+
+  // Verrou après inactivité : OPTIONNEL, désactivé tant que l'utilisateur ne l'a pas choisi (réglage « Sécurité » des paramètres).
+  const [preferencesSession, setPreferencesSession] = useState<{ verrouLancement: boolean; inactiviteMinutes: number | null }>({ verrouLancement: false, inactiviteMinutes: null });
+  useEffect(() => {
+    if (ecran !== "application") return;
+    void gestionnaire.current?.preferences().then(setPreferencesSession).catch(() => undefined);
+  }, [ecran]);
+  async function changerPreferencesSession(p: { verrouLancement?: boolean; inactiviteMinutes?: number | null }) {
+    await gestionnaire.current?.definirPreferences(p);
+    setPreferencesSession((courant) => ({ ...courant, ...p }));
+  }
+  useEffect(() => {
+    const minutes = preferencesSession.inactiviteMinutes;
+    if (ecran !== "application" || !minutes) return;
+    let derniere = Date.now();
+    const bouger = () => {
+      derniere = Date.now();
+    };
+    const evenements = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
+    evenements.forEach((e) => window.addEventListener(e, bouger, { passive: true }));
+    const minuteur = setInterval(() => {
+      if (Date.now() - derniere >= minutes * 60_000) void verrouillerRef.current(`Session verrouillée après ${minutes} minutes sans activité. Retapez votre mot de passe pour continuer.`);
+    }, 15_000);
+    return () => {
+      evenements.forEach((e) => window.removeEventListener(e, bouger));
+      clearInterval(minuteur);
+    };
+  }, [ecran, preferencesSession.inactiviteMinutes]);
 
   /** « Effacer les données de cet appareil » : supprime la base locale de l'hôtel puis ferme la session. */
   async function effacerDonneesAppareil() {

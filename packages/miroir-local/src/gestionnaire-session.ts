@@ -12,7 +12,9 @@ import {
   evaluerAcces,
   memoriserContact,
   verifierMotDePasse,
+  verificateurObsolete,
   type CompteLocal,
+  type PreferencesSession,
   type DecisionAcces,
 } from "./session-locale";
 
@@ -43,7 +45,7 @@ export type ModeSession = "en-ligne" | "hors-ligne";
 
 export type ResultatSession =
   | { etat: "connecte"; mode: ModeSession; profil: ProfilConnecte; email: string; acces: DecisionAcces & { autorise: true } }
-  | { etat: "connexion-requise"; message?: string; email?: string };
+  | { etat: "connexion-requise"; message?: string; email?: string; verrou?: boolean };
 
 export type ResultatConnexion = Extract<ResultatSession, { etat: "connecte" }> | { etat: "erreur"; message: string };
 
@@ -84,6 +86,11 @@ export class GestionnaireSession {
     const cle = memo.compteActif;
     const compte = cle ? memo.comptes[cle] : undefined;
     if (!cle || !compte) return { etat: "connexion-requise" };
+
+    // Mot de passe redemandé à chaque lancement : par défaut pour le patron (il voit les finances de l'hôtel), au choix pour les autres.
+    if (compte.preferences?.verrouLancement ?? compte.profil?.role === "PATRON") {
+      return { etat: "connexion-requise", email: compte.email, verrou: true };
+    }
 
     if (!compte.refreshToken) {
       // Session précédente sans jeton (ouverte hors ligne par mot de passe, ou fermée par « Déconnexion ») : sans le mot de passe on ne
@@ -128,32 +135,41 @@ export class GestionnaireSession {
   }
 
   private async connecterHorsLigne(cle: string, motDePasse: string): Promise<ResultatConnexion> {
-    const maintenant = this.deps.maintenant().getTime();
-    if (maintenant < this.bloqueJusqua) {
-      return { etat: "erreur", message: "Trop de tentatives. Patientez quelques secondes avant de réessayer." };
-    }
     const memo = await this.deps.lire();
     const compte = memo.comptes[cle];
     if (!compte) {
       return { etat: "erreur", message: "Impossible de joindre le serveur. Première connexion sur cet appareil : une connexion Internet est nécessaire." };
     }
+    // Référence de temps qui ne recule pas : reculer l'horloge de l'ordinateur ne lève pas un blocage.
+    const maintenant = Math.max(this.deps.maintenant().getTime(), Date.parse(compte.heureMax) || 0);
+    const bloque = compte.echecs?.blocageJusquau ? Date.parse(compte.echecs.blocageJusquau) : 0;
+    if (maintenant < Math.max(bloque, this.bloqueJusqua)) {
+      const secondes = Math.ceil((Math.max(bloque, this.bloqueJusqua) - maintenant) / 1000);
+      return { etat: "erreur", message: `Trop de tentatives. Patientez ${secondes > 90 ? `${Math.ceil(secondes / 60)} minutes` : `${secondes} secondes`} avant de réessayer.` };
+    }
     if (!(await verifierMotDePasse(cle, motDePasse, compte.verificateur))) {
-      this.echecsHorsLigne += 1;
-      if (this.echecsHorsLigne >= MAX_ECHECS_HORS_LIGNE) {
-        this.echecsHorsLigne = 0;
-        this.bloqueJusqua = maintenant + BLOCAGE_HORS_LIGNE_MS;
-      }
+      // Les échecs sont écrits sur disque : fermer et rouvrir l'application ne remet pas le compteur à zéro. Chaque série de
+      // MAX_ECHECS_HORS_LIGNE échecs double l'attente (30 s, 1 min, 2 min… jusqu'à 15 min).
+      const nombre = (compte.echecs?.nombre ?? 0) + 1;
+      const serie = nombre >= MAX_ECHECS_HORS_LIGNE;
+      const blocages = (compte.echecs?.blocages ?? 0) + (serie ? 1 : 0);
+      const attente = Math.min(BLOCAGE_HORS_LIGNE_MS * 2 ** Math.max(0, blocages - 1), 15 * 60_000);
+      const echecs = { nombre: serie ? 0 : nombre, blocages, blocageJusquau: serie ? new Date(maintenant + attente).toISOString() : (compte.echecs?.blocageJusquau ?? null) };
+      this.echecsHorsLigne = echecs.nombre;
+      await this.deps.ecrire({ comptes: { ...memo.comptes, [cle]: { ...compte, echecs } }, compteActif: memo.compteActif });
       return { etat: "erreur", message: "Email ou mot de passe incorrect." };
     }
     this.echecsHorsLigne = 0;
     const decision = evaluerAcces(compte, this.deps.maintenant());
     if (!decision.autorise) return { etat: "erreur", message: decision.message };
 
+    // Empreinte créée avec moins d'itérations que la recommandation actuelle : recalculée maintenant que le mot de passe est connu.
+    const verificateur = verificateurObsolete(compte.verificateur) ? await creerVerificateur(cle, motDePasse) : compte.verificateur;
     this.emailActif = cle;
     this.mode = "hors-ligne";
     this.jeton = null;
     this.motDePasseEnMemoire = motDePasse;
-    await this.deps.ecrire({ comptes: memo.comptes, compteActif: cle });
+    await this.deps.ecrire({ comptes: { ...memo.comptes, [cle]: { ...compte, verificateur, echecs: undefined } }, compteActif: cle });
     await this.persisterHorloge(cle);
     return { etat: "connecte", mode: "hors-ligne", profil: compte.profil, email: compte.email, acces: decision };
   }
@@ -238,6 +254,34 @@ export class GestionnaireSession {
     const maj = avancerHorloge(compte, maintenant);
     if (maj !== compte) await this.deps.ecrire({ comptes: { ...memo.comptes, [cle]: maj }, compteActif: memo.compteActif });
     return evaluerAcces(maj, maintenant);
+  }
+
+  /** Choix de l'utilisateur sur ce poste (verrou au lancement, verrou après inactivité). */
+  async definirPreferences(preferences: PreferencesSession): Promise<void> {
+    const cle = this.emailActif;
+    if (!cle) return;
+    const memo = await this.deps.lire();
+    const compte = memo.comptes[cle];
+    if (!compte) return;
+    await this.deps.ecrire({ comptes: { ...memo.comptes, [cle]: { ...compte, preferences: { ...compte.preferences, ...preferences } } }, compteActif: memo.compteActif });
+  }
+
+  async preferences(): Promise<{ verrouLancement: boolean; inactiviteMinutes: number | null }> {
+    const memo = await this.deps.lire();
+    const compte = this.emailActif ? memo.comptes[this.emailActif] : undefined;
+    return {
+      verrouLancement: compte?.preferences?.verrouLancement ?? compte?.profil?.role === "PATRON",
+      inactiviteMinutes: compte?.preferences?.inactiviteMinutes ?? null,
+    };
+  }
+
+  /**
+   * Accès encore permis EN COURS de session ? À appeler régulièrement : une application laissée ouverte (zone de notification) ne doit pas
+   * contourner la durée de grâce ni une licence suspendue. Renvoie null en ligne (le serveur fait foi), sinon la décision du moment.
+   */
+  async accesEnCours(): Promise<DecisionAcces | null> {
+    if (this.mode === "en-ligne" || !this.emailActif) return null;
+    return this.persisterHorloge(this.emailActif);
   }
 
   // ------------------------------------------------------------------------------------------------ déconnexion

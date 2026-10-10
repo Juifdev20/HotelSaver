@@ -7,6 +7,8 @@ const api = {
   lireConfiguration: (): Promise<ConfigurationApp> => ipcRenderer.invoke("configuration:lire"),
   ecrireConfiguration: (partielle: Partial<ConfigurationApp>): Promise<ConfigurationApp> =>
     ipcRenderer.invoke("configuration:ecrire", partielle),
+  /** Clé (base64, 32 octets) qui chiffre la copie locale des données ; fournie par le processus principal, jamais stockée côté interface. */
+  lireCleLocale: (): Promise<string> => ipcRenderer.invoke("securite:cle-locale"),
   imprimer: (interfaceImprimante: string, lignes: LigneRecu[]): Promise<void> =>
     ipcRenderer.invoke("impression:imprimer", interfaceImprimante, lignes),
   imprimerTicketDeTest: (interfaceImprimante: string): Promise<void> =>

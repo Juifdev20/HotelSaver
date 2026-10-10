@@ -206,3 +206,87 @@ describe("déconnexion", () => {
     expect(s.accessToken()).toBeNull();
   });
 });
+
+describe("sécurité de la session (audit du 10/10/2026)", () => {
+  const patron = () => profil({ role: "PATRON" });
+
+  it("le patron doit retaper son mot de passe à chaque lancement (réglage modifiable), le personnel non", async () => {
+    const m = monde();
+    const s = m.session();
+    await s.connecter("marie@hotel.cd", "secret-123");
+    // Personnel : session reprise sans mot de passe.
+    expect(await m.session().demarrer()).toMatchObject({ etat: "connecte" });
+    // Patron : mot de passe redemandé, e-mail pré-rempli.
+    m.etat.memo.comptes["marie@hotel.cd"].profil = patron();
+    expect(await m.session().demarrer()).toEqual({ etat: "connexion-requise", email: "marie@hotel.cd", verrou: true });
+    // Le patron peut choisir de ne plus le faire.
+    const s2 = m.session();
+    await s2.connecter("marie@hotel.cd", "secret-123");
+    await s2.definirPreferences({ verrouLancement: false });
+    expect(await m.session().demarrer()).toMatchObject({ etat: "connecte" });
+    // Le personnel peut choisir de le demander.
+    m.etat.memo.comptes["marie@hotel.cd"].profil = profil();
+    await s2.definirPreferences({ verrouLancement: true });
+    expect(await m.session().demarrer()).toMatchObject({ etat: "connexion-requise", verrou: true });
+  });
+
+  it("aucun verrou d'inactivité par défaut", async () => {
+    const m = monde();
+    const s = m.session();
+    await s.connecter("marie@hotel.cd", "secret-123");
+    expect((await s.preferences()).inactiviteMinutes).toBeNull();
+    await s.definirPreferences({ inactiviteMinutes: 10 });
+    expect((await s.preferences()).inactiviteMinutes).toBe(10);
+  });
+
+  it("les tentatives ratées survivent à un redémarrage et le blocage double à chaque série", async () => {
+    const m = monde();
+    await m.session().connecter("marie@hotel.cd", "secret-123");
+    m.etat.reseau = false;
+    for (let i = 0; i < 5; i++) await m.session().connecter("marie@hotel.cd", "faux"); // une instance neuve à chaque essai = application relancée
+    expect(await m.session().connecter("marie@hotel.cd", "secret-123")).toMatchObject({ etat: "erreur", message: expect.stringContaining("Trop de tentatives") });
+    m.etat.maintenant = new Date(m.etat.maintenant.getTime() + 31_000);
+    for (let i = 0; i < 5; i++) await m.session().connecter("marie@hotel.cd", "faux");
+    // Deuxième série : 60 s d'attente.
+    m.etat.maintenant = new Date(m.etat.maintenant.getTime() + 31_000);
+    expect(await m.session().connecter("marie@hotel.cd", "secret-123")).toMatchObject({ etat: "erreur", message: expect.stringContaining("Trop de tentatives") });
+    m.etat.maintenant = new Date(m.etat.maintenant.getTime() + 31_000);
+    expect(await m.session().connecter("marie@hotel.cd", "secret-123")).toMatchObject({ etat: "connecte" });
+  });
+
+  it("reculer l'horloge de l'ordinateur ne lève pas un blocage", async () => {
+    const m = monde();
+    await m.session().connecter("marie@hotel.cd", "secret-123");
+    m.etat.reseau = false;
+    const depart = m.etat.maintenant;
+    m.etat.maintenant = new Date(depart.getTime() + 1000);
+    const s = m.session();
+    await s.connecter("marie@hotel.cd", "faux"); // fait avancer l'horloge de référence du compte
+    for (let i = 0; i < 4; i++) await s.connecter("marie@hotel.cd", "faux");
+    m.etat.maintenant = depart; // l'ordinateur « revient en arrière »
+    expect(await m.session().connecter("marie@hotel.cd", "secret-123")).toMatchObject({ etat: "erreur", message: expect.stringContaining("Trop de tentatives") });
+  });
+
+  it("une empreinte créée avec peu d'itérations est recalculée à la prochaine connexion hors ligne réussie", async () => {
+    const m = monde();
+    await m.session().connecter("marie@hotel.cd", "secret-123");
+    const ancien = await creerVerificateur("marie@hotel.cd", "secret-123", 1000);
+    m.etat.memo.comptes["marie@hotel.cd"].verificateur = ancien;
+    m.etat.reseau = false;
+    expect(await m.session().connecter("marie@hotel.cd", "secret-123")).toMatchObject({ etat: "connecte", mode: "hors-ligne" });
+    expect(m.etat.memo.comptes["marie@hotel.cd"].verificateur.iterations).toBeGreaterThanOrEqual(600_000);
+  });
+
+  it("une application laissée ouverte hors ligne perd l'accès à l'expiration de la grâce", async () => {
+    const m = monde();
+    const s = m.session();
+    await s.connecter("marie@hotel.cd", "secret-123");
+    expect(await s.accesEnCours()).toBeNull(); // en ligne : le serveur fait foi
+    m.etat.reseau = false;
+    const hors = m.session();
+    await hors.connecter("marie@hotel.cd", "secret-123");
+    expect(await hors.accesEnCours()).toMatchObject({ autorise: true });
+    m.etat.maintenant = new Date(m.etat.maintenant.getTime() + 15 * JOUR);
+    expect(await hors.accesEnCours()).toMatchObject({ autorise: false, raison: "delai" });
+  });
+});
