@@ -279,15 +279,17 @@ describe("PublicService", () => {
       await expect(service.creerDemandeReservation(dto as any)).rejects.toThrow(NotFoundException);
     });
 
-    it("réutilise un client existant trouvé par téléphone plutôt que d'en créer un nouveau", async () => {
+    it("ne se rattache JAMAIS à une fiche client existante (même téléphone) : une nouvelle fiche est créée", async () => {
       prisma.chambre.findUnique.mockResolvedValue({ id: "c1" });
       prisma.client.findFirst.mockResolvedValue({ id: "client-existant" });
+      prisma.client.create.mockResolvedValue({ id: "client-neuf" });
       prisma.reservation.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "r1", jetonSuivi: "jeton-1", ...data }));
 
       await service.creerDemandeReservation(dto as any);
 
-      expect(prisma.client.create).not.toHaveBeenCalled();
-      expect(prisma.reservation.create.mock.calls[0][0].data.clientId).toBe("client-existant");
+      expect(prisma.client.findFirst).not.toHaveBeenCalled();
+      expect(prisma.client.create).toHaveBeenCalledTimes(1);
+      expect(prisma.reservation.create.mock.calls[0][0].data.clientId).toBe("client-neuf");
     });
 
     it("crée toujours la réservation en EN_ATTENTE / SITE_PUBLIC, jamais confirmée", async () => {

@@ -1,5 +1,6 @@
 import { Vibrant } from "node-vibrant/node";
 import { CouleurBaseLogo } from "./generer-palette";
+import { telechargerImageSure } from "../http/telechargement-sur";
 
 /**
  * Télécharge le logo puis en extrait une couleur vive (`bleu`) et une
@@ -12,9 +13,9 @@ import { CouleurBaseLogo } from "./generer-palette";
  */
 export async function extraireCouleursLogo(logoUrl: string): Promise<CouleurBaseLogo | null> {
   try {
-    const reponse = await fetch(logoUrl);
-    if (!reponse.ok) return null;
-    const buffer = Buffer.from(await reponse.arrayBuffer());
+    // Adresse fournie par un inconnu (inscription anonyme) : téléchargement durci, voir telechargement-sur.ts.
+    const buffer = await telechargerImageSure(logoUrl);
+    if (!buffer) return null;
 
     const palette = await Vibrant.from(buffer).getPalette();
 

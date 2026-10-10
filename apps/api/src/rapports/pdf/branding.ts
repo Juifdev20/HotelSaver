@@ -2,6 +2,7 @@ import type { Logger } from "@nestjs/common";
 import type { PrismaClient } from "@hotel-chicago/database";
 import sharp from "sharp";
 import { BrandingPdf } from "./commun";
+import { telechargerImageSure } from "../../common/http/telechargement-sur";
 
 /** En-tête PDF de l'hôtel connecté (nom, adresse, téléphone, logo, couleur) —
  * partagé par les rapports mensuels et l'export des dépenses. */
@@ -15,11 +16,10 @@ export async function chargerBrandingPdf(prisma: PrismaClient, hotelId: string, 
   const logoUrl = hotel.branding?.logoUrl;
   if (logoUrl) {
     try {
-      const reponse = await fetch(logoUrl);
-      if (reponse.ok) {
-        // Le logo peut être WebP (stockage images) : pdfkit ne lit que PNG/JPEG.
-        logo = await sharp(Buffer.from(await reponse.arrayBuffer())).png().toBuffer();
-      }
+      // Même téléchargement durci que l'inscription : l'adresse a pu être donnée par un inconnu.
+      const octets = await telechargerImageSure(logoUrl);
+      // Le logo peut être WebP (stockage images) : pdfkit ne lit que PNG/JPEG.
+      if (octets) logo = await sharp(octets).png().toBuffer();
     } catch (erreur) {
       logger.warn(`Logo de l'hôtel ${hotelId} illisible, document sans logo : ${(erreur as Error).message}`);
     }

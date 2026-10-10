@@ -1,4 +1,9 @@
+import { ConflictException } from "@nestjs/common";
 import { Role } from "@hotel-chicago/types";
+
+const U1 = "6f1c2f0e-8f3a-4c1b-9c55-0a1b2c3d4e5f";
+const U2 = "7a1c2f0e-8f3a-4c1b-9c55-0a1b2c3d4e5f";
+const U3 = "8b1c2f0e-8f3a-4c1b-9c55-0a1b2c3d4e5f";
 import { SyncService } from "./sync.service";
 
 function creerPrismaMock() {
@@ -59,7 +64,7 @@ describe("SyncService", () => {
       chambresService.create.mockResolvedValue({ id: "remote-1", syncVersion: 1 });
 
       const { resultats } = await service.push(
-        { operations: [{ entiteType: "Chambre", localId: "local-1", operation: "CREATE", payload: { numero: "101" } }] } as any,
+        { operations: [{ entiteType: "Chambre", localId: "local-1", operation: "CREATE", payload: { numero: "101", type: "Standard", prixParNuit: 40, devise: "USD" } }] } as any,
         patron
       );
 
@@ -76,7 +81,7 @@ describe("SyncService", () => {
     });
 
     it("convertit une exception du service métier en statut ERROR sans faire échouer le lot", async () => {
-      reservationsService.create.mockRejectedValue(new Error("Chambre déjà réservée sur cette période."));
+      reservationsService.create.mockRejectedValue(new ConflictException("Chambre déjà réservée sur cette période."));
 
       const { resultats } = await service.push(
         {
@@ -106,7 +111,7 @@ describe("SyncService", () => {
               entiteType: "LigneCommande",
               localId: "local-3",
               operation: "CREATE",
-              payload: { compteId: "compte-1", sousCompteId: "sc-1", produitId: "p-1", quantite: 2 },
+              payload: { compteId: "compte-1", sousCompteId: U1, produitId: U2, quantite: 2 },
             },
           ],
         } as any,
@@ -115,7 +120,7 @@ describe("SyncService", () => {
 
       expect(cafeteriaService.ajouterLigne).toHaveBeenCalledWith(
         "compte-1",
-        { sousCompteId: "sc-1", produitId: "p-1", quantite: 2 },
+        { sousCompteId: U1, produitId: U2, quantite: 2 },
         cafetaria,
         { horsLigne: true }
       );
@@ -158,7 +163,7 @@ describe("SyncService", () => {
     it("accepte quand l'hôtel a autorisé le patron à opérer", async () => {
       cafeteriaService.ajouterLigne.mockResolvedValue({ id: "ligne-1", syncVersion: 1 });
       const { resultats } = await service.push(
-        { operations: [{ entiteType: "LigneCommande", localId: "l1", operation: "CREATE", payload: { compteId: "c1", sousCompteId: "s1", produitId: "p1", quantite: 1 } }] } as any,
+        { operations: [{ entiteType: "LigneCommande", localId: "l1", operation: "CREATE", payload: { compteId: "c1", sousCompteId: U1, produitId: U2, quantite: 1 } }] } as any,
         { ...patron, patronPeutOperer: true }
       );
       expect(resultats[0].statut).toBe("SYNCED");
@@ -167,9 +172,9 @@ describe("SyncService", () => {
     it("la cafétaria et la réception synchronisent comme avant, et le patron garde l'administration (Produit)", async () => {
       cafeteriaService.ouvrirCompte.mockResolvedValue({ id: "c-remote", syncVersion: 1, sousComptes: [] });
       produitsService.create.mockResolvedValue({ id: "p-remote", syncVersion: 1 });
-      const caf = await service.push(operation("CompteCafeteria"), cafetaria);
+      const caf = await service.push(operation("CompteCafeteria", "CREATE", { payload: { tableOuNom: "Table 4" } }), cafetaria);
       expect(caf.resultats[0].statut).toBe("SYNCED");
-      const prod = await service.push({ operations: [{ entiteType: "Produit", localId: "l2", operation: "CREATE", payload: { nom: "Fanta" } }] } as any, patron);
+      const prod = await service.push({ operations: [{ entiteType: "Produit", localId: "l2", operation: "CREATE", payload: { nom: "Fanta", categorie: "Boissons", prix: 2, devise: "USD" } }] } as any, patron);
       expect(prod.resultats[0].statut).toBe("SYNCED");
     });
   });
@@ -341,7 +346,7 @@ describe("SyncService", () => {
     });
 
     it("UPDATE avec un syncVersion à jour : délègue à DepensesService.modifier", async () => {
-      prisma.depense.findUnique.mockResolvedValue({ id: "dep-1", syncVersion: 1 });
+      prisma.depense.findUnique.mockResolvedValue({ id: "dep-1", syncVersion: 1, departement: "CAFETERIA" });
       depensesService.modifier.mockResolvedValue({ id: "dep-1", syncVersion: 2 });
       const r = await service.push(
         { operations: [{ entiteType: "Depense", localId: "l-1", remoteId: "dep-1", operation: "UPDATE", baseSyncVersion: 1, payload: { annulee: true } }] } as any,

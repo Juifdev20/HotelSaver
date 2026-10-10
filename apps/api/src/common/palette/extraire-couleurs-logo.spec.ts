@@ -1,21 +1,17 @@
 jest.mock("node-vibrant/node", () => ({ Vibrant: { from: jest.fn() } }));
+jest.mock("../http/telechargement-sur", () => ({ telechargerImageSure: jest.fn() }));
 
 import { Vibrant } from "node-vibrant/node";
+import { telechargerImageSure } from "../http/telechargement-sur";
 import { extraireCouleursLogo } from "./extraire-couleurs-logo";
-
-const ancienFetch = global.fetch;
 
 describe("extraireCouleursLogo", () => {
   afterEach(() => {
-    global.fetch = ancienFetch;
     jest.clearAllMocks();
   });
 
   function mockFetchOk() {
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
-    }) as any;
+    (telechargerImageSure as jest.Mock).mockResolvedValue(Buffer.alloc(8));
   }
 
   it("mappe Vibrant/DarkVibrant vers bleu/navy quand présents", async () => {
@@ -48,7 +44,7 @@ describe("extraireCouleursLogo", () => {
   });
 
   it("renvoie null si le téléchargement échoue (404)", async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: false }) as any;
+    (telechargerImageSure as jest.Mock).mockResolvedValue(null);
     const resultat = await extraireCouleursLogo("https://exemple.com/inexistant.png");
     expect(resultat).toBeNull();
   });
