@@ -1,4 +1,4 @@
-import { genererCommandesEscPos } from "./esc-pos";
+import { genererCommandesEscPos, nettoyerTexteImpression } from "./esc-pos";
 import type { LigneRecu } from "./types";
 
 function octetsVersTexte(octets: Uint8Array): string {
@@ -30,5 +30,19 @@ describe("genererCommandesEscPos", () => {
     const octets = genererCommandesEscPos([{ type: "champ", label: "Reçu par", valeur: "Élise" }]);
     // 'ç' -> 0x87, 'É' -> 0x90 en CP850 (voir CP850 dans esc-pos.ts).
     expect(Array.from(octets)).toEqual(expect.arrayContaining([0x87, 0x90]));
+  });
+});
+
+describe("texte saisi par un tiers", () => {
+  it("n'injecte jamais d'octet de commande (ESC p = ouvrir le tiroir-caisse, GS V = couper, LF = fausse ligne)", () => {
+    const lignes: LigneRecu[] = [{ type: "champ", label: "Table", valeur: "Zoé\x1bp\x00\x19\x1d\x56\x00\nTOTAL 0,01 $" }];
+    const texte = octetsVersTexte(genererCommandesEscPos(lignes));
+    expect(texte).not.toContain("[27]p"); // aucun ESC p
+    expect(texte.match(/\[29\]V/g)).toHaveLength(1); // la seule coupe est celle du générateur, en fin de reçu
+    expect(texte).toMatch(/Table : Zo\[130\] p {3}V {2}TOTAL 0,01 \$\[10\]/); // le texte reste lisible, sans octet de commande
+  });
+
+  it("nettoyerTexteImpression remplace les caractères de contrôle par des espaces", () => {
+    expect(nettoyerTexteImpression("a\x1b\x1d\n\r\tb\x7f")).toBe("a     b ");
   });
 });

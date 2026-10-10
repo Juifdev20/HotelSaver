@@ -86,10 +86,27 @@ function creerFenetrePrincipale(): BrowserWindow {
     fenetre.hide();
   });
 
+  // Jamais d'autre schéma que https/mailto/tel vers le système (file:, ms-*:, schémas personnalisés exécutent des programmes).
+  const ouvrirSiSur = (url: string) => {
+    try {
+      const { protocol } = new URL(url);
+      if (protocol === "https:" || protocol === "mailto:" || protocol === "tel:") void shell.openExternal(url);
+    } catch {
+      /* URL illisible : ignorée */
+    }
+  };
   fenetre.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
+    ouvrirSiSur(details.url);
     return { action: "deny" };
   });
+  // L'application ne navigue jamais ailleurs que dans son propre contenu.
+  const refuserNavigation = (evenement: { preventDefault(): void }, url: string) => {
+    if (url.startsWith("file://") || url.startsWith(process.env["ELECTRON_RENDERER_URL"] ?? "\u0000")) return;
+    evenement.preventDefault();
+    ouvrirSiSur(url);
+  };
+  fenetre.webContents.on("will-navigate", refuserNavigation);
+  fenetre.webContents.on("will-redirect", refuserNavigation);
 
   // electron-vite définit ELECTRON_RENDERER_URL en mode dev (serveur Vite) ;
   // en production, le renderer est un fichier statique déjà buildé.

@@ -1,5 +1,6 @@
 import { printer as ThermalPrinter, types as PrinterTypes, characterSet as CharacterSet } from "node-thermal-printer";
-import { commandesCodeBarre, type LigneRecu } from "@hotel-chicago/receipts";
+import { interfaceImprimanteValide } from "./config-store";
+import { commandesCodeBarre, nettoyerTexteImpression, type LigneRecu } from "@hotel-chicago/receipts";
 
 /**
  * Traduit `LigneRecu[]` vers l'API haut niveau de `node-thermal-printer` —
@@ -24,8 +25,15 @@ function construireImprimante(interfaceImprimante: string) {
   });
 }
 
+/** Aucun octet de commande ne doit passer dans un texte : voir `nettoyerTexteImpression`. */
+function assainir(ligne: LigneRecu): LigneRecu {
+  const nettoyer = (texte: unknown) => (typeof texte === "string" ? nettoyerTexteImpression(texte) : texte);
+  return Object.fromEntries(Object.entries(ligne).map(([cle, valeur]) => [cle, cle === "type" ? valeur : nettoyer(valeur)])) as unknown as LigneRecu;
+}
+
 function ecrireLignes(imprimante: ReturnType<typeof construireImprimante>, lignes: LigneRecu[]): void {
-  for (const ligne of lignes) {
+  for (const brute of lignes) {
+    const ligne = assainir(brute);
     switch (ligne.type) {
       case "titre":
         imprimante.alignCenter();
@@ -60,6 +68,8 @@ function ecrireLignes(imprimante: ReturnType<typeof construireImprimante>, ligne
 }
 
 export async function imprimerLignes(interfaceImprimante: string, lignes: LigneRecu[]): Promise<void> {
+  // Une adresse arbitraire (un chemin de fichier, une URL) ferait écrire ou se connecter n'importe où : liste stricte.
+  if (!interfaceImprimanteValide(interfaceImprimante)) throw new Error("Adresse d'imprimante invalide.");
   const imprimante = construireImprimante(interfaceImprimante);
   ecrireLignes(imprimante, lignes);
   await imprimante.execute();

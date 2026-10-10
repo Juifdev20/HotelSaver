@@ -47,8 +47,8 @@ export class DashboardController {
 
   @Get("ventes-recentes")
   @Roles(Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON)
-  ventesRecentes(@CurrentUser() currentUser: UtilisateurAuthentifie, @Query("limite", new ParamEntierPipe(1, 100, 20)) limite: number) {
-    return this.dashboardService.ventesRecentes(currentUser, limite);
+  ventesRecentes(@CurrentUser() currentUser: UtilisateurAuthentifie, @Query("limite", new ParamEntierPipe(1, 100, 20)) limite: string | number) {
+    return this.dashboardService.ventesRecentes(currentUser, limite as number);
   }
 
   @Get("stock-bas")

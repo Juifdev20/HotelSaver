@@ -58,8 +58,26 @@ export function lireConfiguration(): ConfigurationApp {
   }
 }
 
+/** Seules ces clés peuvent être écrites depuis l'interface. L'adresse de l'API et les paramètres Supabase viennent TOUJOURS du build :
+ * sinon une page compromise pourrait pointer l'application vers un faux serveur de connexion. */
+const CLES_ECRITES_PAR_L_INTERFACE = ["refreshToken", "imprimanteInterface", "comptesLocaux", "compteActif"] as const;
+
+/** `tcp://hôte:port`, port série Windows (`COM5`, `\\.\COM5`) ou périphérique Linux (`/dev/usb/lp0`, `/dev/ttyUSB0`, `/dev/rfcomm0`). */
+const INTERFACE_IMPRIMANTE_VALIDE = /^(tcp:\/\/[A-Za-z0-9.-]{1,253}:\d{1,5}|(\\\\\.\\)?COM\d{1,3}|\/dev\/(usb\/lp|ttyUSB|ttyS|ttyACM|rfcomm)\d{1,2})$/;
+
+export function interfaceImprimanteValide(valeur: unknown): valeur is string {
+  return typeof valeur === "string" && INTERFACE_IMPRIMANTE_VALIDE.test(valeur.trim());
+}
+
 export function ecrireConfiguration(partielle: Partial<ConfigurationApp>): ConfigurationApp {
-  const nouvelle = { ...lireConfiguration(), ...partielle };
+  const autorisee: Partial<ConfigurationApp> = {};
+  for (const cle of CLES_ECRITES_PAR_L_INTERFACE) {
+    if (partielle && cle in partielle) (autorisee as Record<string, unknown>)[cle] = (partielle as Record<string, unknown>)[cle];
+  }
+  if (autorisee.imprimanteInterface != null && !interfaceImprimanteValide(autorisee.imprimanteInterface)) {
+    throw new Error("Adresse d'imprimante invalide. Exemples : tcp://192.168.1.50:9100 ou COM5.");
+  }
+  const nouvelle = { ...lireConfiguration(), ...autorisee };
   writeFileSync(cheminFichierConfiguration(), JSON.stringify(nouvelle, null, 2), "utf-8");
   return nouvelle;
 }
