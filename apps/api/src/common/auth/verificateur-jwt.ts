@@ -3,6 +3,8 @@ import jwksClient, { JwksClient } from "jwks-rsa";
 
 export interface JetonVerifie {
   sub: string;
+  /** Identifiant de la session Supabase (`session_id`), absent des jetons de test. */
+  sessionId?: string;
 }
 
 export interface VerificateurJwt {
@@ -15,7 +17,7 @@ function extraireSub(payload: string | jwt.JwtPayload | undefined): JetonVerifie
   if (!payload || typeof payload === "string" || typeof payload.sub !== "string") {
     throw new Error("Le jeton ne contient pas de sub valide.");
   }
-  return { sub: payload.sub };
+  return { sub: payload.sub, sessionId: typeof payload.session_id === "string" ? payload.session_id : undefined };
 }
 
 /**

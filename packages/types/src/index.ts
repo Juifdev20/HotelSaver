@@ -678,6 +678,7 @@ export const TYPES_NOTIFICATION = [
   "RAPPORT_DISPONIBLE",
   "COMMANDE_WEB",
   "PRE_ENREGISTREMENT",
+  "ACOMPTE_MODIFIE",
 ] as const;
 export type TypeNotification = (typeof TYPES_NOTIFICATION)[number];
 
@@ -694,6 +695,7 @@ export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification>
   RECAP_QUOTIDIEN: "quotidien",
   RESERVATION_ANNULEE: "securite",
   RECU_ANNULE: "securite",
+  ACOMPTE_MODIFIE: "securite",
   LICENCE_BIENTOT_EXPIREE: "securite",
   LICENCE_SUSPENDUE: "securite",
   RAPPORT_A_GENERER: "quotidien",

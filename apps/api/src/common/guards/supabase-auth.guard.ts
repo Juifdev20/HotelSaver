@@ -9,6 +9,7 @@ import type { PrismaClient } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../../prisma/prisma.module";
 import { VERIFICATEUR_JWT, VerificateurJwt } from "../auth/verificateur-jwt";
+import { SessionRevoqueeError, verifierSession } from "../auth/sessions";
 
 /**
  * Vérifie le jeton Supabase Auth (Bearer) via le VerificateurJwt injecté
@@ -32,8 +33,9 @@ export class SupabaseAuthGuard implements CanActivate {
     }
 
     let sub: string;
+    let sessionId: string | undefined;
     try {
-      ({ sub } = await this.verificateurJwt.verifier(authHeader.slice("Bearer ".length)));
+      ({ sub, sessionId } = await this.verificateurJwt.verifier(authHeader.slice("Bearer ".length)));
     } catch {
       throw new UnauthorizedException("Jeton d'authentification invalide ou expiré.");
     }
@@ -45,6 +47,16 @@ export class SupabaseAuthGuard implements CanActivate {
 
     if (!utilisateur || !utilisateur.actif) {
       throw new UnauthorizedException("Utilisateur inconnu ou désactivé.");
+    }
+
+    // Session révoquée (mot de passe changé, compte désactivé…) : refusée même si le jeton n'a pas encore expiré.
+    if (sessionId) {
+      try {
+        await verifierSession(this.prisma, sessionId, utilisateur.id);
+      } catch (e) {
+        if (e instanceof SessionRevoqueeError) throw new UnauthorizedException("Votre session a pris fin. Reconnectez-vous.");
+        throw e;
+      }
     }
 
     // Rend enfin réel le statutLicence posé en Phase 1 (ESSAI/ACTIF/SUSPENDU/

@@ -1,4 +1,4 @@
-import type { DeviseRegle } from "./encaissement";
+import { arrondir, type DeviseRegle } from "./encaissement";
 
 const JOUR_MS = 24 * 60 * 60 * 1000;
 
@@ -34,12 +34,13 @@ export interface TotauxFactureSejour {
 /** Totaux d'une facture de séjour — la même arithmétique que le serveur (FacturesService.create). */
 export function totauxFactureSejour(e: EntreeFactureSejour): TotauxFactureSejour {
   const nuits = nuitees(e.dateArrivee, e.dateDepart);
-  const montantChambre = e.prixParNuit * nuits;
-  const montantDuChambre = Math.max(0, montantChambre - e.acompte);
-  const cafeteriaUSD = e.consommations.reduce((s, v) => s + v.montantTotalUSD, 0);
-  const cafeteriaCDF = e.consommations.reduce((s, v) => s + v.montantTotalCDF, 0);
-  const montantTotalUSD = (e.deviseChambre === "USD" ? montantDuChambre : 0) + cafeteriaUSD;
-  const montantTotalCDF = (e.deviseChambre === "CDF" ? montantDuChambre : 0) + cafeteriaCDF;
+  // Arrondi à la devise à chaque étape : en flottants, 0,1 + 0,2 vaut 0,30000000000000004 et ces écarts s'accumulaient dans les totaux enregistrés.
+  const montantChambre = arrondir(e.prixParNuit * nuits, e.deviseChambre);
+  const montantDuChambre = Math.max(0, arrondir(montantChambre - e.acompte, e.deviseChambre));
+  const cafeteriaUSD = arrondir(e.consommations.reduce((s, v) => s + v.montantTotalUSD, 0), "USD");
+  const cafeteriaCDF = arrondir(e.consommations.reduce((s, v) => s + v.montantTotalCDF, 0), "CDF");
+  const montantTotalUSD = arrondir((e.deviseChambre === "USD" ? montantDuChambre : 0) + cafeteriaUSD, "USD");
+  const montantTotalCDF = arrondir((e.deviseChambre === "CDF" ? montantDuChambre : 0) + cafeteriaCDF, "CDF");
   const deviseDue: DeviseRegle = montantTotalUSD > 0 ? "USD" : "CDF";
   return {
     nuits,
@@ -60,3 +61,10 @@ export function sechevauchent(a: { dateArrivee: Date | string; dateDepart: Date 
 
 /** Statuts qui bloquent réellement une chambre (une demande EN_ATTENTE ne la bloque pas). */
 export const STATUTS_OCCUPANTS = ["CONFIRMEE", "EN_COURS"] as const;
+
+/** Plus grand acompte plausible : le prix du séjour. Au-delà, c'est une erreur de saisie — ou de l'argent détourné au moment de facturer. */
+export function acompteMaximal(prixParNuit: number, dateArrivee: Date | string, dateDepart: Date | string): number {
+  return Math.round(prixParNuit * nuitees(dateArrivee, dateDepart) * 100) / 100;
+}
+
+export const MESSAGE_ACOMPTE_TROP_ELEVE = "L'acompte ne peut pas dépasser le prix du séjour.";

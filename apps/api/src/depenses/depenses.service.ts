@@ -187,8 +187,9 @@ export class DepensesService {
       branding,
       empreinte
     );
-    const chemin = `${user.hotelId}/depenses/${randomUUID()}.pdf`;
-    await this.storage.envoyerRapportPdf(chemin, pdf);
+    // Chemin fixe par période et département (le même export est régénéré, pas empilé) ; le nom ne contient que des valeurs validées.
+    const chemin = `${user.hotelId}/depenses/${du.toISOString().slice(0, 10)}_${au.toISOString().slice(0, 10)}_${departement ?? "tous"}.pdf`;
+    await this.storage.envoyerRapportPdf(chemin, pdf, true);
     return { url: await this.storage.urlSigneeRapport(chemin, DUREE_URL_SIGNEE) };
   }
 }

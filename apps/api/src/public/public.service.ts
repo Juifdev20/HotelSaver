@@ -6,6 +6,7 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { messages } from "../notifications/messages";
 import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
+import { revoquerSessions } from "../common/auth/sessions";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 import { genererPalette } from "../common/palette/generer-palette";
 import { CreerCommandeWebDto } from "./dto/creer-commande-web.dto";
@@ -186,6 +187,9 @@ export class PublicService {
       throw new UnauthorizedException("Ce lien a expiré ou n'est plus valide. Refaites une demande de réinitialisation.");
     }
     await this.supabaseAdmin.mettreAJourCompte(id, { motDePasse: dto.motDePasse });
+    // Un mot de passe réinitialisé met fin aux sessions ouvertes (un jeton volé ne survit pas au changement).
+    const utilisateur = await this.prisma.utilisateur.findUnique({ where: { supabaseAuthId: id }, select: { id: true } });
+    if (utilisateur) await revoquerSessions(this.prisma, utilisateur.id);
     return { ok: true };
   }
 

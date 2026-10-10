@@ -4,7 +4,9 @@
  * personne soit prévenue sur le champ ; le serveur reste l'autorité (il refuse ce que le miroir ne pouvait pas savoir).
  */
 import {
+  acompteMaximal,
   calculerEncaissement,
+  MESSAGE_ACOMPTE_TROP_ELEVE,
   ErreurRegle,
   numeroRecuProvisoire,
   jourCompact,
@@ -171,6 +173,7 @@ export class Ecritures {
     if (d.clientId && !this.v.client(d.clientId)) throw erreur(404, `Aucun client trouvé avec l'identifiant ${d.clientId}.`);
     const chambreId = chambre.id;
     this.verifierAbsenceDeConflit(chambreId, iso(arrivee), iso(depart));
+    if (d.acompte !== undefined && Number(d.acompte) > acompteMaximal(Number(chambre.prixParNuit), arrivee, depart) + 0.005) throw erreur(400, MESSAGE_ACOMPTE_TROP_ELEVE);
 
     const ecritures: OperationMagasin[] = [];
     let client = d.clientId ? this.v.client(d.clientId)! : null;
@@ -213,6 +216,9 @@ export class Ecritures {
     if (new Date(arrivee) >= new Date(depart)) throw erreur(400, "La date de départ doit être postérieure à la date d'arrivée.");
     if (d.dateArrivee || d.dateDepart) this.verifierAbsenceDeConflit(r.chambreId, arrivee, depart, r.id);
     const champs: Doc = { dateArrivee: arrivee, dateDepart: depart };
+    const chambreDeLaReservation = this.v.chambre(r.chambreId);
+    const acompteVoulu = d.acompte !== undefined ? Number(d.acompte) : Number(r.acompte);
+    if (chambreDeLaReservation && acompteVoulu > acompteMaximal(Number(chambreDeLaReservation.prixParNuit), arrivee, depart) + 0.005) throw erreur(400, MESSAGE_ACOMPTE_TROP_ELEVE);
     if (d.acompte !== undefined) champs.acompte = String(d.acompte);
     if (d.note !== undefined) champs.note = d.note;
     if (d.reponseReception !== undefined) champs.reponseReception = d.reponseReception;

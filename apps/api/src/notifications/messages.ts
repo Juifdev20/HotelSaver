@@ -62,6 +62,15 @@ export const messages = {
     };
   },
 
+  acompteModifie(p: { client: string; chambre: string; ancien: string; nouveau: string; par: string; reservationId: string }): MessageNotification {
+    return {
+      type: "ACOMPTE_MODIFIE",
+      titre: "Acompte modifié",
+      corps: `${p.par} a changé l'acompte de ${p.client} (ch. ${p.chambre}) : ${p.ancien} → ${p.nouveau}.`,
+      lien: { ecran: "reservations", id: p.reservationId },
+    };
+  },
+
   chambreAPreparer(p: { chambre: string; chambreId: string }): MessageNotification {
     return {
       type: "CHAMBRE_A_PREPARER",

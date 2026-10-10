@@ -7,6 +7,7 @@ import { messages } from "../notifications/messages";
 import { CreateFactureDto } from "./dto/create-facture.dto";
 import { AnnulerFactureDto } from "./dto/annuler-facture.dto";
 import { calculerEncaissement } from "./encaissement.util";
+import { totauxFactureSejour, type DeviseRegle } from "@hotel-chicago/regles";
 
 /** Reprises quand deux postes tirent le même numéro de reçu au même instant. */
 const ESSAIS_NUMERO_RECU = 5;
@@ -20,6 +21,7 @@ export class FacturesService {
 
   findAll(hotelId: string, reservationId?: string) {
     return this.prisma.facture.findMany({
+      take: 500, // Plafond de sécurité : une liste n'est jamais illimitée (déni de service, mémoire).
       where: { hotelId, reservationId },
       include: { reservation: { include: { chambre: true, client: true } } },
       orderBy: { createdAt: "desc" },
@@ -60,24 +62,18 @@ export class FacturesService {
       );
     }
 
-    const nuits = Math.max(
-      1,
-      Math.round((reservation.dateDepart.getTime() - reservation.dateArrivee.getTime()) / (24 * 60 * 60 * 1000))
-    );
-    const montantChambre = Number(reservation.chambre.prixParNuit) * nuits;
-    const deviseChambre = reservation.chambre.devise;
-    const montantDuChambre = Math.max(0, montantChambre - Number(reservation.acompte));
-
-    // Consommations cafétaria facturées sur la chambre (VenteCafeteria.reservationLieeId,
-    // section 9.2) : additionnées par devise, jamais fusionnées entre elles (section 9.4).
+    // Même arithmétique que l'appareil hors ligne (packages/regles) : le reçu provisoire et le reçu définitif ne peuvent pas différer.
     const ventesLiees = await this.prisma.venteCafeteria.findMany({
       where: { hotelId, reservationLieeId: dto.reservationId, annuleLe: null },
     });
-    const cafeteriaUSD = ventesLiees.reduce((somme, v) => somme + Number(v.montantTotalUSD), 0);
-    const cafeteriaCDF = ventesLiees.reduce((somme, v) => somme + Number(v.montantTotalCDF), 0);
-
-    const montantTotalUSD = (deviseChambre === Devise.USD ? montantDuChambre : 0) + cafeteriaUSD;
-    const montantTotalCDF = (deviseChambre === Devise.CDF ? montantDuChambre : 0) + cafeteriaCDF;
+    const { montantChambre, deviseChambre, montantTotalUSD, montantTotalCDF } = totauxFactureSejour({
+      prixParNuit: Number(reservation.chambre.prixParNuit),
+      deviseChambre: reservation.chambre.devise as DeviseRegle,
+      dateArrivee: reservation.dateArrivee,
+      dateDepart: reservation.dateDepart,
+      acompte: Number(reservation.acompte),
+      consommations: ventesLiees.map((v) => ({ montantTotalUSD: Number(v.montantTotalUSD), montantTotalCDF: Number(v.montantTotalCDF) })),
+    });
 
     const paiementCroiseDemande = dto.deviseRegleeParClient !== undefined || dto.montantRegleParClient !== undefined;
     if (paiementCroiseDemande && montantTotalUSD > 0 && montantTotalCDF > 0) {

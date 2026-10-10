@@ -80,7 +80,7 @@ export class SupabaseStorageService {
    * numéro — impossible par construction (version+1 → nouveau numero), mais
    * l'upload refuse l'écrasement par sécurité (`upsert: false`).
    */
-  async envoyerRapportPdf(chemin: string, contenu: Buffer): Promise<void> {
+  async envoyerRapportPdf(chemin: string, contenu: Buffer, ecraser = false): Promise<void> {
     await this.assurerBucketRapports();
     const { cle, url } = this.config();
     const reponse = await fetch(`${url}/storage/v1/object/${BUCKET_RAPPORTS}/${chemin}`, {
@@ -89,7 +89,9 @@ export class SupabaseStorageService {
         apikey: cle,
         Authorization: `Bearer ${cle}`,
         "Content-Type": "application/pdf",
-        "x-upsert": "false",
+        // Écraser n'est permis que pour un document « vivant » à chemin fixe (export des dépenses d'une période) : sinon chaque téléchargement
+        // laisserait un nouveau fichier à jamais dans le bucket.
+        "x-upsert": ecraser ? "true" : "false",
       },
       body: contenu,
     });

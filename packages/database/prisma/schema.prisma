@@ -308,8 +308,22 @@ model Utilisateur {
   /// tant qu'ils ne sont pas mis à jour manuellement.
   email          String?  @unique
   appareilsPush  AppareilPush[]
+  sessions       SessionUtilisateur[]
 
   @@index([hotelId])
+}
+
+/// Sessions Supabase vues par l'API (identifiant `session_id` du jeton). Sert à COUPER réellement l'accès d'un employé : changer un mot de
+/// passe ou désactiver un compte ne retire pas le jeton de rafraîchissement déjà détenu ; avec cette table, toute requête portant une session
+/// révoquée est refusée, même si le jeton est encore valide.
+model SessionUtilisateur {
+  sessionId     String      @id
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  utilisateurId String
+  createdAt     DateTime    @default(now())
+  revoqueLe     DateTime?
+
+  @@index([utilisateurId])
 }
 
 model Chambre {

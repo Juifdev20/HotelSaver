@@ -168,7 +168,7 @@ export class SyncService {
           };
         },
         update: async (id, payload, currentUser) =>
-          this.reservationsService.update(id, await this.valider(UpdateReservationDto, payload), currentUser.hotelId),
+          this.reservationsService.update(id, await this.valider(UpdateReservationDto, payload), currentUser.hotelId, currentUser),
       },
       Produit: {
         rolesCreate: [Role.PATRON],

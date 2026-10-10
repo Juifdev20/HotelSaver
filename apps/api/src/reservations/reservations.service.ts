@@ -6,11 +6,18 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { messages } from "../notifications/messages";
 import { CreateReservationDto } from "./dto/create-reservation.dto";
 import { UpdateReservationDto } from "./dto/update-reservation.dto";
+import { sansChevauchement } from "../common/chevauchement";
+import { acompteMaximal, MESSAGE_ACOMPTE_TROP_ELEVE } from "@hotel-chicago/regles";
 import { AnnulerReservationDto } from "./dto/annuler-reservation.dto";
 import { FindReservationsQueryDto } from "./dto/find-reservations.query.dto";
 
 /** Réservations qui bloquent réellement une chambre pour une période donnée. */
 const STATUTS_OCCUPANTS = ["CONFIRMEE", "EN_COURS"] as const;
+
+/** « 120.00 USD » / « 280000 CDF » pour un message de notification. */
+function montantLisible(valeur: number, devise: string): string {
+  return devise === "CDF" ? `${Math.round(valeur)} CDF` : `${valeur.toFixed(2)} ${devise}`;
+}
 
 @Injectable()
 export class ReservationsService {
@@ -25,6 +32,7 @@ export class ReservationsService {
     // la chambre) sauf si statut est demandé explicitement.
     const plage = query.du && query.au;
     return this.prisma.reservation.findMany({
+      take: 2000, // Plafond de sécurité : une liste n'est jamais illimitée (déni de service, mémoire).
       where: {
         hotelId,
         statut: query.statut ?? (plage ? { not: "ANNULEE" } : undefined),
@@ -78,6 +86,7 @@ export class ReservationsService {
     }
 
     await this.verifierAbsenceDeConflit(dto.chambreId, dateArrivee, dateDepart, currentUser.hotelId);
+    this.verifierAcompte(dto.acompte, chambre.prixParNuit, dateArrivee, dateDepart);
 
     const clientId =
       dto.clientId ?? (await this.prisma.client.create({ data: { ...dto.client!, hotelId: currentUser.hotelId } })).id;
@@ -86,7 +95,7 @@ export class ReservationsService {
     // naît directement EN_COURS et la chambre passe OCCUPEE dans la même
     // transaction, au lieu du cycle CONFIRMEE → check-in séparé.
     const statut = dto.installerImmediatement ? "EN_COURS" : "CONFIRMEE";
-    const [reservation] = await this.prisma.$transaction([
+    const [reservation] = await sansChevauchement(() => this.prisma.$transaction([
       this.prisma.reservation.create({
         data: {
           hotelId: currentUser.hotelId,
@@ -110,11 +119,11 @@ export class ReservationsService {
             }),
           ]
         : []),
-    ]);
+    ]));
     return reservation;
   }
 
-  async update(id: string, dto: UpdateReservationDto, hotelId: string) {
+  async update(id: string, dto: UpdateReservationDto, hotelId: string, par?: UtilisateurAuthentifie) {
     const reservation = await this.findOne(id, hotelId);
     if (reservation.statut === "ANNULEE" || reservation.statut === "TERMINEE") {
       throw new ConflictException(
@@ -131,22 +140,42 @@ export class ReservationsService {
     if (dto.dateArrivee || dto.dateDepart) {
       await this.verifierAbsenceDeConflit(reservation.chambreId, dateArrivee, dateDepart, hotelId, id);
     }
+    const acompteVoulu = dto.acompte ?? Number(reservation.acompte);
+    this.verifierAcompte(acompteVoulu, reservation.chambre.prixParNuit, dateArrivee, dateDepart);
 
     // syncVersion incrémenté manuellement partout dans ce service (voir
     // ChambresService.update pour le détail) — indispensable pour la
     // détection de conflit hors ligne (Phase 4).
-    return this.prisma.reservation.update({
-      where: { id, hotelId },
-      data: {
-        dateArrivee,
-        dateDepart,
-        acompte: dto.acompte,
-        note: dto.note,
-        reponseReception: dto.reponseReception,
-        syncVersion: { increment: 1 },
-      },
-      include: { chambre: true, client: true },
-    });
+    const misAJour = await sansChevauchement(() =>
+      this.prisma.reservation.update({
+        where: { id, hotelId },
+        data: {
+          dateArrivee,
+          dateDepart,
+          acompte: dto.acompte,
+          note: dto.note,
+          reponseReception: dto.reponseReception,
+          syncVersion: { increment: 1 },
+        },
+        include: { chambre: true, client: true },
+      })
+    );
+    // L'acompte est l'argent le plus facile à détourner (il se soustrait de la facture) : toute modification est signalée au patron.
+    if (dto.acompte !== undefined && Number(reservation.acompte) !== dto.acompte && par) {
+      void this.notifications.emettre({
+        hotelId,
+        roles: [Role.PATRON],
+        ...messages.acompteModifie({
+          client: misAJour.client?.nom ?? "Client",
+          chambre: misAJour.chambre.numero,
+          ancien: montantLisible(Number(reservation.acompte), misAJour.chambre.devise),
+          nouveau: montantLisible(dto.acompte, misAJour.chambre.devise),
+          par: par.nom,
+          reservationId: id,
+        }),
+      });
+    }
+    return misAJour;
   }
 
   /** `par` = l'utilisateur qui annule : le patron est prévenu des annulations faites par son équipe (pas des siennes). */
@@ -201,11 +230,13 @@ export class ReservationsService {
       id
     );
 
-    return this.prisma.reservation.update({
-      where: { id, hotelId },
-      data: { statut: "CONFIRMEE", syncVersion: { increment: 1 } },
-      include: { chambre: true, client: true },
-    });
+    return sansChevauchement(() =>
+      this.prisma.reservation.update({
+        where: { id, hotelId },
+        data: { statut: "CONFIRMEE", syncVersion: { increment: 1 } },
+        include: { chambre: true, client: true },
+      })
+    );
   }
 
   async checkIn(id: string, hotelId: string) {
@@ -262,6 +293,14 @@ export class ReservationsService {
   }
 
   /** Empêche deux réservations actives de se chevaucher sur la même chambre. */
+  /** L'acompte ne dépasse jamais le prix du séjour (règle partagée avec les appareils : `packages/regles`). */
+  private verifierAcompte(acompte: number | undefined, prixParNuit: unknown, dateArrivee: Date, dateDepart: Date) {
+    if (acompte === undefined) return;
+    if (acompte > acompteMaximal(Number(prixParNuit), dateArrivee, dateDepart) + 0.005) {
+      throw new BadRequestException(MESSAGE_ACOMPTE_TROP_ELEVE);
+    }
+  }
+
   private async verifierAbsenceDeConflit(
     chambreId: string,
     dateArrivee: Date,

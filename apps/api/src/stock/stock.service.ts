@@ -34,6 +34,7 @@ export class StockService {
 
   findAll(query: FindMouvementsQueryDto, hotelId: string) {
     return this.prisma.mouvementStock.findMany({
+      take: 1000, // Plafond de sécurité : une liste n'est jamais illimitée (déni de service, mémoire).
       where: { hotelId, produitId: query.produitId },
       include: { produit: true },
       orderBy: { createdAt: "desc" },
@@ -167,6 +168,12 @@ export class StockService {
   async preparerInventaire(dateDebut: string, dateFin: string, hotelId: string) {
     const debut = new Date(dateDebut);
     const fin   = new Date(dateFin);
+    if (Number.isNaN(debut.getTime()) || Number.isNaN(fin.getTime())) {
+      throw new BadRequestException("Les dates de l'inventaire doivent être au format AAAA-MM-JJ.");
+    }
+    if (fin < debut || fin.getTime() - debut.getTime() > 400 * 24 * 3600 * 1000) {
+      throw new BadRequestException("La période d'inventaire est invalide (fin avant début, ou plus de 13 mois).");
+    }
     fin.setUTCHours(23, 59, 59, 999);
 
     const produits = await this.prisma.produit.findMany({
@@ -293,7 +300,7 @@ export class StockService {
     // 4. Upload PDF + mise à jour pdfUrl
     const chemin = `${hotelId}/inventaires/${inventaire.id}.pdf`;
     await this.storage.envoyerRapportPdf(chemin, pdfBuffer);
-    const pdfUrl = await this.storage.urlSigneeRapport(chemin, 3600 * 24 * 365); // URL longue durée (1 an)
+    const pdfUrl = await this.storage.urlSigneeRapport(chemin, 3600); // 1 heure : le temps de l'ouvrir. Ensuite, /stock/inventaires/:id/pdf en redonne une.
 
     await this.prisma.inventairePhysique.update({
       where: { id: inventaire.id },
@@ -305,6 +312,7 @@ export class StockService {
 
   listerInventaires(hotelId: string) {
     return this.prisma.inventairePhysique.findMany({
+      take: 200, // Plafond de sécurité : une liste n'est jamais illimitée (déni de service, mémoire).
       where: { hotelId },
       include: { items: { include: { produit: true } } },
       orderBy: { createdAt: "desc" },

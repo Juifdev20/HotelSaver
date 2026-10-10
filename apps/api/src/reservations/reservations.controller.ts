@@ -42,7 +42,7 @@ export class ReservationsController {
   @Operationnel()
   @Patch(":id")
   update(@Param("id") id: string, @Body() dto: UpdateReservationDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
-    return this.reservationsService.update(id, dto, currentUser.hotelId);
+    return this.reservationsService.update(id, dto, currentUser.hotelId, currentUser);
   }
 
   @Operationnel()

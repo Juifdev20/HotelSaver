@@ -13,6 +13,7 @@ export class ClientsService {
   findAll(hotelId: string, q?: string) {
     const terme = q?.trim();
     return this.prisma.client.findMany({
+      take: 1000, // Plafond de sécurité : une liste n'est jamais illimitée (déni de service, mémoire).
       where: {
         hotelId,
         ...(terme

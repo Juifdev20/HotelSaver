@@ -5,6 +5,7 @@ import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
 import { CreateUtilisateurDto } from "./dto/create-utilisateur.dto";
 import { UpdateUtilisateurDto } from "./dto/update-utilisateur.dto";
+import { revoquerSessions } from "../common/auth/sessions";
 
 /** Champs exposés à l'écran "Utilisateurs" — jamais `supabaseAuthId`, qui
  * n'a aucun usage côté client (voir SupabaseAuthGuard, seul consommateur). */
@@ -112,7 +113,7 @@ export class UtilisateursService {
     }
 
     try {
-      return await this.prisma.utilisateur.update({
+      const misAJour = await this.prisma.utilisateur.update({
         where: { id },
         data: {
           ...(dto.nom !== undefined && { nom: dto.nom }),
@@ -121,6 +122,12 @@ export class UtilisateursService {
         },
         select: SELECTION,
       });
+      // Départ d'un employé, mot de passe ou e-mail changé : ses sessions ouvertes (et leur jeton de rafraîchissement) cessent de fonctionner.
+      // Jamais celles de la personne qui fait la modification elle-même (changer son propre mot de passe ne la déconnecte pas).
+      if (id !== currentUser.userId && (dto.actif === false || dto.motDePasse !== undefined || dto.email !== undefined)) {
+        await revoquerSessions(this.prisma, id);
+      }
+      return misAJour;
     } catch (error) {
       if (dto.email !== undefined && utilisateur.email) {
         await this.supabaseAdmin.mettreAJourCompte(utilisateur.supabaseAuthId, { email: utilisateur.email }).catch(() => {});

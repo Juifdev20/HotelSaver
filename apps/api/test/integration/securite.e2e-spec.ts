@@ -174,4 +174,62 @@ decrire("Sécurité : ce qu'un appareil ou un visiteur ne doit pas pouvoir faire
       }
     });
   });
+
+  describe("Réservations : concurrence et acompte", () => {
+    it("deux réservations simultanées sur la même chambre et les mêmes dates : une seule est acceptée", async () => {
+      const corps = { chambreId: A.chambreId, client: { nom: "Course" }, dateArrivee: "2031-03-01T12:00:00.000Z", dateDepart: "2031-03-04T12:00:00.000Z" };
+      const reponses = await Promise.all(Array.from({ length: 6 }, () => http().post("/reservations").set("Authorization", as(A, "recep")).send(corps)));
+      const statuts = reponses.map((r) => r.status).sort();
+      expect(statuts.filter((x) => x === 201)).toHaveLength(1);
+      expect(statuts.filter((x) => x === 409)).toHaveLength(5);
+      expect(await p.reservation.count({ where: { chambreId: A.chambreId, dateArrivee: new Date("2031-03-01T12:00:00.000Z") } })).toBe(1);
+    });
+
+    it("l'acompte ne peut pas dépasser le prix du séjour (création et modification)", async () => {
+      const chambre = await p.chambre.findUnique({ where: { id: A.chambreId } });
+      const prix = Number(chambre.prixParNuit);
+      const trop = await http()
+        .post("/reservations")
+        .set("Authorization", as(A, "recep"))
+        .send({ chambreId: A.chambreId, client: { nom: "Acompte" }, dateArrivee: "2032-05-01T12:00:00.000Z", dateDepart: "2032-05-03T12:00:00.000Z", acompte: prix * 2 + 1 });
+      expect(trop.status).toBe(400);
+      const ok = await http()
+        .post("/reservations")
+        .set("Authorization", as(A, "recep"))
+        .send({ chambreId: A.chambreId, client: { nom: "Acompte" }, dateArrivee: "2032-05-01T12:00:00.000Z", dateDepart: "2032-05-03T12:00:00.000Z", acompte: prix });
+      expect(ok.status).toBe(201);
+      await http().patch(`/reservations/${ok.body.id}`).set("Authorization", as(A, "recep")).send({ acompte: prix * 5 }).expect(400);
+      // Une modification d'acompte prévient le patron.
+      await http().patch(`/reservations/${ok.body.id}`).set("Authorization", as(A, "recep")).send({ acompte: prix + 1 }).expect(200);
+      await new Promise((r) => setTimeout(r, 300));
+      const notif = await p.notification.findMany({ where: { hotelId: A.hotelId, type: "ACOMPTE_MODIFIE" } });
+      expect(notif.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("Sessions : un employé dont le compte change perd l'accès", () => {
+    const avecSession = (authId: string, session: string) => `Bearer ${jwt.sign({ sub: authId, session_id: session }, SECRET)}`;
+
+    it("après un changement de mot de passe par le patron, l'ancienne session est refusée, une nouvelle fonctionne", async () => {
+      const ancienne = avecSession(A.auth.caf, "session-ancienne-1");
+      await http().get("/auth/me").set("Authorization", ancienne).expect(200);
+      await http().patch(`/utilisateurs/${A.userIds.caf}`).set("Authorization", as(A, "patron")).send({ motDePasse: "nouveau-mot-de-passe-1" }).expect(200);
+      await http().get("/auth/me").set("Authorization", ancienne).expect(401);
+      await http().get("/auth/me").set("Authorization", avecSession(A.auth.caf, "session-nouvelle-1")).expect(200);
+    });
+
+    it("la désactivation d'un compte coupe aussi les sessions, même après réactivation", async () => {
+      const session = avecSession(A.auth.recep, "session-recep-1");
+      await http().get("/auth/me").set("Authorization", session).expect(200);
+      await http().patch(`/utilisateurs/${A.userIds.recep}`).set("Authorization", as(A, "patron")).send({ actif: false }).expect(200);
+      await http().get("/auth/me").set("Authorization", session).expect(401);
+      await http().patch(`/utilisateurs/${A.userIds.recep}`).set("Authorization", as(A, "patron")).send({ actif: true }).expect(200);
+      await http().get("/auth/me").set("Authorization", session).expect(401);
+    });
+
+    it("une session ne peut pas servir pour un autre utilisateur", async () => {
+      await http().get("/auth/me").set("Authorization", avecSession(A.auth.patron, "session-partagee")).expect(200);
+      await http().get("/auth/me").set("Authorization", avecSession(B.auth.patron, "session-partagee")).expect(401);
+    });
+  });
 });

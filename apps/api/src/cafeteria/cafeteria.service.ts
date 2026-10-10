@@ -60,6 +60,7 @@ export class CafeteriaService {
 
   findAllComptes(query: FindComptesQueryDto, hotelId: string) {
     return this.prisma.compteCafeteria.findMany({
+      take: 500, // Plafond de sécurité : une liste n'est jamais illimitée (déni de service, mémoire).
       where: { hotelId, statut: query.statut },
       include: INCLUDE_COMPTE_COMPLET,
       orderBy: { ouvertLe: "desc" },
@@ -370,6 +371,7 @@ export class CafeteriaService {
 
   findAllVentes(hotelId: string, reservationLieeId?: string) {
     return this.prisma.venteCafeteria.findMany({
+      take: 500, // Plafond de sécurité : une liste n'est jamais illimitée (déni de service, mémoire).
       where: { hotelId, reservationLieeId },
       orderBy: { createdAt: "desc" },
     });
