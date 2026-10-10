@@ -9,6 +9,7 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from "class-validator";
@@ -16,21 +17,25 @@ import {
 class ClientCommandeWebDto {
   @IsString()
   @IsNotEmpty({ message: "Le nom du client est obligatoire." })
+  @MaxLength(80)
   nom!: string;
 
   /** Téléphone/WhatsApp — le client s'identifie au comptoir avec ces coordonnées. */
   @IsOptional()
   @IsString()
+  @MaxLength(30)
   telephone?: string;
 
   /** N° de chambre si le client est un invité de l'hôtel. */
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   chambre?: string;
 
   /** Instruction globale (ex. « sans piment »). */
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   note?: string;
 }
 
@@ -47,6 +52,7 @@ class LigneCommandeWebDto {
   /** Instruction propre à l'article (ex. « bien cuit »). */
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   note?: string;
 }
 
@@ -71,4 +77,10 @@ export class CreerCommandeWebDto {
   @ValidateNested({ each: true })
   @Type(() => LigneCommandeWebDto)
   lignes!: LigneCommandeWebDto[];
+
+  /** Jeton du widget anti-robot (vérifié par CaptchaGuard, jamais enregistré). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  captchaToken?: string;
 }

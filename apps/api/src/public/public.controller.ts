@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Param, Post, Query, StreamableFile } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, StreamableFile, UseGuards } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
+import { CaptchaGuard } from "../common/captcha/captcha.guard";
+import {
+  LIMITE_ECRITURE_PUBLIQUE,
+  LIMITE_INSCRIPTION,
+  LIMITE_MOT_DE_PASSE_OUBLIE,
+} from "../common/throttle/throttle.config";
 import { PublicService } from "./public.service";
 import { CreerCommandeWebDto } from "./dto/creer-commande-web.dto";
 import { CreerDemandeReservationDto } from "./dto/creer-demande-reservation.dto";
@@ -40,6 +47,8 @@ export class PublicController {
     return this.publicService.listerHotelsPartenaires();
   }
 
+  @Throttle(LIMITE_ECRITURE_PUBLIQUE)
+  @UseGuards(CaptchaGuard)
   @Post("reservations")
   creerDemandeReservation(@Body() dto: CreerDemandeReservationDto) {
     return this.publicService.creerDemandeReservation(dto);
@@ -68,6 +77,8 @@ export class PublicController {
 
   /** Commande cafétéria passée depuis la page « Cuisine » du site public —
    * l'hôtel doit avoir activé `commandeWebActivee` (404 uniforme sinon). */
+  @Throttle(LIMITE_ECRITURE_PUBLIQUE)
+  @UseGuards(CaptchaGuard)
   @Post("commande")
   creerCommandeWeb(@Body() dto: CreerCommandeWebDto) {
     return this.publicService.creerCommandeWeb(dto);
@@ -85,16 +96,21 @@ export class PublicController {
     });
   }
 
+  @Throttle(LIMITE_MOT_DE_PASSE_OUBLIE)
   @Post("mot-de-passe-oublie")
   motDePasseOublie(@Body() dto: MotDePasseOublieDto) {
     return this.publicService.demanderReinitialisation(dto);
   }
 
+  @Throttle(LIMITE_MOT_DE_PASSE_OUBLIE)
   @Post("reinitialiser-mot-de-passe")
   reinitialiserMotDePasse(@Body() dto: ReinitialiserMotDePasseDto) {
     return this.publicService.reinitialiserMotDePasse(dto);
   }
 
+  // Pas de CAPTCHA ici : l'inscription se fait aussi depuis le bureau et le mobile (qui ne peuvent pas afficher le widget). Protégée par la
+  // limitation de débit, le contrôle des noms réservés et la confirmation par e-mail de Supabase.
+  @Throttle(LIMITE_INSCRIPTION)
   @Post("hotels/inscription")
   inscrireHotel(@Body() dto: InscriptionHotelDto) {
     return this.publicService.inscrireHotel(dto);

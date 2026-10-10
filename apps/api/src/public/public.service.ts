@@ -36,6 +36,13 @@ const STATUTS_OCCUPANTS = ["CONFIRMEE", "EN_COURS"] as const;
  * besoin de rendre la colonne nullable ni de créer un utilisateur factice. */
 const CREATED_BY_SITE_PUBLIC = "SITE_PUBLIC";
 
+/** Sous-domaines interdits à l'inscription libre-service. */
+const SOUS_DOMAINES_RESERVES = new Set([
+  "www", "api", "app", "admin", "administrator", "super-admin", "superadmin", "root", "mail", "email", "smtp", "ftp", "support", "help",
+  "aide", "billing", "paiement", "payment", "login", "connexion", "auth", "secure", "securite", "status", "cdn", "static", "assets",
+  "hotelsaver", "hotel-saver", "dashboard", "console", "test", "demo", "staging", "dev", "prod", "blog", "docs",
+]);
+
 /** Ce que le site public a le droit de voir : jamais hotelId, prix d'achat, stock, seuil, code-barres, version de synchro. */
 const CHAMPS_CHAMBRE_PUBLICS = { id: true, numero: true, type: true, prixParNuit: true, devise: true, photos: true } as const;
 const CHAMPS_PRODUIT_PUBLICS = {
@@ -621,6 +628,10 @@ export class PublicService {
    * propriétaire n'a personne pour créer son premier compte à sa place.
    */
   async inscrireHotel(dto: InscriptionHotelDto) {
+    // Noms réservés : un inconnu ne doit pas pouvoir prendre « admin » ou « api » (hameçonnage, confusion avec nos propres adresses).
+    if (SOUS_DOMAINES_RESERVES.has(dto.sousDomaine) || dto.sousDomaine.length < 3 || dto.sousDomaine.startsWith("-") || dto.sousDomaine.endsWith("-")) {
+      throw new BadRequestException("Ce sous-domaine n'est pas disponible. Choisissez-en un autre (3 caractères minimum).");
+    }
     const compteAuth = await this.supabaseAdmin.creerCompte({ email: dto.email, motDePasse: dto.motDePasse });
     // Un logo mal formé ne doit jamais faire échouer l'inscription :
     // extraireCouleursLogo ne lève jamais, renvoie null au moindre souci

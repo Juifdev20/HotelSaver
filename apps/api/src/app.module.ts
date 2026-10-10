@@ -1,6 +1,8 @@
 import { join } from "path";
 import { Module, ValidationPipe } from "@nestjs/common";
-import { APP_PIPE } from "@nestjs/core";
+import { APP_GUARD, APP_PIPE } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { optionsThrottle } from "./common/throttle/throttle.config";
 import { ConfigModule } from "@nestjs/config";
 import { ScheduleModule } from "@nestjs/schedule";
 import { HealthModule } from "./health/health.module";
@@ -35,6 +37,7 @@ import { DepensesModule } from "./depenses/depenses.module";
     // Phase 12 : suspension automatique des hôtels dont la licence a expiré
     // (voir super-admin/licence-scheduler.service.ts).
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot(optionsThrottle),
     HealthModule,
     AuthModule,
     ChambresModule,
@@ -58,6 +61,8 @@ import { DepensesModule } from "./depenses/depenses.module";
     DepensesModule,
   ],
   providers: [
+    // Limitation de débit : évaluée avant tout le reste (voir throttle.config.ts).
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     {
       // Enregistré ici (plutôt que via app.useGlobalPipes dans main.ts) pour que
       // les tests Nest (TestingModule.createNestApplication()) bénéficient aussi

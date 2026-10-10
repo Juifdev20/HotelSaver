@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { Captcha, captchaActif } from "./Captcha";
 import { creerCommandeWeb, listerMenu } from "@hotel-chicago/api-client";
 import { formatMontant } from "@hotel-chicago/ui";
 import type { CommandeWebCreee, Produit } from "@hotel-chicago/types";
@@ -17,6 +18,7 @@ interface LignePanier {
  * la cafétéria, le client paie et est servi au comptoir.
  */
 export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
+  const [jetonCaptcha, setJetonCaptcha] = useState<string | undefined>(undefined);
   const [produits, setProduits] = useState<Produit[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -100,6 +102,7 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
             note: client.note.trim() || undefined,
           },
           lignes: lignes.map((l) => ({ produitId: l.produit.id, quantite: l.quantite })),
+          captchaToken: jetonCaptcha,
         }
       );
       setConfirmation(resultat);
@@ -280,7 +283,8 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
                     placeholder="Ex. sans piment"
                   />
                 </label>
-                <button type="submit" className="hotel-bouton hotel-bouton--primaire" disabled={envoi || !client.nom.trim()}>
+                <Captcha onJeton={setJetonCaptcha} />
+                <button type="submit" className="hotel-bouton hotel-bouton--primaire" disabled={envoi || !client.nom.trim() || (captchaActif && !jetonCaptcha)}>
                   {envoi ? "Envoi…" : "Envoyer la commande"}
                 </button>
               </form>

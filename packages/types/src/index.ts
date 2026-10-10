@@ -500,6 +500,8 @@ export interface DemandeReservationPayload {
   };
   dateArrivee: string;
   dateDepart: string;
+  /** Jeton du widget anti-robot (Turnstile), exigé par le serveur quand un CAPTCHA est configuré. */
+  captchaToken?: string;
 }
 
 /** POST /public/commande — commande passée par un client depuis le site public
@@ -507,6 +509,8 @@ export interface DemandeReservationPayload {
  * le payload ne transporte que produitId + quantite (+ note de préparation). */
 export interface CommandeWebPayload {
   sousDomaine: string;
+  /** Jeton du widget anti-robot (Turnstile), exigé par le serveur quand un CAPTCHA est configuré. */
+  captchaToken?: string;
   client: {
     nom: string;
     /** Téléphone/WhatsApp pour identifier le client au comptoir. */

@@ -1,4 +1,6 @@
 import { BadGatewayException, Body, Controller, HttpCode, HttpException, InternalServerErrorException, Post } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
+import { LIMITE_CONNEXION, LIMITE_RAFRAICHISSEMENT } from "../common/throttle/throttle.config";
 
 /**
  * Relais d'authentification vers Supabase Auth — le client parle à NOTRE
@@ -14,12 +16,15 @@ import { BadGatewayException, Body, Controller, HttpCode, HttpException, Interna
  */
 @Controller("auth")
 export class AuthProxyController {
+  // Le relais appelle Supabase depuis l'IP du serveur : sans limite, un script ferait refuser la connexion à TOUS les employés de TOUS les hôtels.
+  @Throttle(LIMITE_CONNEXION)
   @Post("connexion")
   @HttpCode(200)
   connexion(@Body() corps: { email?: string; motDePasse?: string }) {
     return this.relayer("password", { email: corps?.email, password: corps?.motDePasse });
   }
 
+  @Throttle(LIMITE_RAFRAICHISSEMENT)
   @Post("rafraichir")
   @HttpCode(200)
   rafraichir(@Body() corps: { refreshToken?: string }) {

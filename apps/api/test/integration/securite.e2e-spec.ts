@@ -10,6 +10,8 @@ import { decrire, verifierBaseJetable } from "./base";
 import { JeuHotel, creerHotel, uuid, viderBase } from "./donnees";
 
 const SECRET = "secret-de-test-integration";
+// La limitation de débit est coupée dans les tests ; on l'allume pour CE fichier (et on garde le CAPTCHA configuré pour vérifier qu'il bloque).
+process.env.TEST_THROTTLE = "1";
 const p = prisma as any;
 
 decrire("Sécurité : ce qu'un appareil ou un visiteur ne doit pas pouvoir faire (vraie base)", () => {
@@ -144,6 +146,32 @@ decrire("Sécurité : ce qu'un appareil ou un visiteur ne doit pas pouvoir faire
       const res = await http().get(`/public/menu?sousDomaine=${sousDomaine}`).expect(200);
       const corps = JSON.stringify(res.body);
       expect(corps).not.toMatch(/prixAchat|stockActuel|seuilAlerte|codeBarres|hotelId|syncVersion/);
+    });
+  });
+
+  describe("Limitation de débit, CAPTCHA, noms réservés", () => {
+    it("« mot de passe oublié » est limité : la 6e demande est refusée (429)", async () => {
+      const statuts: number[] = [];
+      for (let i = 0; i < 7; i++) statuts.push((await http().post("/public/mot-de-passe-oublie").send({ email: `inconnu${i}@exemple.com` })).status);
+      expect(statuts.slice(0, 5).every((x) => x < 400)).toBe(true);
+      expect(statuts.slice(5)).toContain(429);
+    });
+
+    it("l'inscription d'un hôtel refuse un sous-domaine réservé", async () => {
+      const res = await http()
+        .post("/public/hotels/inscription")
+        .send({ nom: "Faux", sousDomaine: "admin", nomProprietaire: "X", email: "x@exemple.com", motDePasse: "motdepasse123" });
+      expect(res.status).toBe(400);
+    });
+
+    it("avec un CAPTCHA configuré, une commande/inscription sans jeton est refusée (403)", async () => {
+      process.env.TURNSTILE_SECRET = "secret-de-test";
+      try {
+        const res = await http().post("/public/commande").send({ sousDomaine: "x", client: { nom: "A" }, lignes: [{ produitId: A.platId, quantite: 1 }] });
+        expect(res.status).toBe(403);
+      } finally {
+        delete process.env.TURNSTILE_SECRET;
+      }
     });
   });
 });

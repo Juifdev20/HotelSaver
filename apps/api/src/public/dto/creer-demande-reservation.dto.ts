@@ -1,18 +1,21 @@
 import { Type } from "class-transformer";
-import { IsDateString, IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, ValidateNested } from "class-validator";
+import { IsDateString, IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from "class-validator";
 
 class ClientDemandeDto {
   @IsString()
   @IsNotEmpty({ message: "Le nom est obligatoire." })
+  @MaxLength(120)
   nom!: string;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty({ message: "Un numéro de téléphone est recommandé pour vous recontacter." })
+  @MaxLength(30)
   telephone?: string;
 
   @IsOptional()
   @IsEmail({}, { message: "L'adresse email n'est pas valide." })
+  @MaxLength(254)
   email?: string;
 }
 
@@ -35,4 +38,10 @@ export class CreerDemandeReservationDto {
 
   @IsDateString({}, { message: "dateDepart doit être une date valide (ISO 8601)." })
   dateDepart!: string;
+
+  /** Jeton du widget anti-robot (vérifié par CaptchaGuard, jamais enregistré). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  captchaToken?: string;
 }

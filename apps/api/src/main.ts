@@ -1,10 +1,19 @@
 import "./charger-env"; // doit rester le premier import (voir le fichier)
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
+import helmet from "helmet";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Derrière le proxy de l'hébergeur (Render…), l'adresse du visiteur est dans X-Forwarded-For : sans cela, la limitation de débit
+  // verrait TOUT LE MONDE sous l'adresse du proxy. « 1 » = un seul proxy de confiance.
+  app.set("trust proxy", 1);
+  app.disable("x-powered-by");
+  // En-têtes de sécurité (nosniff, HSTS, pas de cadre…). Une API JSON n'a pas besoin de contenu actif : CSP minimale.
+  app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } }, crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
   // Liste séparée par des virgules : le site public ET le serveur de dev Vite
   // de l'app Electron (http://localhost:5173) doivent pouvoir appeler l'API.
@@ -38,6 +47,11 @@ async function bootstrap() {
       },
     });
   });
+
+  if (!enDeveloppement && (!originesAutorisees || originesAutorisees.length === 0)) {
+    // eslint-disable-next-line no-console
+    console.warn("CORS_ORIGIN est vide : l'API répond à toutes les origines. Listez-les (voir .env.example) pour un durcissement complet.");
+  }
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
   await app.listen(port);

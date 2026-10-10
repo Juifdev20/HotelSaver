@@ -3272,3 +3272,26 @@ associer un code-barres, taux de change, menu du jour (modification), téléchar
 Les anciennes données non synchronisées présentes dans l'ancienne file SQLite d'un téléphone ne sont PAS reprises : synchroniser avant de mettre à jour l'APK.
 Vérifié ici : `tsc --noEmit` de l'application et tests des paquets partagés (dont `PersistanceSqlite` via `node:sqlite`) ; l'application React Native elle-même n'a pas pu être
 lancée dans cet environnement — essai sur téléphone nécessaire (APK à reconstruire).
+
+## 10/10/2026 — Audit sécurité + ergonomie : correctifs de la phase 1
+
+Plan complet dans `docs/PLAN-SECURITE-UX.md` (audit en lecture seule, trois volets). Décisions du patron : double authentification du super-admin reportée ;
+CAPTCHA oui ; verrou d'inactivité seulement OPTIONNEL (désactivé par défaut) ; copie locale chiffrée au repos plutôt que vidée à la déconnexion (le hors ligne en dépend).
+
+Fait (tests : `apps/api/test/integration/securite.e2e-spec.ts`, 16 cas) :
+- **Synchronisation** : tout payload de `/sync/push` passe par les DTO des routes HTTP (liste blanche) — un appareil ne peut plus écrire `hotelId`/`id`/`syncVersion`,
+  ni envoyer une quantité négative ou textuelle. Messages d'erreur internes jamais renvoyés ; une dépense d'un autre département reste invisible même en provoquant un conflit.
+- **Site public** : chambres et plats publiés limités aux champs d'affichage ; plus de rattachement à une fiche client existante (même téléphone) ; message d'inscription neutre ;
+  sous-domaines réservés ; longueurs maximales ; téléchargement du logo durci (https, adresses privées refusées, pas de redirection, 3 s, 1 Mo, image) ;
+  limitation de débit (`@nestjs/throttler`, stricte sur connexion, mot de passe oublié, inscription, commande, demande de réservation) ; en-têtes `helmet` ; `trust proxy`.
+- **CAPTCHA Turnstile** sur commande et demande de réservation, actif seulement si `TURNSTILE_SECRET` est défini (clé de site : `VITE_TURNSTILE_SITE_KEY` côté web).
+  Pas de CAPTCHA sur l'inscription d'un hôtel : elle se fait aussi depuis le bureau et le mobile (qui ne peuvent pas afficher le widget) ; elle reste limitée en débit.
+- **Argent** : « facturé chambre » refusé pour une facture de séjour ; consommation rattachée seulement à un séjour en cours et non facturé (serveur ET appareil, mêmes messages).
+- **Appareils** : le profil « moi » est mis en cache par utilisateur (un employé hors ligne recevait le profil du patron) ; reçus sans octet de commande (ESC/POS) ;
+  bureau : configuration écrite par l'interface limitée à 4 clés, adresse d'imprimante validée, liens externes `https`/`mailto`/`tel` seulement.
+- **Ergonomie** : un seul lecteur de montants (`packages/regles/src/saisie.ts` : « 10.000 » = 10 000, CDF entier, USD 2 décimales) branché sur tous les écrans ;
+  taux de change borné (500–20 000, aussi côté API) et confirmé ; réimpression = date d'origine + « DUPLICATA » ; mobile : frontière d'erreur, `formatMontant` sans exception.
+- **RLS** : migration `20261010120000_rls_toutes_les_tables` + script `packages/database/prisma/supabase-activer-rls.sql` à exécuter dans Supabase.
+
+À configurer en production : `CORS_ORIGIN` (sinon l'API répond à toutes les origines et l'écrit au démarrage), `TURNSTILE_SECRET`, `VITE_TURNSTILE_SITE_KEY`.
+

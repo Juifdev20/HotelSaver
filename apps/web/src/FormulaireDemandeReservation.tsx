@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
+import { Captcha, captchaActif } from "./Captcha";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@hotel-chicago/ui";
 import { creerDemandeReservationPublique } from "@hotel-chicago/api-client";
@@ -28,6 +29,7 @@ export function FormulaireDemandeReservation({
   dateDepart,
   onFermer,
 }: FormulaireDemandeReservationProps) {
+  const [jetonCaptcha, setJetonCaptcha] = useState<string | undefined>(undefined);
   const [nom, setNom] = useState("");
   const [telephone, setTelephone] = useState("");
   const [email, setEmail] = useState("");
@@ -50,6 +52,7 @@ export function FormulaireDemandeReservation({
           client: { nom: nom.trim(), telephone: telephone.trim() || undefined, email: email.trim() || undefined },
           dateArrivee,
           dateDepart,
+          captchaToken: jetonCaptcha,
         }
       );
       naviguer(cheminHotel(`/ma-reservation/${jetonSuivi}`));
@@ -96,7 +99,8 @@ export function FormulaireDemandeReservation({
               </p>
             )}
 
-            <Button type="submit" disabled={enCours} style={{ width: "100%", marginTop: 16 }}>
+            <Captcha onJeton={setJetonCaptcha} />
+            <Button type="submit" disabled={enCours || (captchaActif && !jetonCaptcha)} style={{ width: "100%", marginTop: 16 }}>
               {enCours ? "Envoi…" : "Envoyer la demande"}
             </Button>
             <button type="button" className="lien-retour" onClick={onFermer}>
