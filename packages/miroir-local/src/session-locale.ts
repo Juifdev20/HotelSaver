@@ -41,7 +41,6 @@ export const cleCompte = (email: string) => email.trim().toLowerCase();
 
 // ---------------------------------------------------------------------------------------------- empreinte du mot de passe
 
-const encodeur = new TextEncoder();
 
 function versBase64(octets: Uint8Array): string {
   let binaire = "";
@@ -57,7 +56,7 @@ async function deriver(email: string, motDePasse: string, sel: Uint8Array, itera
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) throw new Error("Chiffrement indisponible sur cet appareil.");
   // L'e-mail fait partie de la donnée dérivée : deux comptes ayant le même mot de passe n'ont pas la même empreinte.
-  const cle = await subtle.importKey("raw", encodeur.encode(`${cleCompte(email)}\u0000${motDePasse}`), "PBKDF2", false, ["deriveBits"]);
+  const cle = await subtle.importKey("raw", new TextEncoder().encode(`${cleCompte(email)}\u0000${motDePasse}`), "PBKDF2", false, ["deriveBits"]);
   const bits = await subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: sel as BufferSource, iterations }, cle, 256);
   return new Uint8Array(bits);
 }

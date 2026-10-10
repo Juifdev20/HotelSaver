@@ -18,6 +18,8 @@ config.watchFolders = [
   path.resolve(racineWorkspace, "packages/types"),
   path.resolve(racineWorkspace, "packages/receipts"),
   path.resolve(racineWorkspace, "packages/sync-engine"),
+  path.resolve(racineWorkspace, "packages/miroir-local"),
+  path.resolve(racineWorkspace, "packages/regles"),
   path.resolve(racineWorkspace, "packages/database"), // types Prisma partagés
   storeVirtuelPnpm,
 ];

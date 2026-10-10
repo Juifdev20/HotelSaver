@@ -29,7 +29,7 @@ function ListeSejours({ items, vide }: { items: JourneeReception["arrivees"]["re
 /**
  * Journal de la journée (remise de poste) : encaissements du jour par
  * département et devise, arrivées/départs faits et restants, état du parc.
- * En ligne uniquement — c'est un agrégat serveur, pas une donnée du miroir.
+ * Calculé sur la base locale de l'appareil (marche hors ligne).
  */
 export function EcranJourneeReception({ onRetour }: EcranJourneeReceptionProps) {
   const { client } = useSession();

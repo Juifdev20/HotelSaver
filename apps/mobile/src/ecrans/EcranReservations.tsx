@@ -2,7 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { peutOperer } from "@hotel-chicago/types";
-import type { StatutReservation } from "@hotel-chicago/types";
+import type { Reservation, StatutReservation } from "@hotel-chicago/types";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -10,7 +10,6 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import { ReservationMiroir, listerReservationsMiroir } from "../stockage/reservationsMirroir";
 import { EcranReservationDetail } from "./EcranReservationDetail";
 import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
 import { EcranFacturation } from "./EcranFacturation";
@@ -74,7 +73,7 @@ function dateCourte(iso: string): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function filtrer(reservations: ReservationMiroir[], segment: SegmentId): ReservationMiroir[] {
+function filtrer(reservations: Reservation[], segment: SegmentId): Reservation[] {
   const aujourdhui = new Date();
   const finJournee = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), aujourdhui.getDate() + 1);
   switch (segment) {
@@ -114,19 +113,20 @@ const VIDE_PAR_SEGMENT: Record<SegmentId, string> = {
  * EcranOngletCaisse, sans stack de navigation.
  */
 export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, reservationInitiale }: EcranReservationsProps) {
-  const { moteurSync, utilisateur } = useSession();
+  const { client, moteurSync, miroir, utilisateur } = useSession();
   const etatSync = useSyncEtat();
   const [vue, setVue] = useState<Vue>(reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" });
   const [segment, setSegment] = useState<SegmentId>(segmentInitial);
-  const [reservations, setReservations] = useState<ReservationMiroir[] | null>(null);
+  const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
 
   const rechargerMiroir = useCallback(() => {
-    listerReservationsMiroir()
+    client
+      .listerReservations()
       .then(setReservations)
-      .catch((e: Error) => setErreur(e.message));
-  }, []);
+      .catch(() => setReservations((courant) => courant ?? []));
+  }, [client]);
 
   useEffect(() => {
     rechargerMiroir();
@@ -252,7 +252,7 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
                   </Text>
                   <Text style={styles.ligneSecondaire}>
                     {formatMontant(item.chambre.prixParNuit, item.chambre.devise)} / nuit
-                    {item.remoteId === null ? " · en attente de synchro" : ""}
+                    {miroir.estCreationEnAttente(item.id) ? " · en attente de synchro" : ""}
                     {item.origine === "SITE_PUBLIC" ? " · site public" : ""}
                   </Text>
                   {item.note && <Text style={styles.noteTexte}>Note : {item.note}</Text>}

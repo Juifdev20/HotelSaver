@@ -13,7 +13,6 @@ import { SelecteurPhotos, nettoyerImages } from "../composants/SelecteurPhotos";
 import { MAX_PHOTOS_CHAMBRE } from "@hotel-chicago/types";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import { listerChambresMiroir, ecrireStatutChambreLocal, supprimerChambreLocale } from "../stockage/chambresMirroir";
 
 const COULEUR_PAR_STATUT: Record<StatutChambre, { fond: string; texte: string }> = {
   [StatutChambre.LIBRE]: { fond: couleurs.succesClair, texte: couleurs.succes },
@@ -63,10 +62,11 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
   const [enCours, setEnCours] = useState(false);
 
   const rechargerMiroir = useCallback(() => {
-    listerChambresMiroir()
+    client
+      .listerChambres()
       .then(setChambres)
-      .catch((e: Error) => setErreur(e.message));
-  }, []);
+      .catch(() => setChambres((courant) => courant ?? []));
+  }, [client]);
 
   useEffect(() => {
     rechargerMiroir();
@@ -90,16 +90,14 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
     if (!chambreChoisie) return;
     const chambre = chambreChoisie;
     setChambreChoisie(null);
-    await ecrireStatutChambreLocal(chambre.id, statut);
     setChambres((liste) => liste?.map((c) => (c.id === chambre.id ? { ...c, statut } : c)) ?? liste);
-    await moteurSync.mettreEnFile({
-      entiteType: "Chambre",
-      localId: chambre.id,
-      remoteId: chambre.id,
-      operation: "UPDATE",
-      payload: { statut },
-      baseSyncVersion: chambre.syncVersion,
-    });
+    try {
+      // Écrit dans la base du téléphone ET dans la file d'envoi : marche sans réseau.
+      await client.modifierStatutChambre(chambre.id, statut);
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+    }
+    rechargerMiroir();
   }
 
   /** Création/modification/suppression de chambre : actions PATRON en ligne
@@ -107,8 +105,8 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
    * miroir à jour ; pour la suppression il faut retirer la ligne locale
    * tout de suite, le pull ne supprime rien (pas de tombstone). */
   async function synchroniserApresAction() {
-    await moteurSync.forcerSynchronisation();
     rechargerMiroir();
+    void moteurSync.forcerSynchronisation();
   }
 
   function ouvrirCreation() {
@@ -182,7 +180,6 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
     setErreur(null);
     try {
       await client.supprimerChambre(cible.id);
-      await supprimerChambreLocale(cible.id);
       setFormulaire("ferme");
       rechargerMiroir();
     } catch (e) {
@@ -245,7 +242,7 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
             </Pressable>
           ))}
         {estPatron && chambreChoisie && (
-          <Pressable style={styles.optionModifier} onPress={() => ouvrirEdition(chambreChoisie)} disabled={!etatSync.enLigne}>
+          <Pressable style={styles.optionModifier} onPress={() => ouvrirEdition(chambreChoisie)}>
             <Text style={styles.optionModifierTexte}>Modifier la chambre (numéro, type, prix)</Text>
           </Pressable>
         )}
@@ -296,7 +293,7 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
 
       {/* FAB bas-droite (PATRON, en ligne) — standard Android, sous le pouce. */}
       {estPatron && (
-        <BoutonAjouterFlottant onPress={ouvrirCreation} disabled={!etatSync.enLigne} accessibilityLabel="Nouvelle chambre" />
+        <BoutonAjouterFlottant onPress={ouvrirCreation} accessibilityLabel="Nouvelle chambre" />
       )}
     </View>
   );

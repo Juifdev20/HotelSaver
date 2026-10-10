@@ -5,6 +5,7 @@ import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { Devise, Facture, ModePaiement, Reservation, VenteCafeteria, peutOperer } from "@hotel-chicago/types";
 import type { TauxChange } from "@hotel-chicago/api-client";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
+import { estRecuProvisoire } from "@hotel-chicago/regles";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -179,6 +180,11 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
               <Text style={styles.montantTotal}>{formatMontant(factureCreee.montantTotalCDF, Devise.CDF)}</Text>
             )}
           </View>
+          {estRecuProvisoire(factureCreee.numeroRecu) && (
+            <Text style={styles.avertissement}>
+              Reçu provisoire : le numéro définitif sera attribué à la synchronisation (le reçu reste valable).
+            </Text>
+          )}
           {avertissementCheckOut && <Text style={styles.avertissement}>{avertissementCheckOut}</Text>}
           {messageImpression && <Text style={styles.confirmationImpression}>{messageImpression}</Text>}
           <Pressable style={styles.boutonSecondaireLarge} onPress={imprimerRecu} disabled={enImpression}>

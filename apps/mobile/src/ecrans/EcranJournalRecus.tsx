@@ -77,7 +77,7 @@ function DetailPaiement({ recu }: { recu: Facture | VenteCafeteria }) {
  * pièce avec motif ; RECEPTIONNISTE n'a que Séjours, CAFETARIA que
  * Cafétaria (matrice 9.3 : l'API liste `ventes` refuserait un filtre vide à
  * la réception, et le module cafétaria reste fermé à ce rôle).
- * En ligne uniquement — les reçus ne sont pas mirrorés dans SQLite.
+ * Lu dans la base locale (reçus provisoires TEMP-… inclus) ; l'annulation d'un reçu exige la connexion.
  */
 export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
   const { client, utilisateur } = useSession();

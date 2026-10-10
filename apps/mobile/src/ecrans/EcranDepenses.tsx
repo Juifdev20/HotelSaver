@@ -2,7 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Linking, Pressable, RefreshControl, SectionList, StyleSheet, Text, TextInput, View } from "react-native";
 import { FileDown } from "lucide-react-native";
-import { Devise, Role, type DepartementRapport } from "@hotel-chicago/types";
+import { Devise, Role, type DepartementRapport, type Depense } from "@hotel-chicago/types";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
@@ -12,7 +12,6 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import { DepenseMiroir, creerDepenseLocale, listerDepensesMiroir, modifierDepenseLocale } from "../stockage/depensesMirroir";
 
 export interface EcranDepensesProps {
   /** « ‹ Retour » vers l'Accueil (onglet) ou la liste Plus (patron). */
@@ -42,7 +41,7 @@ function jourLisible(jour: string): string {
   return new Date(`${jour}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
-function totaux(depenses: DepenseMiroir[]): { usd: number; cdf: number } {
+function totaux(depenses: Depense[]): { usd: number; cdf: number } {
   const t = { usd: 0, cdf: 0 };
   for (const d of depenses) if (!d.annulee) t[d.devise === Devise.USD ? "usd" : "cdf"] += Number(d.montant);
   return t;
@@ -58,12 +57,12 @@ function texteTotaux(t: { usd: number; cdf: number }): string {
 /**
  * Dépenses du département (demande du 07/10/2026). La réception et la
  * cafétaria saisissent — date, motif, montant, devise — même hors ligne
- * (miroir SQLite + file de synchronisation, comme les réservations) ; le
+ * (base locale + file de synchronisation, comme les réservations) ; le
  * patron consulte les deux départements, sans bouton d'ajout. Le PDF de la
  * période se télécharge en ligne (URL signée, visionneuse du téléphone).
  */
 export function EcranDepenses({ onRetour }: EcranDepensesProps) {
-  const { client, moteurSync, utilisateur } = useSession();
+  const { client, moteurSync, utilisateur, miroir } = useSession();
   const etatSync = useSyncEtat();
   const departementPersonnel: DepartementRapport | null =
     utilisateur.role === Role.RECEPTIONNISTE ? "RECEPTION" : utilisateur.role === Role.CAFETARIA ? "CAFETERIA" : null;
@@ -73,13 +72,13 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
   const [du, setDu] = useState(bornesPeriode("mois").du);
   const [au, setAu] = useState(bornesPeriode("mois").au);
   const [departementFiltre, setDepartementFiltre] = useState<DepartementRapport | undefined>(undefined);
-  const [depenses, setDepenses] = useState<DepenseMiroir[] | null>(null);
+  const [depenses, setDepenses] = useState<Depense[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [telechargement, setTelechargement] = useState(false);
 
   // Formulaire (création ou correction).
-  const [formulaire, setFormulaire] = useState<{ depense: DepenseMiroir | null } | null>(null);
+  const [formulaire, setFormulaire] = useState<{ depense: Depense | null } | null>(null);
   const [date, setDate] = useState(iso(new Date()));
   const [motif, setMotif] = useState("");
   const [montant, setMontant] = useState("");
@@ -91,10 +90,11 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
 
   const recharger = useCallback(() => {
     if (!periodeValide) return;
-    listerDepensesMiroir(du, au, departementFiltre)
+    client
+      .listerDepenses({ du, au, departement: departementFiltre })
       .then(setDepenses)
       .catch((e: Error) => setErreur(e.message));
-  }, [du, au, departementFiltre, periodeValide]);
+  }, [client, du, au, departementFiltre, periodeValide]);
 
   useEffect(() => {
     recharger();
@@ -125,7 +125,7 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
   }
 
   const sections = useMemo(() => {
-    const parJour = new Map<string, DepenseMiroir[]>();
+    const parJour = new Map<string, Depense[]>();
     for (const d of depenses ?? []) parJour.set(d.date, [...(parJour.get(d.date) ?? []), d]);
     return [...parJour.entries()].map(([jour, data]) => ({ jour, data, total: totaux(data) }));
   }, [depenses]);
@@ -141,12 +141,8 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
     setErreurFormulaire(null);
   }
 
-  function ouvrirCorrection(depense: DepenseMiroir) {
+  function ouvrirCorrection(depense: Depense) {
     if (!peutSaisir || depense.annulee) return;
-    if (depense.remoteId === null) {
-      Alert.alert("En attente de synchronisation", "Cette dépense n'est pas encore envoyée au serveur. Elle pourra être corrigée ou annulée une fois synchronisée.");
-      return;
-    }
     setFormulaire({ depense });
     setDate(depense.date);
     setMotif(depense.motif);
@@ -176,27 +172,10 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
         if (montantArrondi !== Number(existante.montant)) modifs.montant = montantArrondi;
         if (devise !== existante.devise) modifs.devise = devise;
         if (Object.keys(modifs).length > 0) {
-          const payload = await modifierDepenseLocale(existante, modifs);
-          await moteurSync.mettreEnFile({
-            entiteType: "Depense",
-            localId: existante.id,
-            remoteId: existante.remoteId!,
-            operation: "UPDATE",
-            payload,
-            baseSyncVersion: existante.syncVersion,
-          });
+          await client.modifierDepense(existante.id, modifs);
         }
       } else {
-        const { id, payload } = await creerDepenseLocale({
-          departement: departementPersonnel!,
-          date,
-          motif: motifTrim,
-          montant: montantArrondi,
-          devise,
-          creeParId: utilisateur.userId,
-          creeParNom: utilisateur.nom,
-        });
-        await moteurSync.mettreEnFile({ entiteType: "Depense", localId: id, operation: "CREATE", payload });
+        await client.creerDepense({ date, motif: motifTrim, montant: montantArrondi, devise });
       }
       setFormulaire(null);
       recharger();
@@ -207,7 +186,7 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
     }
   }
 
-  function annuler(depense: DepenseMiroir) {
+  function annuler(depense: Depense) {
     Alert.alert(
       "Annuler cette dépense ?",
       `« ${depense.motif} » — ${formatMontant(depense.montant, depense.devise)}.\nElle restera visible, barrée, et ne comptera plus dans les totaux. C'est définitif.`,
@@ -218,15 +197,7 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
           style: "destructive",
           onPress: async () => {
             try {
-              const payload = await modifierDepenseLocale(depense, { annulee: true });
-              await moteurSync.mettreEnFile({
-                entiteType: "Depense",
-                localId: depense.id,
-                remoteId: depense.remoteId!,
-                operation: "UPDATE",
-                payload,
-                baseSyncVersion: depense.syncVersion,
-              });
+              await client.modifierDepense(depense.id, { annulee: true });
               setFormulaire(null);
               recharger();
             } catch (e) {
@@ -371,7 +342,7 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
               {item.creeParNom}
               {!departementPersonnel ? ` · ${LIBELLE_DEPARTEMENT[item.departement]}` : ""}
               {item.annulee ? " · annulée" : ""}
-              {item.remoteId === null ? " · en attente de synchro" : ""}
+              {miroir.estCreationEnAttente(item.id) ? " · en attente de synchro" : ""}
             </Text>
           </Pressable>
         )}

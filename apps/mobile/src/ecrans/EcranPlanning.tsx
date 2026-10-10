@@ -1,12 +1,10 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import type { Chambre, StatutReservation } from "@hotel-chicago/types";
+import type { Chambre, Reservation, StatutReservation } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import { listerChambresMiroir } from "../stockage/chambresMirroir";
-import { ReservationMiroir, listerReservationsMiroir } from "../stockage/reservationsMirroir";
 
 export interface EcranPlanningProps {
   /** Cellule vide : nouvelle réservation pré-remplie (chambre + date d'arrivée). */
@@ -48,20 +46,20 @@ const LIBELLE_JOUR = ["di", "lu", "ma", "me", "je", "ve", "sa"];
  * par le parent — cet écran n'affiche que la grille.
  */
 export function EcranPlanning({ onNouvelleReservation, onOuvrirReservation }: EcranPlanningProps) {
-  const { moteurSync } = useSession();
+  const { client, moteurSync } = useSession();
   const etatSync = useSyncEtat();
   const [chambres, setChambres] = useState<Chambre[] | null>(null);
-  const [reservations, setReservations] = useState<ReservationMiroir[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const recharger = useCallback(() => {
-    Promise.all([listerChambresMiroir(), listerReservationsMiroir()])
+    Promise.all([client.listerChambres(), client.listerReservations()])
       .then(([c, r]) => {
         setChambres(c);
         setReservations(r);
       })
       .catch((e: Error) => setErreur(e.message));
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     recharger();

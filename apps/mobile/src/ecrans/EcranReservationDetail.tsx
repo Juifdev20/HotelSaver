@@ -2,8 +2,8 @@ import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
-import { Devise, ModePaiement, StatutChambre, codeSuivi, lienSuivi, peutOperer } from "@hotel-chicago/types";
-import type { StatutReservation } from "@hotel-chicago/types";
+import { codeSuivi, lienSuivi, peutOperer } from "@hotel-chicago/types";
+import type { Reservation, StatutReservation } from "@hotel-chicago/types";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -13,23 +13,14 @@ import { Link2, MessageCircle, Pencil } from "lucide-react-native";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { SelecteurDate } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
-import { useSyncEtat } from "../hooks/useSyncEtat";
 import { imprimerLignes } from "../impression/imprimante";
-import {
-  ReservationMiroir,
-  ecrireStatutReservationLocal,
-  modifierReservationLocale,
-  obtenirReservationMiroir,
-} from "../stockage/reservationsMirroir";
-import { ecrireStatutChambreLocal } from "../stockage/chambresMirroir";
 
 export interface EcranReservationDetailProps {
-  /** Id local miroir (les ids locaux non synchronisés fonctionnent aussi). */
+  /** Id de la réservation (local ou serveur — le miroir résout les deux). */
   reservationId: string;
   onRetour: () => void;
-  /** Ouvre la facturation pour cette réservation (id serveur — l'écran
-   * facturation appelle l'API directement). */
-  onFacturer: (reservationIdServeur: string) => void;
+  /** Ouvre la facturation pour cette réservation. */
+  onFacturer: (reservationId: string) => void;
   /** Appelé après chaque action pour que le hub recharge son miroir. */
   onChange: () => void;
 }
@@ -70,15 +61,13 @@ function saisieDepuisIso(iso: string): string {
 }
 
 /**
- * Fiche d'une réservation lue dans le miroir. La modification des dates et
- * de l'acompte passe par la file de sync (fonctionne hors ligne dès que la
- * réservation a un remoteId) ; les transitions de statut sont des actions
- * transactionnelles qui exigent le réseau — comme l'encaissement cafétaria.
+ * Fiche d'une réservation lue dans la base locale. Toutes les actions
+ * (confirmation, check-in, annulation, modification) s'écrivent d'abord en
+ * local puis partent au serveur dès que le réseau revient.
  */
 export function EcranReservationDetail({ reservationId, onRetour, onFacturer, onChange }: EcranReservationDetailProps) {
-  const { client, moteurSync, utilisateur } = useSession();
-  const etatSync = useSyncEtat();
-  const [reservation, setReservation] = useState<ReservationMiroir | null>(null);
+  const { client, miroir, utilisateur } = useSession();
+  const [reservation, setReservation] = useState<Reservation | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState<string | null>(null);
   const [feuille, setFeuille] = useState<"annuler" | "modifier" | "whatsapp" | "reponse" | null>(null);
@@ -92,17 +81,16 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
   const [messageWhatsApp, setMessageWhatsApp] = useState("");
 
   const recharger = useCallback(() => {
-    obtenirReservationMiroir(reservationId)
+    client
+      .obtenirReservation(reservationId)
       .then(setReservation)
       .catch((e: Error) => setErreur(e.message));
   }, [reservationId]);
 
   useEffect(recharger, [recharger]);
 
-  const estSynchronisee = reservation?.remoteId != null;
-  const enLigne = etatSync.enLigne;
-  const actionsEnLignePossibles = enLigne && estSynchronisee;
-  const idServeur = reservation?.remoteId ?? reservationId;
+  const enAttente = reservation ? miroir.estCreationEnAttente(reservation.id) : false;
+  const idServeur = reservation?.id ?? reservationId;
 
   async function executer(nom: string, action: () => Promise<void>) {
     setEnCours(nom);
@@ -121,8 +109,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
     if (!reservation) return;
     void executer("confirmer", async () => {
       await client.confirmerReservation(idServeur);
-      await ecrireStatutReservationLocal(reservation.id, "CONFIRMEE");
-      await recharger();
+      recharger();
     });
   }
 
@@ -130,9 +117,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
     if (!reservation) return;
     void executer("checkin", async () => {
       await client.checkIn(idServeur);
-      await ecrireStatutReservationLocal(reservation.id, "EN_COURS");
-      await ecrireStatutChambreLocal(reservation.chambreId, StatutChambre.OCCUPEE);
-      await recharger();
+      recharger();
     });
   }
 
@@ -146,11 +131,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
     setMotif("");
     void executer("annuler", async () => {
       await client.annulerReservation(idServeur, motifFinal);
-      await ecrireStatutReservationLocal(reservation.id, "ANNULEE", {
-        annuleLe: new Date().toISOString(),
-        motifAnnulation: motifFinal,
-      });
-      await recharger();
+      recharger();
     });
   }
 
@@ -180,45 +161,25 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
     const noteModifiee = saisieNote.trim() !== (reservation.note ?? "") ? saisieNote.trim() : undefined;
     setFeuille(null);
     void executer("modifier", async () => {
-      // Écriture optimiste + file UPDATE : fonctionne aussi hors ligne
-      // (remoteId + baseSyncVersion présents car l'action n'est proposée que
-      // pour les réservations déjà synchronisées).
-      const payload = await modifierReservationLocale(reservation, {
+      await client.modifierReservation(idServeur, {
         dateArrivee: dateArrivee ?? undefined,
         dateDepart: dateDepart ?? undefined,
         acompte,
         note: noteModifiee,
       });
-      await moteurSync.mettreEnFile({
-        entiteType: "Reservation",
-        localId: reservation.id,
-        remoteId: reservation.remoteId!,
-        operation: "UPDATE",
-        payload,
-        baseSyncVersion: reservation.syncVersion,
-      });
-      await recharger();
+      recharger();
     });
   }
 
   /** Réponse visible par le client sur sa page « Ma réservation » — la voix
-   * de l'hôtel (ex. « acompte attendu à l'arrivée »). Même chemin optimiste
-   * + file UPDATE que `modifier` — fonctionne hors ligne. */
+   * de l'hôtel (ex. « acompte attendu à l'arrivée »). Fonctionne hors ligne. */
   function repondre() {
     if (!reservation) return;
     const texte = saisieReponse.trim();
     setFeuille(null);
     void executer("repondre", async () => {
-      const payload = await modifierReservationLocale(reservation, { reponseReception: texte });
-      await moteurSync.mettreEnFile({
-        entiteType: "Reservation",
-        localId: reservation.id,
-        remoteId: reservation.remoteId!,
-        operation: "UPDATE",
-        payload,
-        baseSyncVersion: reservation.syncVersion,
-      });
-      await recharger();
+      await client.modifierReservation(idServeur, { reponseReception: texte });
+      recharger();
     });
   }
 
@@ -384,11 +345,8 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
             {statut === "ANNULEE" && reservation.motifAnnulation && (
               <Text style={styles.ligneSecondaire}>Motif d'annulation : {reservation.motifAnnulation}</Text>
             )}
-            {!estSynchronisee && (
-              <Text style={styles.horsLigne}>Créée hors ligne — en attente de synchronisation.</Text>
-            )}
-            {estSynchronisee && !enLigne && (
-              <Text style={styles.horsLigne}>Hors ligne — check-in, annulation et facturation indisponibles.</Text>
+            {enAttente && (
+              <Text style={styles.horsLigne}>Créée sur cet appareil — en attente de synchronisation.</Text>
             )}
           </View>
 
@@ -431,13 +389,12 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
             )}
             {suiviModifiable && (
               <Pressable
-                style={[styles.whatsapp, !estSynchronisee && styles.boutonInactif]}
+                style={styles.whatsapp}
                 onPress={() => {
                   setSaisieReponse(reservation.reponseReception ?? "");
                   setErreur(null);
                   setFeuille("reponse");
                 }}
-                disabled={!estSynchronisee}
                 accessibilityRole="button"
               >
                 <Pencil size={16} color={couleurs.bleu} />
@@ -461,9 +418,9 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
 
           <View style={styles.actions}>
             {peutOperer(utilisateur) && statut === "EN_ATTENTE" &&
-              bouton("confirmer", "Confirmer la demande", confirmer, actionsEnLignePossibles)}
+              bouton("confirmer", "Confirmer la demande", confirmer, true)}
             {peutOperer(utilisateur) && statut === "CONFIRMEE" &&
-              bouton("checkin", "Check-in", checkIn, actionsEnLignePossibles)}
+              bouton("checkin", "Check-in", checkIn, true)}
             {peutOperer(utilisateur) && (statut === "CONFIRMEE" || statut === "EN_COURS") &&
               bouton(
                 "modifier",
@@ -476,11 +433,11 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
                   setErreur(null);
                   setFeuille("modifier");
                 },
-                estSynchronisee,
+                true,
                 true
               )}
             {peutOperer(utilisateur) && statut === "EN_COURS" &&
-              bouton("facturer", "Facturer et check-out", () => onFacturer(idServeur), actionsEnLignePossibles)}
+              bouton("facturer", "Facturer et check-out", () => onFacturer(idServeur), true)}
             {(statut === "EN_ATTENTE" ||
               statut === "CONFIRMEE" ||
               statut === "EN_COURS") &&
@@ -492,11 +449,11 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
                   setErreur(null);
                   setFeuille("annuler");
                 },
-                actionsEnLignePossibles,
+                true,
                 true
               )}
             {statut === "TERMINEE" &&
-              bouton("impression", "Réimprimer le reçu", reimprimerRecu, actionsEnLignePossibles, true)}
+              bouton("impression", "Réimprimer le reçu", reimprimerRecu, true, true)}
           </View>
         </ConteneurFormulaire>
       )}

@@ -9,8 +9,6 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import { supprimerEcritureCafeteriaLocale } from "../stockage/cafeteriaMirroir";
-import { supprimerEcritureReservationLocale } from "../stockage/reservationsMirroir";
 
 export interface EcranSynchronisationProps {
   onRetour: () => void;
@@ -24,6 +22,10 @@ const LIBELLE_ENTITE: Record<string, string> = {
   CompteCafeteria: "Compte cafétaria",
   SousCompte: "Sous-compte",
   LigneCommande: "Ligne de commande",
+  Client: "Client",
+  Facture: "Facture",
+  Depense: "Dépense",
+  TauxChange: "Taux de change",
 };
 
 const couleursNiveau: Record<NiveauSync, string> = {
@@ -51,10 +53,10 @@ function formaterHeure(horodatage: string | null): string {
  * liste des conflits — jamais résolus silencieusement (section 10.4) : ici,
  * l'utilisateur voit son changement, la version serveur, et choisit de
  * garder cette dernière (le serveur avait déjà gagné côté données ; ce bouton
- * l'acte simplement dans le miroir local pour éviter un `baseSyncVersion`
+ * l'acte simplement dans la base locale pour éviter un `baseSyncVersion`
  * périmé au prochain essai). */
 export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
-  const { moteurSync } = useSession();
+  const { moteurSync, miroir } = useSession();
   const etat = useSyncEtat();
   const resume = resumerEtatSync(etat);
   const [conflits, setConflits] = useState<ConflitSync[]>([]);
@@ -88,14 +90,8 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
   async function retirerActionEchouee(ligne: LigneFileAttente) {
     setEnResolution(ligne.id);
     try {
-      await moteurSync.annulerOperation(ligne.id);
-      if (ligne.operation === "CREATE") {
-        if (ligne.entiteType === "Reservation") {
-          await supprimerEcritureReservationLocale(ligne.localId);
-        } else {
-          await supprimerEcritureCafeteriaLocale(ligne.entiteType, ligne.localId);
-        }
-      }
+      // Annule aussi les effets locaux de l'action (et des actions qui en dépendent).
+      await miroir.abandonnerAction(ligne.id);
       await rechargerActionsEchouees();
     } finally {
       setEnResolution(null);

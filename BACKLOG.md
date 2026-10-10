@@ -12,19 +12,16 @@ Plateforme multi-hôtels, **hors ligne partout** (mobile ET bureau), avec synchr
 | 2 | Solidité de la synchronisation (pannes, doublons, conflits, horloges) | **fait** (serveur + moteur + mobile) |
 | 3 | Socle offline partagé (base locale, règles d'argent, client hors ligne) | **fait** — `miroir-local`, `regles` |
 | 4 | Bureau (Electron) hors ligne : base locale, synchro, écrans | **fait** — testé dans Chromium ; à essayer sur un poste Windows |
-| 5 | Encaissement et facturation hors ligne (reçu provisoire `TEMP-`, vrai numéro après synchro) | **fait** (bureau) — mobile : voir plus bas |
-| 6 | Connexion hors ligne, durée de grâce (14 j), effacement des données locales, tolérance d'horloge | **fait** (bureau) |
+| 5 | Encaissement et facturation hors ligne (reçu provisoire `TEMP-`, vrai numéro après synchro) | **fait** (bureau + mobile) |
+| 6 | Connexion hors ligne, durée de grâce (14 j), effacement des données locales, tolérance d'horloge | **fait** (bureau + mobile) |
 | 7 | Indicateur d'état de synchronisation honnête | **fait** (bureau + mobile) |
 | 8 | README à jour | **fait** |
-| 9 | **Mobile : check-in/out, facturation, encaissement hors ligne** | à faire — voir « Mobile » |
+| 9 | Mobile : check-in/out, facturation, encaissement, cuisine, stock hors ligne (base partagée `expo-sqlite`) | **codé** — à essayer sur téléphone (voir « Mobile ») |
 
-## Mobile : passer check-in/out, facturation et encaissement hors ligne
-Aujourd'hui ces actions exigent la connexion (écrans `EcranReservationDetail`, `EcranFacturation`, `EcranCompteCafeteria`, `EcranCuisine`, `EcranStock`). Le serveur est prêt
-(ordres `ActionReservation`/`ActionLigne`, créations `Facture`/`VenteCafeteria`). Deux voies :
-1. **Recommandée** : écrire une `Persistance` pour `expo-sqlite` (une table `documents(collection, id, json)`, ~80 lignes, mêmes tests que `PersistanceIndexedDb`), puis brancher les écrans mobiles
-   sur `ouvrirMiroir(...).client` comme le bureau (les mêmes méthodes `client.xxx()`), en retirant `stockage/*Mirroir.ts`. Supprime la double identité `id`/`remoteId` du mobile.
-2. Étendre les miroirs actuels (nouvelles tables Facture/VenteCafeteria, numéros provisoires, `idsEnAttente` qui inclut les lignes visées par un ordre). Plus court mais garde la complexité.
-Quoi qu'il en soit : un APK doit être reconstruit pour tester (voir `AGENTS.md`), et rien de cela ne peut être vérifié sans appareil — prévoir une séance de test sur le téléphone.
+## Mobile : à essayer sur téléphone
+Tous les écrans passent par `miroir.client` (voir `DECISIONS.md`, 10/10/2026). Non vérifiable ici (React Native ne tourne pas dans l'environnement de développement) : reconstruire l'APK
+(`AGENTS.md`) puis dérouler : connexion → synchro → mode avion → réservation, check-in, ajout de consommations, encaissement (reçu `TEMP-…` imprimé), cuisine « Servi », mouvement de stock,
+dépense → réseau de retour → vérifier que tout part et que les reçus prennent leur vrai numéro. Les données non envoyées de l'ancienne version de l'application ne sont pas reprises.
 
 ## Décisions prises (à confirmer au fil de l'eau)
 - Encaissement hors ligne : **oui**, avec reçu provisoire.

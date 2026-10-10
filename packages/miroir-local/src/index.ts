@@ -10,3 +10,4 @@ export * from "./client-hors-ligne";
 export * from "./ouvrir-miroir";
 export * from "./session-locale";
 export * from "./gestionnaire-session";
+export * from "./persistance-sqlite";

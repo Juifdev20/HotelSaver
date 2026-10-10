@@ -31,6 +31,8 @@ export interface Miroir {
   /** Actions encore à envoyer sous le compte connecté. */
   actionsEnAttente(): Promise<number>;
   /** Abandonne une action refusée par le serveur : annule ses effets locaux et celles qui en dépendent. */
+  /** Vrai tant que le serveur n'a pas enregistré cette ligne créée ici. */
+  estCreationEnAttente(id: string): boolean;
   /** Actions non envoyées sur ce poste, tous comptes confondus. */
   actionsEnAttenteTotal(): number;
   abandonnerAction(id: string): Promise<number>;
@@ -82,6 +84,7 @@ export async function ouvrirMiroir(options: OptionsMiroir): Promise<Miroir> {
     amorce: () => stockage.lireMeta<boolean>("amorce") === true,
     codePoste: () => codePoste!,
     actionsEnAttente: async () => (await stockage.listerFileAttente()).length,
+    estCreationEnAttente: (id) => stockage.creationEnAttente(id),
     actionsEnAttenteTotal: () => stockage.compterToutesLesActions(),
     abandonnerAction: async (id) => (await stockage.abandonnerOperation(id)).length,
     fermer: () => {

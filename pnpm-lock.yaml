@@ -369,9 +369,15 @@ importers:
       '@hotel-chicago/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@hotel-chicago/miroir-local':
+        specifier: workspace:*
+        version: link:../../packages/miroir-local
       '@hotel-chicago/receipts':
         specifier: workspace:*
         version: link:../../packages/receipts
+      '@hotel-chicago/regles':
+        specifier: workspace:*
+        version: link:../../packages/regles
       '@hotel-chicago/sync-engine':
         specifier: workspace:*
         version: link:../../packages/sync-engine

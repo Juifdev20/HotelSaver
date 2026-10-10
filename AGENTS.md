@@ -65,10 +65,9 @@ build Android exige `JAVA_HOME=C:\Program Files\Java\jdk-21.0.12` et
   @hotel-chicago/database build` (`prisma generate` seul régénère
   `src/generated/` mais ne compile pas `dist/` — l'API lit `dist/` et
   planterait avec `Unknown field` / `undefined.findMany`), puis redémarrer
-  l'API (nodemon ne surveille que `apps/api/src`). Côté mobile, penser aussi
-  au miroir SQLite (`apps/mobile/src/stockage/sqlite.ts` + upserts dans
-  `stockageLocalMobile.ts` / `cafeteriaMirroir.ts`) si le modèle y est
-  synchronisé.
+  l'API (nodemon ne surveille que `apps/api/src`). Si le modèle est
+  synchronisé, penser aussi à `entites-synchronisables.ts` (serveur) et à
+  `packages/miroir-local` (bureau ET mobile partagent cette base locale).
 - Migrations : `prisma migrate deploy/status` échouent via ce pooler. Utiliser
   `pnpm --filter @hotel-chicago/database migrate:verifier` puis
   `migrate:appliquer` (script `pg` brut compatible `_prisma_migrations`).

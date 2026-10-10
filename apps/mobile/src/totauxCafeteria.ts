@@ -1,12 +1,12 @@
 import { Devise } from "@hotel-chicago/types";
-import type { CompteCafeteriaMiroir, SousCompteMiroir } from "./stockage/cafeteriaMirroir";
+import type { CompteCafeteria, SousCompte } from "@hotel-chicago/types";
 
 export interface Totaux {
   usd: number;
   cdf: number;
 }
 
-export function totalSousCompte(sousCompte: SousCompteMiroir): Totaux {
+export function totalSousCompte(sousCompte: SousCompte): Totaux {
   let usd = 0;
   let cdf = 0;
   for (const ligne of sousCompte.lignes) {
@@ -17,7 +17,7 @@ export function totalSousCompte(sousCompte: SousCompteMiroir): Totaux {
   return { usd, cdf };
 }
 
-export function totalCompte(compte: CompteCafeteriaMiroir): Totaux {
+export function totalCompte(compte: CompteCafeteria): Totaux {
   return compte.sousComptes.reduce(
     (acc, sc) => {
       const t = totalSousCompte(sc);
@@ -27,6 +27,6 @@ export function totalCompte(compte: CompteCafeteriaMiroir): Totaux {
   );
 }
 
-export function nombreArticles(sousCompte: SousCompteMiroir): number {
+export function nombreArticles(sousCompte: SousCompte): number {
   return sousCompte.lignes.reduce((n, l) => n + Number(l.quantite), 0);
 }

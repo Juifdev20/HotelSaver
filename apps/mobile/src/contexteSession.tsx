@@ -2,6 +2,7 @@ import * as React from "react";
 import { createContext, useContext } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import type { MoteurSync } from "@hotel-chicago/sync-engine";
+import type { Miroir } from "@hotel-chicago/miroir-local";
 import type { ProfilConnecte } from "@hotel-chicago/types";
 
 /** Évite de faire passer `client`/`utilisateur` en props à travers chaque
@@ -18,6 +19,8 @@ export interface Session {
   seDeconnecter: () => void;
   /** Démarré après connexion, arrêté dans changerDeProfil() — voir App.tsx. */
   moteurSync: MoteurSync;
+  /** Base locale de l'hôtel : état « créé ici, pas encore enregistré », actions refusées à retirer… */
+  miroir: Miroir;
   /** Relit GET /auth/me (ex. après un changement de réglage de l'hôtel) pour mettre les écrans à jour. */
   rechargerProfil: () => Promise<void>;
 }

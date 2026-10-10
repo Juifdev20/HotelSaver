@@ -4,7 +4,7 @@ import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, Vi
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Camera, Minus, Plus, ScanBarcode, Search, Star, X } from "lucide-react-native";
 import { normaliserCodeBarres, trouverProduitParCode } from "@hotel-chicago/receipts";
-import { Devise, TypeProduit, type MenuDuJour, type Produit } from "@hotel-chicago/types";
+import { Devise, TypeProduit, type CompteCafeteria, type MenuDuJour, type Produit, type SousCompte } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -13,11 +13,10 @@ import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { ScannerCodeBarres } from "../composants/ScannerCodeBarres";
 import { SelecteurProduit } from "../composants/SelecteurProduit";
-import { creerLigneLocal, ecrireCodeBarresLocal, type CompteCafeteriaMiroir, type SousCompteMiroir } from "../stockage/cafeteriaMirroir";
 
 export interface EcranAjoutConsommationProps {
-  compte: CompteCafeteriaMiroir;
-  personne: SousCompteMiroir;
+  compte: CompteCafeteria;
+  personne: SousCompte;
   produits: Produit[];
   /** Quantités ajoutées aujourd'hui par produit (les plus demandés passent en tête). */
   populaires: Map<string, number>;
@@ -57,8 +56,8 @@ type Ligne = { cle: string; titre: string } | { cle: string; produit: Produit };
 /**
  * Niveau 2 du compte : ajouter des consommations À UNE PERSONNE. Recherche, filtre par catégorie,
  * produits les plus demandés du jour en tête, plusieurs produits en un seul « panier » validé d'un
- * coup. Écrit le miroir local tout de suite et met chaque ligne en file (marche hors ligne, comme
- * l'ancien formulaire) ; le serveur contrôle le stock à la synchronisation.
+ * coup. Chaque ligne s'écrit tout de suite dans la base locale (marche hors ligne,
+ * stock décompté localement) ; le serveur recontrôle le stock à la synchronisation.
  */
 export function EcranAjoutConsommation({
   compte,
@@ -70,7 +69,7 @@ export function EcranAjoutConsommation({
   onAjoute,
   scannerAuDemarrage = false,
 }: EcranAjoutConsommationProps) {
-  const { client, moteurSync, utilisateur } = useSession();
+  const { client } = useSession();
   const etatSync = useSyncEtat();
   const insets = useSafeAreaInsets();
   const [recherche, setRecherche] = useState("");
@@ -191,7 +190,6 @@ export function EcranAjoutConsommation({
     if (!code) return;
     try {
       await client.associerCodeBarres(produit.id, code);
-      await ecrireCodeBarresLocal(produit.id, code);
       setCodesAssocies((courant) => ({ ...courant, [code]: produit.id }));
       setCodeInconnu(null);
       changer(produit, 1);
@@ -212,27 +210,18 @@ export function EcranAjoutConsommation({
 
   async function valider() {
     if (articles === 0 || enEnvoi) return;
-    if (personne.remoteId === null) {
-      setErreur("Cette personne est en cours de synchronisation, réessayez dans un instant.");
-      return;
-    }
     setEnEnvoi(true);
     setErreur(null);
     try {
       for (const [produitId, quantite] of Object.entries(panier)) {
         const produit = produitsParId.get(produitId);
         if (!produit) continue;
-        const ligne = await creerLigneLocal(personne.id, produit, quantite, utilisateur.cuisineActivee === true);
-        await moteurSync.mettreEnFile({
-          entiteType: "LigneCommande",
-          localId: ligne.id,
-          operation: "CREATE",
-          payload: {
-            compteId: compte.remoteId ?? compte.id,
-            sousCompteId: personne.remoteId ?? personne.id,
-            produitId: produit.id,
-            quantite,
-          },
+        await client.ajouterLigne(compte.id, { sousCompteId: personne.id, produitId: produit.id, quantite });
+        // Déjà enregistrée : en cas d'échec d'une ligne suivante, un nouvel essai ne la double pas.
+        setPanier((courant) => {
+          const suivant = { ...courant };
+          delete suivant[produitId];
+          return suivant;
         });
       }
       onAjoute();

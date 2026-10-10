@@ -3264,6 +3264,11 @@ production → tout a pu être repris sans migration de données. Le bureau est 
 (connexion → coupure → redémarrage sans Internet → retour du réseau → facture TEMP→REC). L'application Electron elle-même (fenêtre, imprimante, zone de notification)
 n'a pas pu être lancée dans l'environnement de développement : à essayer sur un poste Windows.
 
-**Mobile** : garde son miroir SQLite par écran (chambres, réservations, clients, comptes/lignes, dépenses hors ligne). Il profite de toute la solidité côté serveur et
-de l'indicateur d'état honnête. Check-in/out, facturation et encaissement y restent EN LIGNE : les passer hors ligne demande de remplacer ses miroirs par la base partagée
-(adaptateur SQLite pour `Persistance` + écrans branchés sur `ClientHorsLigne`), chantier décrit dans `BACKLOG.md`.
+**Mobile** (mis à jour le 10/10/2026) : le téléphone utilise désormais la MÊME base locale que le bureau. `PersistanceSqlite` (`packages/miroir-local`, une table
+`documents(collection, id, json)` sur `expo-sqlite`) alimente `ouvrirMiroir`, et tous les écrans lisent/écrivent par `miroir.client` (`ClientHorsLigne`) comme le bureau.
+Les anciens miroirs par écran (`stockage/*Mirroir.ts`, `stockageLocalMobile.ts`, `sqlite.ts`) et la double identité `id`/`remoteId` sont supprimés. Check-in/out, facturation
+(reçu provisoire `TEMP-…`), encaissement cafétaria, cuisine (« Servi »), stock et dépenses fonctionnent donc sans connexion. Restent en ligne : annuler un reçu/une vente,
+associer un code-barres, taux de change, menu du jour (modification), téléchargement du PDF des dépenses.
+Les anciennes données non synchronisées présentes dans l'ancienne file SQLite d'un téléphone ne sont PAS reprises : synchroniser avant de mettre à jour l'APK.
+Vérifié ici : `tsc --noEmit` de l'application et tests des paquets partagés (dont `PersistanceSqlite` via `node:sqlite`) ; l'application React Native elle-même n'a pas pu être
+lancée dans cet environnement — essai sur téléphone nécessaire (APK à reconstruire).

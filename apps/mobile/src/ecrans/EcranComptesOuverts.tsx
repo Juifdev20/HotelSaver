@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { CompteCafeteria, Devise } from "@hotel-chicago/types";
+import { CompteCafeteria, Devise, StatutCompte } from "@hotel-chicago/types";
 import { ClipboardList } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -9,7 +9,6 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import { listerComptesOuvertsMiroir } from "../stockage/cafeteriaMirroir";
 
 export interface EcranComptesOuvertsProps {
   onOuvrirCompte: (compteId: string) => void;
@@ -29,22 +28,20 @@ function totalCompte(compte: CompteCafeteria): { usd: number; cdf: number } {
   return { usd, cdf };
 }
 
-/**
- * Hors ligne (Phase 6, 26/09/2026) : lit toujours le miroir SQLite local,
- * jamais l'API directement — même patron que EcranChambres.tsx.
- */
+/** Lit la base locale de l'appareil (marche hors ligne) — même patron que EcranChambres.tsx. */
 export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOuvertsProps) {
-  const { moteurSync } = useSession();
+  const { moteurSync, client } = useSession();
   const etatSync = useSyncEtat();
   const [comptes, setComptes] = useState<CompteCafeteria[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
 
   const rechargerMiroir = useCallback(() => {
-    listerComptesOuvertsMiroir()
+    client
+      .listerComptesCafeteria(StatutCompte.OUVERT)
       .then(setComptes)
       .catch((e: Error) => setErreur(e.message));
-  }, []);
+  }, [client]);
 
   useEffect(() => {
     rechargerMiroir();

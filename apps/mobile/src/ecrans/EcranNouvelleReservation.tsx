@@ -2,22 +2,13 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
-import type { Chambre } from "@hotel-chicago/types";
+import type { Chambre, Client, Reservation } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { SelecteurDate, saisieDepuisIso } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
-import { useSyncEtat } from "../hooks/useSyncEtat";
-import { listerChambresMiroir } from "../stockage/chambresMirroir";
-import {
-  ClientMiroir,
-  ReservationMiroir,
-  creerReservationLocale,
-  listerClientsMiroir,
-  listerReservationsMiroir,
-} from "../stockage/reservationsMirroir";
 
 export interface EcranNouvelleReservationProps {
   onRetour: () => void;
@@ -44,10 +35,10 @@ function isoDepuisSaisie(saisie: string): string | null {
   return date.toISOString();
 }
 
-/** Chevauchement CONFIRMEE/EN_COURS sur le miroir local — même règle que
+/** Chevauchement CONFIRMEE/EN_COURS sur la base locale — même règle que
  * verifierAbsenceDeConflit côté serveur (recalculée là-bas au push, mais
  * prévenir vaut mieux que rattraper un rejet de la file). */
-function chambresOccupeesSurPeriode(reservations: ReservationMiroir[], arrivee: string, depart: string): Set<string> {
+function chambresOccupeesSurPeriode(reservations: Reservation[], arrivee: string, depart: string): Set<string> {
   const occupees = new Set<string>();
   for (const r of reservations) {
     if (!STATUTS_OCCUPANTS.has(r.statut)) continue;
@@ -57,27 +48,23 @@ function chambresOccupeesSurPeriode(reservations: ReservationMiroir[], arrivee: 
 }
 
 /**
- * Création d'une réservation — hors ligne : écriture optimiste dans le
- * miroir + file de sync (la confirmation serveur arrive en arrière-plan).
- * « Check-in immédiat » (walk-in du jour) n'est proposé qu'en ligne : le
- * check-in est une action transactionnelle hors de la file générique, il
- * faut l'id serveur tout de suite — la réservation est alors créée en
- * appel direct, pas via la file.
+ * Création d'une réservation — toujours écrite en local d'abord (base de
+ * l'appareil + file d'envoi), le serveur la confirme en arrière-plan. Le
+ * « check-in immédiat » (client déjà là) marche aussi hors ligne.
  */
 export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, dateArriveeInitiale }: EcranNouvelleReservationProps) {
-  const { client, moteurSync, utilisateur } = useSession();
-  const etatSync = useSyncEtat();
+  const { client } = useSession();
 
   const [saisieArrivee, setSaisieArrivee] = useState(() =>
     dateArriveeInitiale ? saisieDepuisIso(dateArriveeInitiale.slice(0, 10)) : aujourdhuiSaisie()
   );
   const [nuits, setNuits] = useState(1);
   const [chambres, setChambres] = useState<Chambre[] | null>(null);
-  const [reservations, setReservations] = useState<ReservationMiroir[]>([]);
-  const [clients, setClients] = useState<ClientMiroir[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [chambreChoisie, setChambreChoisie] = useState<Chambre | null>(null);
   const [modeClient, setModeClient] = useState<"nouveau" | "existant">("nouveau");
-  const [clientChoisi, setClientChoisi] = useState<ClientMiroir | null>(null);
+  const [clientChoisi, setClientChoisi] = useState<Client | null>(null);
   const [rechercheClient, setRechercheClient] = useState("");
   const [nom, setNom] = useState("");
   const [telephone, setTelephone] = useState("");
@@ -91,7 +78,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
   const [erreur, setErreur] = useState<string | null>(null);
 
   const charger = useCallback(() => {
-    Promise.all([listerChambresMiroir(), listerReservationsMiroir(), listerClientsMiroir()])
+    Promise.all([client.listerChambres(), client.listerReservations(), client.listerClients()])
       .then(([c, r, cl]) => {
         setChambres(c);
         setReservations(r);
@@ -102,7 +89,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
         }
       })
       .catch((e: Error) => setErreur(e.message));
-  }, [chambreInitialeId]);
+  }, [client, chambreInitialeId]);
 
   useEffect(charger, [charger]);
 
@@ -119,15 +106,12 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
     [reservations, dateArrivee, dateDepart]
   );
 
-  // Clients sélectionnables = connus du serveur (remoteId) : un client créé
-  // localement mais pas encore synchronisé ne peut pas être référencé dans
-  // une nouvelle réservation (le push échouerait, id inconnu du serveur) —
-  // on propose alors « Nouveau client » et il naîtra avec cette réservation.
+  // Un client créé sur cet appareil et pas encore envoyé reste sélectionnable :
+  // la base locale résout son identifiant au moment de l'envoi.
   const clientsSelectionnables = useMemo(() => {
     const terme = rechercheClient.trim().toLowerCase();
     return clients.filter(
       (c) =>
-        c.remoteId !== null &&
         (!terme || c.nom.toLowerCase().includes(terme) || (c.telephone ?? "").includes(rechercheClient.trim()))
     );
   }, [clients, rechercheClient]);
@@ -171,41 +155,18 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
             }
           : undefined;
       const noteTrim = note.trim() || undefined;
-      if (checkInImmediat && etatSync.enLigne) {
-        // Arrivée express : l'API crée la réservation EN_COURS et passe la
-        // chambre OCCUPEE dans la même transaction (installerImmediatement) —
-        // un seul appel, aucun état intermédiaire possible.
-        const creee = await client.creerReservation({
-          chambreId: chambreChoisie.id,
-          ...(clientChoisi ? { clientId: clientChoisi.remoteId! } : { client: nouveauClient }),
-          dateArrivee,
-          dateDepart,
-          acompte: acompte || undefined,
-          note: noteTrim,
-          installerImmediatement: true,
-        });
-        await moteurSync.forcerSynchronisation();
-        onCree(creee.id);
-        return;
-      }
-
-      const { reservation, payload } = await creerReservationLocale({
-        chambre: chambreChoisie,
+      // Arrivée express : la réservation naît EN_COURS et la chambre passe
+      // OCCUPEE dans la même écriture (installerImmediatement).
+      const creee = await client.creerReservation({
+        chambreId: chambreChoisie.id,
+        ...(clientChoisi ? { clientId: clientChoisi.id } : { client: nouveauClient }),
         dateArrivee,
         dateDepart,
-        acompte,
+        acompte: acompte || undefined,
         note: noteTrim,
-        clientExistant: clientChoisi ?? undefined,
-        nouveauClient,
-        createdBy: utilisateur.userId,
+        ...(checkInImmediat ? { installerImmediatement: true } : {}),
       });
-      await moteurSync.mettreEnFile({
-        entiteType: "Reservation",
-        localId: reservation.id,
-        operation: "CREATE",
-        payload,
-      });
-      onCree(reservation.id);
+      onCree(creee.id);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
@@ -318,7 +279,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
                   </Pressable>
                 ))}
                 {clientsSelectionnables.length === 0 && (
-                  <Text style={styles.info}>Aucun client synchronisé ne correspond.</Text>
+                  <Text style={styles.info}>Aucun client ne correspond.</Text>
                 )}
               </View>
             </>
@@ -361,23 +322,18 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
           />
         </View>
 
-        {etatSync.enLigne && (
-          <Pressable style={styles.checkInLigne} onPress={() => setCheckInImmediat(!checkInImmediat)}>
-            <View style={[styles.case, checkInImmediat && styles.caseCochee]}>
-              {checkInImmediat && <Text style={styles.caseTexte}>✓</Text>}
-            </View>
-            <Text style={styles.checkInTexte}>Le client est déjà là — enregistrer l'arrivée tout de suite (check-in)</Text>
-          </Pressable>
-        )}
+        <Pressable style={styles.checkInLigne} onPress={() => setCheckInImmediat(!checkInImmediat)}>
+          <View style={[styles.case, checkInImmediat && styles.caseCochee]}>
+            {checkInImmediat && <Text style={styles.caseTexte}>✓</Text>}
+          </View>
+          <Text style={styles.checkInTexte}>Le client est déjà là — enregistrer l'arrivée tout de suite (check-in)</Text>
+        </Pressable>
 
         <Pressable style={styles.bouton} onPress={creer} disabled={enCours}>
           <Text style={styles.boutonTexte}>
-            {enCours ? "…" : checkInImmediat && etatSync.enLigne ? "Créer et enregistrer l'arrivée" : "Créer la réservation"}
+            {enCours ? "…" : checkInImmediat ? "Créer et enregistrer l'arrivée" : "Créer la réservation"}
           </Text>
         </Pressable>
-        {!etatSync.enLigne && (
-          <Text style={styles.infoHorsLigne}>Hors ligne : la réservation sera envoyée au serveur dès le retour de la connexion.</Text>
-        )}
       </ConteneurFormulaire>
     </View>
   );

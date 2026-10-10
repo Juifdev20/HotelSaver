@@ -13,7 +13,9 @@
   },
   "dependencies": {
     "@hotel-chicago/api-client": "workspace:*",
+    "@hotel-chicago/miroir-local": "workspace:*",
     "@hotel-chicago/receipts": "workspace:*",
+    "@hotel-chicago/regles": "workspace:*",
     "@hotel-chicago/sync-engine": "workspace:*",
     "@hotel-chicago/types": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",

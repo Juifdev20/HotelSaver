@@ -58,6 +58,16 @@ export class StockageDocuments implements StockageLocal {
       .map(({ ordre: _ordre, ...ligne }) => ligne);
   }
 
+  /** Cette ligne a-t-elle été créée ici sans que le serveur l'ait encore enregistrée ? (identifiant local, lien de suivi absent…) */
+  creationEnAttente(id: string): boolean {
+    const vise = this.resoudreAlias(id);
+    return this.lignesFile().some((l) => {
+      if (l.operation !== "CREATE") return false;
+      const p = l.payload as Record<string, unknown>;
+      return l.localId === vise || p.clientLocalId === vise || p.premierSousCompteLocalId === vise || (Array.isArray(p.ventesLocalIds) && p.ventesLocalIds.includes(vise));
+    });
+  }
+
   /** Toutes les actions non envoyées sur ce poste, quel que soit leur auteur (effacement des données). */
   compterToutesLesActions(): number {
     return this.magasin.compter(FILE);

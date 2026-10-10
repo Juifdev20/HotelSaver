@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Devise, MenuDuJour, ModePaiement, Produit, StatutCompte, StatutLigne, LIBELLE_STATUT_LIGNE, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
+import { CompteCafeteria, Devise, LigneCommande, MenuDuJour, ModePaiement, Produit, SousCompte, StatutCompte, StatutLigne, LIBELLE_STATUT_LIGNE, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Check, Globe, Plus, UserPlus } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -18,17 +18,6 @@ import { nombreArticles, totalCompte, totalSousCompte } from "../totauxCafeteria
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { imprimerLignes } from "../impression/imprimante";
-import {
-  CompteCafeteriaMiroir,
-  LigneCommandeMiroir,
-  SousCompteMiroir,
-  creerSousCompteLocal,
-  listerProduitsMiroir,
-  majStatutLigneLocal,
-  marquerPersonnePayeeLocal,
-  obtenirCompteMiroir,
-  produitsPopulairesAujourdhuiMiroir,
-} from "../stockage/cafeteriaMirroir";
 
 export interface EcranCompteCafeteriaProps {
   client: ClientApi;
@@ -41,26 +30,19 @@ export interface EcranCompteCafeteriaProps {
 }
 
 /**
- * Hors ligne (Phase 6, 26/09/2026) : compte et produits lus depuis le miroir
- * local, jamais l'API directement — même patron que EcranChambres.tsx.
- * "Ajouter une personne"/"Ajouter une ligne" écrivent le miroir tout de suite
- * (optimiste) et mettent l'opération en file ; l'écran ne doit jamais
- * attendre le réseau pour ces deux actions (c'est tout l'enjeu de cette
- * passe). "Encaisser" reste un appel direct à l'API (voir le plan —
- * numérotation séquentielle des reçus, ne peut pas se faire hors ligne) :
- * bloqué tant que des lignes/sous-comptes de ce compte sont encore en
- * attente d'envoi, sans quoi le total facturé serait incomplet.
+ * Compte, produits et populaires sont lus dans la base locale de l'appareil ;
+ * « Ajouter une personne », « Ajouter une ligne », « Servi » et les
+ * encaissements s'écrivent d'abord en local (reçu provisoire TEMP-… hors
+ * ligne) et partent au serveur dès que le réseau le permet. Aucune action
+ * n'attend plus la synchronisation.
  */
 export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAuDemarrage = false }: EcranCompteCafeteriaProps) {
-  const { utilisateur, moteurSync } = useSession();
+  const { utilisateur, moteurSync, miroir } = useSession();
   const etatSync = useSyncEtat();
-  const [compte, setCompte] = useState<CompteCafeteriaMiroir | null>(null);
+  const [compte, setCompte] = useState<CompteCafeteria | null>(null);
   const [produits, setProduits] = useState<Produit[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const [idsCompteEnAttente, setIdsCompteEnAttente] = useState<Set<string>>(new Set());
-  const [idsSousCompteEnAttente, setIdsSousCompteEnAttente] = useState<Set<string>>(new Set());
-  const [idsLigneEnAttente, setIdsLigneEnAttente] = useState<Set<string>>(new Set());
 
   const [modalePersonne, setModalePersonne] = useState(false);
   const [nomPersonne, setNomPersonne] = useState("");
@@ -76,7 +58,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   // Qui l'on encaisse : une personne (son id local) ou « tout » ce qui reste à régler.
   const [cibleEncaissement, setCibleEncaissement] = useState<string>("tout");
   // Ce que le reçu détaille (figé au moment de l'encaissement, le compte se recharge ensuite).
-  const [recuCompte, setRecuCompte] = useState<CompteCafeteriaMiroir | null>(null);
+  const [recuCompte, setRecuCompte] = useState<CompteCafeteria | null>(null);
   const [compteSolde, setCompteSolde] = useState(false);
   const [modePaiement, setModePaiement] = useState<ModePaiement>(ModePaiement.CASH);
   const [venteEncaissee, setVenteEncaissee] = useState<VenteCafeteria | null>(null);
@@ -103,18 +85,26 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   );
 
   const rechargerCompte = useCallback(() => {
-    obtenirCompteMiroir(compteId)
+    client
+      .obtenirCompteCafeteria(compteId)
       .then(setCompte)
       .catch((e: Error) => setErreur(e.message));
-  }, [compteId]);
+  }, [client, compteId]);
+
+  const rechargerPopulaires = useCallback(() => {
+    client
+      .produitsPopulaires()
+      .then((liste) => setPopulaires(new Map(liste.map((p) => [p.produitId, p.quantite]))))
+      .catch(() => {});
+  }, [client]);
 
   useEffect(() => {
     rechargerCompte();
-    listerProduitsMiroir().then(setProduits).catch(() => {});
-    produitsPopulairesAujourdhuiMiroir().then(setPopulaires).catch(() => {});
+    client.listerProduits().then(setProduits).catch(() => {});
+    rechargerPopulaires();
     client.menuDuJour().then(setMenuDuJour).catch(() => {});
     moteurSync.forcerSynchronisation();
-  }, [rechargerCompte, moteurSync]);
+  }, [client, rechargerCompte, rechargerPopulaires, moteurSync]);
 
   useEffect(() => {
     if (etatSync.dernierePousseeLe) rechargerCompte();
@@ -130,38 +120,10 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
     setPersonneEnAjout(premiere.id);
   }, [ouvrirAjoutAuDemarrage, compte]);
 
-  // Suit quels ids (compte/sous-comptes/lignes) sont encore en file d'attente
-  // pour désactiver "Ajouter une personne"/sélection d'une personne pas
-  // encore synchronisée, et bloquer l'encaissement tant que tout n'est pas
-  // parti (voir le plan). Recalculé à chaque changement de la file ou du
-  // compte (après une écriture optimiste).
-  useEffect(() => {
-    let annule = false;
-    Promise.all([
-      moteurSync.idsEnAttente("CompteCafeteria"),
-      moteurSync.idsEnAttente("SousCompte"),
-      moteurSync.idsEnAttente("LigneCommande"),
-    ]).then(([c, sc, l]) => {
-      if (annule) return;
-      setIdsCompteEnAttente(c);
-      setIdsSousCompteEnAttente(sc);
-      setIdsLigneEnAttente(l);
-    });
-    return () => {
-      annule = true;
-    };
-  }, [moteurSync, etatSync.enAttente, compte]);
-
-  const compteEnAttente = compte ? idsCompteEnAttente.has(compte.id) : false;
-  // Un sous-compte avec remoteId NULL hors file (ex. créé via le compte sur
-  // un ancien build, avant le re-mapping du 27/09/2026) ne pourra jamais
-  // recevoir de ligne côté serveur : bloqué comme les ops en attente.
-  const compteEtSesEnfantsEnAttente =
-    compteEnAttente ||
-    (compte?.sousComptes.some(
-      (sc) => sc.remoteId === null || idsSousCompteEnAttente.has(sc.id) || sc.lignes.some((l) => idsLigneEnAttente.has(l.id))
-    ) ??
-      false);
+  /** Une personne est « en attente » tant qu'elle ou ses lignes n'ont pas atteint le serveur (simple indication). */
+  function personneEnAttente(sc: SousCompte): boolean {
+    return miroir.estCreationEnAttente(sc.id) || sc.lignes.some((l) => miroir.estCreationEnAttente(l.id));
+  }
 
   function ouvrirModalePersonne() {
     setNomPersonne("");
@@ -175,20 +137,10 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
       setErreurAction("Le nom de la personne est obligatoire.");
       return;
     }
-    if (compteEnAttente) {
-      setErreurAction("Compte en cours de synchronisation, réessayez dans un instant.");
-      return;
-    }
     setEnEnvoi(true);
     setErreurAction(null);
     try {
-      const sousCompte = await creerSousCompteLocal(compte.id, nomPersonne.trim());
-      await moteurSync.mettreEnFile({
-        entiteType: "SousCompte",
-        localId: sousCompte.id,
-        operation: "CREATE",
-        payload: { compteId: compte.remoteId ?? compte.id, nom: sousCompte.nom },
-      });
+      await client.ajouterSousCompte(compte.id, nomPersonne.trim());
       setModalePersonne(false);
       rechargerCompte();
     } catch (e) {
@@ -198,28 +150,20 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
     }
   }
 
-  /** Ouvre la page d'ajout pour une personne (bloqué tant qu'elle n'est pas synchronisée). */
-  function ouvrirAjout(sousCompte: SousCompteMiroir) {
-    if (sousCompte.remoteId === null || idsSousCompteEnAttente.has(sousCompte.id)) {
-      setErreurAction("Cette personne est en cours de synchronisation, réessayez dans un instant.");
-      moteurSync.forcerSynchronisation();
-      return;
-    }
+  /** Ouvre la page d'ajout pour une personne. */
+  function ouvrirAjout(sousCompte: SousCompte) {
     setErreurAction(null);
-    produitsPopulairesAujourdhuiMiroir().then(setPopulaires).catch(() => {});
+    rechargerPopulaires();
     setPersonneEnAjout(sousCompte.id);
   }
 
-  /** Marque une ligne « prête » comme servie au client. En ligne uniquement
-   * (comme l'encaissement) : le serveur impose la transition PRET → SERVI.
-   * Le miroir est mis à jour tout de suite pour refléter l'action. */
-  async function marquerServi(ligne: LigneCommandeMiroir) {
-    if (!ligne.remoteId || serviEnCours.has(ligne.id)) return;
+  /** Marque une ligne « prête » comme servie au client (écrit en local, envoyé ensuite). */
+  async function marquerServi(ligne: LigneCommande) {
+    if (serviEnCours.has(ligne.id)) return;
     setServiEnCours((courant) => new Set(courant).add(ligne.id));
     setErreurAction(null);
     try {
-      await client.majStatutLigne(ligne.remoteId, StatutLigne.SERVI);
-      await majStatutLigneLocal(ligne.id, StatutLigne.SERVI);
+      await client.majStatutLigne(ligne.id, StatutLigne.SERVI);
       rechargerCompte();
     } catch (e) {
       setErreurAction(e instanceof Error ? e.message : "Impossible de marquer la ligne comme servie.");
@@ -232,24 +176,14 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
     }
   }
 
-  /** Une personne est « en attente » tant qu'elle ou ses lignes n'ont pas atteint le serveur. */
-  function personneEnAttente(sc: SousCompteMiroir): boolean {
-    return sc.remoteId === null || idsSousCompteEnAttente.has(sc.id) || sc.lignes.some((l) => idsLigneEnAttente.has(l.id));
-  }
-
   /** Personnes qui ont encore quelque chose à régler (pas déjà payées, au moins une ligne). */
   const personnesARegler = compte ? compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0) : [];
 
-  function personnesCibles(cible: string): SousCompteMiroir[] {
+  function personnesCibles(cible: string): SousCompte[] {
     return cible === "tout" ? personnesARegler : personnesARegler.filter((sc) => sc.id === cible);
   }
 
   function ouvrirEncaissement(cible: string) {
-    if (compteEnAttente || personnesCibles(cible).some(personneEnAttente)) {
-      setErreurAction("Synchronisation des commandes en cours — réessayez dans un instant.");
-      moteurSync.forcerSynchronisation();
-      return;
-    }
     setCibleEncaissement(cible);
     setModePaiement(ModePaiement.CASH);
     setVenteEncaissee(null);
@@ -265,20 +199,19 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
     setEnEnvoi(true);
     setErreurAction(null);
     try {
-      const idCompte = compte.remoteId ?? compte.id;
+      const idCompte = compte.id;
       const ventes =
         cibleEncaissement === "tout"
           ? await client.encaisserCompte(idCompte, { mode: "GROUPE", modePaiement })
           : await client.encaisserCompte(idCompte, {
               mode: "UNE_PERSONNE",
               modePaiement,
-              sousCompteId: concernes[0].remoteId ?? concernes[0].id,
+              sousCompteId: concernes[0].id,
             });
       setVenteEncaissee(ventes[0]);
       setRecuCompte({ ...compte, sousComptes: concernes });
       // Plus personne à régler après celle(s)-ci → le compte est fermé côté serveur.
       setCompteSolde(personnesARegler.every((sc) => concernes.some((c) => c.id === sc.id)));
-      await Promise.all(concernes.map((sc) => marquerPersonnePayeeLocal(sc.id)));
       rechargerCompte();
     } catch (e) {
       setErreurAction(e instanceof Error ? e.message : "Erreur inconnue.");
@@ -314,7 +247,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   const cuisineActivee = utilisateur.cuisineActivee === true;
   const { visibles: personnesVisibles, revoyables } = compte
     ? sousComptesVisibles(compte.sousComptes, maintenant, masquees)
-    : { visibles: [] as SousCompteMiroir[], revoyables: [] as SousCompteMiroir[] };
+    : { visibles: [] as SousCompte[], revoyables: [] as SousCompte[] };
   // « Afficher » ne ramène que les personnes payées depuis moins de 5 minutes ; au-delà, l'écran est propre.
   const voirPayeesActif = voirPayees && revoyables.length > 0;
   const personnesAffichees = compte
@@ -324,7 +257,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
     : [];
   const unePersonneAPaye = compte ? compte.sousComptes.some((sc) => sc.payeLe) : false;
   const reste = compte ? totalCompte({ ...compte, sousComptes: personnesARegler }) : { usd: 0, cdf: 0 };
-  const totalCible = totalCompte({ ...(compte as CompteCafeteriaMiroir), sousComptes: personnesCibles(cibleEncaissement) });
+  const totalCible = totalCompte({ ...(compte as CompteCafeteria), sousComptes: personnesCibles(cibleEncaissement) });
 
   const personneChoisie = compte?.sousComptes.find((sc) => sc.id === personneEnAjout);
   if (compte && personneChoisie && compteOuvert) {
@@ -344,7 +277,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
           setScanAuDemarrage(false);
           setPersonneEnAjout(null);
           rechargerCompte();
-          produitsPopulairesAujourdhuiMiroir().then(setPopulaires).catch(() => {});
+          rechargerPopulaires();
         }}
       />
     );
@@ -390,7 +323,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
 
             {personnesAffichees.map((sousCompte) => {
               const totalPersonne = totalSousCompte(sousCompte);
-              const enAttenteSync = idsSousCompteEnAttente.has(sousCompte.id);
+              const enAttenteSync = personneEnAttente(sousCompte);
               const nbArticles = nombreArticles(sousCompte);
               const contenu = (
                 <>
@@ -409,7 +342,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
                       </View>
                     ) : (
                       compteOuvert && operer && (
-                        <View style={[styles.boutonPersonne, enAttenteSync && styles.boutonDesactive]}>
+                        <View style={styles.boutonPersonne}>
                           <Plus size={16} color="#fff" />
                           <Text style={styles.boutonPersonneTexte}>Ajouter</Text>
                         </View>
@@ -436,7 +369,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
                         )}
                       </View>
                       <View style={styles.ligneDroite}>
-                        {cuisineActivee && ligne.statut === StatutLigne.PRET && ligne.remoteId && (
+                        {cuisineActivee && ligne.statut === StatutLigne.PRET && (
                           <Pressable
                             style={[styles.boutonServi, serviEnCours.has(ligne.id) && styles.boutonDesactive]}
                             onPress={() => void marquerServi(ligne)}
@@ -462,13 +395,13 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
                   {compteOuvert && sousCompte.payeLe && !voirPayeesActif && <Text style={styles.indiceBalayage}>Balayez vers la droite pour masquer →</Text>}
                   {compteOuvert && operer && !sousCompte.payeLe && sousCompte.lignes.length > 0 && (
                     <Pressable
-                      style={[styles.boutonEncaisserPersonne, personneEnAttente(sousCompte) && styles.boutonDesactive]}
+                      style={styles.boutonEncaisserPersonne}
                       onPress={() => ouvrirEncaissement(sousCompte.id)}
                       accessibilityRole="button"
                       accessibilityLabel={`Encaisser ${sousCompte.nom}`}
                     >
                       <Text style={styles.boutonEncaisserTexte}>
-                        {personneEnAttente(sousCompte) ? "Synchronisation…" : `Encaisser ${sousCompte.nom}`}
+                        {`Encaisser ${sousCompte.nom}`}
                       </Text>
                     </Pressable>
                   )}
@@ -511,13 +444,12 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
 
             {compteOuvert && operer && (
               <Pressable
-                style={[styles.boutonSecondaire, compteEnAttente && styles.boutonDesactive]}
+                style={styles.boutonSecondaire}
                 onPress={ouvrirModalePersonne}
-                disabled={compteEnAttente}
               >
                 <UserPlus size={16} color={couleurs.bleu} />
                 <Text style={styles.boutonSecondaireTexte}>
-                  {compteEnAttente ? "Compte en cours de synchronisation…" : "Ajouter une personne"}
+                  Ajouter une personne
                 </Text>
               </Pressable>
             )}
@@ -542,11 +474,11 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
           {compteOuvert && operer && personnesARegler.length > 1 && (
             <View style={styles.barreActions}>
               <Pressable
-                style={[styles.boutonToutEncaisser, compteEtSesEnfantsEnAttente && styles.boutonDesactive]}
+                style={styles.boutonToutEncaisser}
                 onPress={() => ouvrirEncaissement("tout")}
               >
                 <Text style={styles.boutonToutEncaisserTexte}>
-                  {compteEtSesEnfantsEnAttente ? "Synchronisation…" : "Tout encaisser"}
+                  Tout encaisser
                 </Text>
                 <Text style={styles.aideToutEncaisser}>Quand une personne règle pour tout le monde</Text>
               </Pressable>

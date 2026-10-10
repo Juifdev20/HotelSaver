@@ -6,6 +6,10 @@ import type { StockageDocuments } from "./stockage-documents";
 
 type Ligne = Record<string, any>;
 
+/** Remplaçants affichables quand une ligne liée n'est pas (encore) dans la copie locale : un écran ne doit jamais planter sur `r.client.nom`. */
+const CLIENT_INCONNU = (id: string): Ligne => ({ id, nom: "Client inconnu", telephone: null, email: null, typePiece: null, numeroPiece: null, notes: null, updatedAt: "", syncVersion: 0 });
+const CHAMBRE_INCONNUE = (id: string): Ligne => ({ id, numero: "?", type: "", prixParNuit: "0", devise: "USD", statut: "LIBRE", photos: [], updatedAt: "", syncVersion: 0 });
+
 const parDate = (champ: string, sens: 1 | -1 = 1) => (a: Ligne, b: Ligne) => sens * String(a[champ] ?? "").localeCompare(String(b[champ] ?? ""));
 
 export class Vues {
@@ -31,8 +35,8 @@ export class Vues {
   reservation(brute: Ligne): Ligne {
     return {
       ...brute,
-      chambre: this.chambre(brute.chambreId) ?? null,
-      client: this.client(brute.clientId) ?? null,
+      chambre: this.chambre(brute.chambreId) ?? CHAMBRE_INCONNUE(brute.chambreId),
+      client: this.client(brute.clientId) ?? CLIENT_INCONNU(brute.clientId),
       facture: this.factureDeReservation(brute.id),
     };
   }
@@ -43,8 +47,8 @@ export class Vues {
     for (const f of this.s.lister("Facture")) facturesParResa.set(f.reservationId, f);
     return this.s.lister("Reservation").map((r) => ({
       ...r,
-      chambre: this.chambre(r.chambreId) ?? null,
-      client: this.client(r.clientId) ?? null,
+      chambre: this.chambre(r.chambreId) ?? CHAMBRE_INCONNUE(r.chambreId),
+      client: this.client(r.clientId) ?? CLIENT_INCONNU(r.clientId),
       facture: facturesParResa.get(r.id) ?? null,
     }));
   }
@@ -52,7 +56,7 @@ export class Vues {
   /** Facture + réservation (avec chambre et client), comme GET /factures. */
   facture(brute: Ligne): Ligne {
     const resa = this.s.obtenir("Reservation", brute.reservationId);
-    return { ...brute, reservation: resa ? { ...resa, chambre: this.chambre(resa.chambreId) ?? null, client: this.client(resa.clientId) ?? null } : null };
+    return { ...brute, reservation: resa ? { ...resa, chambre: this.chambre(resa.chambreId) ?? CHAMBRE_INCONNUE(resa.chambreId), client: this.client(resa.clientId) ?? CLIENT_INCONNU(resa.clientId) } : null };
   }
 
   private sejoursParClient(): Map<string, Ligne[]> {
@@ -61,7 +65,7 @@ export class Vues {
     const parClient = new Map<string, Ligne[]>();
     for (const r of this.s.lister("Reservation")) {
       const liste = parClient.get(r.clientId) ?? [];
-      liste.push({ ...r, chambre: this.chambre(r.chambreId) ?? null, facture: facturesParResa.get(r.id) ?? null });
+      liste.push({ ...r, chambre: this.chambre(r.chambreId) ?? CHAMBRE_INCONNUE(r.chambreId), facture: facturesParResa.get(r.id) ?? null });
       parClient.set(r.clientId, liste);
     }
     for (const liste of parClient.values()) liste.sort(parDate("dateArrivee", -1));

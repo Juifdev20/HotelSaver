@@ -7,7 +7,6 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { useSession } from "../contexteSession";
-import { creerCompteLocal } from "../stockage/cafeteriaMirroir";
 
 export interface EcranCaisseProps {
   /** `venteRapide` : ouvrir directement l'ajout de consommations, caméra prête. */
@@ -20,12 +19,11 @@ export interface EcranCaisseProps {
  * directement à son détail (EcranCompteCafeteria) pour y ajouter des lignes.
  * "Comptes ouverts" reste l'écran pour reprendre un compte déjà en cours.
  *
- * Hors ligne (Phase 6, 26/09/2026) : le compte (+ son premier sous-compte)
- * est écrit instantanément dans le miroir local, puis mis en file pour
- * l'envoi réseau en arrière-plan — plus d'attente réseau ici, voir le plan.
+ * Le compte (+ son premier sous-compte) est écrit instantanément dans la
+ * base locale, puis envoyé au serveur en arrière-plan — marche hors ligne.
  */
 export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
-  const { moteurSync } = useSession();
+  const { client } = useSession();
   const [tableOuNom, setTableOuNom] = useState("");
   const [nomPremierSousCompte, setNomPremierSousCompte] = useState("");
   const [enCours, setEnCours] = useState(false);
@@ -43,19 +41,9 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
     setEnCours(true);
     setErreur(null);
     try {
-      const compte = await creerCompteLocal(nom, venteRapide ? "Client" : nomPremierSousCompte.trim() || undefined);
-      await moteurSync.mettreEnFile({
-        entiteType: "CompteCafeteria",
-        localId: compte.id,
-        operation: "CREATE",
-        payload: {
-          tableOuNom: compte.tableOuNom,
-          nomPremierSousCompte: compte.sousComptes[0]?.nom,
-          // Le serveur crée ce sous-compte avec son propre id : ce mapping
-          // permet de renseigner son remoteId local dès la confirmation,
-          // sans doublon au prochain pull (bug du 27/09/2026).
-          premierSousCompteLocalId: compte.sousComptes[0]?.id,
-        },
+      const compte = await client.ouvrirCompteCafeteria({
+        tableOuNom: nom,
+        nomPremierSousCompte: venteRapide ? "Client" : nomPremierSousCompte.trim() || undefined,
       });
       setTableOuNom("");
       setNomPremierSousCompte("");

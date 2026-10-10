@@ -6,12 +6,15 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { ActivityIndicator, Image, Linking, StyleSheet, Text, View } from "react-native";
 import { ClientApi, ErreurApi, connecterAvecMotDePasse, connecterViaApi, demanderReinitialisationMotDePasse, inscrireHotel, rafraichirSession, rafraichirViaApi } from "@hotel-chicago/api-client";
-import { MoteurSync } from "@hotel-chicago/sync-engine";
+import { evaluerAcces, ouvrirMiroir, type Miroir } from "@hotel-chicago/miroir-local";
+import { ouvrirPersistanceHotel } from "./src/stockage/baseLocale";
 import { Role, type InscriptionHotelPayload, type ProfilConnecte } from "@hotel-chicago/types";
 import { candidatsApi, lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
-import { creerStockageLocalMobile } from "./src/stockage/stockageLocalMobile";
 import {
   ProfilEnregistre,
+  avancerHeureMax,
+  ecrireContactServeur,
+  lireContactServeur,
   ecrireDernierUtilisateur,
   ecrireJetonRafraichissement,
   enregistrerProfil,
@@ -166,12 +169,45 @@ export default function App() {
     setEcran("connexion");
   }, [lienRecu, ecran]);
 
-  const client = useMemo(
-    () => (configuration && sessionActive ? new ClientApi(candidatsApi(), () => jetonRef.current ?? attendreJeton()) : null),
-    [configuration, sessionActive]
-  );
+  const profilRef = useRef<ProfilConnecte | null>(null);
+  profilRef.current = utilisateur;
 
-  const [moteurSync, setMoteurSync] = useState<MoteurSync | null>(null);
+  // Base locale de l'hôtel (un fichier SQLite PAR hôtel) + client « d'abord sur le téléphone » + moteur de synchronisation. Les écrans
+  // lisent et écrivent par ce client : même comportement avec ou sans réseau. Ouverte dès que la session l'est (le profil mémorisé
+  // donne l'hôtel, même sans Internet) ; refermée à la fermeture de session ou au changement d'hôtel.
+  const [miroir, setMiroir] = useState<Miroir | null>(null);
+  const hotelId = utilisateur?.hotelId ?? null;
+  useEffect(() => {
+    if (!configuration || !sessionActive || !hotelId) {
+      setMiroir(null);
+      return;
+    }
+    let annule = false;
+    let ouvert: Miroir | null = null;
+    (async () => {
+      const m = await ouvrirMiroir({
+        persistance: await ouvrirPersistanceHotel(hotelId),
+        baseUrl: candidatsApi(),
+        getAccessToken: () => jetonRef.current ?? attendreJeton(),
+        utilisateur: () => profilRef.current!,
+      });
+      if (annule) {
+        m.fermer();
+        return;
+      }
+      ouvert = m;
+      m.moteur.demarrer();
+      setMiroir(m);
+    })().catch((e) => console.warn("Base locale indisponible :", e));
+    return () => {
+      annule = true;
+      ouvert?.fermer();
+      setMiroir(null);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configuration, sessionActive, hotelId]);
+  const client = miroir ? miroir.client : null;
+  const moteurSync = miroir ? miroir.moteur : null;
 
   // Le tableau de bord (CoquilleOnglets, plus bas) est un tout nouvel arbre
   // de navigation à chaque connexion/changement de profil : redémarre à
@@ -192,39 +228,6 @@ export default function App() {
       setApplicationPrete(false);
     }
   }
-
-  // Démarre le moteur de synchronisation dès qu'un client est disponible
-  // (connexion réussie), l'arrête si le client disparaît (changerDeProfil).
-  // La base SQLite sous-jacente est partagée par l'appareil (pas par
-  // profil — voir sqlite.ts) : seul le minuteur du moteur démarre/s'arrête ici.
-  useEffect(() => {
-    if (!client) {
-      setMoteurSync(null);
-      return;
-    }
-    let annule = false;
-    let moteurCree: MoteurSync | null = null;
-    (async () => {
-      const stockage = await creerStockageLocalMobile();
-      if (annule) return;
-      moteurCree = new MoteurSync(client, stockage, [
-        "Chambre",
-        "Reservation",
-        "Client",
-        "Produit",
-        "CompteCafeteria",
-        "SousCompte",
-        "LigneCommande",
-        "Depense",
-      ]);
-      moteurCree.demarrer();
-      setMoteurSync(moteurCree);
-    })();
-    return () => {
-      annule = true;
-      moteurCree?.arreter();
-    };
-  }, [client]);
 
   // Démarrage : charge la config puis la liste des profils déjà connectés
   // sur cet appareil (section 5, "sélection de profil au démarrage"), et
@@ -262,6 +265,22 @@ export default function App() {
       if (profil && profil.role !== Role.PATRON) {
         const jeton = await lireJetonRafraichissement(profil.utilisateurId);
         const cache = jeton ? await lireProfilCache(profil.utilisateurId) : null;
+        // Durée de grâce hors ligne (14 jours depuis le dernier contact avec le serveur, horloge qui ne recule jamais) : au-delà,
+        // ou si la licence était suspendue, le téléphone doit retrouver Internet avant de rouvrir la session.
+        const contact = await lireContactServeur(profil.utilisateurId);
+        const acces =
+          jeton && cache
+            ? evaluerAcces({ profil: cache, verifieLe: contact?.verifieLe ?? new Date().toISOString(), heureMax: contact?.heureMax ?? new Date().toISOString() }, new Date())
+            : null;
+        if (acces && !acces.autorise) {
+          await attendreDureeMinimale();
+          setEmailPreRempli(profil.email);
+          setMessageConnexion(acces.message);
+          setEcran("connexion");
+          return;
+        }
+        if (!contact) await ecrireContactServeur(profil.utilisateurId); // première ouverture depuis cette mise à jour : la grâce démarre maintenant
+        else await avancerHeureMax(profil.utilisateurId);
         if (jeton && cache) {
           // DÉMARRAGE INSTANTANÉ : l'application s'ouvre tout de suite sur les données enregistrées dans le
           // téléphone (profil en copie locale, base locale) ; le jeton et le profil sont renouvelés en arrière-plan.
@@ -310,6 +329,7 @@ export default function App() {
     await ecrireJetonRafraichissement(donnees.userId, session.refreshToken);
     await ecrireDernierUtilisateur(donnees.userId);
     await ecrireProfilCache(donnees.userId, donnees);
+    await ecrireContactServeur(donnees.userId);
     jetonRef.current = session.accessToken;
     setUtilisateur(donnees);
     setSessionActive(true);
@@ -330,6 +350,7 @@ export default function App() {
       const session = await rafraichir(config, jeton);
       jetonRef.current = session.accessToken;
       await ecrireJetonRafraichissement(utilisateurId, session.refreshToken);
+      await ecrireContactServeur(utilisateurId);
       return "ok";
     } catch (erreur) {
       return erreur instanceof Error && erreur.message.startsWith("Impossible de joindre") ? "hors-ligne" : "expiree";
@@ -571,12 +592,12 @@ export default function App() {
   // redéclenche et lève le voile ~430 ms après, le temps que le tableau de
   // bord peigne sa première image réelle en dessous.
   const contenuPret =
-    ecran === "application" && client !== null && utilisateur !== null && moteurSync !== null;
+    ecran === "application" && client !== null && utilisateur !== null && moteurSync !== null && miroir !== null;
   return (
     <View style={styles.racine}>
       {contenuPret && (
         <SafeAreaProvider>
-          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync, rechargerProfil: async () => {
+          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync, miroir: miroir!, rechargerProfil: async () => {
             const frais = await client.moi();
             await ecrireProfilCache(frais.userId, frais);
             setUtilisateur((courant) => (courant && JSON.stringify(courant) === JSON.stringify(frais) ? courant : frais));

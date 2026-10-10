@@ -142,6 +142,69 @@ export class ClientHorsLigne extends ClientApi {
     return this.avecCache("menuDuJour", () => super.menuDuJour(), 5 * 60_000);
   }
 
+  // ================================================================== Actions réservées à la connexion (le miroir suit tout de suite)
+
+  /** Retire du miroir une ligne que le serveur vient de supprimer (sans attendre la pierre tombale du prochain pull). */
+  private async retirerLocalement(entite: "Chambre" | "Produit", id: string): Promise<void> {
+    await this.s.magasin.supprimer(entite, this.s.resoudreAlias(id));
+  }
+
+  private exigerEnregistre(id: string, quoi: string): string {
+    if (this.s.creationEnAttente(id)) throw erreur(409, `${quoi} n'est pas encore enregistré sur le serveur : attendez la synchronisation.`);
+    return this.s.resoudreAlias(id);
+  }
+
+  override async supprimerChambre(id: string): Promise<void> {
+    const reel = this.exigerEnregistre(id, "Cette chambre");
+    await super.supprimerChambre(reel);
+    await this.retirerLocalement("Chambre", reel);
+  }
+
+  override async supprimerProduit(id: string): Promise<void> {
+    const reel = this.exigerEnregistre(id, "Ce produit");
+    await super.supprimerProduit(reel);
+    await this.retirerLocalement("Produit", reel);
+  }
+
+  override async associerCodeBarres(id: string, codeBarres: string | null): Promise<Produit> {
+    const produit = await super.associerCodeBarres(this.exigerEnregistre(id, "Ce produit"), codeBarres);
+    await this.s.appliquerLignesServeur("Produit", [produit]);
+    return produit;
+  }
+
+  /** Annuler un reçu renverse de l'argent : il faut l'état réel du serveur (donc la connexion) et un reçu déjà enregistré. */
+  override async annulerFacture(id: string, motif: string): Promise<Facture> {
+    const facture = await super.annulerFacture(this.exigerEnregistre(id, "Ce reçu"), motif);
+    await this.s.appliquerLignesServeur("Facture", [facture]);
+    return facture;
+  }
+
+  override async annulerVenteCafeteria(id: string, motif: string): Promise<VenteCafeteria> {
+    const vente = await super.annulerVenteCafeteria(this.exigerEnregistre(id, "Ce reçu"), motif);
+    await this.s.appliquerLignesServeur("VenteCafeteria", [vente]);
+    return vente;
+  }
+
+  override async creerTauxChange(cdfParUsd: number): Promise<TauxChange> {
+    const taux = await super.creerTauxChange(cdfParUsd);
+    await this.s.ecrireMeta("cache:tauxActuel", { valeur: taux, le: this.ctx.maintenant().getTime() });
+    return taux;
+  }
+
+  override async definirMenuDuJour(items: Parameters<ClientApi["definirMenuDuJour"]>[0]): Promise<MenuDuJour> {
+    const menu = await super.definirMenuDuJour(items);
+    await this.s.ecrireMeta("cache:menuDuJour", { valeur: menu, le: this.ctx.maintenant().getTime() });
+    return menu;
+  }
+
+  override async supprimerItemMenuDuJour(itemId: string): Promise<void> {
+    await super.supprimerItemMenuDuJour(itemId);
+    const entree = this.s.lireMeta<{ valeur: MenuDuJour | null; le: number }>("cache:menuDuJour");
+    if (entree?.valeur) {
+      await this.s.ecrireMeta("cache:menuDuJour", { ...entree, valeur: { ...entree.valeur, items: entree.valeur.items.filter((i) => i.id !== itemId) } });
+    }
+  }
+
   // ================================================================== Chambres
 
   override async listerChambres(filtres: FiltresChambres = {}): Promise<Chambre[]> {

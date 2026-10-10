@@ -8,13 +8,7 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
-import {
-  ClientMiroir,
-  ReservationMiroir,
-  ecrireClientLocal,
-  listerClientsMiroir,
-  listerReservationsMiroir,
-} from "../stockage/reservationsMirroir";
+import type { ClientAvecSejours } from "@hotel-chicago/api-client";
 
 export interface EcranClientsProps {
   onRetour: () => void;
@@ -34,18 +28,18 @@ const LABEL_STATUT: Record<string, string> = {
 };
 
 /**
- * Répertoire des clients — lecture du miroir local (fonctionne hors ligne).
- * La création de clients se fait implicitement à la réservation (client
- * inline) ; un client créé hors ligne apparaît ici dès l'écriture
- * optimiste, marqué « en attente de synchro » jusqu'à son remoteId.
+ * Répertoire des clients — lu dans la base locale (fonctionne hors ligne).
+ * La création de clients se fait implicitement à la réservation ; un client
+ * créé hors ligne apparaît ici tout de suite, marqué « en attente de
+ * synchro » jusqu'à son enregistrement par le serveur. La fiche (registre
+ * de police, notes) se modifie aussi hors ligne.
  */
 export function EcranClients({ onRetour }: EcranClientsProps) {
-  const { moteurSync, client: api } = useSession();
+  const { moteurSync, client: api, miroir } = useSession();
   const etatSync = useSyncEtat();
-  const [clients, setClients] = useState<ClientMiroir[] | null>(null);
-  const [reservations, setReservations] = useState<ReservationMiroir[]>([]);
+  const [clients, setClients] = useState<ClientAvecSejours[] | null>(null);
   const [recherche, setRecherche] = useState("");
-  const [clientChoisi, setClientChoisi] = useState<ClientMiroir | null>(null);
+  const [clientChoisi, setClientChoisi] = useState<ClientAvecSejours | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [edition, setEdition] = useState(false);
@@ -53,13 +47,14 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
   const [enCours, setEnCours] = useState(false);
 
   const recharger = useCallback(() => {
-    Promise.all([listerClientsMiroir(), listerReservationsMiroir()])
-      .then(([c, r]) => {
+    api
+      .listerClients()
+      .then((c) => {
         setClients(c);
-        setReservations(r);
+        setClientChoisi((choisi) => (choisi ? (c.find((x) => x.id === choisi.id) ?? choisi) : choisi));
       })
       .catch((e: Error) => setErreur(e.message));
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     recharger();
@@ -84,14 +79,9 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
     );
   }, [clients, recherche]);
 
-  const sejoursDuClient = useMemo(() => {
-    if (!clientChoisi) return [];
-    return reservations.filter((r) => r.clientId === clientChoisi.id || r.clientId === clientChoisi.remoteId);
-  }, [clientChoisi, reservations]);
+  const sejoursDuClient = clientChoisi?.reservations ?? [];
 
-  /** Registre de police + notes : PATCH serveur puis écriture miroir locale
-   * — en ligne uniquement (la fiche concerne souvent le client au comptoir,
-   * le réseau est indispensable de toute façon pour valider l'id). */
+  /** Registre de police + notes : écrit en local, envoyé au serveur dès que possible. */
   async function enregistrerFiche() {
     if (!clientChoisi) return;
     if (!saisie.nom.trim()) {
@@ -101,7 +91,7 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
     setEnCours(true);
     setErreur(null);
     try {
-      const modifie = await api.modifierClient(clientChoisi.remoteId ?? clientChoisi.id, {
+      await api.modifierClient(clientChoisi.id, {
         nom: saisie.nom.trim(),
         telephone: saisie.telephone.trim(),
         email: saisie.email.trim(),
@@ -109,21 +99,8 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
         numeroPiece: saisie.numeroPiece.trim(),
         notes: saisie.notes.trim(),
       });
-      await ecrireClientLocal(clientChoisi.id, {
-        nom: modifie.nom,
-        telephone: modifie.telephone ?? "",
-        email: modifie.email ?? "",
-        typePiece: modifie.typePiece ?? "",
-        numeroPiece: modifie.numeroPiece ?? "",
-        notes: modifie.notes ?? "",
-      });
       setEdition(false);
       recharger();
-      setClientChoisi((c) =>
-        c
-          ? { ...c, nom: modifie.nom, telephone: modifie.telephone, email: modifie.email, typePiece: modifie.typePiece, numeroPiece: modifie.numeroPiece, notes: modifie.notes }
-          : c
-      );
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Impossible d'enregistrer la fiche.");
     } finally {
@@ -163,15 +140,12 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
             {!clientChoisi.telephone && !clientChoisi.email && !clientChoisi.typePiece && (
               <Text style={styles.ligneSecondaire}>Aucune coordonnée ni pièce enregistrée.</Text>
             )}
-            {clientChoisi.remoteId === null && <Text style={styles.horsLigne}>Créé hors ligne — en attente de synchronisation.</Text>}
-            {clientChoisi.remoteId !== null && etatSync.enLigne && (
-              <Pressable style={styles.boutonModifier} onPress={ouvrirEdition} accessibilityRole="button">
-                <Text style={styles.boutonModifierTexte}>Compléter la fiche</Text>
-              </Pressable>
+            {miroir.estCreationEnAttente(clientChoisi.id) && (
+              <Text style={styles.horsLigne}>Créé sur cet appareil — en attente de synchronisation.</Text>
             )}
-            {clientChoisi.remoteId !== null && !etatSync.enLigne && (
-              <Text style={styles.horsLigne}>Modification disponible en ligne uniquement.</Text>
-            )}
+            <Pressable style={styles.boutonModifier} onPress={ouvrirEdition} accessibilityRole="button">
+              <Text style={styles.boutonModifierTexte}>Compléter la fiche</Text>
+            </Pressable>
           </View>
 
           <Text style={styles.titreSection}>Séjours ({sejoursDuClient.length})</Text>
@@ -242,7 +216,7 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
           <Pressable style={styles.carte} onPress={() => setClientChoisi(item)}>
             <Text style={styles.clientNom}>{item.nom}</Text>
             <Text style={styles.ligneSecondaire}>
-              {[item.telephone, item.remoteId === null ? "en attente de synchro" : null].filter(Boolean).join(" · ") || "—"}
+              {[item.telephone, miroir.estCreationEnAttente(item.id) ? "en attente de synchro" : null].filter(Boolean).join(" · ") || "—"}
             </Text>
           </Pressable>
         )}

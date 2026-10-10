@@ -12,7 +12,7 @@ base à deux hôtels), et le travail de la journée — réserver, installer, fa
 | Application | Sans connexion |
 |---|---|
 | **Bureau (Electron)** | **Complet** : réception (réservations, arrivées/départs, check-in/out, clients, facturation avec reçu provisoire), cafétaria (comptes, lignes, encaissement, cuisine), stock, dépenses, tableau de bord. Ouverture de l'application sans Internet (durée de grâce de 14 jours). |
-| **Mobile (Android)** | Réservations, chambres, clients, comptes et lignes de cafétaria, dépenses. **Pas encore** : check-in/out, facturation et encaissement sans connexion (voir `BACKLOG.md`). |
+| **Mobile (Android)** | Tout le travail courant (réservations, check-in/out, facturation avec reçu provisoire, cafétaria et encaissement, cuisine, stock, dépenses, clients) fonctionne sans connexion, sur la même base locale partagée que le bureau (`miroir-local` + `expo-sqlite`). Écrit et vérifié par typage et par les tests des paquets partagés ; **à essayer sur un téléphone** après reconstruction de l'APK (`BACKLOG.md`). |
 | **API (NestJS)** | Prête pour les deux : envois rejouables sans doublon, ordres (check-in, annulation, facture, encaissement), reçus provisoires, suppressions, pagination, horloges. |
 | **Site public (Next.js)** | Pas encore construit. |
 

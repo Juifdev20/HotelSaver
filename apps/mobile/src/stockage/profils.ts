@@ -44,6 +44,7 @@ export async function oublierProfil(utilisateurId: string): Promise<void> {
   await AsyncStorage.setItem(CLE_PROFILS, JSON.stringify(profils.filter((p) => p.utilisateurId !== utilisateurId)));
   await SecureStore.deleteItemAsync(CLE_JETON(utilisateurId)).catch(() => {});
   await AsyncStorage.removeItem(CLE_PROFIL_CACHE(utilisateurId)).catch(() => {});
+  await AsyncStorage.removeItem(CLE_CONTACT(utilisateurId)).catch(() => {});
 }
 
 /**
@@ -85,5 +86,38 @@ export async function lireDernierUtilisateur(): Promise<string | null> {
     return await AsyncStorage.getItem(CLE_DERNIER_UTILISATEUR);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Dernier contact réussi avec le serveur pour ce compte (heure de l'appareil à ce moment) et plus grande heure vue depuis : sert à la
+ * durée de grâce hors ligne (voir `evaluerAcces` dans @hotel-chicago/miroir-local — mêmes règles que le bureau).
+ */
+export interface ContactServeur {
+  verifieLe: string;
+  heureMax: string;
+}
+
+const CLE_CONTACT = (utilisateurId: string) => `hotel-chicago:contact-serveur:${utilisateurId}`;
+
+export async function ecrireContactServeur(utilisateurId: string, maintenant: Date = new Date()): Promise<void> {
+  const iso = maintenant.toISOString();
+  await AsyncStorage.setItem(CLE_CONTACT(utilisateurId), JSON.stringify({ verifieLe: iso, heureMax: iso } satisfies ContactServeur)).catch(() => {});
+}
+
+export async function lireContactServeur(utilisateurId: string): Promise<ContactServeur | null> {
+  try {
+    const brut = await AsyncStorage.getItem(CLE_CONTACT(utilisateurId));
+    return brut ? (JSON.parse(brut) as ContactServeur) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Retient la plus grande heure vue (l'horloge utilisée pour la grâce ne recule jamais). */
+export async function avancerHeureMax(utilisateurId: string, maintenant: Date = new Date()): Promise<void> {
+  const contact = await lireContactServeur(utilisateurId);
+  if (contact && maintenant.toISOString() > contact.heureMax) {
+    await AsyncStorage.setItem(CLE_CONTACT(utilisateurId), JSON.stringify({ ...contact, heureMax: maintenant.toISOString() })).catch(() => {});
   }
 }
