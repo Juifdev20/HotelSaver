@@ -1,4 +1,5 @@
-import { IsDateString, IsOptional, IsString } from "class-validator";
+import { Type } from "class-transformer";
+import { IsDateString, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 
 export class SyncPullQueryDto {
   @IsDateString({}, { message: "depuis doit être une date ISO 8601 valide." })
@@ -9,4 +10,12 @@ export class SyncPullQueryDto {
   @IsOptional()
   @IsString()
   entites?: string;
+
+  /** Lignes maximum par type d'entité (défaut 1000) : après plusieurs jours hors ligne, la remise à niveau se fait par pages. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5000)
+  limite?: number;
 }

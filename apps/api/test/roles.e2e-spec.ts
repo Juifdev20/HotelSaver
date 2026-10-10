@@ -100,6 +100,7 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
     facture: { findMany: jest.fn().mockResolvedValue([]) },
     venteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
     depense: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
+    suppression: { findMany: jest.fn().mockResolvedValue([]) },
   };
 
   const tokenPour = (supabaseAuthId: string) => jwt.sign({ sub: supabaseAuthId }, JWT_SECRET);

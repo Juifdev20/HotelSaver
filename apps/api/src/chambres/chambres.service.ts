@@ -95,7 +95,12 @@ export class ChambresService {
   async remove(id: string, hotelId: string) {
     await this.findOne(id, hotelId);
     try {
-      await this.prisma.chambre.delete({ where: { id, hotelId } });
+      await this.prisma.$transaction([
+        this.prisma.chambre.delete({ where: { id, hotelId } }),
+        // Pierre tombale : sans elle, les appareils hors ligne garderaient
+        // l'élément supprimé indéfiniment (voir SyncService.pull).
+        this.prisma.suppression.create({ data: { hotelId, entiteType: "Chambre", entiteId: id } }),
+      ]);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
         throw new ConflictException(

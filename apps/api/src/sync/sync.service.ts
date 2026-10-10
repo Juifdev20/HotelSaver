@@ -1,5 +1,5 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import { PrismaClient } from "@hotel-chicago/database";
+import { BadRequestException, HttpException, Inject, Injectable, Logger } from "@nestjs/common";
+import { Prisma, PrismaClient } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie, peutOperer } from "@hotel-chicago/types";
 import { MESSAGE_PATRON_NON_OPERANT } from "../common/guards/roles.guard";
 import { PRISMA } from "../prisma/prisma.module";
@@ -42,6 +42,9 @@ interface ResultatOperation {
   syncVersion?: number;
   statut: "SYNCED" | "CONFLICT" | "ERROR";
   message?: string;
+  /** ERROR seulement : panne passagère (base injoignable, opération déjà en cours) — l'appareil doit RÉESSAYER sans
+   * compter un échec. Absent/false = refus définitif (règle métier) : après quelques essais, décision humaine. */
+  temporaire?: boolean;
   donneesServeur?: unknown;
   enfants?: { entiteType: EntitePull; localId: string; remoteId: string; syncVersion?: number }[];
 }
@@ -75,8 +78,21 @@ const FILTRE_LECTURE: Partial<Record<EntitePull, (user: UtilisateurAuthentifie) 
  * HTTP marquées @Operationnel — sinon le patron les contournerait en passant par l'écriture hors ligne. */
 const ENTITES_OPERATIONNELLES: ReadonlySet<EntitePush> = new Set<EntitePush>(["Reservation", "CompteCafeteria", "SousCompte", "LigneCommande"]);
 
+/** Une réservation « EN_COURS » plus ancienne que ça vient d'un traitement interrompu (serveur arrêté en plein travail). */
+const DELAI_RESERVATION_PERIMEE_MS = 2 * 60_000;
+/** Marge de relecture : un pull repart un peu AVANT le moment du serveur, au cas où une transaction longue n'aurait validé
+ * une ligne qu'après le passage du pull précédent. Les écritures locales sont des « upsert » : relire est sans danger. */
+const RECOUVREMENT_PULL_MS = 5_000;
+const LIMITE_PULL_DEFAUT = 1000;
+/** Écritures qui s'additionnent : leur date doit être celle de l'appareil, pas celle de l'envoi (hors ligne : des heures plus tard). */
+const ENTITES_HORODATEES: ReadonlySet<EntitePush> = new Set<EntitePush>(["MouvementStock", "LigneCommande"]);
+const FENETRE_HORODATAGE_MS = 30 * 24 * 3_600_000;
+/** Codes Prisma d'une panne passagère (connexion perdue, délai dépassé, conflit d'écriture à rejouer). */
+const CODES_PRISMA_PASSAGERS = new Set(["P1001", "P1002", "P1008", "P1017", "P2024", "P2034"]);
+
 @Injectable()
 export class SyncService {
+  private readonly logger = new Logger(SyncService.name);
   private readonly config: Record<EntitePush, ConfigEntite>;
 
   constructor(
@@ -191,7 +207,8 @@ export class SyncService {
     for (const operation of dto.operations) {
       resultats.push(await this.traiterOperation(operation, currentUser));
     }
-    return { resultats };
+    // `serveurLe` : l'heure du serveur, pour que l'appareil mesure le décalage de son horloge.
+    return { resultats, serveurLe: new Date().toISOString() };
   }
 
   private async traiterOperation(
@@ -209,14 +226,7 @@ export class SyncService {
         if (!config.rolesCreate.includes(currentUser.role)) {
           return this.erreur(operation, `Le rôle ${currentUser.role} ne peut pas créer une entité ${operation.entiteType}.`);
         }
-        const cree = await config.create(operation.payload, currentUser);
-        return {
-          localId: operation.localId,
-          remoteId: cree.id,
-          syncVersion: cree.syncVersion,
-          statut: "SYNCED",
-          enfants: cree.enfants,
-        };
+        return await this.creerUneSeuleFois(operation, currentUser, config);
       }
 
       // UPDATE
@@ -242,6 +252,11 @@ export class SyncService {
       }
 
       if (actuel.syncVersion !== operation.baseSyncVersion) {
+        // Un envoi rejoué (réponse perdue) retombe ici : la première fois a déjà appliqué ces valeurs et fait avancer
+        // la version. Si le serveur contient DÉJÀ exactement ce que l'appareil veut écrire, ce n'est pas un conflit.
+        if (valeursDejaAppliquees(actuel, operation.payload)) {
+          return { localId: operation.localId, remoteId: operation.remoteId, syncVersion: actuel.syncVersion, statut: "SYNCED" };
+        }
         // Le serveur gagne (section 10.4) : rien n'est appliqué, l'appareil doit
         // afficher un écran "Conflits à vérifier" avec les données serveur.
         return {
@@ -261,7 +276,80 @@ export class SyncService {
         statut: "SYNCED",
       };
     } catch (error) {
-      return this.erreur(operation, error instanceof Error ? error.message : "Erreur inconnue.");
+      return this.erreurDepuisException(operation, error);
+    }
+  }
+
+  /**
+   * CREATE rejouable sans doublon. L'appareil réenvoie une opération dont il n'a pas reçu la réponse (coupure au mauvais
+   * moment) : sans protection, une ligne de commande serait facturée deux fois, un mouvement de stock compté deux fois.
+   * On RÉSERVE d'abord la clé (hôtel, type, identifiant local) ; si elle existe déjà et que la création est terminée,
+   * on renvoie le résultat d'origine au lieu de recréer.
+   */
+  private async creerUneSeuleFois(operation: PushOperationDto, currentUser: UtilisateurAuthentifie, config: ConfigEntite): Promise<ResultatOperation> {
+    const db = this.prisma as any;
+    const cle = { hotelId: currentUser.hotelId, entiteType: operation.entiteType, localId: operation.localId };
+
+    let reservation: { id: string };
+    try {
+      reservation = await db.syncCorrespondance.create({ data: { ...cle, statut: "EN_COURS" }, select: { id: true } });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+      const existante = await db.syncCorrespondance.findUnique({ where: { hotelId_entiteType_localId: cle } });
+      if (existante?.statut === "SYNCED" && existante.remoteId) {
+        return {
+          localId: operation.localId,
+          remoteId: existante.remoteId,
+          syncVersion: existante.syncVersion ?? undefined,
+          statut: "SYNCED",
+          enfants: (existante.enfants as ResultatOperation["enfants"]) ?? undefined,
+        };
+      }
+      if (existante && Date.now() - new Date(existante.updatedAt).getTime() < DELAI_RESERVATION_PERIMEE_MS) {
+        return { ...this.erreur(operation, "Cette opération est déjà en cours de traitement : nouvel essai dans un instant."), temporaire: true };
+      }
+      // Traitement interrompu (serveur arrêté entre la création et son enregistrement) : on ne SAIT pas si l'élément existe.
+      // Refus définitif plutôt que risquer un doublon d'argent ; la personne vérifie puis retire l'action.
+      return this.erreur(
+        operation,
+        "Le résultat de cette opération est incertain (le serveur a été interrompu en la traitant). Vérifiez si elle apparaît déjà, puis retirez cette action."
+      );
+    }
+
+    let cree: EntiteCree;
+    try {
+      cree = await config.create(operation.payload, currentUser);
+    } catch (error) {
+      // Rien (ou rien de sûr) n'a été créé : on libère la clé pour qu'un nouvel essai puisse repartir.
+      await db.syncCorrespondance.deleteMany({ where: { id: reservation.id } }).catch(() => undefined);
+      throw error;
+    }
+
+    try {
+      await db.syncCorrespondance.update({
+        where: { id: reservation.id },
+        data: { statut: "SYNCED", remoteId: cree.id, syncVersion: cree.syncVersion, enfants: (cree.enfants as Prisma.InputJsonValue) ?? Prisma.JsonNull },
+      });
+    } catch (error) {
+      this.logger.error(`Création ${operation.entiteType} ${cree.id} réussie mais non enregistrée pour la reprise : ${(error as Error).message}`);
+    }
+
+    if (ENTITES_HORODATEES.has(operation.entiteType)) await this.appliquerHorodatageClient(operation, cree.id, currentUser.hotelId);
+
+    return { localId: operation.localId, remoteId: cree.id, syncVersion: cree.syncVersion, statut: "SYNCED", enfants: cree.enfants };
+  }
+
+  /** Date une écriture à l'heure de l'appareil, bornée : jamais dans le futur, jamais plus de 30 jours en arrière. */
+  private async appliquerHorodatageClient(operation: PushOperationDto, id: string, hotelId: string): Promise<void> {
+    if (!operation.horodatageClient) return;
+    const voulu = new Date(operation.horodatageClient).getTime();
+    if (Number.isNaN(voulu)) return;
+    const maintenant = Date.now();
+    const borne = Math.min(Math.max(voulu, maintenant - FENETRE_HORODATAGE_MS), maintenant);
+    try {
+      await (this.prisma as any)[ACCESSEUR_PRISMA[operation.entiteType]].update({ where: { id, hotelId }, data: { createdAt: new Date(borne) } });
+    } catch (error) {
+      this.logger.warn(`Horodatage client non appliqué pour ${operation.entiteType} ${id} : ${(error as Error).message}`);
     }
   }
 
@@ -269,8 +357,24 @@ export class SyncService {
     return { localId: operation.localId, remoteId: operation.remoteId, statut: "ERROR", message };
   }
 
+  /** Règle métier refusée (HttpException) = définitif ; panne de connexion ou de base = passager. */
+  private erreurDepuisException(operation: PushOperationDto, error: unknown): ResultatOperation {
+    const message = error instanceof Error ? error.message : "Erreur inconnue.";
+    if (error instanceof HttpException) return this.erreur(operation, message);
+    const passager =
+      error instanceof Prisma.PrismaClientInitializationError ||
+      error instanceof Prisma.PrismaClientUnknownRequestError ||
+      (error instanceof Prisma.PrismaClientKnownRequestError && CODES_PRISMA_PASSAGERS.has(error.code));
+    if (passager) this.logger.warn(`Panne passagère pendant la synchronisation (${operation.entiteType}) : ${message}`);
+    return { ...this.erreur(operation, passager ? "Le serveur est momentanément indisponible : nouvel essai automatique." : message), temporaire: passager || undefined };
+  }
+
   async pull(query: SyncPullQueryDto, currentUser: UtilisateurAuthentifie) {
+    // Le moment du serveur est pris AVANT de lire : c'est lui (moins une marge), pas l'horloge de l'appareil, qui sert de
+    // point de départ au prochain pull. Une horloge d'appareil en avance ferait manquer des changements.
+    const debut = Date.now();
     const depuis = new Date(query.depuis);
+    const limite = query.limite ?? LIMITE_PULL_DEFAUT;
     const entitesDemandees = query.entites
       ? (query.entites.split(",").map((e) => e.trim()) as EntitePull[])
       : [...ENTITES_PULL];
@@ -282,18 +386,60 @@ export class SyncService {
     // En parallèle (08/10/2026) : chaque lecture coûte ~300 ms depuis Kasindi ;
     // en série, 11 entités faisaient ~3 s par synchronisation et retardaient
     // la caisse. Le pool `pg` (max 5) borne le nombre de requêtes simultanées.
+    // `gte` + `take` : relire la dernière ligne d'une page est sans danger (upsert), alors que `gt` ferait sauter des
+    // lignes partageant la même milliseconde à la frontière de deux pages.
     const lignes = await Promise.all(
       entitesAutorisees.map((entite) =>
         (this.prisma as any)[ACCESSEUR_PRISMA[entite]].findMany({
-          where: { hotelId: currentUser.hotelId, updatedAt: { gt: depuis }, ...FILTRE_LECTURE[entite]?.(currentUser) },
-          orderBy: { updatedAt: "asc" },
+          where: { hotelId: currentUser.hotelId, updatedAt: { gte: depuis }, ...FILTRE_LECTURE[entite]?.(currentUser) },
+          orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+          take: limite,
         }) as Promise<unknown[]>
       )
     );
-    const resultat: Record<string, unknown[]> = {};
+    const resultat: Record<string, unknown> = {};
+    const tronque: string[] = [];
     entitesAutorisees.forEach((entite, i) => {
       resultat[entite] = lignes[i];
+      if (lignes[i].length >= limite) tronque.push(entite);
     });
-    return resultat;
+
+    const suppressions = entitesAutorisees.length
+      ? await this.prisma.suppression.findMany({
+          where: { hotelId: currentUser.hotelId, entiteType: { in: entitesAutorisees }, createdAt: { gte: depuis } },
+          orderBy: { createdAt: "asc" },
+          take: 5000,
+          select: { entiteType: true, entiteId: true, createdAt: true },
+        })
+      : [];
+
+    return {
+      ...resultat,
+      _meta: {
+        serveurLe: new Date().toISOString(),
+        /** Où reprendre au prochain pull si rien n'est tronqué. */
+        curseur: new Date(debut - RECOUVREMENT_PULL_MS).toISOString(),
+        /** Types dont il reste des lignes à tirer (page pleine) : tirer encore avec le curseur propre à chaque type. */
+        tronque,
+        suppressions: suppressions.map((s: { entiteType: string; entiteId: string; createdAt: Date }) => ({ entiteType: s.entiteType, id: s.entiteId, supprimeLe: s.createdAt.toISOString() })),
+      },
+    };
   }
+}
+
+/** Vrai si `actuel` contient déjà toutes les valeurs que `payload` voudrait écrire (au moins une). */
+export function valeursDejaAppliquees(actuel: Record<string, unknown>, payload: Record<string, unknown>): boolean {
+  const cles = Object.keys(payload);
+  if (cles.length === 0) return false;
+  return cles.every((cle) => cle in actuel && memeValeur(actuel[cle], payload[cle]));
+}
+
+function memeValeur(a: unknown, b: unknown): boolean {
+  if (a === null || a === undefined) return b === null || b === undefined;
+  if (b === null || b === undefined) return false;
+  if (a instanceof Date) return new Date(b as string).getTime() === a.getTime();
+  // Decimal de Prisma (objet avec toNumber) contre nombre ou chaîne.
+  if (typeof a === "object" && typeof (a as { toNumber?: unknown }).toNumber === "function") return Number(a) === Number(b);
+  if (Array.isArray(a) || typeof a === "object") return JSON.stringify(a) === JSON.stringify(b);
+  return a === b;
 }

@@ -148,6 +148,8 @@ model Hotel {
   paiementsLicence     PaiementLicence[]
   rapportsMensuels     RapportMensuel[]
   depenses             Depense[]
+  syncCorrespondances  SyncCorrespondance[]
+  suppressions         Suppression[]
 }
 
 /// Charte graphique d'un hôtel. Un seul JSON pour toute la palette
@@ -734,4 +736,41 @@ model InventairePhysiqueItem {
   note           String?
 
   @@index([inventaireId])
+}
+
+
+/// Idempotence de la synchronisation hors ligne. Un appareil qui n'a pas reçu la réponse d'un envoi (coupure en plein
+/// envoi) le renvoie : sans cette table, un CREATE rejoué créerait un doublon (ligne de commande facturée deux fois,
+/// mouvement de stock compté deux fois). La clé est (hôtel, type, identifiant LOCAL de l'appareil) : un identifiant
+/// local identique chez deux hôtels n'a aucun rapport. Voir apps/api/src/sync/sync.service.ts.
+model SyncCorrespondance {
+  id          String   @id @default(uuid())
+  hotel       Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  hotelId     String
+  entiteType  String
+  localId     String
+  /// EN_COURS (réservé, création en cours) ou SYNCED (créée : remoteId renseigné).
+  statut      String
+  remoteId    String?
+  syncVersion Int?
+  /// Enfants créés implicitement par le CREATE parent (mêmes données que la réponse du premier envoi).
+  enfants     Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([hotelId, entiteType, localId])
+  @@index([createdAt])
+}
+
+/// Suppression d'une ligne synchronisable (chambre, produit) : sans trace, les appareils garderaient à jamais la ligne
+/// dans leur copie locale, puisque la synchronisation ne tire que les lignes modifiées.
+model Suppression {
+  id         String   @id @default(uuid())
+  hotel      Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  hotelId    String
+  entiteType String
+  entiteId   String
+  createdAt  DateTime @default(now())
+
+  @@index([hotelId, createdAt])
 }

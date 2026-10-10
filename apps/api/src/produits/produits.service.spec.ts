@@ -5,6 +5,8 @@ import { ProduitsService } from "./produits.service";
 function creerPrismaMock() {
   return {
     produit: { findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+    suppression: { create: jest.fn() },
+    $transaction: jest.fn((operations: Promise<unknown>[]) => Promise.all(operations)),
   } as any;
 }
 

@@ -14,6 +14,13 @@ function creerPrismaMock() {
     facture: { findMany: jest.fn().mockResolvedValue([]) },
     venteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
     depense: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    suppression: { findMany: jest.fn().mockResolvedValue([]) },
+    syncCorrespondance: {
+      create: jest.fn().mockResolvedValue({ id: "corr-1" }),
+      findUnique: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
   } as any;
 }
 
@@ -270,8 +277,17 @@ describe("SyncService", () => {
           "Facture",
           "VenteCafeteria",
           "Depense",
+          "_meta",
         ].sort()
       );
+    });
+
+    it("renvoie le curseur serveur, l'indicateur de troncature et les suppressions", async () => {
+      prisma.suppression.findMany.mockResolvedValue([{ entiteType: "Produit", entiteId: "p-9", createdAt: new Date("2026-10-10T08:00:00.000Z") }]);
+      const resultat: any = await service.pull({ depuis: "2026-01-01T00:00:00.000Z" } as any, patron);
+      expect(resultat._meta.tronque).toEqual([]);
+      expect(typeof resultat._meta.serveurLe).toBe("string");
+      expect(resultat._meta.suppressions).toEqual([{ entiteType: "Produit", id: "p-9", supprimeLe: "2026-10-10T08:00:00.000Z" }]);
     });
 
     it("filtre par la liste `entites` demandée quand elle est fournie", async () => {

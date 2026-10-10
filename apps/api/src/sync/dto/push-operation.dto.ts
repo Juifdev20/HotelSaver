@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, Min } from "class-validator";
+import { IsDateString, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, Min } from "class-validator";
 import { ENTITES_PUSH, EntitePush } from "../entites-synchronisables";
 
 export class PushOperationDto {
@@ -34,4 +34,10 @@ export class PushOperationDto {
   @IsInt()
   @Min(1)
   baseSyncVersion?: number;
+
+  /** Heure à laquelle l'opération a été faite sur l'appareil (hors ligne : bien avant l'envoi). Sert à dater les
+   * écritures qui s'additionnent (mouvement de stock, ligne de commande) à leur vraie heure ; bornée par le serveur. */
+  @IsOptional()
+  @IsDateString()
+  horodatageClient?: string;
 }
