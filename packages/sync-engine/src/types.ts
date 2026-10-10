@@ -20,6 +20,8 @@ export interface LigneFileAttente {
   /** Lignes que cette opération modifie sans en être la création (ordres : check-in → la réservation et sa chambre). Tant que
    * l'opération est en file, un pull n'écrase pas ces lignes avec l'ancien état du serveur (voir idsEnAttente). */
   touche?: { entiteType: EntitePull; id: string }[];
+  /** Utilisateur qui a fait l'action : sur un poste partagé, elle ne part que sous SON compte (sinon elle serait attribuée à un autre). */
+  auteurId?: string;
 }
 
 /** Un conflit détecté par le serveur (syncVersion périmé) — jamais résolu

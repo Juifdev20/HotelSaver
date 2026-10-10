@@ -22,6 +22,9 @@ describe("AuthController.moi", () => {
       sousDomaine: "test",
       domainePersonnalise: null,
       domaineVerifie: false,
+      statutLicence: "ACTIF",
+      createdAt: new Date("2026-09-01T00:00:00Z"),
+      paiementsLicence: [{ periodeCouverteJusquau: new Date("2026-12-31T00:00:00Z") }],
       site: { slogan: "  Votre escale de détente  " },
     });
     const profil = await controleur.moi(UTILISATEUR);
@@ -34,7 +37,10 @@ describe("AuthController.moi", () => {
         sousDomaine: true,
         domainePersonnalise: true,
         domaineVerifie: true,
+        statutLicence: true,
+        createdAt: true,
         site: { select: { slogan: true } },
+        paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
       },
     });
     expect(profil).toEqual({
@@ -44,6 +50,8 @@ describe("AuthController.moi", () => {
       hotelAdresse: "Avenue du Lac 12, Goma",
       hotelTelephone: "+243 970 000 000",
       hotelUrlSite: expect.stringMatching(/\/\?hotel=test$/),
+      statutLicence: "ACTIF",
+      licenceValideJusquau: "2026-12-31T00:00:00.000Z",
     });
   });
 
@@ -56,8 +64,8 @@ describe("AuthController.moi", () => {
   });
 
   it("slogan null quand le patron n'en a pas défini (ni site, ni slogan vide)", async () => {
-    expect((await creer({ nom: "Hôtel Test", site: null }).controleur.moi(UTILISATEUR)).hotelSlogan).toBeNull();
-    expect((await creer({ nom: "Hôtel Test", site: { slogan: "   " } }).controleur.moi(UTILISATEUR)).hotelSlogan).toBeNull();
+    expect((await creer({ nom: "Hôtel Test", site: null, createdAt: new Date(), paiementsLicence: [] }).controleur.moi(UTILISATEUR)).hotelSlogan).toBeNull();
+    expect((await creer({ nom: "Hôtel Test", site: { slogan: "   " }, createdAt: new Date(), paiementsLicence: [] }).controleur.moi(UTILISATEUR)).hotelSlogan).toBeNull();
   });
 
   it("ne plante pas si l'hôtel est introuvable (nom vide)", async () => {

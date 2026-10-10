@@ -37,8 +37,16 @@ export class Vues {
     };
   }
 
+  /** Toutes les réservations assemblées — une seule passe sur les factures (pas une par réservation). */
   reservations(): Ligne[] {
-    return this.s.lister("Reservation").map((r) => this.reservation(r));
+    const facturesParResa = new Map<string, Ligne>();
+    for (const f of this.s.lister("Facture")) facturesParResa.set(f.reservationId, f);
+    return this.s.lister("Reservation").map((r) => ({
+      ...r,
+      chambre: this.chambre(r.chambreId) ?? null,
+      client: this.client(r.clientId) ?? null,
+      facture: facturesParResa.get(r.id) ?? null,
+    }));
   }
 
   /** Facture + réservation (avec chambre et client), comme GET /factures. */
@@ -47,42 +55,70 @@ export class Vues {
     return { ...brute, reservation: resa ? { ...resa, chambre: this.chambre(resa.chambreId) ?? null, client: this.client(resa.clientId) ?? null } : null };
   }
 
+  private sejoursParClient(): Map<string, Ligne[]> {
+    const facturesParResa = new Map<string, Ligne>();
+    for (const f of this.s.lister("Facture")) facturesParResa.set(f.reservationId, f);
+    const parClient = new Map<string, Ligne[]>();
+    for (const r of this.s.lister("Reservation")) {
+      const liste = parClient.get(r.clientId) ?? [];
+      liste.push({ ...r, chambre: this.chambre(r.chambreId) ?? null, facture: facturesParResa.get(r.id) ?? null });
+      parClient.set(r.clientId, liste);
+    }
+    for (const liste of parClient.values()) liste.sort(parDate("dateArrivee", -1));
+    return parClient;
+  }
+
   /** Un client et tout son historique de séjours, comme GET /clients. */
   clientAvecSejours(brut: Ligne): Ligne {
-    const reservations = this.s
-      .lister("Reservation")
-      .filter((r) => r.clientId === brut.id)
-      .sort(parDate("dateArrivee", -1))
-      .map((r) => ({ ...r, chambre: this.chambre(r.chambreId) ?? null, facture: this.factureDeReservation(r.id) }));
-    return { ...brut, reservations };
+    return { ...brut, reservations: this.sejoursParClient().get(brut.id) ?? [] };
+  }
+
+  /** Plusieurs clients avec leurs séjours — l'historique est indexé une seule fois. */
+  clientsAvecSejours(bruts: Ligne[]): Ligne[] {
+    const parClient = this.sejoursParClient();
+    return bruts.map((c) => ({ ...c, reservations: parClient.get(c.id) ?? [] }));
   }
 
   ligneAvecProduit(l: Ligne): Ligne {
     return { ...l, produit: this.produit(l.produitId) ?? null };
   }
 
+  private index() {
+    const lignesParSc = new Map<string, Ligne[]>();
+    for (const l of [...this.s.lister("LigneCommande")].sort(parDate("createdAt"))) {
+      const liste = lignesParSc.get(l.sousCompteId) ?? [];
+      liste.push(this.ligneAvecProduit(l));
+      lignesParSc.set(l.sousCompteId, liste);
+    }
+    const scParCompte = new Map<string, Ligne[]>();
+    for (const sc of [...this.s.lister("SousCompte")].sort(parDate("createdAt"))) {
+      const liste = scParCompte.get(sc.compteId) ?? [];
+      liste.push({ ...sc, lignes: lignesParSc.get(sc.id) ?? [] });
+      scParCompte.set(sc.compteId, liste);
+    }
+    const ventesParCompte = new Map<string, Ligne[]>();
+    for (const v of [...this.s.lister("VenteCafeteria")].sort(parDate("createdAt"))) {
+      const liste = ventesParCompte.get(v.compteId) ?? [];
+      liste.push(v);
+      ventesParCompte.set(v.compteId, liste);
+    }
+    return { scParCompte, ventesParCompte };
+  }
+
   sousComptes(compteId: string): Ligne[] {
-    return this.s
-      .lister("SousCompte")
-      .filter((sc) => sc.compteId === compteId)
-      .sort(parDate("createdAt"))
-      .map((sc) => ({
-        ...sc,
-        lignes: this.s
-          .lister("LigneCommande")
-          .filter((l) => l.sousCompteId === sc.id)
-          .sort(parDate("createdAt"))
-          .map((l) => this.ligneAvecProduit(l)),
-      }));
+    return this.index().scParCompte.get(compteId) ?? [];
   }
 
   /** Compte + personnes + lignes (avec produit) + ventes, comme GET /cafeteria/comptes/:id. */
   compte(brut: Ligne): Ligne {
-    return {
-      ...brut,
-      sousComptes: this.sousComptes(brut.id),
-      ventes: this.s.lister("VenteCafeteria").filter((v) => v.compteId === brut.id).sort(parDate("createdAt")),
-    };
+    const { scParCompte, ventesParCompte } = this.index();
+    return { ...brut, sousComptes: scParCompte.get(brut.id) ?? [], ventes: ventesParCompte.get(brut.id) ?? [] };
+  }
+
+  /** Plusieurs comptes assemblés d'un coup (liste des comptes ouverts). */
+  comptes(bruts: Ligne[]): Ligne[] {
+    const { scParCompte, ventesParCompte } = this.index();
+    return bruts.map((c) => ({ ...c, sousComptes: scParCompte.get(c.id) ?? [], ventes: ventesParCompte.get(c.id) ?? [] }));
   }
 }
 

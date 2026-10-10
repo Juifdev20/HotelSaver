@@ -28,9 +28,11 @@ export interface Miroir {
   amorce(): boolean;
   /** Numéro de cet appareil (reçus provisoires). */
   codePoste(): string;
-  /** Actions encore à envoyer. */
+  /** Actions encore à envoyer sous le compte connecté. */
   actionsEnAttente(): Promise<number>;
   /** Abandonne une action refusée par le serveur : annule ses effets locaux et celles qui en dépendent. */
+  /** Actions non envoyées sur ce poste, tous comptes confondus. */
+  actionsEnAttenteTotal(): number;
   abandonnerAction(id: string): Promise<number>;
   fermer(): void;
 }
@@ -38,7 +40,7 @@ export interface Miroir {
 export async function ouvrirMiroir(options: OptionsMiroir): Promise<Miroir> {
   const magasin = new MagasinDocuments(options.persistance);
   await magasin.ouvrir();
-  const stockage = new StockageDocuments(magasin, SEUIL_ECHEC_DEFINITIF);
+  const stockage = new StockageDocuments(magasin, SEUIL_ECHEC_DEFINITIF, () => options.utilisateur().userId);
   const vues = new Vues(stockage);
   const maintenant = options.maintenant ?? (() => new Date());
 
@@ -80,6 +82,7 @@ export async function ouvrirMiroir(options: OptionsMiroir): Promise<Miroir> {
     amorce: () => stockage.lireMeta<boolean>("amorce") === true,
     codePoste: () => codePoste!,
     actionsEnAttente: async () => (await stockage.listerFileAttente()).length,
+    actionsEnAttenteTotal: () => stockage.compterToutesLesActions(),
     abandonnerAction: async (id) => (await stockage.abandonnerOperation(id)).length,
     fermer: () => {
       moteur.arreter();

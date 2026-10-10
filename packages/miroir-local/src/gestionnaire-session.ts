@@ -86,8 +86,10 @@ export class GestionnaireSession {
     if (!cle || !compte) return { etat: "connexion-requise" };
 
     if (!compte.refreshToken) {
-      // Compte ouvert hors ligne puis fermé sans retour du réseau : pas de jeton à renouveler, on reprend hors ligne si permis.
-      return this.ouvrirHorsLigne(compte, cle);
+      // Session précédente sans jeton (ouverte hors ligne par mot de passe, ou fermée par « Déconnexion ») : sans le mot de passe on ne
+      // saurait pas retrouver le serveur au retour du réseau. On le redemande ; la connexion retombera d'elle-même en mode hors ligne
+      // si Internet est toujours absent.
+      return { etat: "connexion-requise", email: compte.email };
     }
     try {
       const jeton = await this.deps.rafraichir(compte.refreshToken);

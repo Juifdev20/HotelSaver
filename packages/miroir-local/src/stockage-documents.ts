@@ -31,7 +31,9 @@ export class StockageDocuments implements StockageLocal {
    */
   constructor(
     readonly magasin: MagasinDocuments,
-    private readonly seuilEchec = 3
+    private readonly seuilEchec = 3,
+    /** Utilisateur connecté : les actions sont signées de son identifiant et seules les siennes partent au serveur. */
+    private readonly auteur: () => string | undefined = () => undefined
   ) {}
 
   // ------------------------------------------------------------------ meta
@@ -48,13 +50,22 @@ export class StockageDocuments implements StockageLocal {
     return this.magasin.lister<LigneFile>(FILE).sort((a, b) => a.ordre - b.ordre);
   }
 
+  /** Les actions de l'utilisateur courant (et celles sans auteur) : c'est ce que le moteur envoie. */
   async listerFileAttente(): Promise<LigneFileAttente[]> {
-    return this.lignesFile().map(({ ordre: _ordre, ...ligne }) => ligne);
+    const courant = this.auteur();
+    return this.lignesFile()
+      .filter((l) => !l.auteurId || !courant || l.auteurId === courant)
+      .map(({ ordre: _ordre, ...ligne }) => ligne);
+  }
+
+  /** Toutes les actions non envoyées sur ce poste, quel que soit leur auteur (effacement des données). */
+  compterToutesLesActions(): number {
+    return this.magasin.compter(FILE);
   }
 
   async ajouterFileAttente(ligne: Omit<LigneFileAttente, "id" | "createdAt" | "attempts" | "lastError">): Promise<LigneFileAttente> {
     const ordre = (this.lireMeta<number>("compteurFile") ?? 0) + 1;
-    const complete: LigneFile = { ...ligne, id: uuid(), createdAt: new Date().toISOString(), attempts: 0, ordre };
+    const complete: LigneFile = { ...ligne, auteurId: this.auteur(), id: uuid(), createdAt: new Date().toISOString(), attempts: 0, ordre };
     await this.magasin.appliquer([
       { type: "ecrire", collection: FILE, id: complete.id, valeur: complete },
       { type: "ecrire", collection: META, id: "compteurFile", valeur: { id: "compteurFile", valeur: ordre } },
@@ -72,7 +83,7 @@ export class StockageDocuments implements StockageLocal {
     const ops = [...ecritures];
     if (operation) {
       const ordre = (this.lireMeta<number>("compteurFile") ?? 0) + 1;
-      const ligne: LigneFile = { ...operation, id: uuid(), createdAt: new Date().toISOString(), attempts: 0, ordre };
+      const ligne: LigneFile = { ...operation, auteurId: this.auteur(), id: uuid(), createdAt: new Date().toISOString(), attempts: 0, ordre };
       ops.push({ type: "ecrire", collection: FILE, id: ligne.id, valeur: ligne });
       ops.push({ type: "ecrire", collection: META, id: "compteurFile", valeur: { id: "compteurFile", valeur: ordre } });
     }

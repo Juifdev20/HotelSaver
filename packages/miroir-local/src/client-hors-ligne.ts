@@ -216,11 +216,12 @@ export class ClientHorsLigne extends ClientApi {
   override async listerClients(q?: string): Promise<ClientAvecSejours[]> {
     if (!this.local()) return super.listerClients(q);
     const terme = q?.trim().toLowerCase();
-    return this.s
-      .lister("Client")
-      .filter((c) => !terme || String(c.nom).toLowerCase().includes(terme) || String(c.telephone ?? "").includes(terme))
-      .sort(comparer("nom"))
-      .map((c) => this.v.clientAvecSejours(c)) as unknown as ClientAvecSejours[];
+    return this.v.clientsAvecSejours(
+      this.s
+        .lister("Client")
+        .filter((c) => !terme || String(c.nom).toLowerCase().includes(terme) || String(c.telephone ?? "").includes(terme))
+        .sort(comparer("nom"))
+    ) as unknown as ClientAvecSejours[];
   }
 
   override async obtenirClient(id: string): Promise<ClientAvecSejours> {
@@ -297,11 +298,12 @@ export class ClientHorsLigne extends ClientApi {
 
   override async listerComptesCafeteria(statut?: StatutCompte): Promise<CompteCafeteria[]> {
     if (!this.local()) return super.listerComptesCafeteria(statut);
-    return this.s
-      .lister("CompteCafeteria")
-      .filter((c) => !statut || c.statut === statut)
-      .sort((a, b) => String(b.ouvertLe).localeCompare(String(a.ouvertLe)))
-      .map((c) => this.v.compte(c)) as unknown as CompteCafeteria[];
+    return this.v.comptes(
+      this.s
+        .lister("CompteCafeteria")
+        .filter((c) => !statut || c.statut === statut)
+        .sort((a, b) => String(b.ouvertLe).localeCompare(String(a.ouvertLe)))
+    ) as unknown as CompteCafeteria[];
   }
 
   override async obtenirCompteCafeteria(id: string): Promise<CompteCafeteria> {

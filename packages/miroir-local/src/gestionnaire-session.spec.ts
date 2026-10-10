@@ -91,6 +91,17 @@ describe("démarrage", () => {
     expect(s.accessToken()).toBeTruthy();
   });
 
+  it("session précédente sans jeton (ouverte hors ligne par mot de passe) : le mot de passe est redemandé, e-mail pré-rempli", async () => {
+    const m = monde();
+    const s0 = m.session();
+    await s0.connecter("marie@hotel.cd", "secret-123");
+    await s0.deconnecter();
+    m.etat.reseau = false;
+    const s1 = m.session();
+    await s1.connecter("marie@hotel.cd", "secret-123"); // ouvre hors ligne, compteActif posé, pas de jeton
+    expect(await m.session().demarrer()).toEqual({ etat: "connexion-requise", email: "marie@hotel.cd" });
+  });
+
   it("sans réseau : reprise hors ligne avec le dernier profil, dans la durée de grâce", async () => {
     const m = monde();
     await m.session().connecter("marie@hotel.cd", "secret-123");

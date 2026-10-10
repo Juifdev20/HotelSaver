@@ -352,7 +352,7 @@ export function App() {
   /** « Effacer les données de cet appareil » : supprime la base locale de l'hôtel puis ferme la session. */
   async function effacerDonneesAppareil() {
     if (!miroir || !utilisateur) return;
-    if ((await miroir.actionsEnAttente()) > 0) throw new Error("Des actions n'ont pas encore été envoyées au serveur.");
+    if (miroir.actionsEnAttenteTotal() > 0) throw new Error("Des actions n'ont pas encore été envoyées au serveur.");
     const nom = nomBaseHotel(utilisateur.hotelId);
     miroir.fermer();
     await gestionnaire.current?.deconnecter();

@@ -166,3 +166,19 @@ describe("appliquerLignesServeur / suppressions", () => {
     expect(magasin.obtenir("Produit", "p2")).toBeDefined();
   });
 });
+
+describe("poste partagé : chaque action part sous le compte de son auteur", () => {
+  it("le moteur ne voit que les actions de l'utilisateur connecté", async () => {
+    let courant = "marie";
+    const magasin = new MagasinDocuments(new PersistanceMemoire());
+    await magasin.ouvrir();
+    const stockage = new StockageDocuments(magasin, 3, () => courant);
+    await stockage.ajouterFileAttente({ entiteType: "Chambre", localId: "a", operation: "CREATE", payload: {} });
+    courant = "paul";
+    await stockage.ajouterFileAttente({ entiteType: "Chambre", localId: "b", operation: "CREATE", payload: {} });
+    expect((await stockage.listerFileAttente()).map((l) => l.localId)).toEqual(["b"]);
+    courant = "marie";
+    expect((await stockage.listerFileAttente()).map((l) => l.localId)).toEqual(["a"]);
+    expect(stockage.compterToutesLesActions()).toBe(2);
+  });
+});
