@@ -56,6 +56,10 @@ export function peutOperer(utilisateur: { role: Role; patronPeutOperer?: boolean
  * apps : jamais un nom d'hôtel codé en dur). `hotelSlogan` = celui défini par le patron. */
 export interface ProfilConnecte extends UtilisateurAuthentifie {
   hotelNom: string;
+  /** Statut de la licence de l'hôtel au moment de la réponse (copié dans le profil mémorisé pour le mode hors ligne). */
+  statutLicence?: string;
+  /** Fin de validité de la licence (ISO), calculée côté serveur — informatif hors ligne. */
+  licenceValideJusquau?: string | null;
   hotelSlogan: string | null;
   /** Adresse et téléphone de l'hôtel : imprimés dans l'en-tête des reçus. */
   hotelAdresse: string | null;

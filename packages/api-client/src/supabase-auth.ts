@@ -58,9 +58,8 @@ async function envoyer(url: string, init: RequestInit): Promise<Response> {
     return await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
   } catch {
     // Internet coupé (fréquent à l'hôtel, section 0) : fetch lève avant toute réponse.
-    throw new Error(
-      "Impossible de joindre le serveur de connexion. Vérifiez la connexion internet puis réessayez."
-    );
+    // ErreurApi(0) : « aucune réponse » — l'appelant sait ainsi que ce n'est PAS un refus d'identifiants (mode hors ligne possible).
+    throw new ErreurApi(0, "Impossible de joindre le serveur de connexion. Vérifiez la connexion internet puis réessayez.");
   }
 }
 

@@ -8,3 +8,5 @@ export * from "./vues";
 export * from "./ecritures";
 export * from "./client-hors-ligne";
 export * from "./ouvrir-miroir";
+export * from "./session-locale";
+export * from "./gestionnaire-session";

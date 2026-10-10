@@ -91,6 +91,22 @@ function lignesTotaux(montantTotalUSD: string, montantTotalCDF: string, prefixe:
   return lignes;
 }
 
+/** Reçu fait hors ligne : son numéro (TEMP-…) est provisoire, le vrai est attribué à l'enregistrement par le serveur. */
+function estProvisoire(numeroRecu: string): boolean {
+  return numeroRecu.startsWith("TEMP-");
+}
+
+/** Mention imprimée tout en haut ET en bas d'un reçu provisoire : le client doit comprendre que ce n'est pas le reçu définitif. */
+function bandeauProvisoire(numeroRecu: string): LigneRecu[] {
+  return estProvisoire(numeroRecu) ? [{ type: "soustitre", texte: "*** REÇU PROVISOIRE ***" }] : [];
+}
+
+function noteProvisoire(numeroRecu: string): LigneRecu[] {
+  return estProvisoire(numeroRecu)
+    ? [{ type: "separateur" }, { type: "soustitre", texte: "Reçu établi hors connexion." }, { type: "soustitre", texte: "Conservez-le : le reçu définitif" }, { type: "soustitre", texte: `se retrouve avec le n° ${numeroRecu}.` }]
+    : [];
+}
+
 /**
  * Reçu de facturation d'un séjour (section 11.2). `nomReceptionniste` vient
  * de l'utilisateur authentifié au moment de l'impression — `Facture` n'a
@@ -108,6 +124,7 @@ export function construireRecuFacture(
   const maintenant = new Date().toISOString();
   const lignes: LigneRecu[] = [
     ...enTete(hotel),
+    ...bandeauProvisoire(facture.numeroRecu),
     { type: "champ", label: "Reçu n°", valeur: facture.numeroRecu },
     { type: "champ", label: "Date", valeur: `${formaterDate(maintenant)} ${formaterHeure(maintenant)}` },
     { type: "champ", label: "Reçu par", valeur: nomReceptionniste },
@@ -143,6 +160,7 @@ export function construireRecuFacture(
 
   lignes.push(...lignesTotaux(facture.montantTotalUSD, facture.montantTotalCDF, "TOTAL À PAYER"));
   lignes.push(...lignesReglement(facture));
+  lignes.push(...noteProvisoire(facture.numeroRecu));
   lignes.push(...piedDePage());
   return lignes;
 }
@@ -162,6 +180,7 @@ export function construireRecuVente(
 ): LigneRecu[] {
   const lignes: LigneRecu[] = [
     ...enTete(hotel, "Cafétaria"),
+    ...bandeauProvisoire(vente.numeroRecu),
     { type: "champ", label: "Reçu n°", valeur: vente.numeroRecu },
     { type: "champ", label: "Date", valeur: `${formaterDate(vente.createdAt)} ${formaterHeure(vente.createdAt)}` },
     { type: "champ", label: "Servi par", valeur: nomServeur },
@@ -182,6 +201,7 @@ export function construireRecuVente(
 
   lignes.push(...lignesTotaux(vente.montantTotalUSD, vente.montantTotalCDF, "TOTAL"));
   lignes.push(...lignesReglement(vente));
+  lignes.push(...noteProvisoire(vente.numeroRecu));
   lignes.push(...piedDePage());
   return lignes;
 }

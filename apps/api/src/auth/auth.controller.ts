@@ -4,6 +4,7 @@ import { UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { PRISMA } from "../prisma/prisma.module";
+import { calculerFinValidite } from "../super-admin/calculer-validite";
 
 /**
  * Toute app cliente (Electron, mobile, futur tableau de bord) s'authentifie
@@ -44,7 +45,10 @@ export class AuthController {
         sousDomaine: true,
         domainePersonnalise: true,
         domaineVerifie: true,
+        statutLicence: true,
+        createdAt: true,
         site: { select: { slogan: true } },
+        paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
       },
     });
     return {
@@ -54,6 +58,9 @@ export class AuthController {
       hotelAdresse: hotel?.adresse?.trim() || null,
       hotelTelephone: hotel?.telephoneContact?.trim() || null,
       hotelUrlSite: hotel ? urlSiteHotel(hotel) : "",
+      // Copiés dans le profil mémorisé par les applications pour décider, hors ligne, de la durée de grâce.
+      statutLicence: hotel?.statutLicence,
+      licenceValideJusquau: hotel ? calculerFinValidite(hotel, hotel.paiementsLicence[0] ?? null).toISOString() : null,
     };
   }
 }

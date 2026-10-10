@@ -162,3 +162,17 @@ describe("en-tête du reçu : l'hôtel de l'utilisateur, jamais un nom en dur", 
     expect(enteteHotel({ hotelNom: "Hôtel Test", hotelAdresse: "Goma", hotelTelephone: null })).toEqual({ nom: "Hôtel Test", adresse: "Goma", telephone: null });
   });
 });
+
+describe("reçu provisoire (établi hors ligne)", () => {
+  it("un reçu de séjour TEMP- porte le bandeau PROVISOIRE en haut et la note en bas", () => {
+    const lignes = construireRecuFacture(creerFacture({ numeroRecu: "TEMP-AB12-20261010-001" }), creerReservation(), "Marie", [], HOTEL);
+    const texte = lignes.map((l: any) => l.texte ?? l.valeur ?? "").join("\n");
+    expect(texte).toContain("REÇU PROVISOIRE");
+    expect(texte).toContain("TEMP-AB12-20261010-001");
+    expect(texte).toContain("Reçu établi hors connexion");
+  });
+  it("un reçu définitif n'a aucune mention provisoire", () => {
+    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Marie", [], HOTEL);
+    expect(JSON.stringify(lignes)).not.toContain("PROVISOIRE");
+  });
+});
