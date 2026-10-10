@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   enteteActions: { flexDirection: "row", gap: espacements.s2, alignItems: "center" },
   boutonRetour: {
     borderWidth: 1, borderColor: couleurs.bordure, borderRadius: rayons.sm,
-    paddingHorizontal: espacements.s3, height: 36, justifyContent: "center",
+    paddingHorizontal: espacements.s3, minHeight: 44, justifyContent: "center",
     backgroundColor: couleurs.surface100,
   },
   boutonRetourTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encre },
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   boutonStatut: {
     borderRadius: rayons.sm,
     paddingHorizontal: espacements.s3,
-    height: 36,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
     minWidth: 100,

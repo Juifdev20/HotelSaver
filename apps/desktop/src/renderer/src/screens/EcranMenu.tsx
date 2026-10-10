@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
+import { useConfirmation } from "../components/DialogueConfirmation";
 import { ErreurApi, type ClientApi } from "@hotel-chicago/api-client";
 import { construireEtiquette, genererEan13Interne } from "@hotel-chicago/receipts";
 import { Devise, Produit, Role, TypeProduit, UtilisateurAuthentifie } from "@hotel-chicago/types";
@@ -69,6 +70,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
   const [formulaire, setFormulaire] = useState<FormulaireProduit>(FORMULAIRE_VIDE);
   const [enEnvoi, setEnEnvoi] = useState(false);
+  const { demander, dialogue } = useConfirmation();
   const [erreurFormulaire, setErreurFormulaire] = useState<string | null>(null);
   // Photo du plat (0 ou 1) : `envoyees`/`avant` permettent de nettoyer le
   // stockage des images abandonnées ou remplacées (pattern EcranChambres).
@@ -285,6 +287,13 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
   }
 
   async function supprimer(produit: Produit) {
+    const confirme = await demander({
+      titre: `Supprimer « ${produit.nom} » du menu ?`,
+      message: "Le produit disparaît de la caisse et du site de l'hôtel. Les ventes déjà enregistrées ne changent pas.",
+      libelleConfirmer: "Supprimer ce produit",
+      destructif: true,
+    });
+    if (!confirme) return;
     setEnEnvoi(true);
     setErreur(null);
     try {
@@ -330,7 +339,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
       )}
 
       {etiquette && (
-        <div className="carte-formulaire formulaire" role="dialog" aria-label="Étiquettes code-barres">
+        <div className="carte-formulaire formulaire" role="region" aria-label="Étiquettes code-barres">
           {etiquette.enregistre ? (
             <p className="hc-text-body texte-succes">
               ✓ « {etiquette.produit.nom} » est enregistré. Imprimez ses étiquettes et collez-les sur les articles pour les scanner à la caisse.
@@ -646,7 +655,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
                     {p.typeProduit !== TypeProduit.PLAT && p.codeBarres ? (
                       <span style={{ display: "inline-flex", gap: "var(--hc-space-2)", alignItems: "center" }}>
                         <span className="texte-discret" style={{ fontVariantNumeric: "tabular-nums" }}>{p.codeBarres}</span>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => ouvrirEtiquettes(p, false)}>
+                        <Button type="button" variant="secondary" size="sm" aria-label={`Étiquette de ${p.nom}`} onClick={() => ouvrirEtiquettes(p, false)}>
                           <Printer size={14} aria-hidden="true" /> Étiquette
                         </Button>
                       </span>
@@ -656,7 +665,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
                   </td>
                   {peutModifier && (
                     <td>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => ouvrirEdition(p)}>
+                      <Button type="button" variant="secondary" size="sm" aria-label={`Modifier ${p.nom}`} onClick={() => ouvrirEdition(p)}>
                         Modifier
                       </Button>
                     </td>
@@ -667,6 +676,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
           </table>
         </div>
       )}
+      {dialogue}
     </div>
   );
 }

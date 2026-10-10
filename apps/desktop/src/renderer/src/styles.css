@@ -364,6 +364,27 @@ p {
   background-color: var(--hc-surface-100);
 }
 
+/* Bouton posé dans la première cellule d'une ligne cliquable : seul point d'entrée clavier. */
+.lien-ligne {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lien-ligne:hover {
+  text-decoration: underline;
+}
+
+.lien-ligne:focus-visible {
+  outline: 3px solid var(--hc-info);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .hc-ecran-connexion input:focus,
 .formulaire input:focus,
 .formulaire select:focus {
@@ -2054,3 +2075,39 @@ button {
   color: var(--hc-text);
 }
 .inv-input-note:focus { outline: 2px solid var(--hc-blue); outline-offset: 1px; }
+
+/* ---------- Fenêtre de confirmation (actions irréversibles ou monétaires) ---------- */
+
+.dialogue-fond {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hc-space-4);
+  background: rgba(15, 39, 66, 0.6);
+}
+
+.dialogue {
+  width: min(460px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--hc-space-5);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  background-color: var(--hc-surface-200);
+  color: var(--hc-ink);
+  box-shadow: var(--hc-shadow-hover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+}
+
+.dialogue__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--hc-space-2);
+  margin-top: var(--hc-space-2);
+}

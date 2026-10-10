@@ -229,7 +229,20 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
             <tbody>
               {liste.map((r) => (
                 <tr key={r.id} className="ligne-cliquable" onClick={() => setVue({ id: "detail", reservationId: r.id })}>
-                  <td className="hc-text-body-strong">{r.client.nom}</td>
+                  <td className="hc-text-body-strong">
+                    {/* Le clic sur la ligne reste, mais seul ce bouton est atteignable au clavier. */}
+                    <button
+                      type="button"
+                      className="lien-ligne"
+                      aria-label={`Ouvrir la réservation de ${r.client.nom}, chambre ${r.chambre.numero}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVue({ id: "detail", reservationId: r.id });
+                      }}
+                    >
+                      {r.client.nom}
+                    </button>
+                  </td>
                   <td className="texte-discret">
                     {r.chambre.numero} · {r.chambre.type}
                   </td>

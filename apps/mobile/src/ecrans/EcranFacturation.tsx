@@ -13,6 +13,8 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { imprimerLignes } from "../impression/imprimante";
 import { lireMontant } from "@hotel-chicago/regles";
+import { confirmerAction } from "../confirmer";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranFacturationProps {
   reservationId: string;
@@ -65,7 +67,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
   const [factureCreee, setFactureCreee] = useState<Facture | null>(null);
   const [avertissementCheckOut, setAvertissementCheckOut] = useState<string | null>(null);
   const [enImpression, setEnImpression] = useState(false);
-  const [messageImpression, setMessageImpression] = useState<string | null>(null);
+  const [messageImpression, setMessageImpression] = useState<{ texte: string; reussie: boolean } | null>(null);
 
   // Paiement croisé (section 9.4) : devise remise, montant remis, devise du rendu.
   const [taux, setTaux] = useState<TauxChange | null>(null);
@@ -80,7 +82,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
         setVentesLiees(ventes.filter((v) => !v.annuleLe));
         setTaux(t);
       })
-      .catch((e: Error) => setErreur(e.message));
+      .catch((e: unknown) => setErreur(messageErreur(e, "Impossible de charger la réservation. Réessayez.")));
   }, [reservationId, client]);
 
   const apercu = useMemo(() => (reservation ? calculerApercu(reservation, ventesLiees) : null), [reservation, ventesLiees]);
@@ -126,7 +128,31 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
   const bloquerPaiement =
     erreurMontantRegle !== null || ((detailSaisi && (apercuMonnaie?.statut === "insuffisant" || apercuMonnaie?.statut === "taux-manquant")) ?? false);
 
+  /** Récapitulatif avant l'envoi : facturer et faire le check-out ne se défait pas (retour U3). */
+  function demanderConfirmation() {
+    if (!reservation || !apercu) return;
+    const totaux = [
+      apercu.totalUSD > 0 ? formatMontant(apercu.totalUSD, Devise.USD) : null,
+      apercu.totalCDF > 0 ? formatMontant(apercu.totalCDF, Devise.CDF) : null,
+    ].filter(Boolean);
+    const total = totaux.length > 0 ? totaux.join(" + ") : "0";
+    const mode = modePaiement === ModePaiement.CASH ? "en espèces" : "par mobile money";
+    const lignes = [`Confirmer ${total} ${mode} ?`, `Client : ${reservation.client.nom} · chambre ${reservation.chambre.numero}.`];
+    if (detailSaisi && apercuMonnaie?.statut === "ok") {
+      lignes.push(`Remis par le client : ${formatMontant(regle, deviseReglee)}.`);
+      lignes.push(`Monnaie à rendre : ${formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}.`);
+    }
+    lignes.push("La facture sera créée et le client sera mis en check-out.");
+    confirmerAction({
+      titre: "Facturer et check-out",
+      message: lignes.join("\n"),
+      libelleConfirmer: "Facturer et check-out",
+      onConfirmer: facturerEtCheckOut,
+    });
+  }
+
   async function facturerEtCheckOut() {
+    if (enCours) return;
     setEnCours(true);
     setErreur(null);
     try {
@@ -143,12 +169,12 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
       } catch (e) {
         setAvertissementCheckOut(
           "Facture créée, mais le check-out a échoué : " +
-            (e instanceof Error ? e.message : "erreur inconnue") +
+            messageErreur(e, "erreur inconnue") +
             ". La chambre peut être passée en Nettoyage manuellement depuis Chambres."
         );
       }
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreur(messageErreur(e, "La facture n'a pas pu être créée. Réessayez."));
     } finally {
       setEnCours(false);
     }
@@ -160,9 +186,10 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
     setMessageImpression(null);
     try {
       await imprimerLignes(construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur)));
-      setMessageImpression("Reçu envoyé à l'imprimante.");
+      // On n'arrive ici que si l'envoi a réellement réussi.
+      setMessageImpression({ texte: "Reçu envoyé à l'imprimante.", reussie: true });
     } catch (e) {
-      setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
+      setMessageImpression({ texte: `Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`, reussie: false });
     } finally {
       setEnImpression(false);
     }
@@ -176,6 +203,11 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
         <View style={styles.contenu}>
           <View style={styles.carteSucces}>
             <Text style={styles.numeroRecu}>{factureCreee.numeroRecu}</Text>
+            {estRecuProvisoire(factureCreee.numeroRecu) && (
+              <View style={styles.badgeProvisoire} accessible accessibilityLabel="Reçu provisoire">
+                <Text style={styles.badgeProvisoireTexte}>Provisoire</Text>
+              </View>
+            )}
             {Number(factureCreee.montantTotalUSD) > 0 && (
               <Text style={styles.montantTotal}>{formatMontant(factureCreee.montantTotalUSD, Devise.USD)}</Text>
             )}
@@ -188,12 +220,31 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
               Reçu provisoire : le numéro définitif sera attribué à la synchronisation (le reçu reste valable).
             </Text>
           )}
-          {avertissementCheckOut && <Text style={styles.avertissement}>{avertissementCheckOut}</Text>}
-          {messageImpression && <Text style={styles.confirmationImpression}>{messageImpression}</Text>}
-          <Pressable style={styles.boutonSecondaireLarge} onPress={imprimerRecu} disabled={enImpression}>
+          {avertissementCheckOut && (
+            <Text style={styles.avertissement} accessibilityRole="alert">
+              {avertissementCheckOut}
+            </Text>
+          )}
+          {messageImpression && (
+            <Text
+              style={messageImpression.reussie ? styles.confirmationImpression : styles.erreurImpression}
+              accessibilityRole={messageImpression.reussie ? undefined : "alert"}
+              accessibilityLiveRegion="polite"
+            >
+              {messageImpression.texte}
+            </Text>
+          )}
+          <Pressable
+            style={styles.boutonSecondaireLarge}
+            onPress={imprimerRecu}
+            disabled={enImpression}
+            accessibilityRole="button"
+            accessibilityLabel={enImpression ? "Impression en cours" : "Imprimer le reçu"}
+            accessibilityState={{ disabled: enImpression, busy: enImpression }}
+          >
             <Text style={styles.boutonSecondaireLargeTexte}>{enImpression ? "…" : "Imprimer le reçu"}</Text>
           </Pressable>
-          <Pressable style={styles.bouton} onPress={onRetour}>
+          <Pressable style={styles.bouton} onPress={onRetour} accessibilityRole="button">
             <Text style={styles.boutonTexte}>Retour aux réservations</Text>
           </Pressable>
         </View>
@@ -206,8 +257,12 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
       <EnteteMobile />
       <EnteteRetour titre="Facturation" onRetour={onRetour} />
 
-      {!reservation && !erreur && <ActivityIndicator style={styles.chargement} color={couleurs.bleu} />}
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {!reservation && !erreur && <ActivityIndicator style={styles.chargement} color={couleurs.bleu} accessibilityLabel="Chargement" />}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
 
       {reservation && apercu && (
         <ConteneurFormulaire styleContenu={styles.contenu}>
@@ -256,12 +311,15 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
           </View>
 
           <Text style={styles.champLabel}>Mode de paiement</Text>
-          <View style={styles.selecteurMode}>
+          <View style={styles.selecteurMode} accessibilityRole="radiogroup" accessibilityLabel="Mode de paiement">
             {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
               <Pressable
                 key={m}
                 style={[styles.optionMode, modePaiement === m && styles.optionModeActive]}
                 onPress={() => setModePaiement(m)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: modePaiement === m }}
+                accessibilityLabel={m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
               >
                 <Text style={[styles.optionModeTexte, modePaiement === m && styles.optionModeTexteActif]}>
                   {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
@@ -281,12 +339,15 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
             <View style={styles.carte}>
               <Text style={styles.champLabel}>Détail du règlement (optionnel)</Text>
               <Text style={styles.sousLabel}>Devise remise par le client</Text>
-              <View style={styles.selecteurMode}>
+              <View style={styles.selecteurMode} accessibilityRole="radiogroup" accessibilityLabel="Devise remise par le client">
                 {[Devise.USD, Devise.CDF].map((d) => (
                   <Pressable
                     key={d}
                     style={[styles.optionMode, deviseReglee === d && styles.optionModeActive]}
                     onPress={() => setDeviseReglee(d)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: deviseReglee === d }}
+                    accessibilityLabel={d === Devise.USD ? "Dollars (USD)" : "Francs congolais (CDF)"}
                   >
                     <Text style={[styles.optionModeTexte, deviseReglee === d && styles.optionModeTexteActif]}>{d}</Text>
                   </Pressable>
@@ -310,17 +371,25 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
                 placeholder={`Ex. ${deviseReglee === Devise.USD ? "100.00" : "280 000"}`}
                 placeholderTextColor={couleurs.encreFaible}
                 keyboardType="numeric"
+                accessibilityLabel={`Montant remis par le client en ${deviseReglee}`}
               />
-              {erreurMontantRegle && <Text style={styles.avertissement}>{erreurMontantRegle}</Text>}
+              {erreurMontantRegle && (
+                <Text style={styles.avertissement} accessibilityRole="alert">
+                  {erreurMontantRegle}
+                </Text>
+              )}
               {detailSaisi && (
                 <>
                   <Text style={styles.sousLabel}>Rendre la monnaie en</Text>
-                  <View style={styles.selecteurMode}>
+                  <View style={styles.selecteurMode} accessibilityRole="radiogroup" accessibilityLabel="Devise de la monnaie rendue">
                     {[Devise.USD, Devise.CDF].map((d) => (
                       <Pressable
                         key={d}
                         style={[styles.optionMode, deviseRendu === d && styles.optionModeActive]}
                         onPress={() => setDeviseRendu(d)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: deviseRendu === d }}
+                        accessibilityLabel={d === Devise.USD ? "Dollars (USD)" : "Francs congolais (CDF)"}
                       >
                         <Text style={[styles.optionModeTexte, deviseRendu === d && styles.optionModeTexteActif]}>{d}</Text>
                       </Pressable>
@@ -329,12 +398,14 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
                 </>
               )}
               {apercuMonnaie?.statut === "insuffisant" && (
-                <Text style={styles.erreurBloc}>
+                <Text style={styles.erreurBloc} accessibilityRole="alert">
                   Montant insuffisant : il faut {formatMontant(apercuMonnaie.duReglee, deviseReglee)}.
                 </Text>
               )}
               {apercuMonnaie?.statut === "taux-manquant" && (
-                <Text style={styles.erreurBloc}>Aucun taux de change défini par le patron.</Text>
+                <Text style={styles.erreurBloc} accessibilityRole="alert">
+                  Aucun taux de change défini par le patron.
+                </Text>
               )}
               {apercuMonnaie?.statut === "ok" && (
                 <Text style={styles.monnaie}>
@@ -345,7 +416,14 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
           )}
 
           {peutOperer(utilisateur) ? (
-            <Pressable style={[styles.bouton, bloquerPaiement && styles.boutonInactif]} onPress={facturerEtCheckOut} disabled={enCours || bloquerPaiement}>
+            <Pressable
+              style={[styles.bouton, bloquerPaiement && styles.boutonInactif]}
+              onPress={demanderConfirmation}
+              disabled={enCours || bloquerPaiement}
+              accessibilityRole="button"
+              accessibilityLabel={enCours ? "Facturation en cours" : "Facturer et check-out"}
+              accessibilityState={{ disabled: enCours || bloquerPaiement, busy: enCours }}
+            >
               <Text style={styles.boutonTexte}>{enCours ? "…" : "Facturer et check-out"}</Text>
             </Pressable>
           ) : (
@@ -381,7 +459,7 @@ const styles = StyleSheet.create({
   selecteurMode: { flexDirection: "row", gap: espacements.s2 },
   optionMode: {
     flex: 1,
-    height: 44,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bordure,
@@ -391,7 +469,7 @@ const styles = StyleSheet.create({
   optionModeActive: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
   optionModeTexte: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
   optionModeTexteActif: { color: "#fff" },
-  bouton: { height: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
+  bouton: { minHeight: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
   boutonInactif: { opacity: 0.45 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
   sousLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginTop: espacements.s3 },
@@ -400,7 +478,7 @@ const styles = StyleSheet.create({
     borderColor: couleurs.bordure,
     borderRadius: rayons.sm,
     paddingHorizontal: espacements.s3,
-    height: 44,
+    minHeight: 44,
     fontSize: 15,
     color: couleurs.encre,
     backgroundColor: couleurs.surface100,
@@ -413,8 +491,12 @@ const styles = StyleSheet.create({
   numeroRecu: { fontSize: 16, fontWeight: "700", color: couleurs.succes, marginBottom: espacements.s2 },
   avertissement: { color: couleurs.alerte, fontSize: 13 },
   confirmationImpression: { color: couleurs.succes, fontSize: 13, textAlign: "center" },
+  erreurImpression: { color: couleurs.danger, fontSize: 13, textAlign: "center" },
+  // Reçu provisoire (créé hors ligne) : le numéro définitif viendra à la synchro.
+  badgeProvisoire: { backgroundColor: couleurs.alerteClair, borderWidth: 1, borderColor: couleurs.alerte, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
+  badgeProvisoireTexte: { fontSize: 11, fontWeight: "700", color: couleurs.alerte },
   boutonSecondaireLarge: {
-    height: 48,
+    minHeight: 48,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bleu,

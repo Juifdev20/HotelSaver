@@ -720,3 +720,26 @@
   border-bottom: 1px solid #f0d9a8;
 }
 [data-theme="dark"] .bandeau-hors-ligne { background: #3a2c0e; color: #f3d9a0; border-color: #5a4515; }
+
+/* Lien d'évitement : invisible tant qu'il n'a pas le focus clavier. */
+.coquille__evitement {
+  position: absolute;
+  left: var(--hc-space-2);
+  top: -64px;
+  z-index: 1200;
+  padding: var(--hc-space-2) var(--hc-space-4);
+  border: 2px solid var(--hc-blue);
+  border-radius: var(--hc-radius-sm);
+  background: var(--hc-surface-200);
+  color: var(--hc-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.coquille__evitement:focus {
+  top: var(--hc-space-2);
+}
+
+.coquille__contenu:focus {
+  outline: none;
+}

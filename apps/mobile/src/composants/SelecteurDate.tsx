@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   ligneChamp: { flexDirection: "row", gap: espacements.s2, alignItems: "center" },
   champ: {
     borderWidth: 1, borderColor: couleurs.bordure, borderRadius: rayons.sm,
-    paddingHorizontal: espacements.s3, height: 44, fontSize: 15,
+    paddingHorizontal: espacements.s3, minHeight: 44, fontSize: 15,
     color: couleurs.encre, backgroundColor: couleurs.surface200,
   },
   champFlex: { flex: 1 },

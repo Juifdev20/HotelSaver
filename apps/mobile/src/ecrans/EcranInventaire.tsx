@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     borderColor: couleurs.bordure,
     overflow: "hidden",
   },
-  onglet: { flex: 1, height: 38, alignItems: "center", justifyContent: "center", backgroundColor: couleurs.surface200 },
+  onglet: { flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", backgroundColor: couleurs.surface200 },
   ongletActif: { backgroundColor: couleurs.bleu },
   ongletTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encre },
   ongletTexteActif: { color: "#fff" },
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginBottom: espacements.s1 },
   champ: {
     borderWidth: 1, borderColor: couleurs.bordure, borderRadius: rayons.sm,
-    paddingHorizontal: espacements.s3, height: 44, fontSize: 15,
+    paddingHorizontal: espacements.s3, minHeight: 44, fontSize: 15,
     color: couleurs.encre, backgroundColor: couleurs.surface200,
   },
 
@@ -422,12 +422,12 @@ const styles = StyleSheet.create({
   sousTitreTexte: { fontSize: 13, color: couleurs.encreAttenuee },
   champSaisie: {
     borderWidth: 1, borderColor: couleurs.bordure, borderRadius: rayons.sm,
-    paddingHorizontal: espacements.s3, height: 40, fontSize: 14,
+    paddingHorizontal: espacements.s3, minHeight: 44, fontSize: 14,
     color: couleurs.encre, backgroundColor: couleurs.surface100,
   },
   champNote: {
     borderWidth: 1, borderColor: couleurs.alerte, borderRadius: rayons.sm,
-    paddingHorizontal: espacements.s3, height: 40, fontSize: 13,
+    paddingHorizontal: espacements.s3, minHeight: 44, fontSize: 13,
     color: couleurs.encre, backgroundColor: couleurs.alerteClair,
   },
   ecartTexte: { fontSize: 13, fontWeight: "700" },
@@ -441,12 +441,12 @@ const styles = StyleSheet.create({
   },
 
   boutonPrimaire: {
-    height: 44, borderRadius: rayons.sm, backgroundColor: couleurs.bleu,
+    minHeight: 44, borderRadius: rayons.sm, backgroundColor: couleurs.bleu,
     alignItems: "center", justifyContent: "center",
   },
   boutonPrimaireTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },
   boutonSecondaire: {
-    height: 44, borderRadius: rayons.sm, borderWidth: 1, borderColor: couleurs.bordure,
+    minHeight: 44, borderRadius: rayons.sm, borderWidth: 1, borderColor: couleurs.bordure,
     alignItems: "center", justifyContent: "center", paddingHorizontal: espacements.s4,
     backgroundColor: couleurs.surface200,
   },

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CloudOff, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@hotel-chicago/ui";
 import type { Miroir } from "@hotel-chicago/miroir-local";
+import { useConfirmation } from "../components/DialogueConfirmation";
+import { decrireChangement, messageLisible } from "../components/libelles-sync";
 import { SEUIL_ECHEC_DEFINITIF, resumerEtatSync, type ConflitSync, type EtatSync, type LigneFileAttente } from "@hotel-chicago/sync-engine";
 
 export interface EcranSynchronisationProps {
@@ -46,6 +48,8 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
   const [enAttente, setEnAttente] = useState(0);
   const [occupe, setOccupe] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const { demander, dialogue } = useConfirmation();
 
   const recharger = useCallback(async () => {
     const [c, file] = await Promise.all([miroir.moteur.listerConflits(), miroir.moteur.listerFileAttente()]);
@@ -62,8 +66,11 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
 
   async function synchroniser() {
     setOccupe("sync");
+    setErreur(null);
     try {
       await miroir.moteur.forcerSynchronisation();
+    } catch (e) {
+      setErreur(e instanceof Error ? messageLisible(e.message, "Synchronisation impossible pour le moment.") : "Synchronisation impossible pour le moment.");
     } finally {
       setOccupe(null);
       await recharger();
@@ -71,9 +78,26 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
   }
 
   async function garderServeur(conflit: ConflitSync) {
+    const type = LIBELLE_TYPE[conflit.entiteType] ?? "Fiche";
+    const detail = decrireChangement(conflit.monChangement);
+    const confirme = await demander({
+      titre: `Abandonner votre modification (${type}) ?`,
+      message: (
+        <>
+          {detail && <p>Votre changement : {detail}.</p>}
+          <p>La version du serveur sera conservée et votre changement sera définitivement perdu.</p>
+        </>
+      ),
+      libelleConfirmer: "Garder la version du serveur",
+      destructif: true,
+    });
+    if (!confirme) return;
     setOccupe(conflit.id);
+    setErreur(null);
     try {
       await miroir.moteur.resoudreConflitGarderServeur(conflit.id, conflit.entiteType, conflit.donneesServeur);
+    } catch (e) {
+      setErreur(e instanceof Error ? messageLisible(e.message, "Le conflit n'a pas pu être résolu.") : "Le conflit n'a pas pu être résolu.");
     } finally {
       setOccupe(null);
       await recharger();
@@ -81,10 +105,25 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
   }
 
   async function retirer(ligne: LigneFileAttente) {
-    if (!window.confirm("Retirer cette action ? Elle disparaîtra de cet appareil et ne sera jamais envoyée au serveur.")) return;
+    const type = LIBELLE_TYPE[ligne.entiteType] ?? ligne.entiteType;
+    const confirme = await demander({
+      titre: `Retirer l'action « ${type} » ?`,
+      message: (
+        <>
+          <p>Refusée par le serveur : {messageLisible(ligne.lastError)}</p>
+          <p>Elle disparaîtra de cet appareil et ne sera jamais envoyée au serveur.</p>
+        </>
+      ),
+      libelleConfirmer: "Retirer cette action",
+      destructif: true,
+    });
+    if (!confirme) return;
     setOccupe(ligne.id);
+    setErreur(null);
     try {
       await miroir.abandonnerAction(ligne.id);
+    } catch (e) {
+      setErreur(e instanceof Error ? messageLisible(e.message, "L'action n'a pas pu être retirée.") : "L'action n'a pas pu être retirée.");
     } finally {
       setOccupe(null);
       await recharger();
@@ -97,7 +136,13 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
       setMessage("Des actions n'ont pas encore été envoyées : envoyez-les (ou retirez-les) avant d'effacer les données de cet appareil.");
       return;
     }
-    if (!window.confirm("Effacer toutes les données de cet hôtel sur CET appareil ? Elles seront retéléchargées à la prochaine connexion à Internet. Sans Internet, vous ne pourrez plus travailler.")) return;
+    const confirme = await demander({
+      titre: "Effacer les données de cet appareil ?",
+      message: "Toutes les données de cet hôtel seront effacées de CET ordinateur. Elles seront retéléchargées à la prochaine connexion à Internet. Sans Internet, vous ne pourrez plus travailler.",
+      libelleConfirmer: "Effacer les données",
+      destructif: true,
+    });
+    if (!confirme) return;
     setOccupe("effacer");
     try {
       await onEffacerDonnees();
@@ -119,6 +164,12 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
           Synchroniser maintenant
         </Button>
       </header>
+
+      {erreur && (
+        <p role="alert" className="hc-text-body texte-erreur" style={{ marginBottom: "var(--hc-space-3)" }}>
+          {erreur}
+        </p>
+      )}
 
       <div className="carte-formulaire" style={{ marginBottom: "var(--hc-space-4)" }}>
         <div className="parametres-ligne">
@@ -144,7 +195,7 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
             <AlertTriangle size={14} aria-hidden="true" /> L'heure de cet ordinateur diffère de plus de 5 minutes de celle du serveur. Corrigez-la : elle date les ventes.
           </p>
         )}
-        {etat?.derniereErreur && <p className="hc-text-caption texte-discret">Dernière erreur : {etat.derniereErreur}</p>}
+        {etat?.derniereErreur && <p className="hc-text-caption texte-discret">Dernière erreur : {messageLisible(etat.derniereErreur, "erreur technique (réessayez plus tard)")}</p>}
         <div className="parametres-ligne">
           <span className="hc-text-body">Numéro de ce poste (reçus provisoires)</span>
           <span className="hc-text-body-strong">{miroir.codePoste()}</span>
@@ -160,9 +211,15 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
           {refusees.map((l) => (
             <div key={l.id} className="parametres-ligne">
               <span className="hc-text-body">
-                <strong>{LIBELLE_TYPE[l.entiteType] ?? l.entiteType}</strong> — {l.lastError ?? "Refusée."}
+                <strong>{LIBELLE_TYPE[l.entiteType] ?? l.entiteType}</strong> — {messageLisible(l.lastError)}
               </span>
-              <Button type="button" variant="secondary" onClick={() => void retirer(l)} disabled={occupe !== null}>
+              <Button
+                type="button"
+                variant="secondary"
+                aria-label={`Retirer l'action : ${LIBELLE_TYPE[l.entiteType] ?? l.entiteType}`}
+                onClick={() => void retirer(l)}
+                disabled={occupe !== null}
+              >
                 <Trash2 size={14} aria-hidden="true" />
                 Retirer
               </Button>
@@ -178,9 +235,15 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
           {conflits.map((c) => (
             <div key={c.id} className="parametres-ligne">
               <span className="hc-text-body">
-                <strong>{LIBELLE_TYPE[c.entiteType] ?? c.entiteType}</strong> — votre changement : {JSON.stringify(c.monChangement)}
+                <strong>{LIBELLE_TYPE[c.entiteType] ?? c.entiteType}</strong> — votre changement : {decrireChangement(c.monChangement) || "modification de la fiche"}
               </span>
-              <Button type="button" variant="secondary" onClick={() => void garderServeur(c)} disabled={occupe !== null}>
+              <Button
+                type="button"
+                variant="secondary"
+                aria-label={`Garder la version du serveur : ${LIBELLE_TYPE[c.entiteType] ?? c.entiteType}`}
+                onClick={() => void garderServeur(c)}
+                disabled={occupe !== null}
+              >
                 Garder la version du serveur
               </Button>
             </div>
@@ -201,6 +264,7 @@ export function EcranSynchronisation({ miroir, etat, joursRestants, modeHorsLign
         </Button>
         {message && <p role="alert" className="hc-text-body texte-erreur">{message}</p>}
       </div>
+      {dialogue}
     </div>
   );
 }

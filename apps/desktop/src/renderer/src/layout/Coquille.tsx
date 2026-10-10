@@ -35,7 +35,8 @@ import {
   UtensilsCrossed,
   X,
 } from "lucide-react";
-import { EntreeNavigation, IdPage, entreesBarreDuBas, sectionsPourRole } from "../navigation";
+import { useDialogue, useTitrePage } from "@hotel-chicago/ui";
+import { EntreeNavigation, IdPage, entreesBarreDuBas, libellePage, sectionsPourRole } from "../navigation";
 // Logo de l'APPLICATION HotelSaver (identité plateforme, distincte du logo
 // de chaque hôtel — voir DECISIONS.md « branding application vs hôtel »).
 import logoHotelSaver from "../../../../../../assets/icons/hotelsaver-icone.png";
@@ -196,17 +197,38 @@ export function Coquille({
 
   const refProfil = useFermetureExterne(menuProfilOuvert, () => setMenuProfilOuvert(false));
   const refNotifications = useFermetureExterne(notificationsOuvertes, () => setNotificationsOuvertes(false));
+  const refBoutonProfil = useRef<HTMLButtonElement>(null);
+  const refMenuProfil = useRef<HTMLDivElement>(null);
+  const refContenu = useRef<HTMLElement>(null);
 
-  // Le tiroir mobile est en plein écran (pas de zone "en dehors" à cliquer) :
-  // seule la touche Échap le ferme, comme les autres menus déroulants.
+  // Titre de la fenêtre = écran courant (premier élément annoncé par un lecteur d'écran, et nom de l'onglet/tâche).
+  useTitrePage(libellePage(pageActive));
+
+  // Le tiroir mobile est en plein écran (pas de zone "en dehors" à cliquer) : Échap le ferme, le focus
+  // reste piégé dedans tant qu'il est ouvert et revient au bouton qui l'a ouvert à la fermeture.
+  const refTiroir = useDialogue<HTMLDivElement>({ actif: menuMobileOuvert, onEchap: () => setMenuMobileOuvert(false) });
+
+  // Menu du profil (role="menu") : focus sur le premier choix à l'ouverture, flèches pour naviguer, Échap rend le focus au bouton.
   useEffect(() => {
-    if (!menuMobileOuvert) return;
-    const surEchap = (evenement: KeyboardEvent) => {
-      if (evenement.key === "Escape") setMenuMobileOuvert(false);
-    };
-    document.addEventListener("keydown", surEchap);
-    return () => document.removeEventListener("keydown", surEchap);
-  }, [menuMobileOuvert]);
+    if (menuProfilOuvert) refMenuProfil.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [menuProfilOuvert]);
+
+  const surToucheMenuProfil = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      setMenuProfilOuvert(false);
+      refBoutonProfil.current?.focus();
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
+    const items = Array.from(refMenuProfil.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    if (items.length === 0) return;
+    e.preventDefault();
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    const suivant =
+      e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : e.key === "ArrowDown" ? (index + 1) % items.length : (index - 1 + items.length) % items.length;
+    items[suivant]!.focus();
+  };
 
   const basculerBarre = () => {
     setBarreReduite((valeur) => {
@@ -251,6 +273,9 @@ export function Coquille({
 
   return (
     <div className={`coquille${barreReduite ? " coquille--reduite" : ""}`}>
+      <button type="button" className="coquille__evitement" onClick={() => refContenu.current?.focus()}>
+        Aller au contenu
+      </button>
       <aside className="coquille__laterale" aria-label="Navigation principale">
         <button
           type="button"
@@ -319,12 +344,18 @@ export function Coquille({
                 onClick={() => setNotificationsOuvertes((v) => !v)}
                 aria-label={nonLues > 0 ? `Notifications (${nonLues} non lues)` : "Notifications"}
                 aria-expanded={notificationsOuvertes}
+                aria-controls="panneau-notifications"
               >
                 <Bell size={19} aria-hidden="true" />
                 {nonLues > 0 && <span className="coquille__pastille">{nonLues > 9 ? "9+" : nonLues}</span>}
               </button>
               {notificationsOuvertes && (
-                <div className="coquille__menu-deroulant coquille__menu-deroulant--notifications" role="menu">
+                <div
+                  id="panneau-notifications"
+                  className="coquille__menu-deroulant coquille__menu-deroulant--notifications"
+                  role="region"
+                  aria-label="Notifications"
+                >
                   <div className="coquille__notifications-entete">
                     <p className="hc-text-body-strong">Notifications</p>
                     {nonLues > 0 && (
@@ -374,6 +405,7 @@ export function Coquille({
                 type="button"
                 className="coquille__utilisateur"
                 data-testid="utilisateur-connecte"
+                ref={refBoutonProfil}
                 onClick={() => setMenuProfilOuvert((v) => !v)}
                 aria-expanded={menuProfilOuvert}
                 aria-haspopup="menu"
@@ -388,9 +420,9 @@ export function Coquille({
                 <ChevronDown size={16} className="coquille__masque-etroit" aria-hidden="true" />
               </button>
               {menuProfilOuvert && (
-                <div className="coquille__menu-deroulant" role="menu">
-                  <p className="hc-text-body-strong coquille__menu-entete">{utilisateur.nom}</p>
-                  <p className="hc-text-caption texte-discret coquille__menu-sous-entete">
+                <div className="coquille__menu-deroulant" role="menu" aria-label="Mon compte" ref={refMenuProfil} onKeyDown={surToucheMenuProfil}>
+                  <p className="hc-text-body-strong coquille__menu-entete" role="presentation">{utilisateur.nom}</p>
+                  <p className="hc-text-caption texte-discret coquille__menu-sous-entete" role="presentation">
                     {LIBELLE_ROLE[utilisateur.role]}
                   </p>
                   <button
@@ -434,7 +466,9 @@ export function Coquille({
           </span>
         </div>
 
-        <main className="coquille__contenu">{children}</main>
+        <main className="coquille__contenu" id="contenu-principal" tabIndex={-1} ref={refContenu}>
+          {children}
+        </main>
       </div>
 
       {/* Fenêtre étroite / tablette / mobile : barre de navigation en bas. */}
@@ -455,7 +489,7 @@ export function Coquille({
       </nav>
 
       {menuMobileOuvert && (
-        <div className="coquille__tiroir" role="dialog" aria-modal="true" aria-label="Menu">
+        <div className="coquille__tiroir" role="dialog" aria-modal="true" aria-label="Menu" ref={refTiroir}>
           <div className="coquille__tiroir-entete">
             <div className="coquille__marque">
               <img className="coquille__logo coquille__logo-img" src={logoHotelSaver} alt="" />

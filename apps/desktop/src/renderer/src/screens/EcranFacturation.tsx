@@ -7,6 +7,9 @@ import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { CalendarCheck } from "lucide-react";
 import { lireMontant } from "@hotel-chicago/miroir-local";
+import { useConfirmation } from "../components/DialogueConfirmation";
+import { calculerApercuMonnaie } from "../components/apercu-monnaie";
+import { BadgeProvisoire, PHRASE_RECU_PROVISOIRE, estRecuProvisoire } from "../components/RecuProvisoire";
 
 export interface EcranFacturationProps {
   client: ClientApi;
@@ -72,6 +75,7 @@ function DetailFacturation({
   const [avertissementCheckOut, setAvertissementCheckOut] = useState<string | null>(null);
   const [enImpression, setEnImpression] = useState(false);
   const [messageImpression, setMessageImpression] = useState<string | null>(null);
+  const { demander, dialogue } = useConfirmation();
 
   // Paiement croisé (section 9.4) : devise remise, montant remis, devise du rendu.
   const [taux, setTaux] = useState<TauxChange | null>(null);
@@ -111,29 +115,39 @@ function DetailFacturation({
   const apercuMonnaie = useMemo(() => {
     if (!apercu || !deviseDue || !detailSaisi || factureMixte) return null;
     const du = deviseDue === Devise.USD ? apercu.totalUSD : apercu.totalCDF;
-    const croise = deviseReglee !== deviseDue;
-    if (croise && !cdfParUsd) return { statut: "taux-manquant" as const };
-    const duReglee = croise ? (deviseDue === Devise.USD ? du * cdfParUsd! : du / cdfParUsd!) : du;
-    const reste = regle - duReglee;
-    if (reste < -0.005) return { statut: "insuffisant" as const, duReglee };
-    const monnaieReglee = Math.max(0, reste);
-    const monnaieRendue =
-      deviseRendu === deviseReglee
-        ? monnaieReglee
-        : deviseReglee === Devise.USD
-          ? monnaieReglee * cdfParUsd!
-          : monnaieReglee / cdfParUsd!;
-    return {
-      statut: "ok" as const,
-      monnaie: deviseRendu === Devise.CDF ? Math.round(monnaieRendue) : Math.round(monnaieRendue * 100) / 100,
-      deviseMonnaie: deviseRendu,
-    };
+    return calculerApercuMonnaie({ du, deviseDue, deviseReglee, deviseRendu, regle, cdfParUsd });
   }, [apercu, deviseDue, deviseReglee, deviseRendu, detailSaisi, regle, cdfParUsd, factureMixte]);
 
   const bloquerPaiement =
     erreurMontantRegle !== null || (detailSaisi && (apercuMonnaie?.statut === "insuffisant" || apercuMonnaie?.statut === "taux-manquant"));
 
   async function facturerEtCheckOut() {
+    if (!reservation || !apercu) return;
+    // Action monétaire et irréversible à l'écran : on rappelle qui, quoi, combien avant d'envoyer.
+    const total =
+      [apercu.totalUSD > 0 && formatMontant(apercu.totalUSD, Devise.USD), apercu.totalCDF > 0 && formatMontant(apercu.totalCDF, Devise.CDF)]
+        .filter(Boolean)
+        .join(" + ") || formatMontant(0, reservation.chambre.devise);
+    const mode = modePaiement === ModePaiement.CASH ? "en espèces" : "par mobile money";
+    const confirme = await demander({
+      titre: `Confirmer ${total} ${mode} ?`,
+      message: (
+        <>
+          <p>
+            Chambre {reservation.chambre.numero} — {reservation.client.nom}.
+          </p>
+          {detailSaisi && (
+            <p>
+              Remis par le client : {formatMontant(regle, deviseReglee)}
+              {apercuMonnaie?.statut === "ok" ? ` · monnaie à rendre : ${formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}` : ""}.
+            </p>
+          )}
+          <p>La facture sera enregistrée et le séjour terminé (check-out). Seul le patron pourra ensuite annuler le reçu.</p>
+        </>
+      ),
+      libelleConfirmer: `Facturer ${total}`,
+    });
+    if (!confirme) return;
     setEnCours(true);
     setErreur(null);
     try {
@@ -174,7 +188,7 @@ function DetailFacturation({
         interfaceImprimante,
         construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur))
       );
-      setMessageImpression("Reçu envoyé à l'imprimante.");
+      setMessageImpression("Reçu envoyé à l'imprimante. Vérifiez que le ticket est bien sorti avant de le remettre au client.");
     } catch (e) {
       setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
     } finally {
@@ -191,7 +205,14 @@ function DetailFacturation({
           </div>
         </header>
         <div className="carte-formulaire">
-          <p className="hc-text-label texte-discret">{factureCreee.numeroRecu}</p>
+          <p className="hc-text-label texte-discret">
+            {factureCreee.numeroRecu} <BadgeProvisoire numeroRecu={factureCreee.numeroRecu} />
+          </p>
+          {estRecuProvisoire(factureCreee.numeroRecu) && (
+            <p className="hc-text-body" role="note">
+              {PHRASE_RECU_PROVISOIRE}
+            </p>
+          )}
           {Number(factureCreee.montantTotalUSD) > 0 && (
             <p className="hc-text-price">{formatMontant(factureCreee.montantTotalUSD, Devise.USD)}</p>
           )}
@@ -284,7 +305,9 @@ function DetailFacturation({
             <p className="hc-text-label texte-discret">Total à payer</p>
             {apercu.totalUSD > 0 && <p className="hc-text-price">{formatMontant(apercu.totalUSD, Devise.USD)}</p>}
             {apercu.totalCDF > 0 && <p className="hc-text-price">{formatMontant(apercu.totalCDF, Devise.CDF)}</p>}
-            {apercu.totalUSD === 0 && apercu.totalCDF === 0 && <p className="hc-text-price">0</p>}
+            {apercu.totalUSD === 0 && apercu.totalCDF === 0 && (
+              <p className="hc-text-price">{formatMontant(0, reservation.chambre.devise)}</p>
+            )}
 
             <p className="hc-text-label texte-discret" style={{ marginTop: "var(--hc-space-3)" }}>
               Mode de paiement
@@ -400,7 +423,7 @@ function DetailFacturation({
                 disabled={enCours || bloquerPaiement}
                 style={{ marginTop: "var(--hc-space-3)" }}
               >
-                {enCours ? "…" : "Facturer et check-out"}
+                {enCours ? "Facturation en cours…" : "Facturer et check-out"}
               </Button>
             ) : (
               <p className="hc-text-caption texte-discret bandeau-lecture-seule" role="note">
@@ -410,6 +433,7 @@ function DetailFacturation({
           </div>
         </>
       )}
+      {dialogue}
     </div>
   );
 }
@@ -433,6 +457,7 @@ function JournalRecus({
   const [detailDe, setDetailDe] = useState<string | null>(null);
   const [motif, setMotif] = useState("");
   const [enCours, setEnCours] = useState<string | null>(null);
+  const { demander, dialogue } = useConfirmation();
 
   const charger = useCallback(() => {
     client
@@ -462,7 +487,7 @@ function JournalRecus({
         interfaceImprimante,
         construireRecuFacture(facture, reservation, utilisateur.nom, ventes, enteteHotel(utilisateur), { duplicata: true })
       );
-      setMessage(`Reçu ${facture.numeroRecu} envoyé à l'imprimante.`);
+      setMessage(`Reçu ${facture.numeroRecu} envoyé à l'imprimante (duplicata). Vérifiez que le ticket est bien sorti.`);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'impression.");
     } finally {
@@ -475,6 +500,24 @@ function JournalRecus({
       setErreur("Le motif d'annulation est obligatoire.");
       return;
     }
+    const montants = [
+      Number(facture.montantTotalUSD) > 0 && formatMontant(facture.montantTotalUSD, Devise.USD),
+      Number(facture.montantTotalCDF) > 0 && formatMontant(facture.montantTotalCDF, Devise.CDF),
+    ]
+      .filter(Boolean)
+      .join(" + ");
+    const confirme = await demander({
+      titre: `Annuler le reçu ${facture.numeroRecu}${montants ? ` (${montants})` : ""} ?`,
+      message: (
+        <>
+          <p>Motif : {motif.trim()}</p>
+          <p>L'annulation est définitive et sera inscrite au journal.</p>
+        </>
+      ),
+      libelleConfirmer: "Annuler ce reçu",
+      destructif: true,
+    });
+    if (!confirme) return;
     setEnCours(facture.id);
     setErreur(null);
     try {
@@ -516,7 +559,9 @@ function JournalRecus({
           {(factures ?? []).map((f) => (
             <React.Fragment key={f.id}>
               <tr>
-                <td className="hc-text-body-strong">{f.numeroRecu}</td>
+                <td className="hc-text-body-strong">
+                  {f.numeroRecu} <BadgeProvisoire numeroRecu={f.numeroRecu} />
+                </td>
                 <td className="texte-discret">
                   {new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(
                     new Date(f.createdAt)
@@ -534,11 +579,20 @@ function JournalRecus({
                     type="button"
                     variant="secondary"
                     size="sm"
+                    aria-expanded={detailDe === f.id}
+                    aria-label={`Détail du reçu ${f.numeroRecu}`}
                     onClick={() => setDetailDe(detailDe === f.id ? null : f.id)}
                   >
                     Détail
                   </Button>{" "}
-                  <Button type="button" variant="secondary" size="sm" disabled={enCours !== null} onClick={() => void reimprimer(f)}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={enCours !== null}
+                    aria-label={`Réimprimer le reçu ${f.numeroRecu}`}
+                    onClick={() => void reimprimer(f)}
+                  >
                     {enCours === f.id ? "…" : "Réimprimer"}
                   </Button>{" "}
                   {estPatron && !f.annuleLe && (
@@ -547,6 +601,7 @@ function JournalRecus({
                       variant="danger"
                       size="sm"
                       disabled={enCours !== null}
+                      aria-label={`Annuler le reçu ${f.numeroRecu}`}
                       onClick={() => {
                         setAnnulationDe(f.id);
                         setMotif("");
@@ -584,15 +639,16 @@ function JournalRecus({
                       <input
                         type="text"
                         placeholder="Motif d'annulation (obligatoire)"
+                        aria-label={`Motif d'annulation du reçu ${f.numeroRecu} (obligatoire)`}
                         value={motif}
                         onChange={(e) => setMotif(e.target.value)}
                         style={{ flex: 1 }}
                       />
                       <Button type="button" variant="danger" size="sm" disabled={enCours !== null} onClick={() => void annuler(f)}>
-                        Confirmer
+                        Annuler ce reçu…
                       </Button>
                       <Button type="button" variant="secondary" size="sm" onClick={() => setAnnulationDe(null)}>
-                        Fermer
+                        Renoncer
                       </Button>
                     </div>
                   </td>
@@ -621,6 +677,7 @@ function JournalRecus({
           {erreur}
         </p>
       )}
+      {dialogue}
     </div>
   );
 }

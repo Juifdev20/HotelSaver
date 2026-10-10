@@ -8,16 +8,20 @@ import { Devise } from "@hotel-chicago/types";
  * simple et plus fiable que d'essayer de faire cohabiter deux bundlers sur
  * un même paquet. Si la règle de formatage change, mettre à jour les DEUX
  * copies.
+ * Écart volontaire avec l'autre copie (retour U21) : le dollar a lui aussi une espace entre les milliers
+ * (« 1 234.50 $ » et non « 1234.50 $ »), plus lisible à la caisse ; à reporter dans `packages/ui` si le patron valide.
  */
 export function formatMontant(montant: number | string, devise: Devise): string {
   const valeur = typeof montant === "string" ? Number(montant) : montant;
   // Mobile : pas de frontière d'erreur par écran, et un rendu qui lève ferme l'application au milieu d'une vente. On affiche « — »
   // (le bureau, lui, garde l'exception : sa frontière d'erreur la montre).
-  if (Number.isNaN(valeur)) return "—";
+  if (!Number.isFinite(valeur)) return "—";
   if (devise === Devise.CDF) {
     return `${separerMilliers(Math.round(valeur))} FC`;
   }
-  return `${valeur.toFixed(2)} $`;
+  const [entier, centimes] = Math.abs(valeur).toFixed(2).split(".");
+  const signe = valeur < 0 && Number(`${entier}.${centimes}`) > 0 ? "-" : "";
+  return `${signe}${separerMilliers(Number(entier))}.${centimes} $`;
 }
 
 function separerMilliers(entier: number): string {

@@ -18,20 +18,28 @@ export const couleurs = {
   bordure: "#E4EAF2",
 
   encre: "#142033",
-  encreAttenuee: "#667085",
-  encreFaible: "#98A2B3",
+  encreAttenuee: "#5F6B7E",
+  // Contraste WCAG ≥ 4,5:1 sur blanc ET sur les fonds clairs (« Clair ») : ces teintes servent de TEXTE et de fond de
+  // bouton à texte blanc. Les teintes d'origine, trop pâles pour du texte (2,3 à 3,8:1), sont gardées sous le
+  // suffixe « Vif » pour les fonds, points, icônes et graphiques.
+  encreFaible: "#5F6B7E",
 
-  succes: "#12B76A",
+  succes: "#0B7A48",
+  succesVif: "#12B76A",
   succesClair: "#ECFDF3",
-  alerte: "#F79009",
+  alerte: "#A85A00",
+  alerteVive: "#F79009",
   alerteClair: "#FFFAEB",
-  danger: "#F04438",
+  danger: "#C0281D",
+  dangerVif: "#F04438",
   dangerClair: "#FEF3F2",
-  info: "#2E90FA",
+  info: "#1565C0",
+  infoVif: "#2E90FA",
   infoClair: "#EFF8FF",
-  violet: "#7F56D9",
+  violet: "#6941C6",
+  violetVif: "#7F56D9",
   violetClair: "#F4F3FF",
-  neutre: "#667085",
+  neutre: "#5F6B7E",
 } as const;
 
 export const espacements = {

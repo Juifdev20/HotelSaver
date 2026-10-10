@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   },
   bouton: {
     marginTop: espacements.s2,
-    height: 52,
+    minHeight: 52,
     borderRadius: rayons.md,
     backgroundColor: couleurs.bleu,
     flexDirection: "row",
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   },
   boutonDesactive: { opacity: 0.6 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", height: 44 },
+  boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", minHeight: 44 },
   boutonRetourTexte: { color: couleurs.encreAttenuee, fontWeight: "600" },
   lien: { color: couleurs.bleu, fontWeight: "700" },
 });

@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { BUCKET_MEDIA, BUCKET_RAPPORTS, prefixeUrlHotel } from "./urls-hotel";
+import { BUCKET_MEDIA, BUCKET_RAPPORTS, NOM_FICHIER_VALIDE, prefixeUrlHotel } from "./urls-hotel";
 
 /**
  * Stockage via l'API Storage de Supabase (clé service_role), comme
@@ -141,7 +141,7 @@ export class SupabaseStorageService {
   async supprimerImage(hotelId: string, urlPublique: string): Promise<void> {
     const { cle, url } = this.config();
     const nom = urlPublique.slice(prefixeUrlHotel(hotelId).length);
-    if (!nom || nom.includes("/") || nom.includes("..")) return;
+    if (!NOM_FICHIER_VALIDE.test(nom)) return;
     await fetch(`${url}/storage/v1/object/${BUCKET_MEDIA}/${hotelId}/${nom}`, {
       method: "DELETE",
       headers: { apikey: cle, Authorization: `Bearer ${cle}` },

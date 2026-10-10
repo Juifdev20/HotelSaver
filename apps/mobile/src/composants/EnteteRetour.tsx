@@ -2,6 +2,7 @@ import * as React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ChevronLeft } from "lucide-react-native";
 import { couleurs, espacements } from "../tokens";
+import { useRetourAndroid } from "../hooks/useRetourAndroid";
 
 export interface EnteteRetourProps {
   titre: string;
@@ -15,16 +16,23 @@ export interface EnteteRetourProps {
  * l'onglet "Plus" (Paramètres, Menu, Stock, Comptes ouverts, Caisse, détail
  * d'un compte) — CoquilleOnglets.tsx est un Tab.Navigator plat sans stack
  * imbriqué, donc pas de bouton "back" natif ; ces écrans gèrent leur retour
- * eux-mêmes via un état local dans EcranPlus.tsx. */
+ * eux-mêmes via un état local dans EcranPlus.tsx. Le bouton Retour d'Android fait la même chose que ce bouton
+ * (useRetourAndroid) : il revient à l'écran précédent au lieu de quitter l'application. */
 export function EnteteRetour({ titre, sousTitre, onRetour, action }: EnteteRetourProps) {
+  useRetourAndroid(() => {
+    onRetour();
+    return true;
+  });
   return (
     <View style={styles.entete}>
       <View style={styles.texte}>
-        <Pressable style={styles.boutonRetour} onPress={onRetour} hitSlop={12} accessibilityRole="button">
+        <Pressable style={styles.boutonRetour} onPress={onRetour} hitSlop={12} accessibilityRole="button" accessibilityLabel="Retour">
           <ChevronLeft size={22} color={couleurs.encre} />
           <Text style={styles.boutonRetourTexte}>Retour</Text>
         </Pressable>
-        <Text style={styles.titre}>{titre}</Text>
+        <Text style={styles.titre} accessibilityRole="header">
+          {titre}
+        </Text>
         {sousTitre && <Text style={styles.sousTitre}>{sousTitre}</Text>}
       </View>
       {action}

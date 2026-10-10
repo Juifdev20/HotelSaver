@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     borderColor: couleurs.bordure,
     borderRadius: rayons.sm,
     paddingHorizontal: espacements.s3,
-    height: 44,
+    minHeight: 44,
     fontSize: 15,
     color: couleurs.encre,
     backgroundColor: couleurs.surface100,
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   selecteurDevise: { flexDirection: "row", gap: espacements.s2 },
   optionDevise: {
     flex: 1,
-    height: 40,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bordure,
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
   optionDeviseTexte: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
   optionDeviseTexteActif: { color: "#fff" },
   boutonEnregistrer: {
-    height: 48,
+    minHeight: 48,
     borderRadius: rayons.sm,
     backgroundColor: couleurs.bleu,
     alignItems: "center",
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   },
   boutonEnregistrerTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
   boutonSupprimer: {
-    height: 44,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.danger,

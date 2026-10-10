@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
     borderColor: couleurs.bordure,
     borderRadius: rayons.sm,
     paddingHorizontal: espacements.s3,
-    height: 44,
+    minHeight: 44,
     fontSize: 15,
     color: couleurs.encre,
     backgroundColor: couleurs.surface100,
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   selecteurRole: { flexDirection: "row", gap: espacements.s2 },
   optionRole: {
     flex: 1,
-    height: 40,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bordure,
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   optionRoleTexteActif: { color: "#fff" },
   erreurFormulaire: { color: couleurs.danger, fontSize: 13, marginTop: espacements.s2 },
   bouton: {
-    height: 44,
+    minHeight: 44,
     borderRadius: rayons.sm,
     backgroundColor: couleurs.bleu,
     alignItems: "center",

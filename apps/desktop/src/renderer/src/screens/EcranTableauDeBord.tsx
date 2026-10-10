@@ -46,7 +46,8 @@ function useDonnee<T>(charger: (() => Promise<T>) | null, deps: unknown[]) {
     let annule = false;
     charger()
       .then((donnee) => !annule && setEtat({ donnee, erreur: null }))
-      .catch((erreur: Error) => !annule && setEtat({ donnee: null, erreur: erreur.message }));
+      // Les données déjà affichées sont conservées : une erreur de rechargement ne vide pas le bloc.
+      .catch((erreur: Error) => !annule && setEtat((precedent) => ({ donnee: precedent.donnee, erreur: erreur.message })));
     return () => {
       annule = true;
     };
@@ -227,6 +228,11 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
               <Donut
                 taille={104}
                 epaisseur={12}
+                titre={
+                  o
+                    ? `Taux d'occupation : ${o.tauxOccupationPourcent} %. ${o.occupees} occupées, ${o.libres} libres, ${o.reservees} réservées, ${o.enNettoyage} en nettoyage.`
+                    : "Taux d'occupation en cours de chargement"
+                }
                 segments={[
                   { valeur: o?.occupees ?? 0, couleur: "var(--hc-danger)" },
                   { valeur: o?.libres ?? 0, couleur: "var(--hc-success)" },
@@ -239,21 +245,21 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
               <ul className="legende-occupation legende-occupation--verticale">
                 <li>
                   <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
-                    <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-danger)" }} />
+                    <span className="legende-occupation__pastille" aria-hidden="true" style={{ backgroundColor: "var(--hc-danger)" }} />
                     <span className="hc-text-caption">Occupées</span>
                     <span className="hc-text-body-strong">{o?.occupees ?? "…"}</span>
                   </button>
                 </li>
                 <li>
                   <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
-                    <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-success)" }} />
+                    <span className="legende-occupation__pastille" aria-hidden="true" style={{ backgroundColor: "var(--hc-success)" }} />
                     <span className="hc-text-caption">Libres</span>
                     <span className="hc-text-body-strong">{o?.libres ?? "…"}</span>
                   </button>
                 </li>
                 <li>
                   <button type="button" className="legende-occupation__ligne" onClick={() => onNaviguer("chambres")}>
-                    <span className="legende-occupation__pastille" style={{ backgroundColor: "var(--hc-warning)" }} />
+                    <span className="legende-occupation__pastille" aria-hidden="true" style={{ backgroundColor: "var(--hc-warning)" }} />
                     <span className="hc-text-caption">Réservées</span>
                     <span className="hc-text-body-strong">{o?.reservees ?? "…"}</span>
                   </button>

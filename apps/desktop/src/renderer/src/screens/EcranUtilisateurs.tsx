@@ -4,6 +4,7 @@ import type { ClientApi, DonneesModificationUtilisateur, Utilisateur } from "@ho
 import { Role } from "@hotel-chicago/types";
 import { Button, StatusBadge } from "@hotel-chicago/ui";
 import { Users } from "lucide-react";
+import { useConfirmation } from "../components/DialogueConfirmation";
 
 export interface EcranUtilisateursProps {
   client: ClientApi;
@@ -52,6 +53,7 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
   const [edition, setEdition] = useState<Utilisateur | null>(null);
   const [formEdition, setFormEdition] = useState<FormulaireEdition>({ nom: "", email: "", motDePasse: "" });
   const [erreurEdition, setErreurEdition] = useState<string | null>(null);
+  const { demander, dialogue } = useConfirmation();
 
   /** Rôles déjà dotés d'un compte — un seul compte par rôle par hôtel
    * (règle API, UtilisateursService.create). */
@@ -128,6 +130,16 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
   }
 
   async function basculerActif(utilisateur: Utilisateur) {
+    // Désactiver coupe l'accès d'un employé : confirmation nommée. (Réactiver est sans risque.)
+    if (utilisateur.actif) {
+      const confirme = await demander({
+        titre: `Désactiver le compte de ${utilisateur.nom} (${LIBELLE_ROLE[utilisateur.role]}) ?`,
+        message: "Cette personne ne pourra plus se connecter. Vous pourrez réactiver le compte à tout moment.",
+        libelleConfirmer: "Désactiver le compte",
+        destructif: true,
+      });
+      if (!confirme) return;
+    }
     setIdEnCours(utilisateur.id);
     setErreur(null);
     try {
@@ -318,13 +330,14 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
                     <StatusBadge tone={u.actif ? "success" : "danger"} label={u.actif ? "Actif" : "Désactivé"} />
                   </td>
                   <td style={{ whiteSpace: "nowrap" }}>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => ouvrirEdition(u)}>
+                    <Button type="button" variant="secondary" size="sm" aria-label={`Modifier le compte de ${u.nom}`} onClick={() => ouvrirEdition(u)}>
                       Modifier
                     </Button>{" "}
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
+                      aria-label={`${u.actif ? "Désactiver" : "Activer"} le compte de ${u.nom}`}
                       onClick={() => basculerActif(u)}
                       disabled={idEnCours === u.id}
                     >
@@ -337,6 +350,7 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
           </table>
         </div>
       )}
+      {dialogue}
     </div>
   );
 }

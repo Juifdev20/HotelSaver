@@ -26,3 +26,11 @@ minimumReleaseAgeExclude:
   - expo@57.0.25
 onlyBuiltDependencies:
   - '@swc/core'
+
+# Correctifs de sécurité des dépendances transitives (pnpm audit --prod, 10/10/2026). @nestjs/core ≥ 11.1.18 demanderait de passer Nest 10 → 11 :
+# chantier à part (voir BACKLOG.md).
+overrides:
+  multer: ^2.3.0
+  lodash: ^4.18.1
+  qs: ^6.15.2
+  shell-quote: ^1.11.0

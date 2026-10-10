@@ -252,7 +252,19 @@ export function EcranClients({ client }: EcranClientsProps) {
             <tbody>
               {liste.map((c) => (
                 <tr key={c.id} className="ligne-cliquable" onClick={() => setClientChoisi(c)}>
-                  <td className="hc-text-body-strong">{c.nom}</td>
+                  <td className="hc-text-body-strong">
+                    <button
+                      type="button"
+                      className="lien-ligne"
+                      aria-label={`Ouvrir la fiche de ${c.nom}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setClientChoisi(c);
+                      }}
+                    >
+                      {c.nom}
+                    </button>
+                  </td>
                   <td className="texte-discret">{c.telephone ?? "—"}</td>
                   <td className="texte-discret">{c.email ?? "—"}</td>
                 </tr>

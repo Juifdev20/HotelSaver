@@ -44,6 +44,8 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
   const [groupes, setGroupes] = useState<GroupeCuisine[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
+  // Échec d'un changement de statut : reste affiché (le rafraîchissement automatique ne l'efface pas).
+  const [erreurAction, setErreurAction] = useState<string | null>(null);
   const [maintenant, setMaintenant] = useState(() => Date.now());
   const [enCours, setEnCours] = useState<Set<string>>(new Set());
   const chargementInitial = useRef(true);
@@ -51,10 +53,13 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
   const charger = useCallback(
     (silencieux = false) => {
       if (!silencieux) setChargement(true);
-      setErreur(null);
       client
         .lignesPourCuisine()
-        .then((data) => setGroupes(data as GroupeCuisine[]))
+        .then((data) => {
+          setGroupes(data as GroupeCuisine[]);
+          setErreur(null);
+        })
+        // Les commandes déjà affichées sont conservées : on ne vide jamais l'écran sur une erreur de rafraîchissement.
         .catch((e: Error) => setErreur(e.message))
         .finally(() => setChargement(false));
     },
@@ -79,13 +84,16 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
     return () => clearInterval(id);
   }, []);
 
-  async function avancerStatut(ligneId: string, statut: StatutLigne) {
+  async function avancerStatut(ligneId: string, statut: StatutLigne, nomProduit: string) {
     setEnCours((prev) => new Set(prev).add(ligneId));
+    setErreurAction(null);
     try {
       await client.majStatutLigne(ligneId, statut);
       charger(true);
-    } catch {
-      // Silencieux : le rafraîchissement automatique remettra l'état correct
+    } catch (e) {
+      setErreurAction(
+        `« ${nomProduit} » n'a pas pu être mis à jour${e instanceof Error && e.message ? ` (${e.message})` : ""}. Réessayez : la commande reste dans son état précédent.`
+      );
     } finally {
       setEnCours((prev) => {
         const next = new Set(prev);
@@ -106,7 +114,7 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
             <ChefHat size={24} aria-hidden="true" style={{ verticalAlign: "middle", marginRight: "var(--hc-space-2)" }} />
             Cuisine
           </h1>
-          <p className="hc-text-body page__sous-titre">
+          <p className="hc-text-body page__sous-titre" aria-live="polite">
             {attente > 0 && (
               <span className="kds-compteur kds-compteur--attente">{attente} en attente</span>
             )}
@@ -127,9 +135,17 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
         </button>
       </header>
 
+      {erreurAction && (
+        <p role="alert" className="hc-text-body texte-erreur">
+          {erreurAction}
+        </p>
+      )}
+
       {erreur && (
         <p role="alert" className="hc-text-body texte-erreur">
-          {erreur}
+          {groupes.length > 0
+            ? `Actualisation impossible (${erreur}). Les commandes affichées peuvent ne plus être à jour.`
+            : erreur}
         </p>
       )}
 
@@ -197,7 +213,7 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
                           type="button"
                           className={`kds-ligne__btn${enAttente ? " kds-ligne__btn--prendre" : " kds-ligne__btn--pret"}`}
                           onClick={() =>
-                            avancerStatut(ligne.id, enAttente ? StatutLigne.EN_PREPARATION : StatutLigne.PRET)
+                            avancerStatut(ligne.id, enAttente ? StatutLigne.EN_PREPARATION : StatutLigne.PRET, ligne.produit.nom)
                           }
                           disabled={occupee}
                           aria-label={enAttente ? `Prendre en charge ${ligne.produit.nom}` : `Marquer prêt ${ligne.produit.nom}`}

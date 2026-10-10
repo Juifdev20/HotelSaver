@@ -11,6 +11,10 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { useSession } from "../contexteSession";
 import { imprimerLignes } from "../impression/imprimante";
+import { estRecuProvisoire } from "@hotel-chicago/regles";
+import { confirmerAction } from "../confirmer";
+import { messageErreur } from "../messagesErreur";
+import { dateComplete, heureCourte } from "../dates";
 
 export interface EcranJournalRecusProps {
   onRetour: () => void;
@@ -18,9 +22,17 @@ export interface EcranJournalRecusProps {
 
 type Segment = "sejours" | "cafeteria";
 
+/** « JJ/MM/AAAA HH:MM » à l'heure de Lubumbashi. */
 function dateCourte(iso: string): string {
-  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(
-    new Date(iso)
+  return `${dateComplete(iso)} ${heureCourte(iso)}`;
+}
+
+/** Reçu créé hors ligne : son numéro définitif n'existe pas encore (voir recu-provisoire.ts). */
+function BadgeProvisoire() {
+  return (
+    <View style={styles.badgeProvisoire} accessible accessibilityLabel="Reçu provisoire : numéro définitif attribué à la synchronisation">
+      <Text style={styles.badgeProvisoireTexte}>Provisoire</Text>
+    </View>
   );
 }
 
@@ -96,7 +108,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
   const [detailVente, setDetailVente] = useState<VenteCafeteria | null>(null);
   const [motifAnnulation, setMotifAnnulation] = useState("");
   const [enAction, setEnAction] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ texte: string; reussi: boolean } | null>(null);
 
   const charger = useCallback(() => {
     const requete = segment === "sejours" ? client.listerFactures() : client.listerVentesCafeteria();
@@ -107,7 +119,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
         else setVentes(triees as VenteCafeteria[]);
         setErreur(null);
       })
-      .catch((e: Error) => setErreur(e.message));
+      .catch((e: unknown) => setErreur(messageErreur(e, "Impossible de charger les reçus. Réessayez.")));
   }, [client, segment]);
 
   useEffect(charger, [charger]);
@@ -127,9 +139,10 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
         client.listerVentesCafeteria(facture.reservationId),
       ]);
       await imprimerLignes(construireRecuFacture(facture, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur), { duplicata: true }));
-      setMessage(`Reçu ${facture.numeroRecu} envoyé à l'imprimante.`);
+      // Atteint seulement si l'envoi a réussi.
+      setMessage({ texte: `Reçu ${facture.numeroRecu} envoyé à l'imprimante.`, reussi: true });
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Échec de l'impression.");
+      setMessage({ texte: `Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`, reussi: false });
     } finally {
       setEnAction(false);
     }
@@ -141,21 +154,35 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
     try {
       const compte = await client.obtenirCompteCafeteria(vente.compteId);
       await imprimerLignes(construireRecuVente(vente, compte, utilisateur.nom, enteteHotel(utilisateur), { duplicata: true }));
-      setMessage(`Reçu ${vente.numeroRecu} envoyé à l'imprimante.`);
+      setMessage({ texte: `Reçu ${vente.numeroRecu} envoyé à l'imprimante.`, reussi: true });
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Échec de l'impression.");
+      setMessage({ texte: `Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`, reussi: false });
     } finally {
       setEnAction(false);
     }
   }
 
-  async function annuler() {
+  /** Vérifie le motif puis demande confirmation : annuler un paiement ne se défait pas (retour U3). */
+  function demanderAnnulation() {
     const piece = detailFacture ?? detailVente;
     if (!piece) return;
     if (!motifAnnulation.trim()) {
-      setMessage("Le motif d'annulation est obligatoire.");
+      setMessage({ texte: "Le motif d'annulation est obligatoire.", reussi: false });
       return;
     }
+    confirmerAction({
+      titre: `Annuler le reçu ${piece.numeroRecu} ?`,
+      message: `${segment === "sejours" ? "Facture de séjour" : "Vente cafétaria"} de ${montants(piece.montantTotalUSD, piece.montantTotalCDF)}.\nMotif : ${motifAnnulation.trim()}\n\nL'annulation est définitive.`,
+      libelleConfirmer: "Annuler le reçu",
+      libelleRefuser: "Non, garder le reçu",
+      destructif: true,
+      onConfirmer: annuler,
+    });
+  }
+
+  async function annuler() {
+    const piece = detailFacture ?? detailVente;
+    if (!piece || enAction) return;
     setEnAction(true);
     setMessage(null);
     try {
@@ -166,7 +193,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
       setMotifAnnulation("");
       charger();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Erreur inconnue.");
+      setMessage({ texte: messageErreur(e, "L'annulation a échoué. Réessayez."), reussi: false });
     } finally {
       setEnAction(false);
     }
@@ -202,6 +229,8 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
                 setSegment(s);
                 setErreur(null);
               }}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: segment === s }}
             >
               <Text style={[styles.segmentTexte, segment === s && styles.segmentTexteActif]}>
                 {s === "sejours" ? "Séjours" : "Cafétaria"}
@@ -211,7 +240,11 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
         </View>
       )}
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
 
       {liste.length === 0 && !erreur && (
         <View style={styles.videConteneur}>
@@ -226,10 +259,18 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
         contentContainerStyle={styles.liste}
         refreshControl={<RefreshControl refreshing={rafraichissement} onRefresh={actualiser} />}
         renderItem={({ item }) => (
-          <Pressable style={styles.carte} onPress={() => ouvrirDetail(item)}>
+          <Pressable
+            style={styles.carte}
+            onPress={() => ouvrirDetail(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`Reçu ${item.numeroRecu}${estRecuProvisoire(item.numeroRecu) ? ", provisoire" : ""}, ${montants(item.montantTotalUSD, item.montantTotalCDF)}, ${item.annuleLe ? "annulé" : "réglé"}`}
+          >
             <View style={styles.carteEntete}>
               <Text style={styles.numeroRecu}>{item.numeroRecu}</Text>
-              {item.annuleLe ? <Text style={styles.badgeAnnule}>Annulé</Text> : <Text style={styles.badgeRegle}>Réglé</Text>}
+              <View style={styles.badges}>
+                {estRecuProvisoire(item.numeroRecu) && <BadgeProvisoire />}
+                {item.annuleLe ? <Text style={styles.badgeAnnule}>Annulé</Text> : <Text style={styles.badgeRegle}>Réglé</Text>}
+              </View>
             </View>
             <Text style={styles.date}>{dateCourte(item.createdAt)}</Text>
             <Text style={styles.montant}>{montants(item.montantTotalUSD, item.montantTotalCDF)}</Text>
@@ -241,18 +282,36 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
         visible={pieceOuverte !== null}
         onFermer={fermerDetail}
         titre={pieceOuverte ? `Reçu ${pieceOuverte.numeroRecu}` : "Reçu"}
+        modifie={motifAnnulation.trim() !== ""}
+        enCours={enAction}
       >
         {pieceOuverte && (
           <>
+            {estRecuProvisoire(pieceOuverte.numeroRecu) && (
+              <View style={styles.badges}>
+                <BadgeProvisoire />
+                <Text style={styles.ligneDetail}>Numéro définitif attribué à la synchronisation.</Text>
+              </View>
+            )}
             <Text style={styles.totalDetail}>{montants(pieceOuverte.montantTotalUSD, pieceOuverte.montantTotalCDF)}</Text>
             <DetailPaiement recu={pieceOuverte} />
 
-            {message && <Text style={styles.message}>{message}</Text>}
+            {message && (
+              <Text
+                style={[styles.message, !message.reussi && styles.messageErreur]}
+                accessibilityRole={message.reussi ? undefined : "alert"}
+                accessibilityLiveRegion="polite"
+              >
+                {message.texte}
+              </Text>
+            )}
 
             <Pressable
               style={styles.boutonSecondaire}
               disabled={enAction}
               onPress={() => (detailFacture ? reimprimerFacture(detailFacture) : detailVente && reimprimerVente(detailVente))}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: enAction, busy: enAction }}
             >
               <Text style={styles.boutonSecondaireTexte}>{enAction ? "…" : "Réimprimer le reçu"}</Text>
             </Pressable>
@@ -266,8 +325,15 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
                   onChangeText={setMotifAnnulation}
                   placeholder="Ex. paiement encaissé en double"
                   placeholderTextColor={couleurs.encreFaible}
+                  accessibilityLabel="Motif d'annulation (obligatoire)"
                 />
-                <Pressable style={styles.boutonDanger} onPress={annuler} disabled={enAction}>
+                <Pressable
+                  style={styles.boutonDanger}
+                  onPress={demanderAnnulation}
+                  disabled={enAction}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: enAction, busy: enAction }}
+                >
                   <Text style={styles.boutonTexte}>{enAction ? "…" : "Annuler ce reçu"}</Text>
                 </Pressable>
               </>
@@ -284,7 +350,7 @@ const styles = StyleSheet.create({
   segments: { flexDirection: "row", gap: espacements.s2, paddingHorizontal: espacements.s4, paddingTop: espacements.s2 },
   segment: {
     flex: 1,
-    height: 40,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bordure,
@@ -309,6 +375,9 @@ const styles = StyleSheet.create({
   },
   carteEntete: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   numeroRecu: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
+  badges: { flexDirection: "row", alignItems: "center", gap: espacements.s2, flexShrink: 1, flexWrap: "wrap" },
+  badgeProvisoire: { backgroundColor: couleurs.alerteClair, borderWidth: 1, borderColor: couleurs.alerte, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 1 },
+  badgeProvisoireTexte: { fontSize: 11, fontWeight: "700", color: couleurs.alerte },
   badgeRegle: { fontSize: 11, fontWeight: "700", color: couleurs.succes },
   badgeAnnule: { fontSize: 11, fontWeight: "700", color: couleurs.danger },
   date: { fontSize: 12, color: couleurs.encreAttenuee },
@@ -317,8 +386,9 @@ const styles = StyleSheet.create({
   ligneDetail: { fontSize: 13, color: couleurs.encre },
   annule: { fontSize: 13, fontWeight: "600", color: couleurs.danger, marginTop: espacements.s1 },
   message: { fontSize: 13, color: couleurs.encreAttenuee, marginTop: espacements.s3 },
+  messageErreur: { color: couleurs.danger },
   boutonSecondaire: {
-    height: 44,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bleu,
@@ -328,7 +398,7 @@ const styles = StyleSheet.create({
   },
   boutonSecondaireTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 14 },
   boutonDanger: {
-    height: 44,
+    minHeight: 44,
     borderRadius: rayons.sm,
     backgroundColor: couleurs.danger,
     alignItems: "center",
@@ -342,7 +412,7 @@ const styles = StyleSheet.create({
     borderColor: couleurs.bordure,
     borderRadius: rayons.sm,
     paddingHorizontal: espacements.s3,
-    height: 44,
+    minHeight: 44,
     fontSize: 15,
     color: couleurs.encre,
     backgroundColor: couleurs.surface100,

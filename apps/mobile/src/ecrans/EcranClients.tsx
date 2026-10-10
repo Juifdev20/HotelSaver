@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     borderColor: couleurs.bordure,
     borderRadius: rayons.sm,
     paddingHorizontal: espacements.s3,
-    height: 44,
+    minHeight: 44,
     fontSize: 15,
     color: couleurs.encre,
     backgroundColor: couleurs.surface200,
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   boutonModifierTexte: { fontSize: 13, fontWeight: "700", color: couleurs.bleu },
   champLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginTop: espacements.s2 },
   champMulti: { minHeight: 64, textAlignVertical: "top", paddingTop: espacements.s3 },
-  bouton: { height: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center", marginTop: espacements.s3 },
+  bouton: { minHeight: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center", marginTop: espacements.s3 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
   titreSection: {
     fontSize: 12,

@@ -9,6 +9,9 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { confirmerAction } from "../confirmer";
+import { messageErreur } from "../messagesErreur";
+import { heureCourte } from "../dates";
 
 export interface EcranSynchronisationProps {
   onRetour: () => void;
@@ -35,6 +38,7 @@ const couleursNiveau: Record<NiveauSync, string> = {
   horsLigne: couleurs.encreFaible,
   danger: couleurs.danger,
 };
+// (teintes foncées : ce sont des couleurs de TEXTE, contraste ≥ 4,5:1)
 
 function resumerChamps(donnees: unknown): string {
   if (!donnees || typeof donnees !== "object") return String(donnees);
@@ -46,7 +50,7 @@ function resumerChamps(donnees: unknown): string {
 
 function formaterHeure(horodatage: string | null): string {
   if (!horodatage) return "Jamais";
-  return new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(horodatage));
+  return heureCourte(horodatage);
 }
 
 /** État du moteur de synchronisation (voir @hotel-chicago/sync-engine) et
@@ -62,6 +66,7 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
   const [conflits, setConflits] = useState<ConflitSync[]>([]);
   const [actionsEchouees, setActionsEchouees] = useState<LigneFileAttente[]>([]);
   const [enResolution, setEnResolution] = useState<string | null>(null);
+  const [erreurAction, setErreurAction] = useState<string | null>(null);
 
   async function rechargerConflits() {
     setConflits(await moteurSync.listerConflits());
@@ -79,9 +84,12 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
 
   async function garderVersionServeur(conflit: ConflitSync) {
     setEnResolution(conflit.id);
+    setErreurAction(null);
     try {
       await moteurSync.resoudreConflitGarderServeur(conflit.id, conflit.entiteType, conflit.donneesServeur);
       await rechargerConflits();
+    } catch (e) {
+      setErreurAction(messageErreur(e, "Impossible de garder la version du serveur. Réessayez."));
     } finally {
       setEnResolution(null);
     }
@@ -89,13 +97,31 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
 
   async function retirerActionEchouee(ligne: LigneFileAttente) {
     setEnResolution(ligne.id);
+    setErreurAction(null);
     try {
       // Annule aussi les effets locaux de l'action (et des actions qui en dépendent).
       await miroir.abandonnerAction(ligne.id);
       await rechargerActionsEchouees();
+    } catch (e) {
+      setErreurAction(`L'action n'a pas pu être retirée : ${messageErreur(e, "erreur inattendue, réessayez.")}`);
     } finally {
       setEnResolution(null);
     }
+  }
+
+  /** Retirer une action refusée la supprime pour de bon (et ses effets sur ce téléphone) : on nomme laquelle (retour U3). */
+  function demanderRetrait(ligne: LigneFileAttente) {
+    const nom = `${ligne.operation === "CREATE" ? "Création" : "Modification"} · ${LIBELLE_ENTITE[ligne.entiteType] ?? ligne.entiteType}`;
+    confirmerAction({
+      titre: `Retirer « ${nom} » ?`,
+      message:
+        `Vous avez essayé : ${resumerChamps(ligne.payload) || "—"}\n\n` +
+        "L'action ne sera jamais envoyée au serveur et ses effets seront annulés sur ce téléphone, ainsi que ceux des actions qui en dépendent.",
+      libelleConfirmer: "Retirer l'action",
+      libelleRefuser: "Garder",
+      destructif: true,
+      onConfirmer: () => retirerActionEchouee(ligne),
+    });
   }
 
   return (
@@ -121,14 +147,22 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
             <Text style={styles.label}>Dernière synchro</Text>
             <Text style={styles.valeur}>{formaterHeure(etat.derniereSyncReussieLe)}</Text>
           </View>
-          {etat.derniereErreur && <Text style={styles.erreur}>{etat.derniereErreur}</Text>}
-          <Pressable style={styles.bouton} onPress={() => moteurSync.forcerSynchronisation()}>
+          {etat.derniereErreur && <Text style={styles.erreur}>{messageErreur(etat.derniereErreur, "La dernière synchronisation a échoué.")}</Text>}
+          <Pressable style={styles.bouton} onPress={() => moteurSync.forcerSynchronisation()} accessibilityRole="button">
             <RefreshCw size={16} color="#fff" />
             <Text style={styles.boutonTexte}>Synchroniser maintenant</Text>
           </Pressable>
         </View>
 
-        <Text style={styles.titreSection}>Conflits à vérifier</Text>
+        {erreurAction && (
+          <Text style={styles.erreur} accessibilityRole="alert">
+            {erreurAction}
+          </Text>
+        )}
+
+        <Text style={styles.titreSection} accessibilityRole="header">
+          Conflits à vérifier
+        </Text>
 
         {conflits.length === 0 && (
           <View style={styles.videConteneur}>
@@ -148,6 +182,8 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
               style={styles.boutonSecondaire}
               onPress={() => garderVersionServeur(conflit)}
               disabled={enResolution === conflit.id}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: enResolution === conflit.id, busy: enResolution === conflit.id }}
             >
               <Text style={styles.boutonSecondaireTexte}>
                 {enResolution === conflit.id ? "…" : "Garder la version du serveur"}
@@ -156,7 +192,9 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
           </View>
         ))}
 
-        <Text style={styles.titreSection}>Actions échouées</Text>
+        <Text style={styles.titreSection} accessibilityRole="header">
+          Actions échouées
+        </Text>
 
         {actionsEchouees.length === 0 && (
           <View style={styles.videConteneur}>
@@ -171,11 +209,14 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
             <Text style={styles.ligneConflitLabel}>Vous avez essayé :</Text>
             <Text style={styles.ligneConflitValeur}>{resumerChamps(ligne.payload)}</Text>
             <Text style={styles.ligneConflitLabel}>Erreur du serveur ({ligne.attempts} essais) :</Text>
-            <Text style={styles.ligneConflitValeur}>{ligne.lastError ?? "Erreur inconnue."}</Text>
+            <Text style={styles.ligneConflitValeur}>{ligne.lastError ? messageErreur(ligne.lastError, "Le serveur a refusé cette action.") : "Erreur inconnue."}</Text>
             <Pressable
               style={styles.boutonSecondaire}
-              onPress={() => retirerActionEchouee(ligne)}
+              onPress={() => demanderRetrait(ligne)}
               disabled={enResolution === ligne.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Retirer l'action : ${LIBELLE_ENTITE[ligne.entiteType] ?? ligne.entiteType}`}
+              accessibilityState={{ disabled: enResolution === ligne.id, busy: enResolution === ligne.id }}
             >
               <Text style={styles.boutonSecondaireTexte}>
                 {enResolution === ligne.id ? "…" : "Retirer cette action"}
@@ -208,7 +249,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: espacements.s2,
-    height: 42,
+    minHeight: 44,
     borderRadius: rayons.sm,
     backgroundColor: couleurs.bleu,
     marginTop: espacements.s2,
@@ -237,7 +278,7 @@ const styles = StyleSheet.create({
   ligneConflitValeur: { fontSize: 13, color: couleurs.encre },
   boutonSecondaire: {
     marginTop: espacements.s3,
-    height: 40,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bleu,

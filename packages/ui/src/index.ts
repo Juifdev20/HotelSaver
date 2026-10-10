@@ -7,6 +7,9 @@ export { RoomCard } from "./RoomCard";
 export type { RoomCardProps } from "./RoomCard";
 export { DashboardStat } from "./DashboardStat";
 export type { DashboardStatProps } from "./DashboardStat";
+export { useDialogue } from "./useDialogue";
+export type { OptionsDialogue } from "./useDialogue";
+export { useTitrePage } from "./useTitrePage";
 export { Donut } from "./Donut";
 export type { DonutProps, DonutSegment } from "./Donut";
 

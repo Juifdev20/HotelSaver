@@ -13,6 +13,8 @@ export interface DonutProps {
   epaisseur?: number;
   /** Contenu affiché au centre de l'anneau (ex. le pourcentage). */
   children?: React.ReactNode;
+  /** Description textuelle du graphique pour les lecteurs d'écran (ex. « Occupation : 3 occupées, 5 libres »). */
+  titre?: string;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface DonutProps {
  * dessinés via stroke-dasharray ; total à 0 → anneau neutre vide plutôt
  * qu'un graphique cassé.
  */
-export function Donut({ segments, taille = 140, epaisseur = 16, children }: DonutProps) {
+export function Donut({ segments, taille = 140, epaisseur = 16, children, titre = "Graphique en anneau" }: DonutProps) {
   const rayon = (taille - epaisseur) / 2;
   const circonference = 2 * Math.PI * rayon;
   const total = segments.reduce((somme, s) => somme + s.valeur, 0);
@@ -30,7 +32,8 @@ export function Donut({ segments, taille = 140, epaisseur = 16, children }: Donu
 
   return (
     <div className="hc-donut" style={{ width: taille, height: taille }}>
-      <svg width={taille} height={taille} viewBox={`0 0 ${taille} ${taille}`}>
+      <svg width={taille} height={taille} viewBox={`0 0 ${taille} ${taille}`} role="img" aria-label={titre}>
+        <title>{titre}</title>
         <circle
           cx={taille / 2}
           cy={taille / 2}

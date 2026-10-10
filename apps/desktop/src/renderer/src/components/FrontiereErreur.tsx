@@ -32,7 +32,11 @@ export class FrontiereErreur extends React.Component<{ children: React.ReactNode
             L'écran n'a pas pu s'afficher. Rechargez l'application ; si le problème revient, notez ce que vous faisiez
             juste avant et signalez-le.
           </p>
-          <pre className="hc-ecran-erreur__detail">{this.state.erreur.message}</pre>
+          {/* Message d'exception brut : réservé à qui doit le signaler, replié par défaut. */}
+          <details>
+            <summary className="hc-text-caption texte-discret">Détails techniques</summary>
+            <pre className="hc-ecran-erreur__detail">{this.state.erreur.message}</pre>
+          </details>
           <button type="button" className="hc-ecran-erreur__bouton" onClick={() => window.location.reload()}>
             Recharger l'application
           </button>

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { ErreurApi, type ClientApi } from "@hotel-chicago/api-client";
 import { construireEtiquette, genererEan13Interne } from "@hotel-chicago/receipts";
@@ -17,6 +17,8 @@ import { ScannerCodeBarres } from "../composants/ScannerCodeBarres";
 import { imprimerLignes } from "../impression/imprimante";
 import { ApercuRecu } from "../composants/ApercuRecu";
 import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
+import { confirmerAction } from "../confirmer";
+import { messageErreur } from "../messagesErreur";
 
 export interface EcranMenuProps {
   client: ClientApi;
@@ -87,6 +89,8 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
   const [nbEtiquettesSaisi, setNbEtiquettesSaisi] = useState<string | null>(null);
   const [messageListe, setMessageListe] = useState<string | null>(null);
   const [formulaire, setFormulaire] = useState<FormulaireProduit>(FORMULAIRE_VIDE);
+  // Valeurs à l'ouverture de la feuille : sert à savoir si l'on a modifié quelque chose (toucher le fond ne doit pas tout effacer).
+  const formulaireInitial = useRef<{ formulaire: FormulaireProduit; photos: string[] }>({ formulaire: FORMULAIRE_VIDE, photos: [] });
   const [enEnvoi, setEnEnvoi] = useState(false);
   const [erreurFormulaire, setErreurFormulaire] = useState<string | null>(null);
   // Photo du plat (0 ou 1 — max 1) : mêmes gardes-fous que Chambres —
@@ -97,6 +101,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
   const [photosEnvoyees, setPhotosEnvoyees] = useState<string[]>([]);
 
   function ouvrirCreation() {
+    formulaireInitial.current = { formulaire: FORMULAIRE_VIDE, photos: [] };
     setProduitEnEdition(null);
     setFormulaire(FORMULAIRE_VIDE);
     setCodeGenere(false);
@@ -111,7 +116,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
 
   function ouvrirEdition(produit: Produit) {
     setProduitEnEdition(produit);
-    setFormulaire({
+    const initial: FormulaireProduit = {
       nom: produit.nom,
       categorie: produit.categorie,
       prix: produit.prix,
@@ -125,7 +130,9 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
       commandableEnLigne: produit.commandableEnLigne === true,
       actif: produit.actif,
       codeBarres: produit.codeBarres ?? "",
-    });
+    };
+    formulaireInitial.current = { formulaire: initial, photos: produit.photo ? [produit.photo] : [] };
+    setFormulaire(initial);
     setCodeGenere(false);
     setMessageEtiquette(null);
     setNbEtiquettesSaisi(null);
@@ -135,6 +142,10 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
     setErreurFormulaire(null);
     setModaleOuverte(true);
   }
+
+  const formulaireModifie =
+    JSON.stringify(formulaire) !== JSON.stringify(formulaireInitial.current.formulaire) ||
+    JSON.stringify(photos) !== JSON.stringify(formulaireInitial.current.photos);
 
   /** Fermer sans enregistrer : les images envoyées pendant l'édition ne
    * doivent pas rester orphelines dans le stockage (même pattern que
@@ -162,7 +173,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
       await imprimerLignes(construireEtiquette(produit, n));
       setMessageEtiquette(`${n} étiquette${n > 1 ? "s" : ""} envoyée${n > 1 ? "s" : ""} à l'imprimante.`);
     } catch (e) {
-      setMessageEtiquette(e instanceof Error ? e.message : "Impression impossible.");
+      setMessageEtiquette(`Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`);
     } finally {
       setEnImpression(false);
     }
@@ -286,7 +297,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
           setMessageListe(null);
           ouvrirEtiquettes(enregistre, true, n);
           setMessageEtiquette(
-            `Produit enregistré, mais l'impression a échoué : ${erreurImpression instanceof Error ? erreurImpression.message : "erreur inconnue"}`
+            `Produit enregistré, mais l'impression a échoué : ${messageErreur(erreurImpression, "l'imprimante n'a pas répondu")}`
           );
         }
       } else {
@@ -300,14 +311,27 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         setFormulaire((f) => ({ ...f, codeBarres: nouveau }));
         return enregistrer(essai + 1);
       }
-      setErreurFormulaire(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreurFormulaire(messageErreur(e, "Le produit n'a pas pu être enregistré. Réessayez."));
     } finally {
       setEnEnvoi(false);
     }
   }
 
-  async function supprimer() {
+  /** Supprimer un produit est définitif : on nomme le produit (retour U3). */
+  function demanderSuppression() {
     if (!produitEnEdition) return;
+    confirmerAction({
+      titre: `Supprimer « ${produitEnEdition.nom} » ?`,
+      message: `${produitEnEdition.categorie} · ${formatMontant(produitEnEdition.prix, produitEnEdition.devise)}.\nLe produit disparaît du menu et de la caisse. Les ventes déjà faites restent dans les reçus.`,
+      libelleConfirmer: "Supprimer le produit",
+      libelleRefuser: "Garder",
+      destructif: true,
+      onConfirmer: supprimer,
+    });
+  }
+
+  async function supprimer() {
+    if (!produitEnEdition || enEnvoi) return;
     setEnEnvoi(true);
     setErreurFormulaire(null);
     try {
@@ -317,7 +341,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
       setModaleOuverte(false);
       recharger();
     } catch (e) {
-      setErreurFormulaire(e instanceof Error ? e.message : "Erreur inconnue.");
+      setErreurFormulaire(messageErreur(e, "Le produit n'a pas pu être supprimé. Réessayez."));
     } finally {
       setEnEnvoi(false);
     }
@@ -332,9 +356,13 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         onRetour={onRetour}
       />
 
-      {erreur && <Text style={styles.erreur}>{erreur}</Text>}
+      {erreur && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreur}
+        </Text>
+      )}
       {messageListe && (
-        <Pressable style={styles.messageListe} onPress={() => setMessageListe(null)} accessibilityLabel="Fermer le message">
+        <Pressable style={styles.messageListe} onPress={() => setMessageListe(null)} accessibilityRole="button" accessibilityLabel={`${messageListe}. Toucher pour fermer le message`}>
           <Text style={styles.messageListeTexte}>{messageListe}</Text>
         </Pressable>
       )}
@@ -356,6 +384,8 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
             style={styles.carte}
             onPress={() => peutModifier && ouvrirEdition(item)}
             disabled={!peutModifier}
+            accessibilityRole={peutModifier ? "button" : undefined}
+            accessibilityHint={peutModifier ? "Modifier ce produit" : undefined}
           >
             <View style={styles.carteEntete}>
               <Text style={styles.nom}>{item.nom}</Text>
@@ -393,7 +423,13 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
             {item.typeProduit !== TypeProduit.PLAT && item.codeBarres && (
               <View style={styles.carteCode}>
                 <Text style={styles.codeTexte}>▌▍▌ {item.codeBarres}</Text>
-                <Pressable style={styles.boutonEtiquette} onPress={() => ouvrirEtiquettes(item, false)} hitSlop={6}>
+                <Pressable
+                  style={styles.boutonEtiquette}
+                  onPress={() => ouvrirEtiquettes(item, false)}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Imprimer l'étiquette de ${item.nom}`}
+                >
                   <Printer size={14} color={couleurs.bleu} />
                   <Text style={styles.boutonCodeTexte}>Étiquette</Text>
                 </Pressable>
@@ -407,6 +443,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         visible={etiquette !== null}
         onFermer={() => setEtiquette(null)}
         titre={etiquette?.enregistre ? "Produit enregistré" : "Imprimer l'étiquette"}
+        enCours={enImpression}
       >
         {etiquette && (
           <>
@@ -424,15 +461,21 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
               keyboardType="number-pad"
               accessibilityLabel="Nombre d'étiquettes"
             />
-            {messageEtiquette && <Text style={styles.aideSwitch}>{messageEtiquette}</Text>}
+            {messageEtiquette && (
+              <Text style={styles.aideSwitch} accessibilityRole="alert">
+                {messageEtiquette}
+              </Text>
+            )}
             <View style={styles.boutonsModale}>
-              <Pressable style={styles.boutonSecondaireEtiquette} onPress={() => setEtiquette(null)}>
+              <Pressable style={styles.boutonSecondaireEtiquette} onPress={() => setEtiquette(null)} accessibilityRole="button">
                 <Text style={styles.boutonCodeTexte}>Terminer</Text>
               </Pressable>
               <Pressable
                 style={[styles.bouton, enImpression && { opacity: 0.6 }]}
                 onPress={() => void imprimerEtiquette(etiquette.produit)}
                 disabled={enImpression}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: enImpression, busy: enImpression }}
               >
                 <Text style={styles.boutonTexte}>{enImpression ? "Impression…" : "Imprimer les étiquettes"}</Text>
               </Pressable>
@@ -445,9 +488,11 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         visible={modaleOuverte}
         onFermer={fermerModale}
         titre={produitEnEdition ? "Modifier le produit" : "Nouveau produit"}
+        modifie={formulaireModifie}
+        enCours={enEnvoi}
       >
         <Text style={styles.label}>Type de produit</Text>
-        <View style={styles.selecteurType}>
+        <View style={styles.selecteurType} accessibilityRole="radiogroup" accessibilityLabel="Type de produit">
           {([
             { valeur: TypeProduit.ARTICLE, titre: "Article comptoir", aide: "Stocké : bière, sucre…" },
             { valeur: TypeProduit.PLAT, titre: "Plat préparé", aide: "Cuisiné : publiable sur le site" },
@@ -456,6 +501,9 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
               key={t.valeur}
               style={[styles.optionType, formulaire.typeProduit === t.valeur && styles.optionTypeActive]}
               onPress={() => setFormulaire((f) => ({ ...f, typeProduit: t.valeur }))}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: formulaire.typeProduit === t.valeur }}
+              accessibilityLabel={`${t.titre}. ${t.aide}`}
             >
               <Text style={[styles.optionTypeTitre, formulaire.typeProduit === t.valeur && styles.optionTypeTitreActif]}>
                 {t.titre}
@@ -472,6 +520,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
           onChangeText={(v) => setFormulaire((f) => ({ ...f, nom: v }))}
           placeholder={placeholdersPour(formulaire.typeProduit).nom}
           placeholderTextColor={couleurs.encreFaible}
+          accessibilityLabel="Nom du produit"
         />
 
         <Text style={styles.label}>Catégorie</Text>
@@ -481,6 +530,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
           onChangeText={(v) => setFormulaire((f) => ({ ...f, categorie: v }))}
           placeholder={placeholdersPour(formulaire.typeProduit).categorie}
           placeholderTextColor={couleurs.encreFaible}
+          accessibilityLabel="Catégorie"
         />
 
         <View style={styles.ligneChamps}>
@@ -493,14 +543,18 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={couleurs.encreFaible}
+              accessibilityLabel="Prix"
             />
           </View>
-          <View style={styles.selecteurDevise}>
+          <View style={styles.selecteurDevise} accessibilityRole="radiogroup" accessibilityLabel="Devise du prix">
             {[Devise.USD, Devise.CDF].map((d) => (
               <Pressable
                 key={d}
                 style={[styles.optionDevise, formulaire.devise === d && styles.optionDeviseActive]}
                 onPress={() => setFormulaire((f) => ({ ...f, devise: d }))}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: formulaire.devise === d }}
+                accessibilityLabel={d === Devise.USD ? "Dollars (USD)" : "Francs congolais (CDF)"}
               >
                 <Text style={[styles.optionDeviseTexte, formulaire.devise === d && styles.optionDeviseTexteActif]}>
                   {d}
@@ -522,6 +576,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
                   keyboardType="decimal-pad"
                   placeholder="0 — ensuite via l'écran Stock"
                   placeholderTextColor={couleurs.encreFaible}
+                  accessibilityLabel="Quantité initiale en stock (optionnel)"
                 />
               </>
             )}
@@ -534,6 +589,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
               keyboardType="number-pad"
               placeholder="0"
               placeholderTextColor={couleurs.encreFaible}
+              accessibilityLabel="Seuil d'alerte (optionnel)"
             />
 
             <Text style={styles.label}>Prix d'achat (optionnel)</Text>
@@ -544,6 +600,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
               keyboardType="decimal-pad"
               placeholder="0.00 — pour calcul de marge"
               placeholderTextColor={couleurs.encreFaible}
+              accessibilityLabel="Prix d'achat (optionnel)"
             />
 
             <Text style={styles.label}>Code-barres (optionnel)</Text>
@@ -558,11 +615,12 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
                 keyboardType="number-pad"
                 placeholder="Scanner ou générer"
                 placeholderTextColor={couleurs.encreFaible}
+                accessibilityLabel="Code-barres (optionnel)"
               />
-              <Pressable style={styles.boutonCode} onPress={() => setScannerOuvert(true)} accessibilityLabel="Scanner le code du fabricant">
+              <Pressable style={styles.boutonCode} onPress={() => setScannerOuvert(true)} accessibilityRole="button" accessibilityLabel="Scanner le code du fabricant">
                 <Camera size={18} color={couleurs.bleu} />
               </Pressable>
-              <Pressable style={styles.boutonCode} onPress={genererCode}>
+              <Pressable style={styles.boutonCode} onPress={genererCode} accessibilityRole="button" accessibilityLabel="Générer un code-barres">
                 <Text style={styles.boutonCodeTexte}>Générer</Text>
               </Pressable>
             </View>
@@ -583,7 +641,11 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
                 ? "Générez ou scannez d'abord un code : les étiquettes s'impriment à l'enregistrement."
                 : "Imprimées automatiquement en appuyant sur Enregistrer. 0 = aucune."}
             </Text>
-            {messageEtiquette && <Text style={styles.aideSwitch}>{messageEtiquette}</Text>}
+            {messageEtiquette && (
+              <Text style={styles.aideSwitch} accessibilityRole="alert">
+                {messageEtiquette}
+              </Text>
+            )}
 
             <ScannerCodeBarres
               visible={scannerOuvert}
@@ -617,6 +679,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
               keyboardType="number-pad"
               placeholder="Vide = illimité (cuisine à la commande)"
               placeholderTextColor={couleurs.encreFaible}
+              accessibilityLabel="Portions disponibles (optionnel)"
             />
 
             <Text style={styles.label}>Description sur le site (optionnel)</Text>
@@ -627,6 +690,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
               placeholder="Ex. Poulet braisé, frites et salade"
               placeholderTextColor={couleurs.encreFaible}
               multiline
+              accessibilityLabel="Description sur le site (optionnel)"
             />
 
             <View style={styles.ligneSwitch}>
@@ -639,6 +703,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
               <Switch
                 value={formulaire.commandableEnLigne}
                 onValueChange={(v) => setFormulaire((f) => ({ ...f, commandableEnLigne: v }))}
+                accessibilityLabel="Visible et commandable sur le site"
               />
             </View>
           </>
@@ -647,19 +712,35 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         {produitEnEdition && (
           <View style={styles.ligneSwitch}>
             <Text style={styles.label}>Actif à la vente</Text>
-            <Switch value={formulaire.actif} onValueChange={(v) => setFormulaire((f) => ({ ...f, actif: v }))} />
+            <Switch value={formulaire.actif} onValueChange={(v) => setFormulaire((f) => ({ ...f, actif: v }))} accessibilityLabel="Actif à la vente" />
           </View>
         )}
 
-        {erreurFormulaire && <Text style={styles.erreurFormulaire}>{erreurFormulaire}</Text>}
+        {erreurFormulaire && (
+          <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+            {erreurFormulaire}
+          </Text>
+        )}
 
         <View style={styles.boutonsModale}>
           {produitEnEdition && (
-            <Pressable style={styles.boutonDanger} onPress={supprimer} disabled={enEnvoi}>
+            <Pressable
+              style={styles.boutonDanger}
+              onPress={demanderSuppression}
+              disabled={enEnvoi}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: enEnvoi }}
+            >
               <Text style={styles.boutonDangerTexte}>Supprimer</Text>
             </Pressable>
           )}
-          <Pressable style={styles.bouton} onPress={() => void enregistrer()} disabled={enEnvoi}>
+          <Pressable
+            style={styles.bouton}
+            onPress={() => void enregistrer()}
+            disabled={enEnvoi}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: enEnvoi, busy: enEnvoi }}
+          >
             <Text style={styles.boutonTexte}>
               {enEnvoi
                 ? "…"
@@ -711,14 +792,14 @@ const styles = StyleSheet.create({
     borderColor: couleurs.bordure,
     borderRadius: rayons.sm,
     paddingHorizontal: espacements.s3,
-    height: 44,
+    minHeight: 44,
     fontSize: 15,
     color: couleurs.encre,
     backgroundColor: couleurs.surface100,
   },
   ligneChamps: { flexDirection: "row", gap: espacements.s3, alignItems: "flex-end" },
   boutonCode: {
-    height: 44,
+    minHeight: 44,
     paddingHorizontal: espacements.s3,
     borderRadius: rayons.sm,
     borderWidth: 1,
@@ -735,7 +816,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     paddingHorizontal: espacements.s2,
-    height: 30,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bleu,
@@ -752,7 +833,7 @@ const styles = StyleSheet.create({
   messageListeTexte: { fontSize: 14, color: couleurs.encre, fontWeight: "600" },
   boutonSecondaireEtiquette: {
     flex: 1,
-    height: 44,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bordure,
@@ -760,11 +841,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   selecteurDevise: { flexDirection: "row", borderRadius: rayons.sm, overflow: "hidden", borderWidth: 1, borderColor: couleurs.bordure },
-  optionDevise: { paddingHorizontal: espacements.s3, height: 44, alignItems: "center", justifyContent: "center" },
+  optionDevise: { paddingHorizontal: espacements.s3, minHeight: 44, alignItems: "center", justifyContent: "center" },
   optionDeviseActive: { backgroundColor: couleurs.bleu },
   optionDeviseTexte: { fontSize: 13, fontWeight: "700", color: couleurs.encre },
   optionDeviseTexteActif: { color: "#fff" },
-  champMulti: { height: 72, paddingTop: espacements.s3, textAlignVertical: "top" },
+  champMulti: { minHeight: 72, paddingTop: espacements.s3, textAlignVertical: "top" },
   selecteurType: { flexDirection: "row", gap: espacements.s2, marginBottom: espacements.s2 },
   optionType: {
     flex: 1,
@@ -778,14 +859,14 @@ const styles = StyleSheet.create({
   optionTypeActive: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
   optionTypeTitre: { fontSize: 14, fontWeight: "700", color: couleurs.encre },
   optionTypeTitreActif: { color: couleurs.bleu },
-  optionTypeAide: { fontSize: 11, color: couleurs.encreFaible },
-  aideSwitch: { fontSize: 11, color: couleurs.encreFaible },
+  optionTypeAide: { fontSize: 12, color: couleurs.encreFaible },
+  aideSwitch: { fontSize: 12, color: couleurs.encreFaible },
   ligneSwitch: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   erreurFormulaire: { color: couleurs.danger, fontSize: 13 },
   boutonsModale: { flexDirection: "row", gap: espacements.s3, marginTop: espacements.s2 },
   boutonDanger: {
     flex: 1,
-    height: 44,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.danger,
@@ -793,6 +874,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   boutonDangerTexte: { color: couleurs.danger, fontWeight: "700", fontSize: 14 },
-  bouton: { flex: 1, height: 44, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
+  bouton: { flex: 1, minHeight: 44, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });

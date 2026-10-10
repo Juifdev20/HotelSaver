@@ -572,10 +572,10 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: espacements.s2, paddingVertical: 3, borderRadius: rayons.pill },
   badgeTexte: { fontSize: 11, fontWeight: "700" },
   actions: { gap: espacements.s2 },
-  bouton: { height: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
+  bouton: { minHeight: 48, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 15 },
   boutonSecondaire: {
-    height: 44,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bordure,
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
     backgroundColor: couleurs.surface200,
   },
   boutonSecondaireTexte: { color: couleurs.encre, fontWeight: "700", fontSize: 14 },
-  boutonDanger: { height: 48, borderRadius: rayons.sm, backgroundColor: couleurs.danger, alignItems: "center", justifyContent: "center" },
+  boutonDanger: { minHeight: 48, borderRadius: rayons.sm, backgroundColor: couleurs.danger, alignItems: "center", justifyContent: "center" },
   boutonInactif: { opacity: 0.45 },
   champLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },
   champ: {
@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   boutonWhatsApp: {
-    height: 48,
+    minHeight: 48,
     borderRadius: rayons.sm,
     backgroundColor: "#1FA855",
     flexDirection: "row",

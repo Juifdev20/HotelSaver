@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     borderRadius: rayons.md,
     backgroundColor: couleurs.surface100,
     paddingHorizontal: espacements.s3,
-    height: 46,
+    minHeight: 46,
     fontSize: 16,
     fontWeight: "600",
     letterSpacing: 1,
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   bouton: {
     backgroundColor: couleurs.bleu,
     borderRadius: rayons.md,
-    height: 46,
+    minHeight: 46,
     alignItems: "center",
     justifyContent: "center",
   },

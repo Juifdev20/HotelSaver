@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   },
   bouton: {
     marginTop: espacements.s2,
-    height: 52,
+    minHeight: 52,
     borderRadius: rayons.md,
     backgroundColor: couleurs.bleu,
     alignItems: "center",
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   trait: { flex: 1, height: 1, backgroundColor: couleurs.bordure },
   separateurTexte: { color: couleurs.encreFaible, fontSize: 13 },
   boutonContour: {
-    height: 52,
+    minHeight: 52,
     borderRadius: rayons.md,
     borderWidth: 1.5,
     borderColor: couleurs.bleu,
@@ -254,6 +254,6 @@ const styles = StyleSheet.create({
   },
   lienOubli: { alignSelf: "flex-end", minHeight: 36, justifyContent: "center", marginBottom: espacements.s1 },
   lienOubliTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 13 },
-  boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", height: 44 },
+  boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", minHeight: 44 },
   boutonRetourTexte: { color: couleurs.encreAttenuee, fontWeight: "600" },
 });

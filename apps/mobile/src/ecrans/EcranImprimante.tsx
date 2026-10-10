@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   boutonTest: { borderTopWidth: 1, borderTopColor: couleurs.bordure, padding: espacements.s3, alignItems: "center" },
   boutonTestTexte: { fontSize: 13, fontWeight: "600", color: couleurs.bleu },
   boutonSecondaire: {
-    height: 44,
+    minHeight: 44,
     borderRadius: rayons.sm,
     borderWidth: 1,
     borderColor: couleurs.bordure,

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell } from "lucide-react-native";
+import { Bell, ChevronRight, CloudOff, RefreshCw, TriangleAlert } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { LIBELLE_ROLE } from "../navigation";
@@ -13,14 +13,49 @@ import { useNotifications } from "../notifications/ContexteNotifications";
  * un conflit ou une action refusée à vérifier, gris = hors ligne. Même vérité que l'écran « Synchronisation » (le texte
  * vient de resumerEtatSync, partagé avec le bureau). */
 const COULEUR_NIVEAU: Record<NiveauSync, string> = {
-  ok: couleurs.succes,
-  attente: couleurs.alerte,
-  attention: couleurs.alerte,
+  ok: couleurs.succesVif,
+  attente: couleurs.alerteVive,
+  attention: couleurs.alerteVive,
   horsLigne: couleurs.encreFaible,
-  danger: couleurs.danger,
+  danger: couleurs.dangerVif,
 };
 function couleurPointSync(etat: ReturnType<typeof useSyncEtat>): string {
   return COULEUR_NIVEAU[resumerEtatSync(etat).niveau];
+}
+
+/** Bandeau texte fixe sous la barre : le point de 8 px ne suffisait pas (retour U4). Le TEXTE (« Hors ligne · 3 actions à envoyer »)
+ * et l'icône portent l'information, la couleur n'est qu'un renfort. Rouge et cliquable vers « Synchronisation » quand une action
+ * est refusée ou en conflit. Rien n'est affiché quand tout est à jour (ou pendant la toute première synchro). */
+const STYLE_BANDEAU: Record<NiveauSync, { fond: string; texte: string }> = {
+  ok: { fond: couleurs.succesClair, texte: couleurs.succes },
+  attente: { fond: couleurs.alerteClair, texte: couleurs.alerte },
+  attention: { fond: couleurs.alerteClair, texte: couleurs.alerte },
+  horsLigne: { fond: couleurs.encre, texte: "#fff" },
+  danger: { fond: couleurs.danger, texte: "#fff" },
+};
+
+function BandeauSync() {
+  const etat = useSyncEtat();
+  const { ouvrirSynchronisation } = useNotifications();
+  const resume = resumerEtatSync(etat);
+  if (resume.niveau === "ok" || (resume.niveau === "attente" && etat.enAttente === 0)) return null;
+  const { fond, texte } = STYLE_BANDEAU[resume.niveau];
+  const Icone = resume.niveau === "danger" || resume.niveau === "attention" ? TriangleAlert : resume.niveau === "horsLigne" ? CloudOff : RefreshCw;
+  const aVoir = resume.niveau === "danger";
+  return (
+    <Pressable
+      style={[styles.bandeau, { backgroundColor: fond }]}
+      onPress={ouvrirSynchronisation}
+      accessibilityRole={aVoir ? "alert" : "button"}
+      accessibilityLabel={`État de la synchronisation : ${resume.titre}. ${resume.detail} Ouvrir l'écran Synchronisation.`}
+    >
+      <Icone size={16} color={texte} />
+      <Text style={[styles.bandeauTexte, { color: texte }]} numberOfLines={2}>
+        {resume.titre}
+      </Text>
+      <ChevronRight size={16} color={texte} />
+    </Pressable>
+  );
 }
 
 function initiales(nom: string): string {
@@ -58,7 +93,13 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
             <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
             <Text style={styles.marqueTexte}>HotelSaver</Text>
           </View>
-          <Pressable style={styles.boutonIcone} onPress={ouvrirCentre} hitSlop={8} accessibilityLabel="Notifications">
+          <Pressable
+            style={styles.boutonIcone}
+            onPress={ouvrirCentre}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={nonLues > 0 ? `Notifications, ${nonLues} non lue${nonLues > 1 ? "s" : ""}` : "Notifications"}
+          >
             <Bell size={20} color="#fff" />
             <View style={[styles.pointSync, { backgroundColor: couleurPointSync(etatSync) }]} />
             {nonLues > 0 && (
@@ -69,6 +110,7 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
           </Pressable>
         </View>
       </View>
+      <BandeauSync />
 
       {afficherAccueil && (
         <View style={styles.ligneAccueil}>
@@ -95,10 +137,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 52,
+    minHeight: 52,
     paddingHorizontal: espacements.s3,
   },
-  boutonIcone: { padding: espacements.s2 },
+  boutonIcone: { padding: espacements.s2, minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  bandeau: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacements.s2,
+    minHeight: 44,
+    paddingHorizontal: espacements.s4,
+    paddingVertical: espacements.s2,
+  },
+  bandeauTexte: { flex: 1, fontSize: 13, fontWeight: "700" },
   pointSync: {
     position: "absolute",
     top: 6,
