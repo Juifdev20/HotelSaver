@@ -1,4 +1,4 @@
-import type { ClientApi, EntitePull, EntitePush, OperationPush, ResultatOperation } from "@hotel-chicago/api-client";
+import type { ClientApi, EntitePull, EntitePush, OperationPush, ReponsePush, ResultatOperation } from "@hotel-chicago/api-client";
 import { MoteurSync, SEUIL_ECHEC_DEFINITIF } from "./moteur-sync";
 import type { ConflitSync, LigneFileAttente, StockageLocal } from "./types";
 
@@ -8,6 +8,8 @@ function creerStockageFactice(): StockageLocal & {
   conflits: ConflitSync[];
   miroir: unknown[];
   confirmations: { entiteType: EntitePull; localId: string; remoteId: string; syncVersion: number }[];
+  supprimees: { entiteType: EntitePull; id: string }[];
+  dernierePull: Map<string, string>;
 } {
   let compteur = 0;
   const file: LigneFileAttente[] = [];
@@ -15,12 +17,14 @@ function creerStockageFactice(): StockageLocal & {
   const miroir: unknown[] = [];
   const confirmations: { entiteType: EntitePull; localId: string; remoteId: string; syncVersion: number }[] = [];
   const dernierePull = new Map<string, string>();
+  const supprimees: { entiteType: EntitePull; id: string }[] = [];
 
   return {
     file,
     conflits,
     miroir,
     confirmations,
+    dernierePull,
     async listerFileAttente() {
       return [...file];
     },
@@ -68,16 +72,29 @@ function creerStockageFactice(): StockageLocal & {
     async appliquerResolutionConflit() {
       // pas nécessaire pour ces tests
     },
+    async supprimerLignesServeur(entiteType, ids) {
+      supprimees.push(...ids.map((id) => ({ entiteType, id })));
+    },
+    supprimees,
   };
 }
 
-function creerClientFactice(overrides: Partial<ClientApi> = {}): ClientApi {
+type SurchargesClient = Omit<Partial<ClientApi>, "syncPush"> & {
+  syncPush?: (operations: OperationPush[]) => Promise<ResultatOperation[] | ReponsePush>;
+};
+
+function creerClientFactice(overrides: SurchargesClient = {}): ClientApi {
+  const { syncPush, ...autres } = overrides;
   return {
     estJoignable: async () => true,
-    syncPush: async (operations: OperationPush[]): Promise<ResultatOperation[]> =>
-      operations.map((op) => ({ localId: op.localId, remoteId: op.remoteId ?? op.localId, syncVersion: (op.baseSyncVersion ?? 0) + 1, statut: "SYNCED" })),
+    syncPush: async (operations: OperationPush[]): Promise<ReponsePush> => {
+      const brut = syncPush
+        ? await syncPush(operations)
+        : operations.map((op): ResultatOperation => ({ localId: op.localId, remoteId: op.remoteId ?? op.localId, syncVersion: (op.baseSyncVersion ?? 0) + 1, statut: "SYNCED" }));
+      return Array.isArray(brut) ? { resultats: brut } : brut;
+    },
     syncPull: async () => ({}),
-    ...overrides,
+    ...autres,
   } as ClientApi;
 }
 
@@ -340,5 +357,147 @@ describe("MoteurSync", () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  describe("pull : curseur serveur, pagination, suppressions", () => {
+    const iso = (ms: number) => new Date(ms).toISOString();
+
+    it("prend comme point de départ l'heure du serveur (_meta.curseur), pas l'horloge de l'appareil", async () => {
+      const stockage = creerStockageFactice();
+      const client = creerClientFactice({
+        syncPull: async () => ({ Chambre: [], _meta: { serveurLe: iso(5_000), curseur: iso(1_000), tronque: [], suppressions: [] } }),
+      });
+      const moteur = new MoteurSync(client, stockage, ["Chambre"]);
+      await moteur.forcerSynchronisation();
+      expect(stockage.dernierePull.get("Chambre")).toBe(iso(1_000));
+    });
+
+    it("page pleine : redemande à partir du dernier updatedAt jusqu'à épuisement, et enregistre le curseur à chaque page", async () => {
+      const stockage = creerStockageFactice();
+      const appels: { depuis: string; limite?: number }[] = [];
+      const pages = [
+        { Chambre: [{ id: "a", updatedAt: iso(1_000) }, { id: "b", updatedAt: iso(2_000) }], _meta: { serveurLe: iso(9_000), curseur: iso(8_000), tronque: ["Chambre"], suppressions: [] } },
+        { Chambre: [{ id: "b", updatedAt: iso(2_000) }, { id: "c", updatedAt: iso(3_000) }], _meta: { serveurLe: iso(9_000), curseur: iso(8_000), tronque: [], suppressions: [] } },
+      ];
+      const client = creerClientFactice({
+        syncPull: async (depuis: string, _e?: EntitePull[], limite?: number) => {
+          appels.push({ depuis, limite });
+          return pages[appels.length - 1] as never;
+        },
+      });
+      const moteur = new MoteurSync(client, stockage, ["Chambre"]);
+      await moteur.forcerSynchronisation();
+      expect(appels).toHaveLength(2);
+      expect(appels[1].depuis).toBe(iso(2_000));
+      expect((stockage.miroir as { id: string }[]).map((l) => l.id)).toEqual(["a", "b", "b", "c"]);
+      expect(stockage.dernierePull.get("Chambre")).toBe(iso(8_000));
+    });
+
+    it("page pleine sans progrès (même instant) : agrandit la page au lieu de boucler", async () => {
+      const stockage = creerStockageFactice();
+      const limites: (number | undefined)[] = [];
+      const client = creerClientFactice({
+        syncPull: async (_d: string, _e?: EntitePull[], limite?: number) => {
+          limites.push(limite);
+          const tronque = limites.length < 3;
+          return { Chambre: [{ id: "x", updatedAt: iso(1_000) }], _meta: { serveurLe: iso(9_000), curseur: iso(8_000), tronque: tronque ? ["Chambre"] : [], suppressions: [] } } as never;
+        },
+      });
+      await new MoteurSync(client, stockage, ["Chambre"]).forcerSynchronisation();
+      // 1re page 1000 → curseur avance à 1000 ; 2e page au même instant → limite doublée ; 3e page complète.
+      expect(limites).toEqual([1000, 1000, 2000]);
+    });
+
+    it("retire du miroir les éléments supprimés côté serveur", async () => {
+      const stockage = creerStockageFactice();
+      const client = creerClientFactice({
+        syncPull: async () => ({
+          Produit: [],
+          _meta: { serveurLe: iso(5_000), curseur: iso(4_000), tronque: [], suppressions: [{ entiteType: "Produit", id: "p-9", supprimeLe: iso(3_000) }] },
+        }),
+      });
+      await new MoteurSync(client, stockage, ["Produit"]).forcerSynchronisation();
+      expect(stockage.supprimees).toEqual([{ entiteType: "Produit", id: "p-9" }]);
+    });
+
+    it("un pull sans _meta (ancien serveur) reste accepté", async () => {
+      const stockage = creerStockageFactice();
+      const client = creerClientFactice({ syncPull: async () => ({ Chambre: [{ id: "z" }] }) });
+      await new MoteurSync(client, stockage, ["Chambre"]).forcerSynchronisation();
+      expect(stockage.miroir).toHaveLength(1);
+      expect(stockage.dernierePull.get("Chambre")).toBeTruthy();
+    });
+  });
+
+  describe("envoi : pannes passagères, lots, horloge", () => {
+    it("une panne passagère du serveur ne compte pas comme un échec de l'action", async () => {
+      const stockage = creerStockageFactice();
+      const client = creerClientFactice({
+        syncPush: async (ops) => ops.map((op) => ({ localId: op.localId, statut: "ERROR", message: "indisponible", temporaire: true })),
+      });
+      const moteur = new MoteurSync(client, stockage, []);
+      await stockage.ajouterFileAttente({ entiteType: "Chambre", localId: "l1", operation: "CREATE", payload: { numero: "1" } });
+      await moteur.forcerSynchronisation();
+      expect(stockage.file).toHaveLength(1);
+      expect(stockage.file[0].attempts).toBe(0);
+      expect(moteur.etatActuel().echecsDefinitifs).toBe(0);
+    });
+
+    it("découpe la file en lots de 200 opérations, dans l'ordre", async () => {
+      const stockage = creerStockageFactice();
+      const tailles: number[] = [];
+      const client = creerClientFactice({
+        syncPush: async (ops) => {
+          tailles.push(ops.length);
+          return ops.map((op) => ({ localId: op.localId, remoteId: op.localId, syncVersion: 1, statut: "SYNCED" }));
+        },
+      });
+      for (let i = 0; i < 450; i++) await stockage.ajouterFileAttente({ entiteType: "MouvementStock", localId: `m${i}`, operation: "CREATE", payload: {} });
+      await new MoteurSync(client, stockage, []).forcerSynchronisation();
+      expect(tailles).toEqual([200, 200, 50]);
+      expect(stockage.file).toHaveLength(0);
+    });
+
+    it("compte les actions définitivement refusées", async () => {
+      const stockage = creerStockageFactice();
+      const client = creerClientFactice({
+        syncPush: async (ops) => ops.map((op) => ({ localId: op.localId, statut: "ERROR", message: "stock insuffisant" })),
+      });
+      const moteur = new MoteurSync(client, stockage, []);
+      await stockage.ajouterFileAttente({ entiteType: "MouvementStock", localId: "m1", operation: "CREATE", payload: {} });
+      for (let i = 0; i < SEUIL_ECHEC_DEFINITIF; i++) await moteur.forcerSynchronisation();
+      expect(moteur.etatActuel().echecsDefinitifs).toBe(1);
+    });
+
+    it("mesure l'écart d'horloge, le signale au-delà de 5 min, et date l'action à l'heure du serveur", async () => {
+      const stockage = creerStockageFactice();
+      let horodatageEnvoye: string | undefined;
+      let premier = true;
+      const client = creerClientFactice({
+        syncPush: async (ops) => {
+          if (!premier) horodatageEnvoye = ops[0].horodatageClient;
+          premier = false;
+          return { resultats: ops.map((op) => ({ localId: op.localId, remoteId: op.localId, syncVersion: 1, statut: "SYNCED" as const })), serveurLe: new Date(Date.now() + 2 * 3_600_000).toISOString() };
+        },
+      });
+      const moteur = new MoteurSync(client, stockage, []);
+      await stockage.ajouterFileAttente({ entiteType: "MouvementStock", localId: "m1", operation: "CREATE", payload: {} });
+      await moteur.forcerSynchronisation();
+      expect(moteur.etatActuel().horlogeSuspecte).toBe(true);
+      expect(Math.abs((moteur.etatActuel().decalageHorlogeMs ?? 0) - 2 * 3_600_000)).toBeLessThan(2_000);
+
+      await stockage.ajouterFileAttente({ entiteType: "MouvementStock", localId: "m2", operation: "CREATE", payload: {} });
+      await moteur.forcerSynchronisation();
+      // l'action a été faite « maintenant » à l'heure de l'appareil → ramenée à l'heure du serveur (+2 h)
+      expect(Math.abs(Date.parse(horodatageEnvoye!) - (Date.now() + 2 * 3_600_000))).toBeLessThan(5_000);
+    });
+
+    it("renseigne derniereSyncReussieLe après un cycle complet, pas après un échec", async () => {
+      const stockage = creerStockageFactice();
+      const moteur = new MoteurSync(creerClientFactice(), stockage, []);
+      expect(moteur.etatActuel().derniereSyncReussieLe).toBeNull();
+      await moteur.forcerSynchronisation();
+      expect(moteur.etatActuel().derniereSyncReussieLe).toBeTruthy();
+    });
   });
 });

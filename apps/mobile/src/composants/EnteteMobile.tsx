@@ -5,18 +5,22 @@ import { Bell } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { LIBELLE_ROLE } from "../navigation";
+import { resumerEtatSync, type NiveauSync } from "@hotel-chicago/sync-engine";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useNotifications } from "../notifications/ContexteNotifications";
 
-/** Vert = à jour, orange = des changements attendent d'être envoyés, rouge =
- * un conflit à vérifier, gris = hors ligne sans rien en attente. Un point
- * discret plutôt qu'un second bouton/menu (voir le commentaire sur
- * EnteteMobile plus bas) — l'écran détaillé vit dans l'onglet Plus. */
+/** Vert = vraiment à jour, orange = des changements attendent d'être envoyés ou la synchro est en difficulté, rouge =
+ * un conflit ou une action refusée à vérifier, gris = hors ligne. Même vérité que l'écran « Synchronisation » (le texte
+ * vient de resumerEtatSync, partagé avec le bureau). */
+const COULEUR_NIVEAU: Record<NiveauSync, string> = {
+  ok: couleurs.succes,
+  attente: couleurs.alerte,
+  attention: couleurs.alerte,
+  horsLigne: couleurs.encreFaible,
+  danger: couleurs.danger,
+};
 function couleurPointSync(etat: ReturnType<typeof useSyncEtat>): string {
-  if (etat.conflits > 0) return couleurs.danger;
-  if (etat.enAttente > 0) return couleurs.alerte;
-  if (etat.enLigne) return couleurs.succes;
-  return couleurs.encreFaible;
+  return COULEUR_NIVEAU[resumerEtatSync(etat).niveau];
 }
 
 function initiales(nom: string): string {

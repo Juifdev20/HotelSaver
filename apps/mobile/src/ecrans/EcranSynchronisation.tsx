@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ConflitSync, LigneFileAttente } from "@hotel-chicago/sync-engine";
-import { SEUIL_ECHEC_DEFINITIF } from "@hotel-chicago/sync-engine";
+import { SEUIL_ECHEC_DEFINITIF, resumerEtatSync, type NiveauSync } from "@hotel-chicago/sync-engine";
 import { CloudOff, RefreshCw } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -24,6 +24,14 @@ const LIBELLE_ENTITE: Record<string, string> = {
   CompteCafeteria: "Compte cafétaria",
   SousCompte: "Sous-compte",
   LigneCommande: "Ligne de commande",
+};
+
+const couleursNiveau: Record<NiveauSync, string> = {
+  ok: couleurs.succes,
+  attente: couleurs.alerte,
+  attention: couleurs.alerte,
+  horsLigne: couleurs.encreFaible,
+  danger: couleurs.danger,
 };
 
 function resumerChamps(donnees: unknown): string {
@@ -48,6 +56,7 @@ function formaterHeure(horodatage: string | null): string {
 export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
   const { moteurSync } = useSession();
   const etat = useSyncEtat();
+  const resume = resumerEtatSync(etat);
   const [conflits, setConflits] = useState<ConflitSync[]>([]);
   const [actionsEchouees, setActionsEchouees] = useState<LigneFileAttente[]>([]);
   const [enResolution, setEnResolution] = useState<string | null>(null);
@@ -100,6 +109,8 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
 
       <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
         <View style={styles.carteEtat}>
+          <Text style={[styles.valeur, { color: couleursNiveau[resume.niveau], marginBottom: espacements.s1 }]}>{resume.titre}</Text>
+          <Text style={styles.label}>{resume.detail}</Text>
           <View style={styles.ligneEtat}>
             <Text style={styles.label}>État</Text>
             <Text style={[styles.valeur, { color: etat.enLigne ? couleurs.succes : couleurs.encreFaible }]}>
@@ -112,7 +123,7 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
           </View>
           <View style={styles.ligneEtat}>
             <Text style={styles.label}>Dernière synchro</Text>
-            <Text style={styles.valeur}>{formaterHeure(etat.dernierePousseeLe)}</Text>
+            <Text style={styles.valeur}>{formaterHeure(etat.derniereSyncReussieLe)}</Text>
           </View>
           {etat.derniereErreur && <Text style={styles.erreur}>{etat.derniereErreur}</Text>}
           <Pressable style={styles.bouton} onPress={() => moteurSync.forcerSynchronisation()}>

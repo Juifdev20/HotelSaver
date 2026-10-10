@@ -35,8 +35,17 @@ export interface EtatSync {
   enLigne: boolean;
   enAttente: number;
   conflits: number;
+  /** Change à chaque envoi confirmé ET à chaque cycle réussi : les écrans rechargent leur miroir dessus. */
   dernierePousseeLe: string | null;
   derniereErreur: string | null;
+  /** Dernier cycle COMPLET réussi (envoi + réception) : le « synchronisé il y a… » honnête à afficher. */
+  derniereSyncReussieLe: string | null;
+  /** Actions refusées définitivement par le serveur, toujours dans la file (voir « Actions échouées »). */
+  echecsDefinitifs: number;
+  /** Heure du serveur moins heure de l'appareil, en ms (mesuré à la dernière réponse) ; null = jamais mesuré. */
+  decalageHorlogeMs: number | null;
+  /** Horloge de l'appareil à plus de 5 minutes de celle du serveur : à signaler (dates des ventes, expiration de licence). */
+  horlogeSuspecte: boolean;
 }
 
 /**
@@ -64,6 +73,10 @@ export interface StockageLocal {
    * serveur qui seraient réconciliées de toute façon par la réponse du push
    * (anti-écrasement, voir MoteurSync). */
   idsEnAttente(entiteType: EntitePush): Promise<Set<string>>;
+
+  /** Retire du miroir local les éléments supprimés côté serveur (pierres tombales reçues au pull). Un élément absent
+   * localement est ignoré. Ne touche jamais une ligne encore dans la file d'attente d'envoi. */
+  supprimerLignesServeur(entiteType: EntitePull, ids: string[]): Promise<void>;
 
   /** Applique des lignes reçues du serveur dans le miroir local de cette
    * entité (upsert par id). */

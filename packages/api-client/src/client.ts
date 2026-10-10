@@ -293,6 +293,15 @@ export interface OperationPush {
   /** Requis pour UPDATE — la valeur de `syncVersion` lue localement avant la
    * modification, comparée à celle du serveur pour détecter un conflit. */
   baseSyncVersion?: number;
+  /** Heure de l'appareil au moment de l'action (ISO) : le serveur date ainsi les écritures qui s'additionnent
+   * (mouvements de stock, lignes de commande) à leur vraie heure même envoyées plus tard. Borné côté serveur. */
+  horodatageClient?: string;
+}
+
+/** Réponse de POST /sync/push : un résultat par opération, plus l'heure du serveur (mesure du décalage d'horloge). */
+export interface ReponsePush {
+  resultats: ResultatOperation[];
+  serveurLe?: string;
 }
 
 /** Un élément de la réponse de POST /sync/push, un par opération envoyée,
@@ -304,6 +313,9 @@ export interface ResultatOperation {
   syncVersion?: number;
   statut: "SYNCED" | "CONFLICT" | "ERROR";
   message?: string;
+  /** ERROR seulement : panne passagère (serveur ou base momentanément indisponible, opération déjà en cours). À
+   * réessayer plus tard SANS compter un échec ; absent = refus définitif. */
+  temporaire?: boolean;
   donneesServeur?: unknown;
   /** Entités enfants créées implicitement par un CREATE parent (ex. le
    * premier sous-compte d'un CompteCafeteria) — le miroir local doit y
@@ -327,7 +339,18 @@ export interface EnfantCree {
 /** GET /sync/pull — une entrée par type d'entité demandé (ou tous ceux
  * autorisés pour le rôle si `entites` est omis), lignes brutes (pas
  * d'`include` : pas de sous-comptes/lignes imbriqués pour CompteCafeteria). */
-export type ReponsePull = Partial<Record<EntitePull, unknown[]>>;
+export type ReponsePull = Partial<Record<EntitePull, unknown[]>> & { _meta?: MetaPull };
+
+export interface MetaPull {
+  /** Heure du serveur à la réponse. */
+  serveurLe: string;
+  /** Point de départ du prochain pull si rien n'est tronqué (heure du serveur moins une marge de relecture). */
+  curseur: string;
+  /** Types dont la page était pleine : il reste probablement des lignes à tirer (reprendre au dernier updatedAt). */
+  tronque: EntitePull[];
+  /** Éléments supprimés côté serveur depuis `depuis` — à retirer du miroir local. */
+  suppressions: { entiteType: EntitePull; id: string; supprimeLe: string }[];
+}
 
 /**
  * Client HTTP typé pour l'API NestJS (jamais pour Supabase Auth lui-même —
@@ -845,20 +868,20 @@ export class ClientApi {
   /** Un seul appel peut mélanger plusieurs types d'entités, traités dans
    * l'ordre du tableau. Ne rejette jamais sur un `ERROR`/`CONFLICT`
    * individuel — seule une vraie erreur réseau/HTTP lève. */
-  async syncPush(operations: OperationPush[]): Promise<ResultatOperation[]> {
-    const reponse = await this.requete<{ resultats: ResultatOperation[] }>("/sync/push", {
+  async syncPush(operations: OperationPush[]): Promise<ReponsePush> {
+    return this.requete<ReponsePush>("/sync/push", {
       method: "POST",
       body: JSON.stringify({ operations }),
     });
-    return reponse.resultats;
   }
 
   /** `depuis` : horodatage ISO du dernier pull réussi (capturé côté client
    * avant l'appel précédent, pas dérivé des lignes reçues — voir MoteurSync).
    * `entites` omis = tous les types autorisés pour le rôle courant. */
-  async syncPull(depuis: string, entites?: EntitePull[]): Promise<ReponsePull> {
+  async syncPull(depuis: string, entites?: EntitePull[], limite?: number): Promise<ReponsePull> {
     const params = new URLSearchParams({ depuis });
     if (entites && entites.length > 0) params.set("entites", entites.join(","));
+    if (limite) params.set("limite", String(limite));
     return this.requete<ReponsePull>(`/sync/pull?${params.toString()}`);
   }
 

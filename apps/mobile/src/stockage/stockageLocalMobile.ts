@@ -269,6 +269,22 @@ export async function creerStockageLocalMobile(): Promise<StockageLocal> {
       // Autres entités : pas encore de table miroir dédiée (voir le plan).
     },
 
+    async supprimerLignesServeur(entiteType, ids) {
+      // Chambre/Produit : l'id local EST l'id serveur. Les autres tables gardent un id local stable + remoteId.
+      const table = TABLE_MIROIR[entiteType];
+      if (!table || ids.length === 0) return;
+      const colonnes = table.avecRemoteId ? "(id = ? OR remoteId = ?)" : "id = ?";
+      for (const id of ids) {
+        // Une ligne encore en file d'attente garde sa trace locale : l'utilisateur doit voir le sort de son action.
+        const enFile = await db.getFirstAsync<{ id: string }>(
+          "SELECT id FROM sync_queue WHERE localId = ? OR remoteId = ? LIMIT 1",
+          [id, id]
+        );
+        if (enFile) continue;
+        await db.runAsync(`DELETE FROM ${table.nom} WHERE ${colonnes}`, table.avecRemoteId ? [id, id] : [id]);
+      }
+    },
+
     async confirmerPush(entiteType, localId, remoteId, syncVersion) {
       if (entiteType === "Chambre") {
         await db.runAsync("UPDATE chambres SET id = ?, syncVersion = ? WHERE id = ?", [remoteId, syncVersion, localId]);
@@ -303,6 +319,18 @@ export async function creerStockageLocalMobile(): Promise<StockageLocal> {
     },
   };
 }
+
+/** Tables miroir par type d'entité (celles qui ont un « remoteId » séparé de l'id local). */
+const TABLE_MIROIR: Partial<Record<EntitePull, { nom: string; avecRemoteId: boolean }>> = {
+  Chambre: { nom: "chambres", avecRemoteId: false },
+  Produit: { nom: "produits", avecRemoteId: false },
+  CompteCafeteria: { nom: "comptes_cafeteria", avecRemoteId: true },
+  SousCompte: { nom: "sous_comptes", avecRemoteId: true },
+  LigneCommande: { nom: "lignes_commande", avecRemoteId: true },
+  Reservation: { nom: "reservations", avecRemoteId: true },
+  Client: { nom: "clients", avecRemoteId: true },
+  Depense: { nom: "depenses", avecRemoteId: true },
+};
 
 async function upsertChambre(db: Awaited<ReturnType<typeof obtenirBase>>, chambre: Chambre): Promise<void> {
   await db.runAsync(

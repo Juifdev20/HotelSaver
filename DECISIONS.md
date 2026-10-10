@@ -3181,3 +3181,33 @@ dans `/sync/push` est ignoré ; (4) que le site public d'un hôtel ne voit ni ne
 
 Le schéma de la base de test se génère avec `prisma migrate diff --from-empty --to-schema` (sans les policies RLS, que l'API contourne avec `service_role`).
 Voir `BACKLOG.md` pour la suite : synchronisation, bureau hors ligne, encaissement hors ligne.
+
+
+## 10/10/2026 — Synchronisation solide (doublons, reprises, pagination, suppressions, horloges)
+
+Raison : hors ligne plusieurs jours, un appareil renvoie ses actions après des coupures au mauvais moment, avec une horloge parfois fausse, face à des
+serveurs qui peuvent tomber. Chaque point est couvert par un test sur vraie base (`test/integration/sync.e2e-spec.ts`, 30 vérifications) ou par un test
+du moteur (`packages/sync-engine`, 32 tests).
+
+- **CREATE rejouable** : table `SyncCorrespondance` (hôtel, type, id local) → id serveur. Le serveur *réserve* la clé avant de créer ; un renvoi retourne le
+  résultat d'origine, dix envois simultanés ne créent qu'une ligne (stock modifié une seule fois). Un refus métier libère la clé ; un traitement interrompu
+  (serveur arrêté entre création et enregistrement) est signalé « incertain » plutôt que risquer un doublon d'argent. (Pas de transaction englobante :
+  les services métier ouvrent déjà leurs propres transactions et la latence vers Supabase l'aurait rendue fragile.)
+- **UPDATE rejoué** : si le serveur contient déjà exactement les valeurs voulues, c'est `SYNCED`, plus un faux conflit. Un vrai conflit reste `CONFLICT`
+  (le serveur gagne, rien n'est appliqué, la personne décide).
+- **Pull paginé** : `limite` (1000 par défaut, 5000 max), `gte` + tri `(updatedAt, id)`, `_meta.tronque` liste les types à poursuivre. Le client reprend au dernier
+  `updatedAt` et enregistre son curseur à chaque page : une coupure en plein rattrapage reprend où elle s'est arrêtée. Page entièrement au même instant →
+  le client agrandit la page au lieu de boucler.
+- **Curseur = heure du serveur** (`_meta.curseur`, moins 5 s de recouvrement), jamais l'horloge de l'appareil.
+- **Suppressions** : table `Suppression` (pierres tombales), écrite dans la même transaction que la suppression d'une chambre ou d'un produit ; envoyée au
+  pull (filtrée par les types que le rôle peut lire) et retirée du miroir local. Une suppression refusée (clé étrangère) n'en laisse pas.
+- **Erreurs passagères** (`temporaire`) : base injoignable, délai dépassé, opération déjà en cours → l'action reste en file *sans compter un échec*. Un refus
+  métier compte (3 essais puis « Action refusée », décision humaine).
+- **Lots de 200** côté client (le serveur refuse davantage).
+- **Horloge** : `serveurLe` à chaque réponse → décalage mesuré, signalé au-delà de 5 min ; l'heure de chaque action est envoyée corrigée
+  (`horodatageClient`) et le serveur la borne (jamais dans le futur, 30 jours en arrière au plus) pour les écritures qui s'additionnent
+  (mouvements de stock, lignes de commande).
+- **Indicateur honnête** (`resumerEtatSync`, partagé mobile + bureau) : « À jour » seulement si la dernière synchro complète a réussi, rien à envoyer, aucune
+  action refusée ; sinon on dit ce qui est vrai (hors ligne, N actions gardées sur l'appareil, conflit, horloge, données de plus de 24 h).
+
+Limite connue : plus de 5000 suppressions entre deux synchros ne seraient pas toutes transmises (voir BACKLOG).
