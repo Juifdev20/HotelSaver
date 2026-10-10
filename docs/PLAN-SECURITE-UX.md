@@ -97,13 +97,20 @@ Chaque correctif de sécurité arrive avec un test qui échoue avant et passe ap
 
 ---
 
-## Décisions et accès dont j'ai besoin de vous
+## Décisions prises (10/10/2026, par le patron)
+- **Authentification à deux facteurs du super-admin** : reportée. **CAPTCHA** sur le site public (inscription, commande, demande de réservation) : oui.
+- **Verrou après inactivité** : OPTIONNEL, désactivé par défaut (les utilisateurs peu à l'aise ne doivent pas être gênés) ; chacun peut l'activer dans les réglages. Aucun nouveau
+  verrou imposé. Seule la règle déjà en place sur mobile est conservée : le patron saisit son mot de passe au lancement (à aligner sur le bureau).
+- **Copie locale (C-E5)** : choix retenu = **chiffrer au repos** (clé gardée par le coffre du système : `safeStorage` sur Windows, SecureStore sur Android), sans vider à la
+  déconnexion (vider casserait la reconnexion hors ligne, cœur du produit), + bouton « Effacer les données de cet appareil » sur mobile et bureau. La copie d'un AUTRE hôtel
+  est toujours effacée à la connexion (déjà en place).
+- **RLS** : script SQL à coller dans Supabase (`packages/database/prisma/supabase-activer-rls.sql`) + migration `20261010120000_rls_toutes_les_tables`.
+
+## Décisions et accès restants
 1. **Supabase** : confirmer l'état réel de la RLS (S1), les options de révocation de session (S6) et le quota de connexion (S3).
 2. **Hébergeur du web/super-admin** : pouvoir poser des en-têtes (CSP, `frame-ancestors`).
 3. **Electron** : accord pour monter de version (peut demander de retester l'impression).
-4. **MFA super-admin** et **CAPTCHA** (Turnstile) : OK pour ajouter ces dépendances ?
-5. **Verrou d'inactivité** : mot de passe ou code PIN court ? (recommandé : PIN court pour le personnel, mot de passe pour le patron)
-6. **Copie locale** (C-E5) : vider à la déconnexion (simple, mais exige le réseau à la reconnexion) ou chiffrer (plus long, garde le hors-ligne) ?
+4. **CAPTCHA** : créer un compte Cloudflare Turnstile (gratuit) et me donner la clé de site et la clé secrète.
 
 ## Ce que ces audits ne couvrent pas
 Ils n'ont rien exécuté : pas de test d'intrusion réel, pas de lecture du manifeste Android (généré, absent du dépôt), pas de vérification de la configuration Supabase/hébergeur. Un test sur téléphone et sur Windows reste nécessaire après la phase 1 et après la phase 4.
