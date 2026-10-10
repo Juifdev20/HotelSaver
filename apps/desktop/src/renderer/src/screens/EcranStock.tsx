@@ -3,6 +3,7 @@ import type { ClientApi } from "@hotel-chicago/api-client";
 import { Devise, MouvementStock, Produit } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { AlertTriangle, ArrowDown, ArrowUp, BarChart2, Package, RefreshCw, Search, X } from "lucide-react";
+import { lireQuantite } from "@hotel-chicago/miroir-local";
 
 export interface EcranStockProps {
   client: ClientApi;
@@ -71,11 +72,17 @@ export function EcranStock({ client }: EcranStockProps) {
   }
 
   async function enregistrer() {
-    const qte = Number(quantite);
-    if (!produitId || !Number.isFinite(qte) || qte <= 0) {
-      setErreurForm("Choisissez un produit et une quantité positive.");
+    if (!produitId) {
+      setErreurForm("Choisissez un produit.");
       return;
     }
+    const negatif = type === "AJUSTEMENT" && quantite.trim().startsWith("-");
+    const qteLue = lireQuantite(negatif ? quantite.trim().slice(1) : quantite, { max: 1_000_000 });
+    if (!qteLue.ok) {
+      setErreurForm(qteLue.message);
+      return;
+    }
+    const qte = negatif ? -qteLue.valeur : qteLue.valeur;
     setEnEnvoi(true);
     setErreurForm(null);
     try {

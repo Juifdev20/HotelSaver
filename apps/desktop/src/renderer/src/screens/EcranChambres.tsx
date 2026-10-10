@@ -8,6 +8,7 @@ import { Button, RoomCard, StatusBadge, StatusTone, formatMontant } from "@hotel
 import { BedDouble, MoreVertical, Plus, Search } from "lucide-react";
 import type { IdPage } from "../navigation";
 import { useFermetureExterne } from "../layout/Coquille";
+import { lireMontant, lireQuantite } from "@hotel-chicago/miroir-local";
 
 /** Mapping statut → présentation : reste ici, pas dans packages/ui (voir
  * DECISIONS.md — le design system reste agnostique du domaine métier). */
@@ -238,15 +239,16 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
   }
 
   async function enregistrerChambre() {
-    const prixNombre = Number(prix.replace(/\s/g, "").replace(",", "."));
     if (!numero.trim() || !type.trim()) {
       setErreur("Le numéro et le type sont obligatoires.");
       return;
     }
-    if (Number.isNaN(prixNombre) || prixNombre <= 0) {
-      setErreur("Le prix par nuit doit être un nombre positif.");
+    const prixLu = lireMontant(prix, devise, { max: 100_000_000 });
+    if (!prixLu.ok) {
+      setErreur(`Prix par nuit : ${prixLu.message}`);
       return;
     }
+    const prixNombre = prixLu.valeur;
     setEnCours(true);
     setErreur(null);
     try {

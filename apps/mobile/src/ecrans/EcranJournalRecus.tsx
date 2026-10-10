@@ -126,7 +126,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
         client.obtenirReservation(facture.reservationId),
         client.listerVentesCafeteria(facture.reservationId),
       ]);
-      await imprimerLignes(construireRecuFacture(facture, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur)));
+      await imprimerLignes(construireRecuFacture(facture, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur), { duplicata: true }));
       setMessage(`Reçu ${facture.numeroRecu} envoyé à l'imprimante.`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Échec de l'impression.");
@@ -140,7 +140,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
     setMessage(null);
     try {
       const compte = await client.obtenirCompteCafeteria(vente.compteId);
-      await imprimerLignes(construireRecuVente(vente, compte, utilisateur.nom, enteteHotel(utilisateur)));
+      await imprimerLignes(construireRecuVente(vente, compte, utilisateur.nom, enteteHotel(utilisateur), { duplicata: true }));
       setMessage(`Reçu ${vente.numeroRecu} envoyé à l'imprimante.`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Échec de l'impression.");

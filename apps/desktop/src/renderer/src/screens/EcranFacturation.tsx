@@ -6,6 +6,7 @@ import type { TauxChange } from "@hotel-chicago/api-client";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { CalendarCheck } from "lucide-react";
+import { lireMontant } from "@hotel-chicago/miroir-local";
 
 export interface EcranFacturationProps {
   client: ClientApi;
@@ -100,8 +101,10 @@ function DetailFacturation({
   const factureMixte = apercu ? apercu.totalUSD > 0 && apercu.totalCDF > 0 : false;
   const deviseDue: Devise | null = apercu ? (apercu.totalUSD > 0 ? Devise.USD : apercu.totalCDF > 0 ? Devise.CDF : null) : null;
   const cdfParUsd = taux ? Number(taux.cdfParUsd) : undefined;
-  const regle = Number(montantRegle.replace(/\s/g, "").replace(",", "."));
-  const detailSaisi = montantRegle.trim() !== "" && !Number.isNaN(regle);
+  const regleLu = montantRegle.trim() === "" ? null : lireMontant(montantRegle, deviseReglee, { max: 1_000_000_000 });
+  const regle = regleLu && regleLu.ok ? regleLu.valeur : NaN;
+  const detailSaisi = regleLu !== null && regleLu.ok;
+  const erreurMontantRegle = regleLu && !regleLu.ok ? regleLu.message : null;
 
   /** Prévisualisation de la monnaie — même règles que
    * apps/api/src/factures/encaissement.util.ts (référence côté serveur). */
@@ -128,7 +131,7 @@ function DetailFacturation({
   }, [apercu, deviseDue, deviseReglee, deviseRendu, detailSaisi, regle, cdfParUsd, factureMixte]);
 
   const bloquerPaiement =
-    detailSaisi && (apercuMonnaie?.statut === "insuffisant" || apercuMonnaie?.statut === "taux-manquant");
+    erreurMontantRegle !== null || (detailSaisi && (apercuMonnaie?.statut === "insuffisant" || apercuMonnaie?.statut === "taux-manquant"));
 
   async function facturerEtCheckOut() {
     setEnCours(true);
@@ -346,7 +349,14 @@ function DetailFacturation({
                   value={montantRegle}
                   onChange={(e) => setMontantRegle(e.target.value)}
                   placeholder={deviseReglee === Devise.USD ? "Ex. 100.00" : "Ex. 280 000"}
+                  aria-invalid={erreurMontantRegle !== null}
+                  aria-describedby={erreurMontantRegle ? "montant-remis-erreur" : undefined}
                 />
+                {erreurMontantRegle && (
+                  <p id="montant-remis-erreur" role="alert" className="hc-text-body">
+                    {erreurMontantRegle}
+                  </p>
+                )}
                 {detailSaisi && (
                   <div className="parametres-ligne">
                     <span className="hc-text-body">Rendre la monnaie en</span>
@@ -450,7 +460,7 @@ function JournalRecus({
       ]);
       await window.hotelChicago.imprimer(
         interfaceImprimante,
-        construireRecuFacture(facture, reservation, utilisateur.nom, ventes, enteteHotel(utilisateur))
+        construireRecuFacture(facture, reservation, utilisateur.nom, ventes, enteteHotel(utilisateur), { duplicata: true })
       );
       setMessage(`Reçu ${facture.numeroRecu} envoyé à l'imprimante.`);
     } catch (e) {

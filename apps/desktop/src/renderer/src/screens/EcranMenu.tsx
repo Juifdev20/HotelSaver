@@ -8,6 +8,7 @@ import { Camera, Printer, UtensilsCrossed } from "lucide-react";
 import { ScannerWebcam } from "../components/ScannerWebcam";
 import { SelecteurPhotos, nettoyerImages } from "../components/SelecteurPhotos";
 import { ApercuRecu } from "../components/ApercuRecu";
+import { lireMontant, lireQuantite } from "@hotel-chicago/miroir-local";
 
 export interface EcranMenuProps {
   client: ClientApi;
@@ -173,17 +174,37 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
       : 0;
 
   async function enregistrer(essai = 0): Promise<void> {
-    const prixNombre = Number(formulaire.prix);
-    if (!formulaire.nom.trim() || !formulaire.categorie.trim() || !Number.isFinite(prixNombre) || prixNombre <= 0) {
-      setErreurFormulaire("Nom, catégorie et prix (positif) sont obligatoires.");
+    if (!formulaire.nom.trim() || !formulaire.categorie.trim()) {
+      setErreurFormulaire("Le nom et la catégorie sont obligatoires.");
+      return;
+    }
+    const prixLu = lireMontant(formulaire.prix, formulaire.devise, { max: 100_000_000 });
+    if (!prixLu.ok) {
+      setErreurFormulaire(`Prix : ${prixLu.message}`);
+      return;
+    }
+    const prixNombre = prixLu.valeur;
+    const prixAchatLu = formulaire.prixAchat.trim() ? lireMontant(formulaire.prixAchat, formulaire.devise, { max: 100_000_000 }) : null;
+    if (prixAchatLu && !prixAchatLu.ok) {
+      setErreurFormulaire(`Prix d'achat : ${prixAchatLu.message}`);
+      return;
+    }
+    const seuilLu = formulaire.seuilAlerte.trim() ? lireQuantite(formulaire.seuilAlerte, { autoriserZero: true, max: 1_000_000 }) : null;
+    if (seuilLu && !seuilLu.ok) {
+      setErreurFormulaire(`Seuil d'alerte : ${seuilLu.message}`);
+      return;
+    }
+    const quantiteInitialeLu = formulaire.quantiteInitiale.trim() ? lireQuantite(formulaire.quantiteInitiale, { autoriserZero: true, max: 1_000_000 }) : null;
+    if (quantiteInitialeLu && !quantiteInitialeLu.ok) {
+      setErreurFormulaire(`Quantité initiale : ${quantiteInitialeLu.message}`);
       return;
     }
     setEnEnvoi(true);
     setErreurFormulaire(null);
     try {
       const estPlat = formulaire.typeProduit === TypeProduit.PLAT;
-      const seuilAlerte = estPlat ? undefined : formulaire.seuilAlerte.trim() ? Number(formulaire.seuilAlerte) : undefined;
-      const prixAchat  = estPlat ? undefined : formulaire.prixAchat.trim()   ? Number(formulaire.prixAchat)   : undefined;
+      const seuilAlerte = estPlat ? undefined : seuilLu && seuilLu.ok ? seuilLu.valeur : undefined;
+      const prixAchat  = estPlat ? undefined : prixAchatLu && prixAchatLu.ok ? prixAchatLu.valeur : undefined;
       const description = estPlat ? formulaire.description.trim() || undefined : undefined;
       const commandableEnLigne = estPlat ? formulaire.commandableEnLigne : false;
       // Vide = illimité ; null explicite en modification pour repasser en
@@ -218,7 +239,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
           photo: estPlat ? photos[0] : undefined,
           seuilAlerte,
           prixAchat,
-          stockActuel: !estPlat && formulaire.quantiteInitiale.trim() ? Number(formulaire.quantiteInitiale) : undefined,
+          stockActuel: !estPlat && quantiteInitialeLu && quantiteInitialeLu.ok ? quantiteInitialeLu.valeur : undefined,
           description,
           commandableEnLigne,
           portionsDisponibles: estPlat && portions ? Number(portions) : undefined,

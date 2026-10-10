@@ -8,6 +8,7 @@ import { Button, formatMontant } from "@hotel-chicago/ui";
 import { Link2, MessageCircle, Pencil } from "lucide-react";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
 import { StatusBadge } from "@hotel-chicago/ui";
+import { lireMontant } from "@hotel-chicago/miroir-local";
 
 export interface EcranReservationDetailProps {
   client: ClientApi;
@@ -94,11 +95,14 @@ export function EcranReservationDetail({
       setErreur("La date de départ doit être postérieure à la date d'arrivée.");
       return;
     }
-    const acompte = acompteSaisi.trim() ? Number(acompteSaisi.replace(",", ".")) : undefined;
-    if (acompte !== undefined && (Number.isNaN(acompte) || acompte < 0)) {
-      setErreur("Acompte invalide.");
+    const acompteLu = acompteSaisi.trim()
+      ? lireMontant(acompteSaisi, reservation.chambre.devise, { autoriserZero: true, max: 100_000_000 })
+      : null;
+    if (acompteLu && !acompteLu.ok) {
+      setErreur(`Acompte : ${acompteLu.message}`);
       return;
     }
+    const acompte = acompteLu && acompteLu.ok ? acompteLu.valeur : undefined;
     const noteModifiee = noteSaisie.trim() !== (reservation.note ?? "") ? noteSaisie.trim() : undefined;
     setEdition(false);
     void action(
@@ -208,7 +212,7 @@ export function EcranReservationDetail({
       if (!reservation || !utilisateur) return;
       await window.hotelChicago.imprimer(
         interfaceImprimante,
-        construireRecuFacture(facture, reservation, utilisateur.nom, ventes, enteteHotel(utilisateur))
+        construireRecuFacture(facture, reservation, utilisateur.nom, ventes, enteteHotel(utilisateur), { duplicata: true })
       );
     }, "Reçu envoyé à l'imprimante.");
   }

@@ -13,6 +13,7 @@ import { SelecteurPhotos, nettoyerImages } from "../composants/SelecteurPhotos";
 import { MAX_PHOTOS_CHAMBRE } from "@hotel-chicago/types";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
 
 const COULEUR_PAR_STATUT: Record<StatutChambre, { fond: string; texte: string }> = {
   [StatutChambre.LIBRE]: { fond: couleurs.succesClair, texte: couleurs.succes },
@@ -144,15 +145,16 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
   }
 
   async function enregistrerChambre() {
-    const prixNombre = Number(prix.replace(/\s/g, "").replace(",", "."));
     if (!numero.trim() || !type.trim()) {
       setErreur("Le numéro et le type sont obligatoires.");
       return;
     }
-    if (Number.isNaN(prixNombre) || prixNombre <= 0) {
-      setErreur("Le prix par nuit doit être un nombre positif.");
+    const prixLu = lireMontant(prix, devise, { max: 100_000_000 });
+    if (!prixLu.ok) {
+      setErreur(`Prix par nuit : ${prixLu.message}`);
       return;
     }
+    const prixNombre = prixLu.valeur;
     setEnCours(true);
     setErreur(null);
     try {

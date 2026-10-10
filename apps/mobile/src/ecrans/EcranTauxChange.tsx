@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { TauxChange } from "@hotel-chicago/api-client";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -10,6 +10,7 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
 
 export interface EcranTauxChangeProps {
   onRetour: () => void;
@@ -40,12 +41,26 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
 
   const actuel = historique?.[0] ?? null;
 
-  async function enregistrer() {
-    const valeur = Number(saisie.replace(/\s/g, "").replace(",", "."));
-    if (!saisie.trim() || Number.isNaN(valeur) || valeur <= 0) {
-      setErreur("Saisissez un taux positif (ex. 2800 pour 1 $ = 2 800 FC).");
+  /** Lit le taux (« 2.800 » = 2 800), le fait confirmer avec rappel de l'ancien, puis l'enregistre. */
+  function demanderConfirmation() {
+    const lu = lireTauxChange(saisie);
+    if (!lu.ok) {
+      setErreur(lu.message);
       return;
     }
+    setErreur(null);
+    const ancien = actuel ? `Taux actuel : 1 $ = ${formatMontant(actuel.cdfParUsd, Devise.CDF)}.\n` : "";
+    Alert.alert(
+      "Confirmer le nouveau taux ?",
+      `${ancien}Nouveau taux : 1 $ = ${formatMontant(lu.valeur, Devise.CDF)}.\nIl servira aux prochains paiements croisés.`,
+      [
+        { text: "Corriger", style: "cancel" },
+        { text: "Enregistrer", onPress: () => void enregistrer(lu.valeur) },
+      ]
+    );
+  }
+
+  async function enregistrer(valeur: number) {
     setEnCours(true);
     setErreur(null);
     setConfirmation(null);
@@ -95,7 +110,7 @@ export function EcranTauxChange({ onRetour }: EcranTauxChangeProps) {
           {confirmation && <Text style={styles.confirmation}>{confirmation}</Text>}
           <Pressable
             style={[styles.bouton, !etatSync.enLigne && styles.boutonInactif]}
-            onPress={enregistrer}
+            onPress={demanderConfirmation}
             disabled={enCours || !etatSync.enLigne}
           >
             <Text style={styles.boutonTexte}>{enCours ? "…" : "Enregistrer"}</Text>

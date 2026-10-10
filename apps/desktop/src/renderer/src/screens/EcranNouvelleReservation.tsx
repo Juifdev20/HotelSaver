@@ -4,6 +4,7 @@ import type { ClientApi } from "@hotel-chicago/api-client";
 import type { Chambre, Reservation } from "@hotel-chicago/types";
 import type { Client as ClientHotel } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
+import { lireMontant } from "@hotel-chicago/miroir-local";
 
 export interface EcranNouvelleReservationProps {
   client: ClientApi;
@@ -88,7 +89,10 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
   }, [clients, rechercheClient]);
 
   const chambreChoisie = chambres.find((c) => c.id === chambreId) ?? null;
-  const acompte = acompteSaisi.trim() ? Number(acompteSaisi.replace(",", ".")) : 0;
+  const acompteLu = acompteSaisi.trim()
+    ? lireMontant(acompteSaisi, chambreChoisie?.devise ?? "USD", { autoriserZero: true, max: 100_000_000 })
+    : ({ ok: true, valeur: 0 } as const);
+  const acompte = acompteLu.ok ? acompteLu.valeur : NaN;
   const total = chambreChoisie ? Number(chambreChoisie.prixParNuit) * nuits : 0;
 
   async function creer() {
@@ -105,7 +109,7 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
       setErreur("Le nom du client est obligatoire.");
       return;
     }
-    if (acompteSaisi.trim() && (Number.isNaN(acompte) || acompte < 0)) {
+    if (!acompteLu.ok) {
       setErreur("Acompte invalide.");
       return;
     }

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { FrontiereErreur } from "./src/composants/FrontiereErreur";
 import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
@@ -597,6 +598,7 @@ export default function App() {
     <View style={styles.racine}>
       {contenuPret && (
         <SafeAreaProvider>
+          <FrontiereErreur>
           <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync, miroir: miroir!, rechargerProfil: async () => {
             const frais = await client.moi();
             if (frais.userId !== utilisateur.userId) return;
@@ -611,6 +613,7 @@ export default function App() {
               <CentreNotifications />
             </FournisseurNotifications>
           </FournisseurSession>
+          </FrontiereErreur>
           <StatusBar style="light" />
         </SafeAreaProvider>
       )}

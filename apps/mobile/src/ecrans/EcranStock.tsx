@@ -12,6 +12,7 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { SelecteurProduit } from "../composants/SelecteurProduit";
 import { useDonnee } from "../hooks/useDonnee";
+import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
 
 export interface EcranStockProps {
   client: ClientApi;
@@ -62,11 +63,18 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
   }
 
   async function enregistrer() {
-    const quantiteNombre = Number(quantite);
-    if (!produit || !Number.isFinite(quantiteNombre) || quantiteNombre <= 0) {
-      setErreurFormulaire("Choisissez un produit et une quantité positive.");
+    if (!produit) {
+      setErreurFormulaire("Choisissez un produit.");
       return;
     }
+    // Un ajustement peut être négatif (correction à la baisse) : le signe se lit à part, la quantité reste positive.
+    const brute = type === "AJUSTEMENT" && quantite.trim().startsWith("-") ? quantite.trim().slice(1) : quantite;
+    const quantiteLue = lireQuantite(brute, { max: 1_000_000 });
+    if (!quantiteLue.ok) {
+      setErreurFormulaire(quantiteLue.message);
+      return;
+    }
+    const quantiteNombre = type === "AJUSTEMENT" && quantite.trim().startsWith("-") ? -quantiteLue.valeur : quantiteLue.valeur;
     setEnEnvoi(true);
     setErreurFormulaire(null);
     try {

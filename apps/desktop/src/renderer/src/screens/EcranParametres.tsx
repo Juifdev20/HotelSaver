@@ -6,6 +6,7 @@ import { Button, formatMontant } from "@hotel-chicago/ui";
 import { Bell, ChefHat, Coins, Globe, Moon, Printer, ShieldCheck, Sun, Users } from "lucide-react";
 import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
+import { lireTauxChange } from "@hotel-chicago/miroir-local";
 
 export interface EcranParametresProps {
   /** Présent seulement une fois connecté. */
@@ -43,11 +44,14 @@ function GestionTauxChange({ client }: { client: ClientApi }) {
   const actuel = historique?.[0] ?? null;
 
   async function enregistrer() {
-    const valeur = Number(saisie.replace(/\s/g, "").replace(",", "."));
-    if (!saisie.trim() || Number.isNaN(valeur) || valeur <= 0) {
-      setErreur("Saisissez un taux positif (ex. 2800 pour 1 $ = 2 800 FC).");
+    const lu = lireTauxChange(saisie);
+    if (!lu.ok) {
+      setErreur(lu.message);
       return;
     }
+    const valeur = lu.valeur;
+    const ancien = actuel ? `Taux actuel : 1 $ = ${formatMontant(actuel.cdfParUsd, Devise.CDF)}.\n` : "";
+    if (!window.confirm(`${ancien}Nouveau taux : 1 $ = ${formatMontant(valeur, Devise.CDF)}.\nIl servira aux prochains paiements croisés. Confirmer ?`)) return;
     setEnCours(true);
     setErreur(null);
     setConfirmation(null);

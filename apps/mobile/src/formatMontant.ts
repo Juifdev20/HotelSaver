@@ -11,9 +11,9 @@ import { Devise } from "@hotel-chicago/types";
  */
 export function formatMontant(montant: number | string, devise: Devise): string {
   const valeur = typeof montant === "string" ? Number(montant) : montant;
-  if (Number.isNaN(valeur)) {
-    throw new Error(`formatMontant: montant invalide (${JSON.stringify(montant)}).`);
-  }
+  // Mobile : pas de frontière d'erreur par écran, et un rendu qui lève ferme l'application au milieu d'une vente. On affiche « — »
+  // (le bureau, lui, garde l'exception : sa frontière d'erreur la montre).
+  if (Number.isNaN(valeur)) return "—";
   if (devise === Devise.CDF) {
     return `${separerMilliers(Math.round(valeur))} FC`;
   }

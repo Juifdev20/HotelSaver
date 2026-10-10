@@ -69,7 +69,7 @@ function JournalVentes({
     setErreur(null);
     try {
       const compte = await client.obtenirCompteCafeteria(vente.compteId);
-      await window.hotelChicago.imprimer(interfaceImprimante, construireRecuVente(vente, compte, utilisateur.nom, enteteHotel(utilisateur)));
+      await window.hotelChicago.imprimer(interfaceImprimante, construireRecuVente(vente, compte, utilisateur.nom, enteteHotel(utilisateur), { duplicata: true }));
       setMessage(`Reçu ${vente.numeroRecu} envoyé à l'imprimante.`);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Échec de l'impression.");

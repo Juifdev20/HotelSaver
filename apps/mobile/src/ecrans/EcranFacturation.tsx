@@ -12,6 +12,7 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { imprimerLignes } from "../impression/imprimante";
+import { lireMontant } from "@hotel-chicago/regles";
 
 export interface EcranFacturationProps {
   reservationId: string;
@@ -90,8 +91,10 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
   const factureMixte = apercu ? apercu.totalUSD > 0 && apercu.totalCDF > 0 : false;
   const deviseDue: Devise | null = apercu ? (apercu.totalUSD > 0 ? Devise.USD : apercu.totalCDF > 0 ? Devise.CDF : null) : null;
   const cdfParUsd = taux ? Number(taux.cdfParUsd) : undefined;
-  const regle = Number(montantRegle.replace(/\s/g, "").replace(",", "."));
-  const detailSaisi = montantRegle.trim() !== "" && !Number.isNaN(regle);
+  const regleLu = montantRegle.trim() === "" ? null : lireMontant(montantRegle, deviseReglee, { max: 1_000_000_000 });
+  const regle = regleLu && regleLu.ok ? regleLu.valeur : NaN;
+  const detailSaisi = regleLu !== null && regleLu.ok;
+  const erreurMontantRegle = regleLu && !regleLu.ok ? regleLu.message : null;
 
   /** Prévisualisation de la monnaie — même règles que
    * apps/api/src/factures/encaissement.util.ts (calcul de référence
@@ -121,7 +124,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
   }, [apercu, deviseDue, deviseReglee, deviseRendu, detailSaisi, regle, cdfParUsd, factureMixte]);
 
   const bloquerPaiement =
-    (detailSaisi && (apercuMonnaie?.statut === "insuffisant" || apercuMonnaie?.statut === "taux-manquant")) ?? false;
+    erreurMontantRegle !== null || ((detailSaisi && (apercuMonnaie?.statut === "insuffisant" || apercuMonnaie?.statut === "taux-manquant")) ?? false);
 
   async function facturerEtCheckOut() {
     setEnCours(true);
@@ -308,6 +311,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
                 placeholderTextColor={couleurs.encreFaible}
                 keyboardType="numeric"
               />
+              {erreurMontantRegle && <Text style={styles.avertissement}>{erreurMontantRegle}</Text>}
               {detailSaisi && (
                 <>
                   <Text style={styles.sousLabel}>Rendre la monnaie en</Text>

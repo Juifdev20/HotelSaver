@@ -176,3 +176,17 @@ describe("reçu provisoire (établi hors ligne)", () => {
     expect(JSON.stringify(lignes)).not.toContain("PROVISOIRE");
   });
 });
+
+describe("réimpression (duplicata)", () => {
+  it("garde la date de la facture d'origine et porte la mention DUPLICATA", () => {
+    const facture = { numeroRecu: "REC-2026-0001", createdAt: "2026-03-01T10:15:00.000Z", montantTotalUSD: "50", montantTotalCDF: "0", modePaiement: "CASH" } as never;
+    const reservation = { client: { nom: "Jean" }, chambre: { numero: "101", type: "Std", prixParNuit: "50", devise: "USD" }, dateArrivee: "2026-02-28T12:00:00.000Z", dateDepart: "2026-03-01T12:00:00.000Z", acompte: "0" } as never;
+    const hotel = { nom: "Hôtel Test" } as never;
+    const original = JSON.stringify(construireRecuFacture(facture, reservation, "Marie", [], hotel));
+    const copie = JSON.stringify(construireRecuFacture(facture, reservation, "Marie", [], hotel, { duplicata: true }));
+    expect(original).not.toContain("DUPLICATA");
+    expect(copie).toContain("DUPLICATA");
+    expect(copie).toContain("Réimprimé le");
+    expect(copie).toMatch(/01\/03\/2026|2026-03-01|1 mars 2026|01-03-2026/); // la date d'origine, pas celle d'aujourd'hui
+  });
+});

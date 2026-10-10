@@ -12,6 +12,7 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
 
 export interface EcranDepensesProps {
   /** « ‹ Retour » vers l'Accueil (onglet) ou la liste Plus (patron). */
@@ -153,13 +154,13 @@ export function EcranDepenses({ onRetour }: EcranDepensesProps) {
 
   async function enregistrer() {
     const motifTrim = motif.trim();
-    const valeur = Number(montant.replace(",", ".").replace(/\s/g, ""));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return setErreurFormulaire("Choisissez la date de la dépense.");
     if (date > iso(new Date())) return setErreurFormulaire("Une dépense ne peut pas être datée dans le futur.");
     if (motifTrim.length < 3) return setErreurFormulaire("Le motif doit faire au moins 3 caractères.");
     if (motifTrim.length > 200) return setErreurFormulaire("Le motif ne peut pas dépasser 200 caractères.");
-    if (!Number.isFinite(valeur) || valeur <= 0) return setErreurFormulaire("Le montant doit être supérieur à zéro.");
-    const montantArrondi = Math.round(valeur * 100) / 100;
+    const montantLu = lireMontant(montant, devise, { max: 100_000_000 });
+    if (!montantLu.ok) return setErreurFormulaire(montantLu.message);
+    const montantArrondi = Math.round(montantLu.valeur * 100) / 100;
 
     setEnCours(true);
     setErreurFormulaire(null);

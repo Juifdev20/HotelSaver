@@ -101,6 +101,21 @@ function bandeauProvisoire(numeroRecu: string): LigneRecu[] {
   return estProvisoire(numeroRecu) ? [{ type: "soustitre", texte: "*** REÇU PROVISOIRE ***" }] : [];
 }
 
+/** Réimpression d'un reçu déjà remis : jamais présentable comme un original. */
+function bandeauDuplicata(options: OptionsRecu): LigneRecu[] {
+  if (!options.duplicata) return [];
+  const maintenant = new Date().toISOString();
+  return [
+    { type: "soustitre", texte: "*** DUPLICATA ***" },
+    { type: "champ", label: "Réimprimé le", valeur: `${formaterDate(maintenant)} ${formaterHeure(maintenant)}` },
+  ];
+}
+
+export interface OptionsRecu {
+  /** Vrai pour une réimpression : ajoute « DUPLICATA » et la date de réimpression (la date du reçu reste celle de l'original). */
+  duplicata?: boolean;
+}
+
 function noteProvisoire(numeroRecu: string): LigneRecu[] {
   return estProvisoire(numeroRecu)
     ? [{ type: "separateur" }, { type: "soustitre", texte: "Reçu établi hors connexion." }, { type: "soustitre", texte: "Conservez-le : le reçu définitif" }, { type: "soustitre", texte: `se retrouve avec le n° ${numeroRecu}.` }]
@@ -119,11 +134,15 @@ export function construireRecuFacture(
   reservation: Reservation,
   nomReceptionniste: string,
   ventesCafeteriaLiees: VenteCafeteria[],
-  hotel: EnteteHotel
+  hotel: EnteteHotel,
+  options: OptionsRecu = {}
 ): LigneRecu[] {
-  const maintenant = new Date().toISOString();
+  // Date du reçu = celle de la facture (un reçu réimprimé garde sa date d'origine), jamais l'instant de l'impression.
+  const dateFacture = Number.isNaN(new Date(facture.createdAt).getTime()) ? new Date().toISOString() : new Date(facture.createdAt).toISOString();
+  const maintenant = dateFacture;
   const lignes: LigneRecu[] = [
     ...enTete(hotel),
+    ...bandeauDuplicata(options),
     ...bandeauProvisoire(facture.numeroRecu),
     { type: "champ", label: "Reçu n°", valeur: facture.numeroRecu },
     { type: "champ", label: "Date", valeur: `${formaterDate(maintenant)} ${formaterHeure(maintenant)}` },
@@ -176,10 +195,12 @@ export function construireRecuVente(
   vente: VenteCafeteria,
   compte: CompteCafeteria,
   nomServeur: string,
-  hotel: EnteteHotel
+  hotel: EnteteHotel,
+  options: OptionsRecu = {}
 ): LigneRecu[] {
   const lignes: LigneRecu[] = [
     ...enTete(hotel, "Cafétaria"),
+    ...bandeauDuplicata(options),
     ...bandeauProvisoire(vente.numeroRecu),
     { type: "champ", label: "Reçu n°", valeur: vente.numeroRecu },
     { type: "champ", label: "Date", valeur: `${formaterDate(vente.createdAt)} ${formaterHeure(vente.createdAt)}` },

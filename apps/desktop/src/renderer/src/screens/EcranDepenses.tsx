@@ -4,6 +4,7 @@ import type { ClientApi } from "@hotel-chicago/api-client";
 import { DepartementRapport, Depense, Devise, ProfilConnecte, Role } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { FileDown, Plus, Wallet } from "lucide-react";
+import { lireMontant, lireQuantite } from "@hotel-chicago/miroir-local";
 
 export interface EcranDepensesProps {
   client: ClientApi;
@@ -102,12 +103,12 @@ export function EcranDepenses({ client, utilisateur }: EcranDepensesProps) {
 
   async function enregistrer() {
     const motifTrim = motif.trim();
-    const valeur = Number(montant.replace(",", "."));
     if (!date) return setErreurForm("Choisissez la date de la dépense.");
     if (date > iso(new Date())) return setErreurForm("Une dépense ne peut pas être datée dans le futur.");
     if (motifTrim.length < 3) return setErreurForm("Le motif doit faire au moins 3 caractères.");
-    if (!Number.isFinite(valeur) || valeur <= 0) return setErreurForm("Le montant doit être supérieur à zéro.");
-    const montantArrondi = Math.round(valeur * 100) / 100;
+    const montantLu = lireMontant(montant, devise, { max: 100_000_000 });
+    if (!montantLu.ok) return setErreurForm(montantLu.message);
+    const montantArrondi = Math.round(montantLu.valeur * 100) / 100;
 
     setEnEnvoi(true);
     setErreurForm(null);

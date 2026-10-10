@@ -9,6 +9,7 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { SelecteurDate, saisieDepuisIso } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
+import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
 
 export interface EcranNouvelleReservationProps {
   onRetour: () => void;
@@ -117,7 +118,10 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
   }, [clients, rechercheClient]);
 
   const total = chambreChoisie ? Number(chambreChoisie.prixParNuit) * nuits : 0;
-  const acompte = acompteSaisi.trim() ? Number(acompteSaisi.replace(/\s/g, "").replace(",", ".")) : 0;
+  const acompteLu = acompteSaisi.trim()
+    ? lireMontant(acompteSaisi, chambreChoisie?.devise ?? "USD", { autoriserZero: true, max: 100_000_000 })
+    : ({ ok: true, valeur: 0 } as const);
+  const acompte = acompteLu.ok ? acompteLu.valeur : NaN;
 
   async function creer() {
     setErreur(null);
@@ -129,8 +133,8 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
       setErreur("Choisissez une chambre.");
       return;
     }
-    if (Number.isNaN(acompte) || acompte < 0) {
-      setErreur("Acompte invalide.");
+    if (!acompteLu.ok) {
+      setErreur(`Acompte : ${acompteLu.message}`);
       return;
     }
     if (modeClient === "existant" && !clientChoisi) {

@@ -14,6 +14,7 @@ import { FeuilleModale } from "../composants/FeuilleModale";
 import { SelecteurDate } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
 import { imprimerLignes } from "../impression/imprimante";
+import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
 
 export interface EcranReservationDetailProps {
   /** Id de la réservation (local ou serveur — le miroir résout les deux). */
@@ -153,11 +154,14 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
       setErreur("La date de départ doit être postérieure à la date d'arrivée.");
       return;
     }
-    const acompte = saisieAcompte.trim() ? Number(saisieAcompte.replace(/\s/g, "").replace(",", ".")) : undefined;
-    if (acompte !== undefined && (Number.isNaN(acompte) || acompte < 0)) {
-      setErreur("Acompte invalide.");
+    const acompteLu = saisieAcompte.trim()
+      ? lireMontant(saisieAcompte, reservation.chambre.devise, { autoriserZero: true, max: 100_000_000 })
+      : null;
+    if (acompteLu && !acompteLu.ok) {
+      setErreur(`Acompte : ${acompteLu.message}`);
       return;
     }
+    const acompte = acompteLu && acompteLu.ok ? acompteLu.valeur : undefined;
     const noteModifiee = saisieNote.trim() !== (reservation.note ?? "") ? saisieNote.trim() : undefined;
     setFeuille(null);
     void executer("modifier", async () => {
@@ -198,7 +202,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
         client.obtenirReservation(idServeur),
         client.listerVentesCafeteria(idServeur),
       ]);
-      await imprimerLignes(construireRecuFacture(facture, reservationComplete, utilisateur.nom, ventes, enteteHotel(utilisateur)));
+      await imprimerLignes(construireRecuFacture(facture, reservationComplete, utilisateur.nom, ventes, enteteHotel(utilisateur), { duplicata: true }));
       setMessageImpression("Reçu envoyé à l'imprimante.");
     } catch (e) {
       setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
