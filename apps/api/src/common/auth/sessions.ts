@@ -29,10 +29,11 @@ export async function verifierSession(prisma: PrismaClient, sessionId: string, u
 }
 
 /** Révoque TOUTES les sessions connues d'un utilisateur (mot de passe changé, compte désactivé, départ d'un employé). */
-export async function revoquerSessions(prisma: PrismaClient, utilisateurId: string): Promise<number> {
-  const sessions = await prisma.sessionUtilisateur.findMany({ where: { utilisateurId, revoqueLe: null }, select: { sessionId: true } });
+export async function revoquerSessions(prisma: PrismaClient, utilisateurId: string, sauf?: string): Promise<number> {
+  const filtre = { utilisateurId, revoqueLe: null, ...(sauf ? { sessionId: { not: sauf } } : {}) };
+  const sessions = await prisma.sessionUtilisateur.findMany({ where: filtre, select: { sessionId: true } });
   if (sessions.length === 0) return 0;
-  await prisma.sessionUtilisateur.updateMany({ where: { utilisateurId, revoqueLe: null }, data: { revoqueLe: new Date() } });
+  await prisma.sessionUtilisateur.updateMany({ where: filtre, data: { revoqueLe: new Date() } });
   for (const s of sessions) valides.delete(`${s.sessionId}:${utilisateurId}`);
   return sessions.length;
 }

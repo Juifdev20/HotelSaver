@@ -36,7 +36,7 @@ decrire("Sécurité : ce qu'un appareil ou un visiteur ne doit pas pouvoir faire
       .overrideProvider(VERIFICATEUR_JWT)
       .useValue(new VerificateurJwtHs256(SECRET))
       .overrideProvider(SupabaseAdminService)
-      .useValue({ supprimerCompte: async () => undefined, mettreAJourCompte: async () => undefined, envoyerRecuperation: async () => undefined, idDepuisJeton: async () => null })
+      .useValue({ supprimerCompte: async () => undefined, mettreAJourCompte: async () => undefined, envoyerRecuperation: async () => undefined, idDepuisJeton: async () => null, motDePasseCorrect: async (_e: string, mdp: string) => mdp === "ancien-mot-de-passe" })
       .compile();
     app = moduleRef.createNestApplication();
     await app.init();
@@ -225,6 +225,19 @@ decrire("Sécurité : ce qu'un appareil ou un visiteur ne doit pas pouvoir faire
       await http().get("/auth/me").set("Authorization", session).expect(401);
       await http().patch(`/utilisateurs/${A.userIds.recep}`).set("Authorization", as(A, "patron")).send({ actif: true }).expect(200);
       await http().get("/auth/me").set("Authorization", session).expect(401);
+    });
+
+    it("« changer mon mot de passe » : l'ancien est vérifié, les autres sessions sont coupées, la session en cours continue", async () => {
+      await p.utilisateur.update({ where: { id: A.userIds.caf }, data: { email: "caf-a@exemple.test" } });
+      const courante = avecSession(A.auth.caf, "session-courante-9");
+      const autre = avecSession(A.auth.caf, "session-autre-9");
+      await http().get("/auth/me").set("Authorization", courante).expect(200);
+      await http().get("/auth/me").set("Authorization", autre).expect(200);
+      await http().post("/auth/mot-de-passe").set("Authorization", courante).send({ motDePasseActuel: "faux", nouveauMotDePasse: "nouveau-mdp-123" }).expect(401);
+      await http().post("/auth/mot-de-passe").set("Authorization", courante).send({ motDePasseActuel: "ancien-mot-de-passe", nouveauMotDePasse: "court" }).expect(400);
+      await http().post("/auth/mot-de-passe").set("Authorization", courante).send({ motDePasseActuel: "ancien-mot-de-passe", nouveauMotDePasse: "nouveau-mdp-123" }).expect(200);
+      await http().get("/auth/me").set("Authorization", courante).expect(200);
+      await http().get("/auth/me").set("Authorization", autre).expect(401);
     });
 
     it("une session ne peut pas servir pour un autre utilisateur", async () => {

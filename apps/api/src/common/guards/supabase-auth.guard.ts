@@ -80,6 +80,7 @@ export class SupabaseAuthGuard implements CanActivate {
     };
 
     request.user = user;
+    request.sessionId = sessionId;
     return true;
   }
 }

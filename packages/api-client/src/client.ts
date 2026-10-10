@@ -910,6 +910,11 @@ export class ClientApi {
     return this.requete<ReponsePull>(`/sync/pull?${params.toString()}`);
   }
 
+  /** Change MON mot de passe (l'ancien est revérifié ; mes autres sessions sont coupées). */
+  async changerMotDePasse(motDePasseActuel: string, nouveauMotDePasse: string): Promise<void> {
+    await this.requete<{ ok: true }>("/auth/mot-de-passe", { method: "POST", body: JSON.stringify({ motDePasseActuel, nouveauMotDePasse }) });
+  }
+
   protected async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {
     const token = await this.getAccessToken();
     // Un FormData fixe lui-même son Content-Type (avec la frontière multipart).

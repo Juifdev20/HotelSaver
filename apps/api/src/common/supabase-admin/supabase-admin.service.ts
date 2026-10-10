@@ -68,6 +68,24 @@ export class SupabaseAdminService {
    * tout de suite : changement posé par un admin de confiance, pas un
    * libre-service (même raisonnement que creerCompte ici et
    * PublicService.inscrireHotel). */
+  /** Vrai si ce couple e-mail / mot de passe est accepté par Supabase Auth (sert à confirmer l'ancien mot de passe avant un changement). */
+  async motDePasseCorrect(email: string, motDePasse: string): Promise<boolean> {
+    const url = process.env.SUPABASE_URL;
+    const cle = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+    if (!url || !cle) return false;
+    try {
+      const reponse = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: cle },
+        body: JSON.stringify({ email, password: motDePasse }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      return reponse.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async mettreAJourCompte(id: string, champs: { email?: string; motDePasse?: string }): Promise<void> {
     const corps: Record<string, unknown> = {};
     if (champs.email !== undefined) {
