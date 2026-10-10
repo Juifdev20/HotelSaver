@@ -8,7 +8,8 @@
     "start": "node dist/main.js",
     "start:dev": "nodemon",
     "start:prod": "node dist/main.js",
-    "test": "jest"
+    "test": "jest",
+    "test:integration": "jest test/integration --forceExit"
   },
   "dependencies": {
     "@hotel-chicago/database": "workspace:*",

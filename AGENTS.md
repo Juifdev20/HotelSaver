@@ -13,6 +13,10 @@ section pour toute décision non triviale).
   `EXPO_PUBLIC_API_URL` côté mobile pointe sur `localhost:3000`),
   `pnpm --filter api test` (Jest, ~80 s, 127 tests),
   `pnpm --filter api build`.
+- Tests d'intégration (vraie base **locale jetable**, jamais Supabase) : `TEST_INTEGRATION=1 DATABASE_URL=postgresql://…@localhost:…/hotel_t pnpm --filter @hotel-chicago/api test:integration`.
+  Ils vident la base : une garde refuse toute base distante ou dont le nom n'est pas en `_t`/`test`. Schéma : `createdb hotel_t` puis
+  `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script | psql hotel_t`. Sans `TEST_INTEGRATION=1` ils sont ignorés.
+  `isolation.e2e-spec.ts` vérifie, avec DEUX hôtels, qu'aucune route ne lit ni ne modifie les données de l'autre — à relancer après tout changement de service/DTO.
 - Tests paquets : `pnpm --filter @hotel-chicago/sync-engine test`,
   `pnpm --filter @hotel-chicago/api-client test`,
   `pnpm --filter @hotel-chicago/receipts test`.

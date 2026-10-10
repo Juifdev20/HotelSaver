@@ -214,6 +214,13 @@ export class StockService {
 
   /** Crée l'inventaire en base, génère le PDF et l'enregistre dans Supabase Storage. */
   async creerInventaire(dto: LancerInventaireDto, createdBy: string, hotelId: string) {
+    // Chaque produit compté doit appartenir à CET hôtel : sans ce contrôle, un identifiant de produit d'un autre hôtel
+    // serait rattaché à l'inventaire et son nom, sa catégorie et son prix reviendraient dans la réponse et le PDF.
+    const idsProduits = [...new Set(dto.items.map((item) => item.produitId))];
+    const connus = await this.prisma.produit.count({ where: { hotelId, id: { in: idsProduits } } });
+    if (connus !== idsProduits.length) {
+      throw new BadRequestException("Un ou plusieurs produits de l'inventaire sont introuvables.");
+    }
     const theoriques = await this.preparerInventaire(dto.dateDebut, dto.dateFin, hotelId);
     const mapTheo = new Map(theoriques.map((l) => [l.produitId, l]));
 

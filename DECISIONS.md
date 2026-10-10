@@ -3158,3 +3158,26 @@ Constat : à la cafétaria, après « Ouvrir le compte » ou « Ajouter », les 
 - **Pas de ping avant chaque envoi** si le serveur a répondu il y a < 15 s.
 - **`/sync/pull` en parallèle** côté serveur (borné par le pool `pg`, max 5) :
   mesuré sur la base réelle depuis Kasindi, 11 entités 3,1 s → 0,8 s.
+
+
+## 10/10/2026 — Audit d'isolation entre hôtels, tests d'intégration à deux hôtels
+
+L'application n'est pas encore en production : tout est corrigeable sans migration de données. Avant de rendre le bureau hors ligne, on a
+vérifié que les hôtels sont étanches. Un revue du code (158 appels Prisma, 33 sans `hotelId` : tous légitimes ou précédés d'une
+vérification d'appartenance) ne suffisait pas : on a donc écrit une suite qui tourne sur une **vraie base Postgres locale**
+(`apps/api/test/integration/`, 82 vérifications, ignorée sans `TEST_INTEGRATION=1`, avec une garde qui refuse toute base distante).
+
+Deux hôtels, chacun avec chambres, clients, réservations, factures, produits, cafétaria, dépenses, rapports, menu, inventaire, notifications. La suite
+vérifie : (1) qu'aucune liste (30 routes dont `/sync/pull`, le tableau de bord, le site public) ne contient un identifiant ou un nom de l'autre hôtel ;
+(2) que ~40 demandes visant une donnée de l'autre hôtel (lecture, modification, suppression, **et identifiants étrangers glissés dans une demande
+légitime**) sont refusées sans qu'une seule ligne de l'autre hôtel change (instantané JSON avant/après) ; (3) qu'un `hotelId` glissé dans un corps ou
+dans `/sync/push` est ignoré ; (4) que le site public d'un hôtel ne voit ni ne touche l'autre ; (5) qu'un hôtel suspendu est bloqué sans gêner l'autre.
+
+**Deux vrais bugs trouvés et corrigés :**
+- `Chambre.numero` était `@unique` sur toute la plateforme : le deuxième hôtel à créer sa chambre « 101 » aurait reçu « existe déjà ». Désormais
+  `@@unique([hotelId, numero])` (migration `20261010090000_chambre_numero_par_hotel`). À appliquer avec `migrate:verifier` puis `migrate:appliquer`.
+- `POST /stock/inventaires` acceptait des `produitId` d'un autre hôtel : l'inventaire se rattachait au produit étranger et son nom, sa catégorie et son
+  prix revenaient dans la réponse et dans le PDF. Contrôle d'appartenance ajouté avant la création (400 sinon).
+
+Le schéma de la base de test se génère avec `prisma migrate diff --from-empty --to-schema` (sans les policies RLS, que l'API contourne avec `service_role`).
+Voir `BACKLOG.md` pour la suite : synchronisation, bureau hors ligne, encaissement hors ligne.

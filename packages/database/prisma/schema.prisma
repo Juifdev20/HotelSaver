@@ -314,7 +314,8 @@ model Chambre {
   id           String         @id @default(uuid())
   hotel        Hotel          @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   hotelId      String
-  numero       String         @unique
+  // Unique PAR HÔTEL (@@unique ci-dessous), pas sur toute la plateforme : deux hôtels ont chacun leur chambre « 101 ».
+  numero       String
   type         String
   prixParNuit  Decimal
   devise       Devise // USD ou CDF, propre à chaque chambre
@@ -324,6 +325,7 @@ model Chambre {
   updatedAt    DateTime       @updatedAt
   syncVersion  Int            @default(1)
 
+  @@unique([hotelId, numero])
   @@index([statut])
   @@index([hotelId])
 }
