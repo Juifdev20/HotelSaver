@@ -104,8 +104,18 @@ function messageErreurProfil(erreur: Error): string {
  * rechargement est invisible : `rechargerProfil` ne remplace le profil que
  * s'il a réellement changé (comparaison), donc aucun re-render en temps normal. */
 function RafraichisseurProfil() {
-  const { rechargerProfil } = useSession();
+  const { rechargerProfil, utilisateur } = useSession();
   const etatSync = useSyncEtat();
+  // Une synchronisation réussie prouve que le serveur répond : la durée de grâce hors ligne repart de maintenant, à l'heure du SERVEUR
+  // (heure de l'appareil corrigée de l'écart mesuré). Sans cela, avancer l'horloge du téléphone puis la remettre allongeait la grâce.
+  const dernierContact = useRef<string | null>(null);
+  useEffect(() => {
+    const quand = etatSync.derniereSyncReussieLe;
+    if (!quand || quand === dernierContact.current) return;
+    dernierContact.current = quand;
+    void ecrireContactServeur(utilisateur.userId, new Date(Date.now() + (etatSync.decalageHorlogeMs ?? 0)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etatSync.derniereSyncReussieLe]);
   const dernierTraite = useRef<string | null>(null);
   useEffect(() => {
     const horodatage = etatSync.dernierePousseeLe;

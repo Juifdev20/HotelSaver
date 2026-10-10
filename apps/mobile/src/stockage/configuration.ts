@@ -31,6 +31,16 @@ function apiUrlViaWifi(): string | null {
  * USB), puis l'IP Wi-Fi courante en dev, puis localhost en dernier recours.
  * ClientApi essaie chacune jusqu'à une réponse (voir client.ts). */
 export function candidatsApi(): string[] {
+  // Version installée : uniquement l'adresse du build, et en https. Les repli locaux (127.0.0.1, IP Wi-Fi du poste de développement) ne
+  // servent qu'en développement : sinon, serveur injoignable, le mot de passe partirait en clair vers n'importe quelle application locale.
+  if (!__DEV__) {
+    if (!API_URL_COMPILATION.startsWith("https://")) {
+      // eslint-disable-next-line no-console
+      console.warn("EXPO_PUBLIC_API_URL n'est pas une adresse https : la connexion au serveur sera refusée en production.");
+      return [];
+    }
+    return [API_URL_COMPILATION];
+  }
   const candidats = [API_URL_COMPILATION, apiUrlViaWifi(), "http://127.0.0.1:3000"];
   return [...new Set(candidats.filter((u): u is string => Boolean(u)))];
 }

@@ -30,7 +30,8 @@ export async function creerCanaux(): Promise<void> {
       importance: canal.importance,
       vibrationPattern: [0, 250, 150, 250],
       lightColor: "#053483",
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      // Écran verrouillé : seul un texte neutre s'affiche (les messages citent des noms de clients, des chambres, des motifs d'annulation).
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
     });
   }
 }

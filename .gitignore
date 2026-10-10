@@ -54,3 +54,7 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Configuration Firebase (clé du projet) : jamais commitée
+google-services.json
+GoogleService-Info.plist
