@@ -599,6 +599,7 @@ export default function App() {
         <SafeAreaProvider>
           <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, moteurSync, miroir: miroir!, rechargerProfil: async () => {
             const frais = await client.moi();
+            if (frais.userId !== utilisateur.userId) return;
             await ecrireProfilCache(frais.userId, frais);
             setUtilisateur((courant) => (courant && JSON.stringify(courant) === JSON.stringify(frais) ? courant : frais));
           } }}>

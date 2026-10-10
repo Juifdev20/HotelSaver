@@ -5,6 +5,7 @@ import { RolesGuard } from "../common/guards/roles.guard";
 import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { DashboardService } from "./dashboard.service";
+import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
 
 /**
  * Section 9.3 "Rapports/recettes" : RECEPTIONNISTE et CAFETARIA voient leurs
@@ -27,7 +28,7 @@ export class DashboardController {
   /** Recette d'un mois « AAAA-MM » — mêmes agrégats que les rapports PDF. */
   @Get("recette-du-mois")
   @Roles(Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON)
-  recetteDuMois(@CurrentUser() currentUser: UtilisateurAuthentifie, @Query("mois") mois: string) {
+  recetteDuMois(@CurrentUser() currentUser: UtilisateurAuthentifie, @Query("mois", ParamChainePipe) mois: string) {
     return this.dashboardService.recetteDuMois(currentUser, mois);
   }
 
@@ -46,8 +47,8 @@ export class DashboardController {
 
   @Get("ventes-recentes")
   @Roles(Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON)
-  ventesRecentes(@CurrentUser() currentUser: UtilisateurAuthentifie, @Query("limite") limite?: string) {
-    return this.dashboardService.ventesRecentes(currentUser, limite ? Number(limite) : undefined);
+  ventesRecentes(@CurrentUser() currentUser: UtilisateurAuthentifie, @Query("limite", new ParamEntierPipe(1, 100, 20)) limite: number) {
+    return this.dashboardService.ventesRecentes(currentUser, limite);
   }
 
   @Get("stock-bas")

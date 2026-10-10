@@ -8,6 +8,7 @@ import { StockService } from "./stock.service";
 import { CreateMouvementDto } from "./dto/create-mouvement.dto";
 import { FindMouvementsQueryDto } from "./dto/find-mouvements.query.dto";
 import { LancerInventaireDto } from "./dto/lancer-inventaire.dto";
+import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
 
 /**
  * Permissions (section 9.3 "Stock") : RECEPTIONNISTE aucun accès ;
@@ -38,8 +39,8 @@ export class StockController {
    */
   @Get("inventaire/preparer")
   preparerInventaire(
-    @Query("debut") debut: string,
-    @Query("fin") fin: string,
+    @Query("debut", ParamChainePipe) debut: string,
+    @Query("fin", ParamChainePipe) fin: string,
     @CurrentUser() currentUser: UtilisateurAuthentifie
   ) {
     return this.stockService.preparerInventaire(debut, fin, currentUser.hotelId);

@@ -15,6 +15,17 @@ import { FacturesService } from "../factures/factures.service";
 import { ClientsService } from "../clients/clients.service";
 import { ModifierClientDto } from "../clients/dto/modifier-client.dto";
 import { CreateReservationDto } from "../reservations/dto/create-reservation.dto";
+import { UpdateReservationDto } from "../reservations/dto/update-reservation.dto";
+import { CreateChambreDto } from "../chambres/dto/create-chambre.dto";
+import { UpdateChambreDto } from "../chambres/dto/update-chambre.dto";
+import { CreateProduitDto } from "../produits/dto/create-produit.dto";
+import { UpdateProduitDto } from "../produits/dto/update-produit.dto";
+import { CreateMouvementDto } from "../stock/dto/create-mouvement.dto";
+import { OuvrirCompteDto } from "../cafeteria/dto/ouvrir-compte.dto";
+import { AjouterSousCompteDto } from "../cafeteria/dto/ajouter-sous-compte.dto";
+import { AjouterLigneDto } from "../cafeteria/dto/ajouter-ligne.dto";
+import { CreerDepenseDto } from "../depenses/dto/creer-depense.dto";
+import { ModifierDepenseDto } from "../depenses/dto/modifier-depense.dto";
 import { CreateFactureDto } from "../factures/dto/create-facture.dto";
 import { EncaisserCompteDto } from "../cafeteria/dto/encaisser-compte.dto";
 import { MajStatutLigneDto } from "../cafeteria/dto/maj-statut-ligne.dto";
@@ -132,8 +143,10 @@ export class SyncService {
       Chambre: {
         rolesCreate: [Role.PATRON],
         rolesUpdate: [Role.RECEPTIONNISTE, Role.PATRON],
-        create: (payload, currentUser) => this.chambresService.create(payload as any, currentUser.hotelId),
-        update: (id, payload, currentUser) => this.chambresService.update(id, payload as any, currentUser),
+        // Tout payload de /sync/push est validé comme le corps HTTP équivalent (liste blanche des champs : un appareil ne peut jamais
+        // écrire hotelId, id ou syncVersion, ni envoyer un type inattendu).
+        create: async (payload, currentUser) => this.chambresService.create(await this.valider(CreateChambreDto, payload), currentUser.hotelId),
+        update: async (id, payload, currentUser) => this.chambresService.update(id, await this.valider(UpdateChambreDto, payload), currentUser),
       },
       Reservation: {
         rolesCreate: [Role.RECEPTIONNISTE, Role.PATRON],
@@ -154,24 +167,27 @@ export class SyncService {
             ],
           };
         },
-        update: (id, payload, currentUser) => this.reservationsService.update(id, payload as any, currentUser.hotelId),
+        update: async (id, payload, currentUser) =>
+          this.reservationsService.update(id, await this.valider(UpdateReservationDto, payload), currentUser.hotelId),
       },
       Produit: {
         rolesCreate: [Role.PATRON],
         rolesUpdate: [Role.PATRON],
-        create: (payload, currentUser) => this.produitsService.create(payload as any, currentUser.hotelId),
-        update: (id, payload, currentUser) => this.produitsService.update(id, payload as any, currentUser.hotelId),
+        create: async (payload, currentUser) => this.produitsService.create(await this.valider(CreateProduitDto, payload), currentUser.hotelId),
+        update: async (id, payload, currentUser) =>
+          this.produitsService.update(id, await this.valider(UpdateProduitDto, payload), currentUser.hotelId),
       },
       MouvementStock: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
         rolesUpdate: [],
-        create: (payload, currentUser) => this.stockService.create(payload as any, currentUser.userId, currentUser.hotelId),
+        create: async (payload, currentUser) =>
+          this.stockService.create(await this.valider(CreateMouvementDto, payload), currentUser.userId, currentUser.hotelId),
       },
       CompteCafeteria: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
         rolesUpdate: [],
         create: async (payload, currentUser) => {
-          const cree = await this.cafeteriaService.ouvrirCompte(payload as any, currentUser);
+          const cree = await this.cafeteriaService.ouvrirCompte(await this.valider(OuvrirCompteDto, payload), currentUser);
           // ouvrirCompte crée aussi le premier sous-compte côté serveur : si
           // le client a envoyé l'id local de ce sous-compte, on renvoie le
           // mapping — sinon le miroir local garderait un enfant fantôme sans
@@ -188,32 +204,33 @@ export class SyncService {
       SousCompte: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
         rolesUpdate: [],
-        create: (payload, currentUser) => {
-          const { compteId, ...dto } = payload as { compteId?: string; nom?: string };
+        create: async (payload, currentUser) => {
+          const { compteId, ...reste } = payload as { compteId?: string };
           if (!compteId) {
             throw new BadRequestException("compteId est obligatoire dans le payload pour SousCompte.");
           }
-          return this.cafeteriaService.ajouterSousCompte(compteId, dto as any, currentUser.hotelId);
+          return this.cafeteriaService.ajouterSousCompte(compteId, await this.valider(AjouterSousCompteDto, reste), currentUser.hotelId);
         },
       },
       LigneCommande: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
         rolesUpdate: [],
-        create: (payload, currentUser) => {
-          const { compteId, ...dto } = payload as { compteId?: string };
+        create: async (payload, currentUser) => {
+          const { compteId, ...reste } = payload as { compteId?: string };
           if (!compteId) {
             throw new BadRequestException("compteId est obligatoire dans le payload pour LigneCommande.");
           }
+          const dto = await this.valider(AjouterLigneDto, reste);
           // Une vente faite hors ligne a déjà eu lieu : le stock du serveur peut devenir négatif plutôt que de refuser la ligne.
-          return this.cafeteriaService.ajouterLigne(compteId, dto as any, currentUser, { horsLigne: true });
+          return this.cafeteriaService.ajouterLigne(compteId, dto, currentUser, { horsLigne: true });
         },
       },
       // Jamais le patron : il consulte les dépenses, il ne les saisit pas.
       Depense: {
         rolesCreate: [Role.RECEPTIONNISTE, Role.CAFETARIA],
         rolesUpdate: [Role.RECEPTIONNISTE, Role.CAFETARIA],
-        create: (payload, currentUser) => this.depensesService.creer(payload as any, currentUser),
-        update: (id, payload, currentUser) => this.depensesService.modifier(id, payload as any, currentUser),
+        create: async (payload, currentUser) => this.depensesService.creer(await this.valider(CreerDepenseDto, payload), currentUser),
+        update: async (id, payload, currentUser) => this.depensesService.modifier(id, await this.valider(ModifierDepenseDto, payload), currentUser),
       },
       Client: {
         rolesCreate: [],
@@ -361,7 +378,9 @@ export class SyncService {
       const actuel = await (this.prisma as any)[accesseur].findUnique({
         where: { id: operation.remoteId, hotelId: currentUser.hotelId },
       });
-      if (!actuel) {
+      // Une dépense d'un autre département reste invisible (même réponse qu'une ligne inconnue) : sinon un conflit provoqué
+      // volontairement en renverrait le contenu complet.
+      if (!actuel || (operation.entiteType === "Depense" && actuel.departement !== departementDuRole(currentUser.role))) {
         return this.erreur(operation, `Aucune ligne ${operation.entiteType} trouvée avec l'identifiant ${operation.remoteId}.`);
       }
 
@@ -528,7 +547,12 @@ export class SyncService {
       error instanceof Prisma.PrismaClientUnknownRequestError ||
       (error instanceof Prisma.PrismaClientKnownRequestError && CODES_PRISMA_PASSAGERS.has(error.code));
     if (passager) this.logger.warn(`Panne passagère pendant la synchronisation (${operation.entiteType}) : ${message}`);
-    return { ...this.erreur(operation, passager ? "Le serveur est momentanément indisponible : nouvel essai automatique." : message), temporaire: passager || undefined };
+    if (!passager) this.logger.warn(`Opération refusée (${operation.entiteType}) : ${message}`);
+    // Jamais le message brut d'une exception interne (Prisma : nom du modèle, requête, valeurs) : il part au journal du serveur.
+    return {
+      ...this.erreur(operation, passager ? "Le serveur est momentanément indisponible : nouvel essai automatique." : "Cette opération n'a pas pu être enregistrée par le serveur."),
+      temporaire: passager || undefined,
+    };
   }
 
   async pull(query: SyncPullQueryDto, currentUser: UtilisateurAuthentifie) {

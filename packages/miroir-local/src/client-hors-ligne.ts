@@ -110,15 +110,23 @@ export class ClientHorsLigne extends ClientApi {
 
   /** Relit auprès du serveur les données mises en cache (profil, taux, menu) : à appeler après une synchronisation réussie. */
   async rechauffer(): Promise<void> {
-    await Promise.allSettled([this.avecCacheForce("moi", () => super.moi()), this.avecCacheForce("tauxActuel", () => super.tauxActuel()), this.avecCacheForce("menuDuJour", () => super.menuDuJour())]);
+    await Promise.allSettled([this.avecCacheForce(this.cleProfil(), () => super.moi()), this.avecCacheForce("tauxActuel", () => super.tauxActuel()), this.avecCacheForce("menuDuJour", () => super.menuDuJour())]);
   }
 
   private async avecCacheForce<T>(cle: string, appel: () => Promise<T>): Promise<void> {
     await this.s.ecrireMeta(`cache:${cle}`, { valeur: await appel(), le: this.ctx.maintenant().getTime() });
   }
 
+  /** Le profil en cache est celui de CET utilisateur : la base locale est partagée par tous les comptes d'un poste, et un employé hors ligne ne doit jamais recevoir le profil (donc les droits) du patron. */
+  private cleProfil(): string {
+    return `moi:${this.ctx.utilisateur().userId}`;
+  }
+
   override async moi(): Promise<ProfilConnecte> {
-    return this.avecCache("moi", () => super.moi(), 20_000);
+    const courant = this.ctx.utilisateur().userId;
+    const profil = await this.avecCache(this.cleProfil(), () => super.moi(), 20_000);
+    // Garde-fou : même si une ancienne entrée traînait, on ne renvoie jamais le profil de quelqu'un d'autre.
+    return profil.userId === courant ? profil : super.moi();
   }
 
   /** Les réglages de l'hôtel changent le profil (suivi cuisine, patron qui opère…) : on le relit tout de suite. */

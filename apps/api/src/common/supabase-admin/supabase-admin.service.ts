@@ -33,7 +33,8 @@ export class SupabaseAdminService {
       // (re-soumission du formulaire), qui doit remonter en 409 propre, pas
       // en 500 générique (constaté en testant un rejeu avec le même email).
       if (reponse.status === 422) {
-        throw new ConflictException(json.msg || json.message || "Cette adresse email est déjà utilisée.");
+        // Message fixe : on ne répète pas celui de Supabase (il confirme à un inconnu qu'un compte existe pour cette adresse).
+        throw new ConflictException("Impossible de créer un compte avec ces informations. Si vous avez déjà un compte, connectez-vous ou réinitialisez votre mot de passe.");
       }
       throw new InternalServerErrorException(
         `Supabase Auth a refusé (${reponse.status}) : ${json.msg || json.message || JSON.stringify(json)}`

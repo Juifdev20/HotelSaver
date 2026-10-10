@@ -8,6 +8,7 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { FacturesService } from "./factures.service";
 import { CreateFactureDto } from "./dto/create-facture.dto";
 import { AnnulerFactureDto } from "./dto/annuler-facture.dto";
+import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
 
 /**
  * Permissions (section 9.3 "Facture séjour", lue avec la section 9.1 —
@@ -21,7 +22,7 @@ export class FacturesController {
   constructor(private readonly facturesService: FacturesService) {}
 
   @Get()
-  findAll(@Query("reservationId") reservationId: string | undefined, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+  findAll(@Query("reservationId", ParamChainePipe) reservationId: string | undefined, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.facturesService.findAll(currentUser.hotelId, reservationId);
   }
 

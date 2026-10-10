@@ -304,6 +304,7 @@ export class Ecritures {
     const u = this.ctx.utilisateur();
     exigerRole(u, "RECEPTIONNISTE", "PATRON");
     exigerOperationnel(u);
+    if (d.modePaiement === "FACTURE_CHAMBRE") throw erreur(400, "Une facture de séjour se règle en espèces ou en mobile money.");
     const r = this.s.obtenir("Reservation", d.reservationId);
     if (!r) throw erreur(404, `Aucune réservation trouvée avec l'identifiant ${d.reservationId}.`);
     const chambre = this.v.chambre(r.chambreId);
@@ -447,7 +448,9 @@ export class Ecritures {
       if (personne.lignes.length === 0) throw erreur(400, `${personne.nom} n'a aucune consommation à régler.`);
     }
     if (d.modePaiement === "FACTURE_CHAMBRE" && !d.reservationLieeId) throw erreur(400, "reservationLieeId est obligatoire pour un règlement FACTURE_CHAMBRE.");
-    if (d.reservationLieeId && !this.s.obtenir("Reservation", d.reservationLieeId)) throw erreur(404, `Aucune réservation trouvée avec l'identifiant ${d.reservationLieeId}.`);
+    const liee = d.reservationLieeId ? this.s.obtenir("Reservation", d.reservationLieeId) : undefined;
+    if (d.reservationLieeId && !liee) throw erreur(404, `Aucune réservation trouvée avec l'identifiant ${d.reservationLieeId}.`);
+    if (liee && d.modePaiement === "FACTURE_CHAMBRE" && (liee.statut !== "EN_COURS" || this.v.factureDeReservation(liee.id))) throw erreur(409, "Le règlement FACTURE_CHAMBRE exige un séjour en cours qui n'a pas encore été facturé.");
     const croise = d.deviseRegleeParClient !== undefined || d.montantRegleParClient !== undefined;
     if (croise && d.mode !== "GROUPE" && d.mode !== "UNE_PERSONNE") throw erreur(400, "Le paiement croisé n'est calculé que pour les modes d'encaissement GROUPE et UNE_PERSONNE dans cette version. Encaissez chaque vente séparément pour PAR_SOUS_COMPTE ou PARTAGE_EGAL.");
     if (d.mode === "PARTAGE_EGAL" && !d.nombrePersonnes) throw erreur(400, "nombrePersonnes est obligatoire pour un encaissement PARTAGE_EGAL.");

@@ -36,6 +36,20 @@ const STATUTS_OCCUPANTS = ["CONFIRMEE", "EN_COURS"] as const;
  * besoin de rendre la colonne nullable ni de créer un utilisateur factice. */
 const CREATED_BY_SITE_PUBLIC = "SITE_PUBLIC";
 
+/** Ce que le site public a le droit de voir : jamais hotelId, prix d'achat, stock, seuil, code-barres, version de synchro. */
+const CHAMPS_CHAMBRE_PUBLICS = { id: true, numero: true, type: true, prixParNuit: true, devise: true, photos: true } as const;
+const CHAMPS_PRODUIT_PUBLICS = {
+  id: true,
+  nom: true,
+  categorie: true,
+  prix: true,
+  devise: true,
+  typeProduit: true,
+  photo: true,
+  description: true,
+  portionsDisponibles: true,
+} as const;
+
 @Injectable()
 export class PublicService {
   constructor(
@@ -172,7 +186,7 @@ export class PublicService {
     const { id: hotelId } = await this.resoudreHotel(query.sousDomaine);
 
     if (!query.dateArrivee || !query.dateDepart) {
-      return this.prisma.chambre.findMany({ where: { hotelId, statut: StatutChambre.LIBRE }, orderBy: { numero: "asc" } });
+      return this.prisma.chambre.findMany({ where: { hotelId, statut: StatutChambre.LIBRE }, select: CHAMPS_CHAMBRE_PUBLICS, orderBy: { numero: "asc" } });
     }
 
     const dateArrivee = new Date(query.dateArrivee);
@@ -194,6 +208,7 @@ export class PublicService {
 
     return this.prisma.chambre.findMany({
       where: { hotelId, id: { notIn: idsOccupees } },
+      select: CHAMPS_CHAMBRE_PUBLICS,
       orderBy: { numero: "asc" },
     });
   }
@@ -211,6 +226,7 @@ export class PublicService {
     // commandés en ligne).
     return this.prisma.produit.findMany({
       where: { hotelId, actif: true, commandableEnLigne: true, typeProduit: "PLAT" },
+      select: CHAMPS_PRODUIT_PUBLICS,
       orderBy: [{ categorie: "asc" }, { nom: "asc" }],
     });
   }
@@ -427,10 +443,10 @@ export class PublicService {
     // plusieurs demandes peuvent chevaucher la même période, à arbitrer par la
     // réception. Pas de vérification de conflit ici, volontairement.
 
-    const client = dto.client.telephone
-      ? ((await this.prisma.client.findFirst({ where: { hotelId, telephone: dto.client.telephone } })) ??
-          (await this.prisma.client.create({ data: { ...dto.client, hotelId } })))
-      : await this.prisma.client.create({ data: { ...dto.client, hotelId } });
+    // Jamais de fusion avec une fiche existante depuis le canal public : n'importe qui peut taper le téléphone d'un vrai client et
+    // se rattacher à sa fiche (nom, pièce d'identité visibles sur la page de suivi, fiche écrasée au pré-enregistrement).
+    // La réception rapproche les doublons à la main.
+    const client = await this.prisma.client.create({ data: { ...dto.client, hotelId } });
 
     const reservation = await this.prisma.reservation.create({
       data: {

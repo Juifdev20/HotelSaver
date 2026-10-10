@@ -7,6 +7,7 @@ import { Operationnel } from "../common/decorators/operationnel.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { RapportsService } from "./rapports.service";
 import { GenererRapportDto } from "./dto/generer-rapport.dto";
+import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
 
 /**
  * Rapports mensuels PDF par département (demande du patron 01/10).
@@ -30,8 +31,8 @@ export class RapportsController {
   @Roles(Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON)
   lister(
     @CurrentUser() user: UtilisateurAuthentifie,
-    @Query("mois") mois?: string,
-    @Query("departement") departement?: "CAFETERIA" | "RECEPTION"
+    @Query("mois", ParamChainePipe) mois?: string,
+    @Query("departement", ParamChainePipe) departement?: "CAFETERIA" | "RECEPTION"
   ) {
     return this.rapports.lister(user, mois, departement);
   }

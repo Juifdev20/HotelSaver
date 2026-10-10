@@ -14,6 +14,7 @@ import { FindComptesQueryDto } from "./dto/find-comptes.query.dto";
 import { AnnulerVenteDto } from "./dto/annuler-vente.dto";
 import { MajStatutLigneDto } from "./dto/maj-statut-ligne.dto";
 import { DefinirMenuDuJourDto } from "./dto/definir-menu-du-jour.dto";
+import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
 
 /**
  * Permissions (section 9.3, lignes Comptes/Ventes cafétaria) : RECEPTIONNISTE
@@ -97,7 +98,7 @@ export class CafeteriaController {
   @Get("ventes")
   @Roles(Role.CAFETARIA, Role.PATRON, Role.RECEPTIONNISTE)
   findAllVentes(
-    @Query("reservationLieeId") reservationLieeId: string | undefined,
+    @Query("reservationLieeId", ParamChainePipe) reservationLieeId: string | undefined,
     @CurrentUser() currentUser: UtilisateurAuthentifie
   ) {
     if (currentUser.role === Role.RECEPTIONNISTE && !reservationLieeId) {

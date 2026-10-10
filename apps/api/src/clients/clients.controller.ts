@@ -6,6 +6,7 @@ import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ClientsService } from "./clients.service";
 import { ModifierClientDto } from "./dto/modifier-client.dto";
+import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
 
 /**
  * Répertoire clients — les clients sont créés implicitement à la création
@@ -21,7 +22,7 @@ export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}
 
   @Get()
-  findAll(@Query("q") q: string | undefined, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+  findAll(@Query("q", ParamChainePipe) q: string | undefined, @CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.clientsService.findAll(currentUser.hotelId, q);
   }
 

@@ -38,6 +38,11 @@ export class FacturesService {
   }
 
   async create(dto: CreateFactureDto, hotelId: string, options: { numeroProvisoire?: string } = {}) {
+    // « Facturé chambre » ne vaut que pour une consommation de cafétaria ajoutée au séjour : la facture du séjour elle-même est
+    // toujours encaissée, sinon elle serait enregistrée comme réglée sans qu'aucun argent n'ait été reçu.
+    if (dto.modePaiement === "FACTURE_CHAMBRE") {
+      throw new BadRequestException("Une facture de séjour se règle en espèces ou en mobile money.");
+    }
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: dto.reservationId, hotelId },
       include: { chambre: true, facture: true },

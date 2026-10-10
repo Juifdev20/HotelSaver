@@ -272,6 +272,8 @@ export function App() {
         .moi()
         .then((frais) => {
           if (annule) return;
+          // Jamais le profil d'un autre compte : il remplacerait nos droits et serait mémorisé à notre nom.
+          if (frais.userId !== profilRef.current?.userId) return;
           setUtilisateur((courant) => (JSON.stringify(courant) === JSON.stringify(frais) ? courant : frais));
           void gestionnaire.current?.memoriserProfil(frais);
         })

@@ -268,9 +268,14 @@ export class CafeteriaService {
     if (dto.reservationLieeId) {
       const reservation = await this.prisma.reservation.findUnique({
         where: { id: dto.reservationLieeId, hotelId: currentUser.hotelId },
+        include: { facture: { select: { id: true } } },
       });
       if (!reservation) {
         throw new NotFoundException(`Aucune réservation trouvée avec l'identifiant ${dto.reservationLieeId}.`);
+      }
+      // Rattacher une consommation à un séjour déjà facturé, annulé ou terminé ne serait jamais refacturé : argent perdu.
+      if (dto.modePaiement === "FACTURE_CHAMBRE" && (reservation.statut !== "EN_COURS" || reservation.facture)) {
+        throw new ConflictException("Le règlement FACTURE_CHAMBRE exige un séjour en cours qui n'a pas encore été facturé.");
       }
     }
 
