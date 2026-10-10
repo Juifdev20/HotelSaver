@@ -23,23 +23,31 @@
 
   /* Textes */
   --hc-ink: #142033;
-  --hc-ink-muted: #667085;
-  --hc-ink-faint: #98a2b3;
+  /* Contrastes WCAG vérifiés (texte ≥ 4,5:1 sur --hc-surface-100/200/300) ; le « gris faible » (#98a2b3, 2,6:1)
+   * a été assombri : une couleur d'accessoire ne doit plus servir de texte. */
+  --hc-ink-muted: #596277;
+  --hc-ink-faint: #667085;
 
   --hc-on-accent: #ffffff;
 
-  /* États */
-  --hc-success: #12b76a;
+  /* États — teintes TEXTE/remplissage assez sombres pour porter du texte (≥ 4,5:1 sur leur fond clair ET sur blanc,
+   * texte blanc dessus ≥ 4,5:1). Les teintes vives d'origine (#12b76a, #f79009, #f04438, #2e90fa) restent
+   * réservées aux icônes/fonds décoratifs : --hc-*-vif. */
+  --hc-success: #027a48;
   --hc-success-light: #ecfdf3;
-  --hc-warning: #f79009;
+  --hc-success-vif: #12b76a;
+  --hc-warning: #b54708;
   --hc-warning-light: #fffaeb;
-  --hc-danger: #f04438;
+  --hc-warning-vif: #f79009;
+  --hc-danger: #b42318;
   --hc-danger-light: #fef3f2;
-  --hc-info: #2e90fa;
+  --hc-danger-vif: #f04438;
+  --hc-info: #175cd3;
   --hc-info-light: #eff8ff;
-  --hc-purple: #7f56d9;
+  --hc-info-vif: #2e90fa;
+  --hc-purple: #6941c6;
   --hc-purple-light: #f4f3ff;
-  --hc-neutral: #667085;
+  --hc-neutral: #596277;
   --hc-on-status: #ffffff;
   --hc-icone-sombre: #344054;
 
@@ -70,13 +78,25 @@
   --hc-surface-300: #111c2e;
   --hc-border: #1f2c42;
   --hc-ink: #f8fafc;
-  --hc-ink-muted: #98a2b3;
-  --hc-ink-faint: #7b8794;
+  --hc-ink-muted: #a3adbd;
+  --hc-ink-faint: #98a2b3;
 
-  --hc-blue: #3b82f6;
-  --hc-blue-hover: #5b93f5;
+  /* Bleu d'action plus clair en sombre (texte/lien ≥ 4,5:1 sur les surfaces) : le texte DESSUS devient foncé. */
+  --hc-blue: #5b93f5;
+  --hc-blue-hover: #7aa8f8;
   --hc-blue-light: #16233f;
   --hc-blue-very-light: #111c2e;
+  --hc-on-accent: #0b1220;
+
+  /* États : teintes claires (texte lisible sur fond sombre) ; texte foncé sur les remplissages. */
+  --hc-success: #32d583;
+  --hc-warning: #fdb022;
+  --hc-danger: #f97066;
+  --hc-info: #53b1fd;
+  --hc-purple: #b692f6;
+  --hc-neutral: #98a2b3;
+  --hc-on-status: #0b1220;
+  --hc-icone-sombre: #d0d5dd;
 
   --hc-success-light: #0c2a1e;
   --hc-warning-light: #2e2410;

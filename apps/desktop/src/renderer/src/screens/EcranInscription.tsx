@@ -2,6 +2,7 @@ import * as React from "react";
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Building2, Check, Eye, EyeOff, Globe, Lock, Mail, MapPin, Phone, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useTitrePage } from "@hotel-chicago/ui";
 import type { InscriptionHotelPayload } from "@hotel-chicago/types";
 import { MiseEnPageAuth } from "../components/MiseEnPageAuth";
 import logo from "../../../../../../assets/icons/hotelsaver-icone.png";
@@ -84,6 +85,7 @@ function Champ({ id, libelle, icone: Icone, valeur, onChange, valide, suffixe, t
  * l'application s'inscrit DANS l'application, jamais sur le site. */
 export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexion }: EcranInscriptionProps) {
   const [etape, setEtape] = useState<1 | 2>(1);
+  useTitrePage("Créer le compte de mon hôtel");
 
   const [nom, setNom] = useState("");
   const [sousDomaine, setSousDomaine] = useState("");

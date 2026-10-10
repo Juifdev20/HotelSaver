@@ -29,8 +29,8 @@ export function EcranMenuPublique({ sousDomaine }: { sousDomaine: string }) {
     };
   }, [sousDomaine]);
 
-  if (chargement) return <div className="page"><p>Chargement…</p></div>;
-  if (erreur) return <div className="page"><p className="erreur">{erreur}</p></div>;
+  if (chargement) return <div className="page"><p role="status">Chargement de la carte…</p></div>;
+  if (erreur) return <div className="page"><p className="erreur" role="alert">{erreur}</p></div>;
 
   const parCategorie = new Map<string, Produit[]>();
   for (const p of produits) {

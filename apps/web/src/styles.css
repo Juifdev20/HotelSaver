@@ -179,6 +179,24 @@ body {
   justify-content: center;
   padding: var(--hc-space-5);
   z-index: 10;
+  /* Petit écran ou clavier ouvert : la fenêtre défile au lieu d'être rognée. */
+  overflow-y: auto;
+}
+
+.fond-modale > .carte {
+  margin: auto;
+}
+
+.visuellement-cache {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .lien-retour {
@@ -192,4 +210,5 @@ body {
   font-size: 13px;
   cursor: pointer;
   padding: var(--hc-space-2);
+  min-height: 44px;
 }

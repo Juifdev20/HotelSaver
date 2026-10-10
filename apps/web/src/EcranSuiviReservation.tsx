@@ -31,7 +31,8 @@ const PIECES: { valeur: TypePiece; libelle: string }[] = [
 ];
 
 function dateLongue(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  // Fuseau de l'hôtel : la date affichée ne dépend pas du pays d'où le client consulte la page.
+  return new Date(iso).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Lubumbashi" });
 }
 
 function lienWhatsApp(numero: string, texte: string): string {

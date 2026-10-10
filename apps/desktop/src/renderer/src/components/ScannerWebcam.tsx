@@ -1,8 +1,8 @@
 import * as React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
-import { Button } from "@hotel-chicago/ui";
+import { Button, useDialogue } from "@hotel-chicago/ui";
 
 export interface ScannerWebcamProps {
   /** « continu » (vente) : reste ouvert, chaque code appelle `onCode` ;
@@ -45,6 +45,9 @@ export function ScannerWebcam({ mode, onCode, onFermer, titre }: ScannerWebcamPr
   const [compteur, setCompteur] = useState(0);
   const rappel = useRef(onCode);
   rappel.current = onCode;
+  const idTitre = useId();
+  // Fenêtre modale : focus initial sur « Terminer/Fermer », piège de focus, Échap ferme, focus rendu au bouton d'origine.
+  const refDialogue = useDialogue<HTMLDivElement>({ onEchap: onFermer });
 
   useEffect(() => {
     let controles: IScannerControls | null = null;
@@ -98,7 +101,8 @@ export function ScannerWebcam({ mode, onCode, onFermer, titre }: ScannerWebcamPr
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={titre ?? "Scanner un code-barres"}
+      aria-labelledby={idTitre}
+      ref={refDialogue}
       style={{
         position: "fixed",
         inset: 0,
@@ -110,15 +114,15 @@ export function ScannerWebcam({ mode, onCode, onFermer, titre }: ScannerWebcamPr
       }}
     >
       <div className="carte-formulaire" style={{ width: "min(560px, 92vw)", display: "flex", flexDirection: "column", gap: 12 }}>
-        <p className="hc-text-body-strong">{titre ?? (mode === "continu" ? "Scanner les articles" : "Scanner le code-barres")}</p>
-        <video ref={video} muted playsInline style={{ width: "100%", borderRadius: 8, background: "#000", aspectRatio: "4 / 3" }} />
-        {erreur && <p className="hc-text-body texte-erreur">{erreur}</p>}
+        <p id={idTitre} className="hc-text-body-strong">{titre ?? (mode === "continu" ? "Scanner les articles" : "Scanner le code-barres")}</p>
+        <video ref={video} muted playsInline aria-label="Image de la caméra" style={{ width: "100%", borderRadius: 8, background: "#000", aspectRatio: "4 / 3" }} />
+        {erreur && <p role="alert" className="hc-text-body texte-erreur">{erreur}</p>}
         {mode === "continu" && (
           <p className="hc-text-body-strong">
             {compteur} article{compteur > 1 ? "s" : ""} scanné{compteur > 1 ? "s" : ""}
           </p>
         )}
-        <p className="hc-text-body texte-discret">{message ?? "Présentez le code-barres devant la caméra."}</p>
+        <p className="hc-text-body texte-discret" aria-live="polite">{message ?? "Présentez le code-barres devant la caméra."}</p>
         <Button type="button" onClick={onFermer}>
           {mode === "continu" ? "Terminer" : "Fermer"}
         </Button>

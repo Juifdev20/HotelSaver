@@ -45,10 +45,20 @@ function PiedHotel({ info }: { info: InfoHotelPublique }) {
 /** Site public d'un hôtel (résolu par sous-domaine). Tout le contenu vient de
  * `GET /public/hotel`, défini par le patron — rien n'est codé en dur ici. */
 export function SiteHotel({ info, sousDomaine }: { info: InfoHotelPublique; sousDomaine: string }) {
-  useEffect(() => {
-    document.title = info.slogan ? `${info.nom} — ${info.slogan}` : info.nom;
-  }, [info]);
   const { pathname } = useLocation();
+  // Titre de l'onglet = page courante (premier élément annoncé par un lecteur d'écran, et ce que voit le client dans son historique).
+  useEffect(() => {
+    const page = pathname.startsWith("/chambres")
+      ? "Nos chambres"
+      : pathname.startsWith("/menu")
+        ? "Menu"
+        : pathname.startsWith("/cuisine")
+          ? "Commander"
+          : pathname.startsWith("/ma-reservation")
+            ? "Ma réservation"
+            : null;
+    document.title = page ? `${page} — ${info.nom}` : info.slogan ? `${info.nom} — ${info.slogan}` : info.nom;
+  }, [info, pathname]);
 
   return (
     <div className={`hotel-site ${pathname === "/" ? "hotel-site--accueil" : ""}`}>

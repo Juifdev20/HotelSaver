@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import { Button } from "@hotel-chicago/ui";
+import { Button, useTitrePage } from "@hotel-chicago/ui";
 
 export interface EcranConnexionProps {
   erreur: string | null;
@@ -11,6 +11,7 @@ export interface EcranConnexionProps {
 export function EcranConnexion({ erreur, enCours, onConnexion }: EcranConnexionProps) {
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
+  useTitrePage("Connexion", "HotelSaver Super-Admin");
 
   function soumettre(e: React.FormEvent) {
     e.preventDefault();

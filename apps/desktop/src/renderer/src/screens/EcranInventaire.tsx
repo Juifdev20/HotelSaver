@@ -3,6 +3,8 @@ import type { ClientApi } from "@hotel-chicago/api-client";
 import type { InventairePhysique, LignePreparationInventaire, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { CheckCircle, ClipboardList, Clock, ExternalLink, RefreshCw } from "lucide-react";
+import { lireQuantite } from "@hotel-chicago/miroir-local";
+import { useConfirmation } from "../components/DialogueConfirmation";
 
 export interface EcranInventaireProps {
   client: ClientApi;
@@ -24,6 +26,20 @@ function formatDateFR(iso: string): string {
 
 function nbEcarts(inv: InventairePhysique): number {
   return inv.items.filter((i) => Number(i.ecart) !== 0).length;
+}
+
+/** Stock physique saisi : décimales permises (« 1,5 » litre, « 0,25 » kg) comme sur le mobile ; 0 accepté (produit absent). */
+function lireStockPhysique(saisie: string) {
+  return lireQuantite(saisie, { autoriserZero: true, max: 1_000_000 });
+}
+
+/** Écart arrondi à 3 décimales : « 2,3 − 2 » ne doit pas afficher 0,2999999. */
+function ecartArrondi(physique: number, theorique: number): number {
+  return Math.round((physique - theorique) * 1000) / 1000;
+}
+
+function listerNoms(noms: string[]): string {
+  return noms.length <= 5 ? noms.join(", ") : `${noms.slice(0, 5).join(", ")} et ${noms.length - 5} autre(s)`;
 }
 
 export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInventaireProps) {
@@ -51,6 +67,9 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
   // Historique
   const [historique, setHistorique]       = useState<InventairePhysique[]>([]);
   const [chargHistorique, setChargHistorique] = useState(false);
+  const [erreurHistorique, setErreurHistorique] = useState<string | null>(null);
+  const [erreurPdf, setErreurPdf] = useState<string | null>(null);
+  const { demander, dialogue } = useConfirmation();
 
   useEffect(() => {
     if (onglet === "historique") chargerHistorique();
@@ -58,9 +77,11 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
 
   function chargerHistorique() {
     setChargHistorique(true);
+    setErreurHistorique(null);
     client.listerInventaires()
       .then(setHistorique)
-      .catch((e: Error) => console.error(e))
+      // La liste déjà affichée est conservée : l'échec est dit, pas avalé.
+      .catch((e: Error) => setErreurHistorique(`L'historique n'a pas pu être chargé : ${e.message}`))
       .finally(() => setChargHistorique(false));
   }
 
@@ -90,24 +111,51 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
   const nbSaisis = saisies.filter((s) => s.stockPhysique.trim() !== "").length;
 
   async function validerInventaire() {
-    // Vérifier que tout est saisi
+    // Un produit non compté n'est JAMAIS compté comme 0 : on le nomme et on refuse.
+    const nom = (produitId: string) => lignes.find((l) => l.produitId === produitId)?.nom ?? "Produit";
     const manquants = saisies.filter((s) => s.stockPhysique.trim() === "");
     if (manquants.length > 0) {
-      setErreur2(`${manquants.length} produit(s) sans saisie physique. Saisissez 0 si le produit est absent.`);
+      setErreur2(
+        `${manquants.length} produit(s) non compté(s) : ${listerNoms(manquants.map((s) => nom(s.produitId)))}. Saisissez 0 seulement si le produit est vraiment absent.`
+      );
       return;
     }
-    // Vérifier notes sur les écarts
-    const ecartsSansNote = saisies.filter((s) => {
+    const valeurs = new Map<string, number>();
+    for (const s of saisies) {
+      const lu = lireStockPhysique(s.stockPhysique);
+      if (!lu.ok) {
+        setErreur2(`${nom(s.produitId)} : ${lu.message}`);
+        return;
+      }
+      valeurs.set(s.produitId, lu.valeur);
+    }
+    // Écarts : il en faut la justification.
+    const ecarts = saisies.filter((s) => {
       const ligne = lignes.find((l) => l.produitId === s.produitId);
-      if (!ligne) return false;
-      const physique = Number(s.stockPhysique);
-      return physique !== ligne.stockTheorique && !s.note.trim();
+      return ligne ? ecartArrondi(valeurs.get(s.produitId)!, ligne.stockTheorique) !== 0 : false;
     });
+    const ecartsSansNote = ecarts.filter((s) => !s.note.trim());
     if (ecartsSansNote.length > 0) {
-      setErreur2(`${ecartsSansNote.length} écart(s) sans justification. Expliquez chaque écart dans le champ Note.`);
+      setErreur2(
+        `${ecartsSansNote.length} écart(s) sans justification : ${listerNoms(ecartsSansNote.map((s) => nom(s.produitId)))}. Expliquez chaque écart dans le champ Note.`
+      );
       return;
     }
     setErreur2(null);
+    const confirme = await demander({
+      titre: `Enregistrer l'inventaire (${ecarts.length} écart${ecarts.length > 1 ? "s" : ""}) ?`,
+      message: (
+        <>
+          <p>
+            {saisies.length} produit{saisies.length > 1 ? "s" : ""} compté{saisies.length > 1 ? "s" : ""} du {formatDateFR(dateDebut)} au {formatDateFR(dateFin)}.
+            {ecarts.length === 0 ? " Aucun écart avec le stock théorique." : ` ${ecarts.length} produit${ecarts.length > 1 ? "s" : ""} ${ecarts.length > 1 ? "ont" : "a"} un écart avec le stock théorique.`}
+          </p>
+          <p>L'inventaire est enregistré définitivement et son rapport PDF est généré.</p>
+        </>
+      ),
+      libelleConfirmer: "Enregistrer l'inventaire",
+    });
+    if (!confirme) return;
     setEnEnvoi(true);
     try {
       const result = await client.creerInventaire({
@@ -116,7 +164,7 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
         titre: titreInv.trim() || undefined,
         items: saisies.map((s) => ({
           produitId:     s.produitId,
-          stockPhysique: Number(s.stockPhysique),
+          stockPhysique: valeurs.get(s.produitId)!,
           note:          s.note.trim() || undefined,
         })),
       });
@@ -129,22 +177,13 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
     }
   }
 
-  async function ouvrirPdf() {
-    if (!inventaire) return;
+  async function ouvrirPdfInventaire(id: string) {
+    setErreurPdf(null);
     try {
-      const { url } = await client.urlInventaire(inventaire.id);
+      const { url } = await client.urlInventaire(id);
       window.open(url, "_blank");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Impossible d'obtenir le lien PDF.");
-    }
-  }
-
-  async function ouvrirPdfHistorique(inv: InventairePhysique) {
-    try {
-      const { url } = await client.urlInventaire(inv.id);
-      window.open(url, "_blank");
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Impossible d'obtenir le lien PDF.");
+      setErreurPdf(e instanceof Error ? e.message : "Impossible d'obtenir le lien du PDF.");
     }
   }
 
@@ -258,8 +297,10 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
                   <tbody>
                     {lignes.map((l) => {
                       const saisie  = saisies.find((s) => s.produitId === l.produitId)!;
-                      const physique = saisie.stockPhysique.trim() !== "" ? Number(saisie.stockPhysique) : null;
-                      const ecart    = physique !== null ? physique - l.stockTheorique : null;
+                      const physiqueLu = saisie.stockPhysique.trim() !== "" ? lireStockPhysique(saisie.stockPhysique) : null;
+                      const physique = physiqueLu && physiqueLu.ok ? physiqueLu.valeur : null;
+                      const erreurSaisie = physiqueLu && !physiqueLu.ok ? physiqueLu.message : null;
+                      const ecart    = physique !== null ? ecartArrondi(physique, l.stockTheorique) : null;
                       const classeEcart = ecart === null ? "" : ecart < 0 ? "texte-erreur" : ecart > 0 ? "texte-succes" : "texte-discret";
                       const ligneDanger = ecart !== null && ecart < 0;
                       const ligneSucces  = ecart !== null && ecart > 0;
@@ -274,18 +315,19 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
                           <td style={{ textAlign: "right" }}>{l.stockTheorique}</td>
                           <td style={{ textAlign: "right" }}>
                             <input
-                              type="number"
-                              min="0"
-                              step="1"
+                              type="text"
+                              inputMode="decimal"
                               value={saisie.stockPhysique}
                               onChange={(e) => setSaisie(l.produitId, "stockPhysique", e.target.value)}
                               className="inv-input-physique"
-                              placeholder="0"
+                              placeholder="Compter"
                               aria-label={`Stock physique de ${l.nom}`}
+                              aria-invalid={erreurSaisie !== null}
+                              title={erreurSaisie ?? undefined}
                             />
                           </td>
                           <td style={{ textAlign: "right" }} className={classeEcart}>
-                            {ecart === null ? "—" : ecart === 0 ? "—" : ecart > 0 ? `+${ecart}` : String(ecart)}
+                            {erreurSaisie ? "?" : ecart === null || ecart === 0 ? "—" : ecart > 0 ? `+${ecart}` : String(ecart)}
                           </td>
                           <td>
                             {ecart !== null && ecart !== 0 ? (
@@ -379,7 +421,7 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
 
               <div style={{ display: "flex", gap: "var(--hc-space-2)", flexWrap: "wrap" }}>
                 {inventaire.pdfUrl && (
-                  <Button type="button" onClick={ouvrirPdf}>
+                  <Button type="button" onClick={() => void ouvrirPdfInventaire(inventaire.id)}>
                     <ExternalLink size={16} aria-hidden="true" style={{ marginRight: "var(--hc-space-1)" }} />
                     Télécharger le PDF
                   </Button>
@@ -388,6 +430,7 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
                   Nouvel inventaire
                 </Button>
               </div>
+              {erreurPdf && <p role="alert" className="hc-text-body texte-erreur">{erreurPdf}</p>}
             </div>
           )}
         </>
@@ -403,8 +446,10 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
           </div>
 
           {chargHistorique && <p className="hc-text-body texte-discret">Chargement…</p>}
+          {erreurHistorique && <p role="alert" className="hc-text-body texte-erreur">{erreurHistorique}</p>}
+          {erreurPdf && <p role="alert" className="hc-text-body texte-erreur">{erreurPdf}</p>}
 
-          {!chargHistorique && historique.length === 0 && (
+          {!chargHistorique && !erreurHistorique && historique.length === 0 && (
             <div className="etat-vide">
               <Clock size={32} strokeWidth={1.5} aria-hidden="true" />
               <p className="hc-text-subheading">Aucun inventaire enregistré</p>
@@ -448,7 +493,7 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
                           <button
                             type="button"
                             className="lien-action"
-                            onClick={() => ouvrirPdfHistorique(inv)}
+                            onClick={() => void ouvrirPdfInventaire(inv.id)}
                           >
                             PDF
                           </button>
@@ -462,6 +507,7 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
           )}
         </>
       )}
+      {dialogue}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CalendarDays, Clock, Mail, MapPin, MessageCircle, Navigation, Phone, X } from "lucide-react";
 import { listerChambresDisponibles } from "@hotel-chicago/api-client";
+import { useDialogue } from "@hotel-chicago/ui";
 import { RESEAUX_SOCIAUX } from "@hotel-chicago/types";
 import type { Chambre, InfoHotelPublique } from "@hotel-chicago/types";
 import { configuration } from "../config";
@@ -12,9 +13,20 @@ import { Apparition } from "../accueil/animations";
 import { CarteChambre } from "./CarteChambre";
 import { ICONES_SERVICES, IconeReseau, LIBELLE_RESEAU } from "./icones";
 
+/** Les hôtels sont au Congo (UTC+2, sans heure d'été) : « aujourd'hui » est le jour LÀ-BAS, pas la date UTC (qui retarde d'un jour après 22 h). */
+const FUSEAU_HOTEL = "Africa/Lubumbashi";
+
+/** Date AAAA-MM-JJ du jour de l'hôtel, décalée de `decalageJours`. */
 function aujourdhui(decalageJours = 0): string {
-  const d = new Date();
-  d.setDate(d.getDate() + decalageJours);
+  const instant = new Date(Date.now() + decalageJours * 86_400_000);
+  // La locale « en-CA » écrit la date en AAAA-MM-JJ, ce que demandent les champs <input type="date">.
+  return new Intl.DateTimeFormat("en-CA", { timeZone: FUSEAU_HOTEL, year: "numeric", month: "2-digit", day: "2-digit" }).format(instant);
+}
+
+/** Lendemain d'une date AAAA-MM-JJ (calcul en UTC pur : aucun fuseau en jeu). */
+function lendemain(jour: string): string {
+  const d = new Date(`${jour}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
 
@@ -79,14 +91,25 @@ function Hero({ info }: { info: InfoHotelPublique }) {
           <CalendarDays size={18} aria-hidden="true" />
           <span>
             Arrivée
-            <input type="date" value={arrivee} min={aujourdhui()} onChange={(e) => setArrivee(e.target.value)} required />
+            <input
+              type="date"
+              value={arrivee}
+              min={aujourdhui()}
+              onChange={(e) => {
+                const nouvelle = e.target.value;
+                setArrivee(nouvelle);
+                // Le départ suit : jamais avant le lendemain de l'arrivée.
+                if (nouvelle && depart <= nouvelle) setDepart(lendemain(nouvelle));
+              }}
+              required
+            />
           </span>
         </label>
         <label>
           <CalendarDays size={18} aria-hidden="true" />
           <span>
             Départ
-            <input type="date" value={depart} min={arrivee} onChange={(e) => setDepart(e.target.value)} required />
+            <input type="date" value={depart} min={arrivee ? lendemain(arrivee) : undefined} onChange={(e) => setDepart(e.target.value)} required />
           </span>
         </label>
         <button type="submit" className="hotel-bouton hotel-bouton--primaire">
@@ -202,6 +225,29 @@ function Services({ info }: { info: InfoHotelPublique }) {
   );
 }
 
+/** Photo agrandie : vraie fenêtre modale (focus piégé, Échap, focus rendu à la vignette). */
+function Lightbox({ url, onFermer }: { url: string; onFermer: () => void }) {
+  const ref = useDialogue<HTMLDivElement>({ onEchap: onFermer });
+  return (
+    <motion.div
+      ref={ref}
+      className="hotel-lightbox"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo agrandie"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onFermer}
+    >
+      <button type="button" className="hotel-lightbox__fermer" onClick={onFermer} aria-label="Fermer la photo">
+        <X size={24} aria-hidden="true" />
+      </button>
+      <img src={url} alt="" onClick={(e) => e.stopPropagation()} />
+    </motion.div>
+  );
+}
+
 function Galerie({ info }: { info: InfoHotelPublique }) {
   const [ouverte, setOuverte] = useState<number | null>(null);
 
@@ -231,23 +277,7 @@ function Galerie({ info }: { info: InfoHotelPublique }) {
       </div>
 
       <AnimatePresence>
-        {ouverte !== null && (
-          <motion.div
-            className="hotel-lightbox"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Photo agrandie"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setOuverte(null)}
-          >
-            <button type="button" className="hotel-lightbox__fermer" onClick={() => setOuverte(null)} aria-label="Fermer">
-              <X size={24} />
-            </button>
-            <img src={info.galerie[ouverte]} alt="" onClick={(e) => e.stopPropagation()} />
-          </motion.div>
-        )}
+        {ouverte !== null && <Lightbox key="lightbox" url={info.galerie[ouverte]!} onFermer={() => setOuverte(null)} />}
       </AnimatePresence>
     </section>
   );

@@ -45,6 +45,10 @@
 }
 
 @media (max-width: 767px) {
+  /* Fenêtre étroite / tactile : zone d'appui de 44 px (le « petit » bouton de 36 px se manque au pouce). */
+  .hc-button--sm {
+    min-height: 44px;
+  }
   .hc-button--md {
     min-height: 44px;
   }
@@ -55,7 +59,7 @@
 
 .hc-button--primary {
   background-color: var(--hc-blue);
-  color: #ffffff;
+  color: var(--hc-on-accent);
 }
 .hc-button--primary:hover:not(:disabled) {
   background-color: var(--hc-blue-hover);

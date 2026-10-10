@@ -1,6 +1,6 @@
 import * as React from "react";
-import { useState } from "react";
-import { Button } from "@hotel-chicago/ui";
+import { useId, useState } from "react";
+import { Button, useDialogue } from "@hotel-chicago/ui";
 import type { DonneesEnregistrementPaiement } from "@hotel-chicago/api-client";
 import { Devise, MethodePaiementLicence } from "@hotel-chicago/types";
 import type { HotelAvecValidite } from "@hotel-chicago/types";
@@ -23,6 +23,9 @@ export function FormulairePaiement({ hotel, enCours, erreur, onSoumettre, onFerm
   const [periodeCouverteJusquau, setPeriodeCouverteJusquau] = useState("");
   const [note, setNote] = useState("");
   const [erreurLocale, setErreurLocale] = useState<string | null>(null);
+  const idTitre = useId();
+  const saisieModifiee = montant !== "" || periodeCouverteJusquau !== "" || note.trim() !== "";
+  const refDialogue = useDialogue<HTMLFormElement>({ onEchap: onFermer });
 
   function soumettre(e: React.FormEvent) {
     e.preventDefault();
@@ -41,15 +44,25 @@ export function FormulairePaiement({ hotel, enCours, erreur, onSoumettre, onFerm
   }
 
   return (
-    <div className="fond-modale" onClick={onFermer}>
-      <form className="carte carte--etroite" onClick={(e) => e.stopPropagation()} onSubmit={soumettre}>
-        <h2 className="titre">Enregistrer un paiement</h2>
+    // Pas de fermeture au clic sur le fond si la saisie a été modifiée (elle serait perdue).
+    <div className="fond-modale" onMouseDown={(e) => e.target === e.currentTarget && !saisieModifiee && onFermer()}>
+      <form
+        ref={refDialogue}
+        className="carte carte--etroite"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={idTitre}
+        onSubmit={soumettre}
+      >
+        <h2 id={idTitre} className="titre">
+          Enregistrer un paiement
+        </h2>
         <p className="sous-titre">{hotel.nom}</p>
 
         <label className="label" htmlFor="montant">
           Montant
         </label>
-        <input id="montant" className="champ" type="number" min="0" step="0.01" value={montant} onChange={(e) => setMontant(e.target.value)} />
+        <input id="montant" className="champ" type="number" min="0" step="0.01" value={montant} onChange={(e) => setMontant(e.target.value)} data-autofocus />
 
         <label className="label" htmlFor="devise">
           Devise
@@ -94,7 +107,7 @@ export function FormulairePaiement({ hotel, enCours, erreur, onSoumettre, onFerm
         <Button type="submit" disabled={enCours} style={{ width: "100%", marginTop: 16 }}>
           {enCours ? "Enregistrement…" : "Enregistrer le paiement"}
         </Button>
-        <button type="button" className="lien-retour" onClick={onFermer} style={{ width: "100%", marginTop: 8, background: "none", border: "none", color: "var(--hc-ink-muted)", cursor: "pointer" }}>
+        <button type="button" className="lien-retour" onClick={onFermer}>
           Annuler
         </button>
       </form>

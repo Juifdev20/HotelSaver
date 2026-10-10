@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
+import { useTitrePage } from "@hotel-chicago/ui";
 import { ArrowLeft, Eye, EyeOff, Lock, Mail, MailCheck } from "lucide-react";
 // Logo de l'APPLICATION HotelSaver — distinct du logo de l'hôtel
 // (HotelBranding.logoUrl), voir DECISIONS.md « branding application vs hôtel ».
@@ -34,6 +35,7 @@ export function EcranConnexion({
   enCours,
 }: EcranConnexionProps) {
   const [mode, setMode] = useState<"connexion" | "oubli">("connexion");
+  useTitrePage(mode === "oubli" ? "Mot de passe oublié" : "Connexion");
   const [email, setEmail] = useState(emailInitial ?? "");
   const [motDePasse, setMotDePasse] = useState("");
   const [visible, setVisible] = useState(false);

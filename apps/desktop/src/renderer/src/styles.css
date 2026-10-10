@@ -262,7 +262,7 @@ p {
   border: none;
   border-radius: var(--hc-radius-md);
   background: var(--hc-blue);
-  color: #fff;
+  color: var(--hc-on-accent);
   font-family: var(--hc-font-body);
   font-size: 16px;
   font-weight: 700;
@@ -874,7 +874,7 @@ p {
 .puce[aria-pressed="true"] {
   background-color: var(--hc-blue);
   border-color: var(--hc-blue);
-  color: #ffffff;
+  color: var(--hc-on-accent);
 }
 
 .etat-vide {
@@ -1365,7 +1365,7 @@ p {
   justify-content: center;
   border-radius: 50%;
   background: var(--hc-success);
-  color: #fff;
+  color: var(--hc-on-status);
 }
 
 .hc-auth__etapes {
@@ -1406,7 +1406,7 @@ p {
 
 .hc-auth__etape--actif span {
   background: var(--hc-blue);
-  color: #fff;
+  color: var(--hc-on-accent);
 }
 
 .hc-auth__etapes-trait {
@@ -1476,7 +1476,7 @@ button {
   border: none;
   border-radius: var(--hc-radius-md);
   background-color: var(--hc-blue);
-  color: #ffffff;
+  color: var(--hc-on-accent);
   font-family: var(--hc-font-body);
   font-weight: 700;
   cursor: pointer;
@@ -1505,7 +1505,7 @@ button {
   padding: 6px 14px;
   border-radius: var(--hc-radius-pill);
   background-color: var(--hc-blue);
-  color: #ffffff;
+  color: var(--hc-on-accent);
   font-size: 13px;
   font-weight: 700;
 }
@@ -1562,9 +1562,9 @@ button {
   border-radius: var(--hc-radius-pill);
   white-space: nowrap;
 }
-.statut-ligne--en-attente     { background: #fffaeb; color: #f79009; }
-.statut-ligne--en-preparation { background: #eff8ff; color: #2e90fa; }
-.statut-ligne--pret           { background: #ecfdf3; color: #12b76a; }
+.statut-ligne--en-attente     { background: var(--hc-warning-light); color: var(--hc-warning); }
+.statut-ligne--en-preparation { background: var(--hc-info-light); color: var(--hc-info); }
+.statut-ligne--pret           { background: var(--hc-success-light); color: var(--hc-success); }
 .statut-ligne--servi          { background: var(--hc-border); color: var(--hc-ink-muted); }
 
 /* ============================================================
@@ -1580,8 +1580,8 @@ button {
   border-radius: var(--hc-radius-pill);
   margin-right: var(--hc-space-2);
 }
-.kds-compteur--attente     { background: #fffaeb; color: #f79009; }
-.kds-compteur--preparation { background: #eff8ff; color: #2e90fa; }
+.kds-compteur--attente     { background: var(--hc-warning-light); color: var(--hc-warning); }
+.kds-compteur--preparation { background: var(--hc-info-light); color: var(--hc-info); }
 
 .kds-rafraichir {
   display: inline-flex;
@@ -1622,8 +1622,8 @@ button {
   border-radius: var(--hc-radius-lg);
   overflow: hidden;
 }
-.kds-carte--alerte  { border-color: #f79009; }
-.kds-carte--urgente { border-color: #f04438; box-shadow: 0 0 0 3px #fee4e2; }
+.kds-carte--alerte  { border-color: var(--hc-warning-vif); }
+.kds-carte--urgente { border-color: var(--hc-danger-vif); box-shadow: 0 0 0 3px var(--hc-danger-light); }
 
 .kds-carte__entete {
   display: flex;
@@ -1653,7 +1653,7 @@ button {
   font-size: 12px;
   color: var(--hc-ink-muted);
 }
-.kds-carte__timer--urgente { color: #f04438; font-weight: 700; }
+.kds-carte__timer--urgente { color: var(--hc-danger); font-weight: 700; }
 
 .kds-carte__lignes {
   display: flex;
@@ -1700,19 +1700,20 @@ button {
   cursor: pointer;
   white-space: nowrap;
 }
+.kds-ligne__btn { min-height: 44px; }
 .kds-ligne__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .kds-ligne__btn--prendre {
-  background: #fffaeb;
-  color: #b54708;
-  border: 1px solid #fec84b;
+  background: var(--hc-warning-light);
+  color: var(--hc-warning);
+  border: 1px solid var(--hc-warning);
 }
-.kds-ligne__btn--prendre:hover:not(:disabled) { background: #fef0c7; }
+.kds-ligne__btn--prendre:hover:not(:disabled) { filter: brightness(0.95); }
 .kds-ligne__btn--pret {
-  background: #ecfdf3;
-  color: #027a48;
-  border: 1px solid #6ce9a6;
+  background: var(--hc-success-light);
+  color: var(--hc-success);
+  border: 1px solid var(--hc-success);
 }
-.kds-ligne__btn--pret:hover:not(:disabled) { background: #d1fadf; }
+.kds-ligne__btn--pret:hover:not(:disabled) { filter: brightness(0.95); }
 
 .ajout-conso__panier {
   position: sticky;
@@ -1752,12 +1753,12 @@ button {
 }
 
 .produit-carte__etat--epuise {
-  color: #d92d20;
+  color: var(--hc-danger);
   font-weight: 700;
 }
 
 .produit-carte__etat--bas {
-  color: #b54708;
+  color: var(--hc-warning);
   font-weight: 700;
 }
 
@@ -1771,7 +1772,7 @@ button {
   border-radius: var(--hc-radius-pill);
   border: 1px solid var(--hc-blue);
   background-color: var(--hc-blue);
-  color: #ffffff;
+  color: var(--hc-on-accent);
   cursor: pointer;
 }
 
@@ -1809,8 +1810,8 @@ button {
   gap: 4px;
   padding: 4px 12px;
   border-radius: var(--hc-radius-pill);
-  background-color: #dcfae6;
-  color: #067647;
+  background-color: var(--hc-success-light);
+  color: var(--hc-success);
   font-size: 13px;
   font-weight: 700;
 }
@@ -1921,12 +1922,12 @@ button {
 .stock-tuile--danger  { border-color: #fda29b; background: #fff1f0; }
 
 .stock-tuile__icone--ok      { color: var(--hc-blue); }
-.stock-tuile__icone--alerte  { color: #f79009; }
-.stock-tuile__icone--danger  { color: #f04438; }
+.stock-tuile__icone--alerte  { color: var(--hc-warning-vif); }
+.stock-tuile__icone--danger  { color: var(--hc-danger-vif); }
 
 .stock-tuile__valeur          { font-weight: 800; }
-.stock-tuile__valeur--alerte  { color: #b54708; }
-.stock-tuile__valeur--danger  { color: #f04438; }
+.stock-tuile__valeur--alerte  { color: var(--hc-warning); }
+.stock-tuile__valeur--danger  { color: var(--hc-danger); }
 
 /* Valeur de stock dans le tableau */
 .stock-valeur {
@@ -1936,8 +1937,8 @@ button {
   border-radius: var(--hc-radius-pill);
 }
 .stock-valeur--ok     { color: var(--hc-ink); }
-.stock-valeur--bas    { color: #b54708; background: #fffaeb; }
-.stock-valeur--epuise { color: #f04438; background: #fff1f0; }
+.stock-valeur--bas    { color: var(--hc-warning); background: var(--hc-warning-light); }
+.stock-valeur--epuise { color: var(--hc-danger); background: var(--hc-danger-light); }
 
 /* Évolution du jour */
 .stock-evolution {
@@ -1961,9 +1962,9 @@ button {
   border-radius: var(--hc-radius-pill);
   white-space: nowrap;
 }
-.badge-mouvement--entree       { background: #ecfdf3; color: #027a48; }
-.badge-mouvement--sortie-vente { background: #eff8ff; color: #1769e0; }
-.badge-mouvement--perte        { background: #fff1f0; color: #f04438; }
+.badge-mouvement--entree       { background: var(--hc-success-light); color: var(--hc-success); }
+.badge-mouvement--sortie-vente { background: var(--hc-info-light); color: var(--hc-info); }
+.badge-mouvement--perte        { background: var(--hc-danger-light); color: var(--hc-danger); }
 .badge-mouvement--ajustement   { background: #f4f4f5; color: #52525b; }
 
 /* Badges statut inventaire */
@@ -1974,9 +1975,9 @@ button {
   padding: 2px 8px;
   border-radius: var(--hc-radius-pill);
 }
-.badge-stock--ok     { background: #ecfdf3; color: #027a48; }
-.badge-stock--bas    { background: #fffaeb; color: #b54708; }
-.badge-stock--epuise { background: #fff1f0; color: #f04438; }
+.badge-stock--ok     { background: var(--hc-success-light); color: var(--hc-success); }
+.badge-stock--bas    { background: var(--hc-warning-light); color: var(--hc-warning); }
+.badge-stock--epuise { background: var(--hc-danger-light); color: var(--hc-danger); }
 
 /* Lien action dans tableau */
 .lien-action {
@@ -2015,7 +2016,7 @@ button {
 }
 .inv-etape--actif {
   background: var(--hc-blue);
-  color: #fff;
+  color: var(--hc-on-accent);
   font-weight: 600;
 }
 .inv-etape--fait {
@@ -2035,8 +2036,8 @@ button {
   font-size: 12px;
   flex-shrink: 0;
 }
-.inv-etape--actif .inv-etape__numero { background: rgba(255,255,255,0.3); color: #fff; }
-.inv-etape--fait  .inv-etape__numero { background: var(--hc-success, #12b76a); color: #fff; }
+.inv-etape--actif .inv-etape__numero { background: rgba(255,255,255,0.3); color: var(--hc-on-accent); }
+.inv-etape--fait  .inv-etape__numero { background: var(--hc-success, #12b76a); color: var(--hc-on-status); }
 .inv-etape__libelle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Barre d'état (nb saisis / total) */

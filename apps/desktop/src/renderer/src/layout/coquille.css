@@ -14,8 +14,8 @@
   --sb-bordure: #d8e0ec;
   --sb-texte: #475467;
   --sb-texte-fort: #0f2742;
-  --sb-texte-faible: #667085;
-  --sb-titre: #98a2b3;
+  --sb-texte-faible: #596277;
+  --sb-titre: #596277;
   --sb-survol: rgba(15, 39, 66, 0.07);
   --sb-pastille: rgba(15, 39, 66, 0.08);
 
@@ -34,7 +34,7 @@
   --sb-texte: rgba(255, 255, 255, 0.72);
   --sb-texte-fort: #ffffff;
   --sb-texte-faible: rgba(255, 255, 255, 0.55);
-  --sb-titre: rgba(255, 255, 255, 0.4);
+  --sb-titre: rgba(255, 255, 255, 0.62);
   --sb-survol: rgba(255, 255, 255, 0.08);
   --sb-pastille: rgba(255, 255, 255, 0.12);
 }
@@ -168,7 +168,7 @@
 
 .lien-nav--laterale.lien-nav--actif {
   background-color: var(--hc-blue);
-  color: #ffffff;
+  color: var(--hc-on-accent);
   font-weight: 600;
 }
 
@@ -300,8 +300,8 @@
   height: 17px;
   padding: 0 4px;
   border-radius: 9px;
-  background: #e5484d;
-  color: #fff;
+  background: var(--hc-danger);
+  color: var(--hc-on-status);
   font-size: 10px;
   font-weight: 700;
   line-height: 17px;
@@ -590,7 +590,7 @@
 .coquille__bascule:hover {
   background-color: var(--hc-blue);
   border-color: var(--hc-blue);
-  color: #ffffff;
+  color: var(--hc-on-accent);
 }
 
 .coquille__bascule:focus-visible {
@@ -712,7 +712,7 @@
 .indicateur-synchro--horsLigne .indicateur-synchro__point { background: #8a8a8a; }
 .indicateur-synchro--danger { border-color: #c0392b; }
 .indicateur-synchro--danger .indicateur-synchro__point { background: #c0392b; }
-.indicateur-synchro__delai { color: #c0392b; }
+.indicateur-synchro__delai { color: var(--hc-danger); }
 .bandeau-hors-ligne {
   padding: 8px 16px;
   background: #fff4e0;

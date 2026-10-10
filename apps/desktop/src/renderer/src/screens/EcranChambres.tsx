@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_PHOTOS_CHAMBRE } from "@hotel-chicago/types";
 import { SelecteurPhotos, nettoyerImages } from "../components/SelecteurPhotos";
 import type { ClientApi } from "@hotel-chicago/api-client";
@@ -8,6 +8,7 @@ import { Button, RoomCard, StatusBadge, StatusTone, formatMontant } from "@hotel
 import { BedDouble, MoreVertical, Plus, Search } from "lucide-react";
 import type { IdPage } from "../navigation";
 import { useFermetureExterne } from "../layout/Coquille";
+import { useConfirmation } from "../components/DialogueConfirmation";
 import { lireMontant, lireQuantite } from "@hotel-chicago/miroir-local";
 
 /** Mapping statut → présentation : reste ici, pas dans packages/ui (voir
@@ -73,23 +74,58 @@ function MenuActionsChambre({
 }) {
   const [ouvert, setOuvert] = useState(false);
   const ref = useFermetureExterne(ouvert, () => setOuvert(false));
+  const refDeclencheur = useRef<HTMLButtonElement>(null);
+  const refPanneau = useRef<HTMLDivElement>(null);
+
+  // Focus sur le premier choix à l'ouverture (clavier et lecteur d'écran).
+  useEffect(() => {
+    if (ouvert) refPanneau.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [ouvert]);
+
+  const surToucheMenu = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape" || e.key === "Tab") {
+      // Échap et Tab referment le menu ; le focus revient au bouton qui l'a ouvert.
+      if (e.key === "Escape") e.stopPropagation();
+      setOuvert(false);
+      refDeclencheur.current?.focus();
+      if (e.key === "Escape") return;
+      e.preventDefault();
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
+    const items = Array.from(refPanneau.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    if (items.length === 0) return;
+    e.preventDefault();
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    const suivant =
+      e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : e.key === "ArrowDown" ? (index + 1) % items.length : (index - 1 + items.length) % items.length;
+    items[suivant]!.focus();
+  };
 
   return (
     <div className="menu-actions" ref={ref}>
       <button
         type="button"
         className="menu-actions__declencheur"
+        ref={refDeclencheur}
         onClick={() => setOuvert((v) => !v)}
         aria-label={`Actions pour la chambre ${chambre.numero}`}
+        aria-haspopup="menu"
         aria-expanded={ouvert}
       >
         <MoreVertical size={18} aria-hidden="true" />
       </button>
       {ouvert && (
-        <div className="menu-actions__panneau" role="menu">
+        <div
+          className="menu-actions__panneau"
+          role="menu"
+          aria-label={`Actions pour la chambre ${chambre.numero}`}
+          ref={refPanneau}
+          onKeyDown={surToucheMenu}
+        >
           {peutChangerStatut && (
             <>
-              <p className="hc-text-label menu-actions__titre">Changer le statut</p>
+              <p className="hc-text-label menu-actions__titre" role="presentation">Changer le statut</p>
               {Object.values(StatutChambre)
                 .filter((statut) => statut !== chambre.statut)
                 .map((statut) => (
@@ -160,6 +196,7 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
   const [photosAvant, setPhotosAvant] = useState<string[]>([]);
   const [photosEnvoyees, setPhotosEnvoyees] = useState<string[]>([]);
   const [enCours, setEnCours] = useState(false);
+  const { demander, dialogue } = useConfirmation();
 
   useEffect(() => {
     if (rechercheInitiale) setRecherche(rechercheInitiale);
@@ -267,7 +304,13 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
   }
 
   async function supprimerChambre(chambre: Chambre) {
-    if (!window.confirm(`Supprimer la chambre ${chambre.numero} ?`)) return;
+    const confirme = await demander({
+      titre: `Supprimer la chambre ${chambre.numero} (${chambre.type}) ?`,
+      message: "La chambre disparaît de la liste et ne pourra plus être réservée. Les séjours et factures déjà enregistrés ne changent pas.",
+      libelleConfirmer: `Supprimer la chambre ${chambre.numero}`,
+      destructif: true,
+    });
+    if (!confirme) return;
     setEnCours(true);
     setErreur(null);
     try {
@@ -469,6 +512,7 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
           ))}
         </div>
       )}
+      {dialogue}
     </div>
   );
 }

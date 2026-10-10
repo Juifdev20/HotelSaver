@@ -74,7 +74,11 @@ export function EcranChambresPubliques({ sousDomaine }: { sousDomaine: string })
             ))}
           </div>
         )}
-        {erreur && <p className="erreur">{erreur}</p>}
+        {erreur && (
+          <p className="erreur" role="alert">
+            {erreur}
+          </p>
+        )}
 
         {!chargement && !erreur && (
           <div className="hotel-grille-chambres">

@@ -147,3 +147,112 @@ body {
   padding: var(--hc-space-5);
   z-index: 10;
 }
+
+/* ── Accessibilité et finitions ──────────────────────────────────────── */
+.visuellement-cache {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.tableau-defilant {
+  overflow-x: auto;
+}
+
+.cellule-statut {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+}
+
+.cellule-statut select {
+  min-height: 36px;
+}
+
+.chargement {
+  color: var(--hc-ink-muted);
+  font-size: 14px;
+}
+
+.succes,
+.texte-succes {
+  color: var(--hc-success);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.texte-alerte {
+  color: var(--hc-warning);
+  font-weight: 600;
+}
+
+.lien-retour {
+  display: block;
+  width: 100%;
+  margin-top: var(--hc-space-2);
+  min-height: 44px;
+  background: none;
+  border: none;
+  color: var(--hc-ink-muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.lien-retour:hover {
+  color: var(--hc-ink);
+  text-decoration: underline;
+}
+
+.champ:focus-visible,
+.cellule-statut select:focus-visible,
+.lien-retour:focus-visible {
+  outline: 2px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+
+/* La confirmation passe au-dessus d'une autre fenêtre éventuellement ouverte. */
+.fond-modale--confirmation {
+  z-index: 20;
+}
+
+.titre--moyen {
+  font-size: 18px;
+}
+
+.texte-confirmation {
+  font-size: 14px;
+  color: var(--hc-ink);
+  margin: var(--hc-space-3) 0;
+  line-height: 1.5;
+}
+
+.texte-confirmation p {
+  margin: 0 0 var(--hc-space-2);
+}
+
+.actions-confirmation {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2);
+  margin-top: var(--hc-space-4);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--hc-space-4);
+  }
+  .entete {
+    flex-wrap: wrap;
+    gap: var(--hc-space-3);
+  }
+  .carte {
+    padding: var(--hc-space-4);
+  }
+}

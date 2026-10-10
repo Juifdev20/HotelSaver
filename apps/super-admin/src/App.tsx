@@ -111,13 +111,17 @@ export default function App() {
     }
   }
 
-  async function changerStatut(id: string, statutLicence: StatutLicence) {
-    if (!client) return;
+  /** Retourne `true` si le statut a été enregistré (EcranHotels affiche alors la confirmation). */
+  async function changerStatut(id: string, statutLicence: StatutLicence): Promise<boolean> {
+    if (!client) return false;
+    setErreurHotels(null);
     try {
       await client.changerStatutHotel(id, statutLicence);
       await chargerHotels(client);
+      return true;
     } catch (erreur) {
       setErreurHotels(erreur instanceof ErreurApi ? erreur.message : "Erreur lors du changement de statut.");
+      return false;
     }
   }
 
@@ -172,21 +176,32 @@ export default function App() {
     }
   }
 
-  async function retirerDomaine(hotelId: string): Promise<void> {
-    if (!client) return;
+  /** Retourne `true` si le domaine a été retiré (sinon la fenêtre reste ouverte avec le message d'erreur). */
+  async function retirerDomaine(hotelId: string): Promise<boolean> {
+    if (!client) return false;
     setErreurDomaine(null);
     setDomaineEnCours(true);
     try {
       await client.retirerDomaine(hotelId);
       await chargerHotels(client);
+      return true;
     } catch (erreur) {
       setErreurDomaine(erreur instanceof Error ? erreur.message : "Erreur lors du retrait du domaine.");
+      return false;
     } finally {
       setDomaineEnCours(false);
     }
   }
 
-  if (ecran === "chargement") return null;
+  if (ecran === "chargement") {
+    return (
+      <div className="page-centree">
+        <p role="status" className="chargement">
+          Chargement…
+        </p>
+      </div>
+    );
+  }
 
   if (ecran === "connexion") {
     return <EcranConnexion erreur={erreurConnexion} enCours={connexionEnCours} onConnexion={seConnecter} />;

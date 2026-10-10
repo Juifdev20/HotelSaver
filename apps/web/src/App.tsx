@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { useTitrePage } from "@hotel-chicago/ui";
 import { inscrireHotel, obtenirInfoPublique } from "@hotel-chicago/api-client";
 import type { InfoHotelPublique, InscriptionHotelPayload } from "@hotel-chicago/types";
 import { configuration } from "./config";
@@ -36,8 +37,17 @@ function EcranInscriptionAvecEtat() {
 }
 
 /** Vitrine HotelSaver (plateforme) : accueil marketing + inscription d'un hôtel. */
+const TITRE_PAGE_MARKETING: Record<string, string> = {
+  "/": "Gestion hôtelière",
+  "/inscription": "Créer le compte de mon hôtel",
+  "/connexion": "Connexion",
+  "/mot-de-passe-oublie": "Mot de passe oublié",
+  "/reinitialiser-mot-de-passe": "Nouveau mot de passe",
+};
+
 function SiteMarketing() {
   const { pathname } = useLocation();
+  useTitrePage(TITRE_PAGE_MARKETING[pathname] ?? "");
   const surVitrine = ["/", "/inscription", "/connexion", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe"].includes(pathname);
   return (
     <>

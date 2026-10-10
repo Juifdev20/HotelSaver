@@ -1,8 +1,8 @@
 import * as React from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Captcha, captchaActif } from "./Captcha";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@hotel-chicago/ui";
+import { Button, useDialogue } from "@hotel-chicago/ui";
 import { creerDemandeReservationPublique } from "@hotel-chicago/api-client";
 import type { Chambre } from "@hotel-chicago/types";
 import { configuration } from "./config";
@@ -14,6 +14,12 @@ export interface FormulaireDemandeReservationProps {
   dateArrivee: string;
   dateDepart: string;
   onFermer: () => void;
+}
+
+/** « 2026-10-12 » → « 12/10/2026 » (par découpage du texte : aucun fuseau horaire en jeu). */
+function dateJJMMAAAA(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
 /**
@@ -36,6 +42,10 @@ export function FormulaireDemandeReservation({
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const naviguer = useNavigate();
+  const idTitre = useId();
+  const refDialogue = useDialogue<HTMLDivElement>({ onEchap: onFermer });
+  // Une saisie perdue par un clic malheureux sur le fond serait pénible sur téléphone : le fond ne ferme que si rien n'est saisi.
+  const saisieModifiee = nom.trim() !== "" || telephone.trim() !== "" || email.trim() !== "";
 
   async function soumettre(e: React.FormEvent) {
     e.preventDefault();
@@ -64,23 +74,25 @@ export function FormulaireDemandeReservation({
   }
 
   return (
-    <div className="fond-modale" onClick={onFermer}>
-      <div className="carte carte--etroite" onClick={(e) => e.stopPropagation()}>
+    <div className="fond-modale" onMouseDown={(e) => e.target === e.currentTarget && !saisieModifiee && onFermer()}>
+      <div ref={refDialogue} className="carte carte--etroite" role="dialog" aria-modal="true" aria-labelledby={idTitre}>
           <form onSubmit={soumettre}>
-            <h2 className="titre">Chambre {chambre.numero}</h2>
+            <h2 id={idTitre} className="titre">
+              Demande pour la chambre {chambre.numero}
+            </h2>
             <p className="sous-titre">
-              Du {dateArrivee} au {dateDepart}
+              Du {dateJJMMAAAA(dateArrivee)} au {dateJJMMAAAA(dateDepart)}
             </p>
 
             <label className="label" htmlFor="nom-client">
               Votre nom
             </label>
-            <input id="nom-client" className="champ" value={nom} onChange={(e) => setNom(e.target.value)} />
+            <input id="nom-client" className="champ" value={nom} onChange={(e) => setNom(e.target.value)} autoComplete="name" />
 
             <label className="label" htmlFor="telephone-client">
               Téléphone (recommandé)
             </label>
-            <input id="telephone-client" className="champ" value={telephone} onChange={(e) => setTelephone(e.target.value)} />
+            <input id="telephone-client" className="champ" type="tel" autoComplete="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} />
 
             <label className="label" htmlFor="email-client">
               Email (optionnel)
@@ -89,6 +101,7 @@ export function FormulaireDemandeReservation({
               id="email-client"
               className="champ"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />

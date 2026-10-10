@@ -219,6 +219,9 @@ function DetailFacturation({
           {Number(factureCreee.montantTotalCDF) > 0 && (
             <p className="hc-text-price">{formatMontant(factureCreee.montantTotalCDF, Devise.CDF)}</p>
           )}
+          {Number(factureCreee.montantTotalUSD) <= 0 && Number(factureCreee.montantTotalCDF) <= 0 && (
+            <p className="hc-text-price">{formatMontant(0, reservation?.chambre.devise ?? Devise.USD)}</p>
+          )}
           {avertissementCheckOut && (
             <p role="alert" className="hc-text-body texte-erreur">
               {avertissementCheckOut}
@@ -353,7 +356,7 @@ function DetailFacturation({
                   </div>
                 </div>
                 {deviseReglee !== deviseDue && (
-                  <p className="hc-text-caption" style={{ color: "var(--hc-primary)" }}>
+                  <p className="hc-text-caption" style={{ color: "var(--hc-blue)" }}>
                     {taux
                       ? `Dû : ${formatMontant(
                           deviseDue === Devise.USD ? apercu.totalUSD * cdfParUsd! : apercu.totalCDF / cdfParUsd!,
@@ -571,6 +574,7 @@ function JournalRecus({
                   {Number(f.montantTotalUSD) > 0 && formatMontant(f.montantTotalUSD, Devise.USD)}
                   {Number(f.montantTotalUSD) > 0 && Number(f.montantTotalCDF) > 0 && " + "}
                   {Number(f.montantTotalCDF) > 0 && formatMontant(f.montantTotalCDF, Devise.CDF)}
+                  {Number(f.montantTotalUSD) <= 0 && Number(f.montantTotalCDF) <= 0 && formatMontant(0, Devise.USD)}
                 </td>
                 <td className="texte-discret">{f.modePaiement === "CASH" ? "Espèces" : f.modePaiement}</td>
                 <td className="texte-discret">{f.annuleLe ? `Annulé — ${f.motifAnnulation ?? ""}` : "Réglé"}</td>

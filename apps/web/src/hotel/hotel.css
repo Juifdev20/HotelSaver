@@ -1083,6 +1083,7 @@
 
 .plat-carte__ajouter {
   padding: 6px 14px;
+  min-height: 44px;
   font-size: 13px;
 }
 
@@ -1092,9 +1093,10 @@
   gap: var(--hc-space-2);
 }
 
+/* Zone tactile de 44 px (pouce sur téléphone) — le glyphe reste petit. */
 .quantite-controle button {
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--hc-border);
   border-radius: var(--hc-radius-sm);
   background: var(--hc-surface-200);
@@ -1110,7 +1112,7 @@
 }
 
 .quantite-controle span {
-  min-width: 20px;
+  min-width: 24px;
   text-align: center;
   font-weight: 600;
 }

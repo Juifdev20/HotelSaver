@@ -1,8 +1,9 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Captcha, captchaActif } from "./Captcha";
 import { creerCommandeWeb, listerMenu } from "@hotel-chicago/api-client";
 import { formatMontant } from "@hotel-chicago/ui";
+import { Devise } from "@hotel-chicago/types";
 import type { CommandeWebCreee, Produit } from "@hotel-chicago/types";
 import { configuration } from "./config";
 
@@ -21,7 +22,10 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
   const [jetonCaptcha, setJetonCaptcha] = useState<string | undefined>(undefined);
   const [produits, setProduits] = useState<Produit[]>([]);
   const [chargement, setChargement] = useState(true);
+  // Deux erreurs distinctes : celle du chargement de la carte (haut de page) et celle de l'envoi (près du bouton).
   const [erreur, setErreur] = useState<string | null>(null);
+  const [erreurEnvoi, setErreurEnvoi] = useState<string | null>(null);
+  const titreConfirmation = useRef<HTMLHeadingElement>(null);
   const [panier, setPanier] = useState<Record<string, number>>({});
   const [envoi, setEnvoi] = useState(false);
   const [confirmation, setConfirmation] = useState<CommandeWebCreee | null>(null);
@@ -51,6 +55,11 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
       .filter((p) => (panier[p.id] ?? 0) > 0)
       .map((p) => ({ produit: p, quantite: panier[p.id]! }));
   }, [produits, panier]);
+
+  // Après l'envoi, le focus va au titre de confirmation (lecteur d'écran : la page a changé).
+  useEffect(() => {
+    if (confirmation) titreConfirmation.current?.focus();
+  }, [confirmation]);
 
   const totalUSD = lignes.reduce((s, l) => (l.produit.devise === "USD" ? s + Number(l.produit.prix) * l.quantite : s), 0);
   const totalCDF = lignes.reduce((s, l) => (l.produit.devise === "CDF" ? s + Number(l.produit.prix) * l.quantite : s), 0);
@@ -83,13 +92,19 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
   // Un plat n'a pas de stock compté (préparé à la commande) : disponible tant
   // que le patron l'a marqué actif + commandable, sauf si des portions
   // limitées sont déclarées et épuisées.
+  const nbArticles = lignes.reduce((n, l) => n + l.quantite, 0);
+  /** Total à l'affichage, avec le formatMontant partagé (« 12,50 $ », « 28 000 FC »). */
+  const texteTotal = [totalUSD > 0 ? formatMontant(totalUSD, Devise.USD) : null, totalCDF > 0 ? formatMontant(totalCDF, Devise.CDF) : null]
+    .filter(Boolean)
+    .join(" + ");
+
   const disponible = (p: Produit) => p.portionsDisponibles == null || p.portionsDisponibles > 0;
 
   const envoyer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (envoi || lignes.length === 0) return;
     setEnvoi(true);
-    setErreur(null);
+    setErreurEnvoi(null);
     try {
       const resultat = await creerCommandeWeb(
         { url: configuration.apiUrl },
@@ -109,7 +124,7 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
       setPanier({});
       window.scrollTo(0, 0);
     } catch (err) {
-      setErreur(err instanceof Error ? err.message : "Impossible d'envoyer la commande.");
+      setErreurEnvoi(err instanceof Error ? err.message : "Impossible d'envoyer la commande. Réessayez.");
     } finally {
       setEnvoi(false);
     }
@@ -128,7 +143,9 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
     return (
       <div className="hotel-page">
         <div className="hotel-page__entete">
-          <h1>Commande envoyée</h1>
+          <h1 ref={titreConfirmation} tabIndex={-1}>
+            Commande envoyée
+          </h1>
           <p>Votre commande a été transmise à la cafétéria.</p>
         </div>
         <div className="hotel-page__corps">
@@ -140,7 +157,10 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
             </p>
             {(confirmation.totalUSD > 0 || confirmation.totalCDF > 0) && (
               <p className="commande-succes__total">
-                Total : {[confirmation.totalUSD > 0 ? `${confirmation.totalUSD.toFixed(2)} $` : null, confirmation.totalCDF > 0 ? `${Math.round(confirmation.totalCDF).toLocaleString("fr-FR")} FC` : null].filter(Boolean).join(" + ")}
+                Total :{" "}
+                {[confirmation.totalUSD > 0 ? formatMontant(confirmation.totalUSD, Devise.USD) : null, confirmation.totalCDF > 0 ? formatMontant(confirmation.totalCDF, Devise.CDF) : null]
+                  .filter(Boolean)
+                  .join(" + ")}
               </p>
             )}
             <div className="commande-succes__actions">
@@ -197,14 +217,23 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
                           {epuise ? (
                             <span className="plat-carte__epuise">Épuisé</span>
                           ) : quantite === 0 ? (
-                            <button type="button" className="hotel-bouton hotel-bouton--contour plat-carte__ajouter" onClick={() => changerQuantite(p.id, 1)}>
+                            <button
+                              type="button"
+                              className="hotel-bouton hotel-bouton--contour plat-carte__ajouter"
+                              aria-label={`Ajouter ${p.nom} à la commande`}
+                              onClick={() => changerQuantite(p.id, 1)}
+                            >
                               Ajouter
                             </button>
                           ) : (
                             <span className="quantite-controle">
-                              <button type="button" aria-label="Retirer" onClick={() => changerQuantite(p.id, -1)}>−</button>
-                              <span>{quantite}</span>
-                              <button type="button" aria-label="Ajouter" onClick={() => changerQuantite(p.id, 1)}>+</button>
+                              <button type="button" aria-label={`Retirer un ${p.nom}`} onClick={() => changerQuantite(p.id, -1)}>
+                                <span aria-hidden="true">−</span>
+                              </button>
+                              <span aria-label={`${quantite} ${p.nom}`}>{quantite}</span>
+                              <button type="button" aria-label={`Ajouter un ${p.nom}`} onClick={() => changerQuantite(p.id, 1)}>
+                                <span aria-hidden="true">+</span>
+                              </button>
                             </span>
                           )}
                         </div>
@@ -218,11 +247,21 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
           {produits.length === 0 && (
             <p className="hotel-vide">La carte n'est pas encore disponible — revenez bientôt.</p>
           )}
-          {erreur && <p className="erreur">{erreur}</p>}
+          {erreur && (
+            <p className="erreur" role="alert">
+              {erreur}
+            </p>
+          )}
         </div>
 
         <aside className="panier" aria-label="Votre commande">
           <h2>Votre commande</h2>
+          {/* Annonce le panier à chaque changement (le lecteur d'écran n'a pas à explorer la liste). */}
+          <p className="visuellement-cache" role="status" aria-live="polite" aria-atomic="true">
+            {nbArticles === 0
+              ? "Votre commande est vide."
+              : `${nbArticles} article${nbArticles > 1 ? "s" : ""} dans votre commande. Total : ${texteTotal}.`}
+          </p>
           {lignes.length === 0 ? (
             <p className="panier__vide">Touchez « Ajouter » sur un plat pour commencer.</p>
           ) : (
@@ -239,12 +278,7 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
               </ul>
               {(totalUSD > 0 || totalCDF > 0) && (
                 <p className="panier__total">
-                  Total{" "}
-                  <strong>
-                    {[totalUSD > 0 ? `${totalUSD.toFixed(2)} $` : null, totalCDF > 0 ? `${Math.round(totalCDF).toLocaleString("fr-FR")} FC` : null]
-                      .filter(Boolean)
-                      .join(" + ")}
-                  </strong>
+                  Total <strong>{texteTotal}</strong>
                 </p>
               )}
 
@@ -284,6 +318,11 @@ export function EcranCuisinePublique({ sousDomaine }: { sousDomaine: string }) {
                   />
                 </label>
                 <Captcha onJeton={setJetonCaptcha} />
+                {erreurEnvoi && (
+                  <p className="erreur" role="alert">
+                    {erreurEnvoi}
+                  </p>
+                )}
                 <button type="submit" className="hotel-bouton hotel-bouton--primaire" disabled={envoi || !client.nom.trim() || (captchaActif && !jetonCaptcha)}>
                   {envoi ? "Envoi…" : "Envoyer la commande"}
                 </button>

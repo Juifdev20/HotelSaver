@@ -220,6 +220,12 @@ export function Coquille({
       refBoutonProfil.current?.focus();
       return;
     }
+    if (e.key === "Tab") {
+      // Tab quitte le menu : on le referme et le focus repart du bouton d'origine (pas d'élément perdu).
+      setMenuProfilOuvert(false);
+      refBoutonProfil.current?.focus();
+      return;
+    }
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Home" && e.key !== "End") return;
     const items = Array.from(refMenuProfil.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
     if (items.length === 0) return;
