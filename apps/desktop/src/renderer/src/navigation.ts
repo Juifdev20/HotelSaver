@@ -20,7 +20,8 @@ export type IdPage =
   | "utilisateurs"
   | "site-hotel"
   | "rapports"
-  | "depenses";
+  | "depenses"
+  | "synchronisation";
 
 export interface EntreeNavigation {
   id: IdPage;
@@ -113,5 +114,6 @@ export function libellePage(id: IdPage): string {
   if (id === "parametres") return "Paramètres";
   if (id === "imprimante") return "Imprimante";
   if (id === "utilisateurs") return "Utilisateurs";
+  if (id === "synchronisation") return "Synchronisation";
   return SECTIONS.flatMap((s) => s.entrees).find((e) => e.id === id)?.libelle ?? "";
 }

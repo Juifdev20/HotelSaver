@@ -354,6 +354,9 @@ export function EcranReservationDetail({
               <Link2 size={16} aria-hidden="true" />
               Copier le lien de suivi
             </Button>
+            {!lienClient && !reservation.jetonSuivi && (
+              <p className="hc-text-caption texte-discret">Le lien de suivi sera disponible dès que la réservation aura été enregistrée sur le serveur.</p>
+            )}
           </div>
 
           {editionReponse && (

@@ -23,6 +23,8 @@ const VALEURS_PAR_DEFAUT: ConfigurationApp = {
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqcGxjcW9jbWtjdGJmeG54aGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NTg0MzgsImV4cCI6MjEwNjAzNDQzOH0.fkgb9UjnDKQ956wWrv73EAGbBcJly_NrfS-pwKibMSI",
   refreshToken: null,
   imprimanteInterface: null,
+  comptesLocaux: {},
+  compteActif: null,
 };
 
 function lire(): ConfigurationApp {

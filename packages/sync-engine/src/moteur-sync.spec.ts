@@ -1,4 +1,5 @@
 import type { ClientApi, EntitePull, EntitePush, OperationPush, ReponsePush, ResultatOperation } from "@hotel-chicago/api-client";
+import { ErreurApi } from "@hotel-chicago/api-client";
 import { MoteurSync, SEUIL_ECHEC_DEFINITIF } from "./moteur-sync";
 import type { ConflitSync, LigneFileAttente, StockageLocal } from "./types";
 
@@ -499,5 +500,20 @@ describe("MoteurSync", () => {
       await moteur.forcerSynchronisation();
       expect(moteur.etatActuel().derniereSyncReussieLe).toBeTruthy();
     });
+  });
+
+  it("réseau coupé en plein envoi : l'appareil passe HORS LIGNE (pas « en difficulté ») et l'action reste en file", async () => {
+    const stockage = creerStockageFactice();
+    const client = creerClientFactice({
+      syncPush: async () => {
+        throw new ErreurApi(0, "Impossible de joindre le serveur de l'hôtel.");
+      },
+    });
+    const moteur = new MoteurSync(client, stockage, []);
+    await moteur.forcerSynchronisation(); // premier cycle : en ligne
+    await stockage.ajouterFileAttente({ entiteType: "Chambre", localId: "c1", remoteId: "c1", operation: "UPDATE", payload: { statut: "LIBRE" }, baseSyncVersion: 1 });
+    await moteur.forcerSynchronisation();
+    expect(moteur.etatActuel()).toMatchObject({ enLigne: false, derniereErreur: null, enAttente: 1 });
+    expect(stockage.file).toHaveLength(1);
   });
 });

@@ -686,3 +686,37 @@
     right: calc(-1 * var(--hc-space-3));
   }
 }
+
+/* --- Indicateur de synchronisation (en-tête) --- */
+.indicateur-synchro {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--hc-color-border, #e5e5e5);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.indicateur-synchro__point {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #8a8a8a;
+}
+.indicateur-synchro--ok .indicateur-synchro__point { background: #1f9d55; }
+.indicateur-synchro--attente .indicateur-synchro__point,
+.indicateur-synchro--attention .indicateur-synchro__point { background: #e08a00; }
+.indicateur-synchro--horsLigne .indicateur-synchro__point { background: #8a8a8a; }
+.indicateur-synchro--danger { border-color: #c0392b; }
+.indicateur-synchro--danger .indicateur-synchro__point { background: #c0392b; }
+.indicateur-synchro__delai { color: #c0392b; }
+.bandeau-hors-ligne {
+  padding: 8px 16px;
+  background: #fff4e0;
+  color: #6b4500;
+  border-bottom: 1px solid #f0d9a8;
+}
+[data-theme="dark"] .bandeau-hors-ligne { background: #3a2c0e; color: #f3d9a0; border-color: #5a4515; }

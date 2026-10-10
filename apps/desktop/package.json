@@ -14,7 +14,9 @@
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
     "@hotel-chicago/api-client": "workspace:*",
+    "@hotel-chicago/miroir-local": "workspace:*",
     "@hotel-chicago/receipts": "workspace:*",
+    "@hotel-chicago/sync-engine": "workspace:*",
     "@hotel-chicago/types": "workspace:*",
     "@hotel-chicago/ui": "workspace:*",
     "@zxing/browser": "^0.2.1",

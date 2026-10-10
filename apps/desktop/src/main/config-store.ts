@@ -16,6 +16,11 @@ export interface ConfigurationApp {
    * chemin de périphérique brut (`\\.\COM5`, `/dev/usb/lp0`), voir
    * `main/imprimante.ts`. `null` tant qu'aucune imprimante n'est configurée. */
   imprimanteInterface: string | null;
+  /** Comptes déjà connectés sur ce poste (empreinte du mot de passe, dernier profil, jeton de renouvellement) : permettent d'ouvrir
+   * l'application sans connexion Internet. Géré par GestionnaireSession (@hotel-chicago/miroir-local). */
+  comptesLocaux: Record<string, unknown>;
+  /** E-mail du compte à rouvrir au prochain lancement ; null après une déconnexion. */
+  compteActif: string | null;
 }
 
 /** Adresse de l'API intégrée au build. En développement : le serveur local. Pour un
@@ -30,6 +35,8 @@ const VALEURS_PAR_DEFAUT: ConfigurationApp = {
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqcGxjcW9jbWtjdGJmeG54aGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NTg0MzgsImV4cCI6MjEwNjAzNDQzOH0.fkgb9UjnDKQ956wWrv73EAGbBcJly_NrfS-pwKibMSI",
   refreshToken: null,
   imprimanteInterface: null,
+  comptesLocaux: {},
+  compteActif: null,
 };
 
 function cheminFichierConfiguration(): string {

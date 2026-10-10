@@ -24,6 +24,8 @@ export default defineConfig({
       include: [
         "@hotel-chicago/ui",
         "@hotel-chicago/api-client",
+        "@hotel-chicago/miroir-local",
+        "@hotel-chicago/sync-engine",
         "@hotel-chicago/types",
         "@hotel-chicago/receipts",
         "lucide-react",

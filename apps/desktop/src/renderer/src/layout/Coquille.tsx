@@ -23,6 +23,7 @@ import {
   Package,
   Printer,
   Receipt,
+  RefreshCw,
   Search,
   Settings,
   ShoppingCart,
@@ -72,6 +73,7 @@ const ICONES: Record<IdPage, LucideIcon> = {
   "site-hotel": Globe,
   rapports: FileText,
   depenses: Wallet,
+  synchronisation: RefreshCw,
 };
 
 const LIBELLE_ROLE: Record<Role, string> = {
@@ -133,6 +135,9 @@ export interface CoquilleProps {
   nonLues: number;
   onOuvrirNotification: (notification: NotificationApp) => void;
   onToutMarquerLu: () => void;
+  /** Indicateur de synchronisation (en-tête) et bandeau « sans Internet » ; fournis par l'application. */
+  indicateurSynchro?: React.ReactNode;
+  bandeau?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -177,6 +182,8 @@ export function Coquille({
   nonLues,
   onOuvrirNotification,
   onToutMarquerLu,
+  indicateurSynchro,
+  bandeau,
   children,
 }: CoquilleProps) {
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
@@ -304,6 +311,7 @@ export function Coquille({
           </label>
 
           <div className="coquille__actions-haut">
+            {indicateurSynchro}
             <div className="coquille__menu-conteneur" ref={refNotifications}>
               <button
                 type="button"
@@ -411,6 +419,7 @@ export function Coquille({
             </div>
           </div>
         </header>
+        {bandeau}
 
         {/* Fenêtre étroite : l'avatar/nom/rôle de la barre du haut est masqué
             (faute de place) ; cette ligne le remplace, purement informative

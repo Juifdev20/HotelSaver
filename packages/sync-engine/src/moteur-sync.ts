@@ -1,4 +1,4 @@
-import { COMMANDES_PUSH, ENTITES_PUSH, type ClientApi, type EntitePull, type EntitePush, type TypeOperationPush } from "@hotel-chicago/api-client";
+import { COMMANDES_PUSH, ENTITES_PUSH, ErreurApi, type ClientApi, type EntitePull, type EntitePush, type TypeOperationPush } from "@hotel-chicago/api-client";
 import type { ConflitSync, EtatSync, LigneFileAttente, StockageLocal } from "./types";
 
 /** Section 10.2 : backoff exponentiel sur échec réseau (pas sur un simple
@@ -216,6 +216,13 @@ export class MoteurSync {
         derniereSyncReussieLe: maintenant,
       };
     } catch (erreur) {
+      // Aucune réponse du tout (réseau coupé en cours de route) : l'appareil est HORS LIGNE, pas « en difficulté ». Le ping périodique
+      // détectera le retour du réseau ; inutile d'attendre un délai de réessai.
+      if (erreur instanceof ErreurApi && erreur.statusCode === 0) {
+        this.etat = { ...this.etat, enLigne: false };
+        await this.rafraichirCompteurs();
+        return;
+      }
       this.palierBackoff = Math.min(this.palierBackoff + 1, PALIERS_BACKOFF_MS.length - 1);
       this.prochainEssaiAu = Date.now() + PALIERS_BACKOFF_MS[this.palierBackoff];
       this.etat = {

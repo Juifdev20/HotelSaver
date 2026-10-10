@@ -118,7 +118,20 @@ export class ClientHorsLigne extends ClientApi {
   }
 
   override async moi(): Promise<ProfilConnecte> {
-    return this.avecCache("moi", () => super.moi(), 5 * 60_000);
+    return this.avecCache("moi", () => super.moi(), 20_000);
+  }
+
+  /** Les réglages de l'hôtel changent le profil (suivi cuisine, patron qui opère…) : on le relit tout de suite. */
+  override async modifierReglagesHotel(donnees: Parameters<ClientApi["modifierReglagesHotel"]>[0]) {
+    const reglages = await super.modifierReglagesHotel(donnees);
+    const entree = this.s.lireMeta<{ valeur: unknown; le: number }>("cache:moi");
+    if (entree) await this.s.ecrireMeta("cache:moi", { ...entree, le: 0 });
+    return reglages;
+  }
+
+  /** Chiffres du mois : calculés par le serveur (mêmes fonctions que les rapports PDF). Hors ligne : dernière valeur connue. */
+  override async recetteDuMois(mois: string) {
+    return this.avecCache(`recetteDuMois:${mois}`, () => super.recetteDuMois(mois), 60_000);
   }
 
   override async tauxActuel(): Promise<TauxChange | null> {
