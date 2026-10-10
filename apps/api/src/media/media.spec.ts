@@ -43,12 +43,12 @@ describe("verifierUrlsHotel", () => {
   });
 
   it("accepte les URLs du stockage de l'hôtel, ignore les valeurs vides", () => {
-    const url = `${prefixeUrlHotel("hotel-1")}abc.webp`;
+    const url = `${prefixeUrlHotel("hotel-1")}aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa.webp`;
     expect(() => verifierUrlsHotel([url, null, undefined], "hotel-1")).not.toThrow();
   });
 
   it("refuse l'URL d'un autre hôtel et une URL externe", () => {
-    expect(() => verifierUrlsHotel([`${prefixeUrlHotel("hotel-2")}abc.webp`], "hotel-1")).toThrow(BadRequestException);
+    expect(() => verifierUrlsHotel([`${prefixeUrlHotel("hotel-2")}aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa.webp`], "hotel-1")).toThrow(BadRequestException);
     expect(() => verifierUrlsHotel(["https://exemple.com/image.jpg"], "hotel-1")).toThrow(BadRequestException);
   });
 });
@@ -67,7 +67,7 @@ describe("MediaService", () => {
     process.env.SUPABASE_URL = "https://exemple.supabase.co";
     const stockage = { envoyerImage: jest.fn(), supprimerImage: jest.fn() };
     const service = new MediaService(stockage as any);
-    await expect(service.supprimerImage("hotel-1", `${prefixeUrlHotel("hotel-2")}a.webp`)).rejects.toThrow(BadRequestException);
+    await expect(service.supprimerImage("hotel-1", `${prefixeUrlHotel("hotel-2")}bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb.webp`)).rejects.toThrow(BadRequestException);
     expect(stockage.supprimerImage).not.toHaveBeenCalled();
   });
 });

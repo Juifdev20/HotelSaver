@@ -53,10 +53,10 @@ describe("HotelSiteService", () => {
   it("supprime du stockage les images retirées de la galerie et l'ancienne couverture", async () => {
     const { service, prisma, stockage } = creer();
     const p = prefixeUrlHotel(HOTEL_ID);
-    prisma.hotelSite.findUnique.mockResolvedValue({ couvertureUrl: `${p}ancienne.webp`, galerie: [`${p}a.webp`, `${p}b.webp`] });
-    await service.modifier(HOTEL_ID, { couvertureUrl: `${p}nouvelle.webp`, galerie: [`${p}a.webp`] });
-    expect(stockage.supprimerImage).toHaveBeenCalledWith(HOTEL_ID, `${p}ancienne.webp`);
-    expect(stockage.supprimerImage).toHaveBeenCalledWith(HOTEL_ID, `${p}b.webp`);
+    prisma.hotelSite.findUnique.mockResolvedValue({ couvertureUrl: `${p}aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa.webp`, galerie: [`${p}bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb.webp`, `${p}bbbbbbbb-2222-4222-8222-bbbbbbbbbbbc.webp`] });
+    await service.modifier(HOTEL_ID, { couvertureUrl: `${p}cccccccc-3333-4333-8333-cccccccccccc.webp`, galerie: [`${p}bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb.webp`] });
+    expect(stockage.supprimerImage).toHaveBeenCalledWith(HOTEL_ID, `${p}aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa.webp`);
+    expect(stockage.supprimerImage).toHaveBeenCalledWith(HOTEL_ID, `${p}bbbbbbbb-2222-4222-8222-bbbbbbbbbbbc.webp`);
     expect(stockage.supprimerImage).toHaveBeenCalledTimes(2);
   });
 });

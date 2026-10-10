@@ -21,6 +21,7 @@ function creerPrismaMock() {
       create: jest.fn(),
       update: jest.fn(),
     },
+    sessionUtilisateur: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
   } as any;
 }
 

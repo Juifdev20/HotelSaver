@@ -140,8 +140,10 @@ export class ReservationsService {
     if (dto.dateArrivee || dto.dateDepart) {
       await this.verifierAbsenceDeConflit(reservation.chambreId, dateArrivee, dateDepart, hotelId, id);
     }
-    const acompteVoulu = dto.acompte ?? Number(reservation.acompte);
-    this.verifierAcompte(acompteVoulu, reservation.chambre.prixParNuit, dateArrivee, dateDepart);
+    // Contrôlé à chaque changement d'acompte ou de dates (jamais sur une simple note, pour ne pas bloquer un ancien séjour déjà au-dessus).
+    if (reservation.chambre && (dto.acompte !== undefined || dto.dateArrivee || dto.dateDepart)) {
+      this.verifierAcompte(dto.acompte ?? Number(reservation.acompte), reservation.chambre.prixParNuit, dateArrivee, dateDepart);
+    }
 
     // syncVersion incrémenté manuellement partout dans ce service (voir
     // ChambresService.update pour le détail) — indispensable pour la

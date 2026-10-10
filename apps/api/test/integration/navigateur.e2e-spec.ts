@@ -177,8 +177,11 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(page.getByRole("button", { name: "Facturer et check-out" })).toBeVisible();
     await page.getByRole("button", { name: "Facturer et check-out" }).first().click();
     await page.getByRole("button", { name: "Facturer et check-out" }).last().click();
+    // Confirmation avant tout encaissement : « Facturer 0,00 $ » / « Facturer 80,00 $ »… (le libellé porte le montant).
+    await page.getByRole("alertdialog").getByRole("button", { name: /^Facturer / }).click();
     await expect_(page.getByRole("heading", { name: "Facture créée" })).toBeVisible();
-    const numero = (await page.locator("p.hc-text-label.texte-discret", { hasText: "TEMP-" }).first().innerText()).trim();
+    // Le numéro est suivi d'un badge « Provisoire » dans le même paragraphe : on n'en garde que le numéro.
+    const numero = ((await page.locator("p.hc-text-label.texte-discret", { hasText: "TEMP-" }).first().innerText()).match(/TEMP-[A-Z0-9]{4}-\d{8}-\d{3}/) ?? [""])[0];
     expect(numero).toMatch(/^TEMP-[A-Z0-9]{4}-\d{8}-\d{3}$/);
     await expect_(indicateur()).toContainText("Hors ligne");
     expect(await p.facture.count({ where: { hotelId: A.hotelId, numeroProvisoire: numero } })).toBe(0);

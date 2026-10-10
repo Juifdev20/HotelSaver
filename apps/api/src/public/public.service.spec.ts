@@ -21,6 +21,8 @@ function creerPrismaMock() {
     $transaction: jest.fn().mockResolvedValue([]),
     produit: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     client: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+    utilisateur: { findUnique: jest.fn().mockResolvedValue(null) },
+    sessionUtilisateur: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
     compteCafeteria: { create: jest.fn(), delete: jest.fn() },
     sousCompte: { deleteMany: jest.fn() },
     ligneCommande: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), deleteMany: jest.fn() },
