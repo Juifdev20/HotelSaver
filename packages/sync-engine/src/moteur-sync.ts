@@ -1,4 +1,4 @@
-import { ENTITES_PUSH, type ClientApi, type EntitePull, type EntitePush } from "@hotel-chicago/api-client";
+import { COMMANDES_PUSH, ENTITES_PUSH, type ClientApi, type EntitePull, type EntitePush, type TypeOperationPush } from "@hotel-chicago/api-client";
 import type { ConflitSync, EtatSync, LigneFileAttente, StockageLocal } from "./types";
 
 /** Section 10.2 : backoff exponentiel sur échec réseau (pas sur un simple
@@ -31,6 +31,7 @@ const SEUIL_HORLOGE_SUSPECTE_MS = 5 * 60_000;
 const DELAI_RETENTE_PASSAGERE_MS = 5_000;
 
 const ENSEMBLE_ENTITES_PUSH: ReadonlySet<string> = new Set(ENTITES_PUSH);
+const ENSEMBLE_COMMANDES: ReadonlySet<string> = new Set(COMMANDES_PUSH);
 
 function estPoussable(entite: EntitePull): entite is EntitePush {
   return ENSEMBLE_ENTITES_PUSH.has(entite);
@@ -146,7 +147,7 @@ export class MoteurSync {
     return this.stockage.idsEnAttente(entiteType);
   }
 
-  async resoudreConflitGarderServeur(conflitId: string, entiteType: EntitePush, donneesServeur: unknown): Promise<void> {
+  async resoudreConflitGarderServeur(conflitId: string, entiteType: TypeOperationPush, donneesServeur: unknown): Promise<void> {
     await this.stockage.appliquerResolutionConflit(entiteType, donneesServeur);
     await this.stockage.supprimerConflit(conflitId);
     await this.rafraichirCompteurs();
@@ -226,12 +227,15 @@ export class MoteurSync {
     // Par lots, dans l'ordre : le serveur refuse plus de 200 opérations d'un coup. Un lot qui échoue côté réseau
     // interrompt le cycle (backoff) ; les lots déjà confirmés ont été retirés de la file, rien n'est renvoyé en double.
     for (let debut = 0; debut < file.length; debut += TAILLE_LOT_PUSH) {
-      await this.pousserLot(file.slice(debut, debut + TAILLE_LOT_PUSH));
+      // Une panne passagère dans un lot : la suite repart au prochain cycle (elle peut dépendre des actions restées en file).
+      const panneePassagere = await this.pousserLot(file.slice(debut, debut + TAILLE_LOT_PUSH));
+      if (panneePassagere) break;
     }
     return file.length;
   }
 
-  private async pousserLot(file: LigneFileAttente[]): Promise<void> {
+  /** Renvoie vrai si une action du lot a rencontré une panne passagère du serveur. */
+  private async pousserLot(file: LigneFileAttente[]): Promise<boolean> {
     const decalage = this.etat.decalageHorlogeMs ?? 0;
     const reponse = await this.client.syncPush(
       file.map((ligne) => ({
@@ -255,12 +259,15 @@ export class MoteurSync {
       if (!resultat) continue;
 
       if (resultat.statut === "SYNCED") {
-        await this.stockage.confirmerPush(
-          ligne.entiteType,
-          ligne.localId,
-          resultat.remoteId ?? ligne.remoteId ?? ligne.localId,
-          resultat.syncVersion ?? ligne.baseSyncVersion ?? 1
-        );
+        // Un ordre (check-in, annulation…) ne crée aucune ligne : rien à rattacher, la ligne visée sera rafraîchie par le pull.
+        if (!ENSEMBLE_COMMANDES.has(ligne.entiteType)) {
+          await this.stockage.confirmerPush(
+            ligne.entiteType as EntitePush,
+            ligne.localId,
+            resultat.remoteId ?? ligne.remoteId ?? ligne.localId,
+            resultat.syncVersion ?? ligne.baseSyncVersion ?? 1
+          );
+        }
         // Un CREATE parent peut avoir créé des enfants côté serveur (ex. le
         // premier sous-compte d'un CompteCafeteria) : le mapping
         // localId→remoteId est répercuté tout de suite — sinon l'enfant
@@ -290,6 +297,7 @@ export class MoteurSync {
       }
     }
     if (panneePassagere) this.prochainEssaiAu = Math.max(this.prochainEssaiAu, Date.now() + DELAI_RETENTE_PASSAGERE_MS);
+    return panneePassagere;
   }
 
   /** Mesure l'écart entre l'horloge de l'appareil et celle du serveur (aller-retour négligé : l'ordre de grandeur suffit). */

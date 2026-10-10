@@ -1,4 +1,4 @@
-export { ClientApi, ErreurApi, ENTITES_PULL, ENTITES_PUSH } from "./client";
+export { ClientApi, ErreurApi, ENTITES_PULL, ENTITES_PUSH, COMMANDES_PUSH, ACTIONS_RESERVATION } from "./client";
 export type {
   ClientAvecSejours,
   DonneesChambre,
@@ -13,6 +13,9 @@ export type {
   FiltresReservations,
   EntitePull,
   EntitePush,
+  CommandePush,
+  TypeOperationPush,
+  ActionReservation,
   JourneeReception,
   MetaPull,
   OperationPush,

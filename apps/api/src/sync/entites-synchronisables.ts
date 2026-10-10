@@ -17,6 +17,8 @@ export const ENTITES_PUSH = [
   // n'envoie que l'intention (mode de paiement, devise remise…) et le numéro du reçu provisoire qu'il a remis au client.
   "Facture",
   "VenteCafeteria",
+  // Fiche client (pièce d'identité, coordonnées) : modifiable hors ligne, jamais créée directement (elle naît dans une réservation).
+  "Client",
 ] as const;
 export type EntitePush = (typeof ENTITES_PUSH)[number];
 
@@ -36,7 +38,7 @@ export type TypeOperationPush = (typeof TYPES_OPERATION_PUSH)[number];
 export const ACTIONS_RESERVATION = ["CONFIRMER", "ANNULER", "CHECK_IN", "CHECK_OUT"] as const;
 export type ActionReservation = (typeof ACTIONS_RESERVATION)[number];
 
-export const ENTITES_PULL = [...ENTITES_PUSH, "Client"] as const;
+export const ENTITES_PULL = [...ENTITES_PUSH] as const;
 export type EntitePull = (typeof ENTITES_PULL)[number];
 
 /** Nom de l'accesseur PrismaClient correspondant à chaque type d'entité. */

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hotel-chicago/database": "workspace:*",
+    "@hotel-chicago/regles": "workspace:*",
     "@hotel-chicago/types": "workspace:*",
     "@nestjs/common": "^10.4.4",
     "@nestjs/config": "^3.2.3",

@@ -112,6 +112,34 @@ decrire("Synchronisation : doublons, reprises, pagination, suppressions (vraie b
       expect((await p.chambre.findUnique({ where: { id: A.chambreId } })).statut).toBe("NETTOYAGE");
     });
 
+    it("deux modifications successives de la même ligne dans un lot (faites hors ligne l'une sur l'autre) ne se contredisent pas", async () => {
+      const chambre = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "CH-1", type: "Std", prixParNuit: 10, devise: "USD" } });
+      const base = chambre.syncVersion;
+      const r = await push(A, "recep", [
+        { entiteType: "Chambre", localId: uuid(), operation: "UPDATE", remoteId: chambre.id, baseSyncVersion: base, payload: { statut: "NETTOYAGE" } },
+        { entiteType: "Chambre", localId: uuid(), operation: "UPDATE", remoteId: chambre.id, baseSyncVersion: base, payload: { statut: "LIBRE" } },
+      ]).expect(201);
+      expect(r.body.resultats.map((x: any) => x.statut)).toEqual(["SYNCED", "SYNCED"]);
+      expect((await p.chambre.findUnique({ where: { id: chambre.id } })).statut).toBe("LIBRE");
+    });
+
+    it("mais si quelqu'un d'autre a modifié la ligne entre-temps, la suite reste un vrai conflit", async () => {
+      const chambre = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "CH-2", type: "Std", prixParNuit: 10, devise: "USD" } });
+      await p.chambre.update({ where: { id: chambre.id }, data: { statut: "OCCUPEE", syncVersion: { increment: 1 } } }); // autre poste
+      const r = await push(A, "recep", [{ entiteType: "Chambre", localId: uuid(), operation: "UPDATE", remoteId: chambre.id, baseSyncVersion: chambre.syncVersion, payload: { statut: "LIBRE" } }]).expect(201);
+      expect(r.body.resultats[0].statut).toBe("CONFLICT");
+    });
+
+    it("la fiche d'un client se modifie par synchronisation, mais un client ne se crée pas ainsi", async () => {
+      const c = await p.client.findUnique({ where: { id: A.clientId } });
+      const r = await push(A, "recep", [
+        { entiteType: "Client", localId: c.id, operation: "UPDATE", remoteId: c.id, baseSyncVersion: c.syncVersion, payload: { numeroPiece: "AB123456", typePiece: "PASSEPORT", hotelId: B.hotelId } },
+        { entiteType: "Client", localId: uuid(), operation: "CREATE", payload: { nom: "Fantôme" } },
+      ]).expect(201);
+      expect(r.body.resultats.map((x: any) => x.statut)).toEqual(["SYNCED", "ERROR"]);
+      expect(await p.client.findUnique({ where: { id: A.clientId } })).toMatchObject({ numeroPiece: "AB123456", hotelId: A.hotelId });
+    });
+
     it("modifier la chambre d'un autre hôtel est refusé, aucune donnée de B ne change", async () => {
       const avant = await instantane(prisma, B.hotelId);
       const op = { entiteType: "Chambre", localId: uuid(), operation: "UPDATE", remoteId: B.chambreId, baseSyncVersion: 1, payload: { statut: "OCCUPEE" } };

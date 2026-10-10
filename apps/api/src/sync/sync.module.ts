@@ -7,11 +7,12 @@ import { StockModule } from "../stock/stock.module";
 import { CafeteriaModule } from "../cafeteria/cafeteria.module";
 import { DepensesModule } from "../depenses/depenses.module";
 import { FacturesModule } from "../factures/factures.module";
+import { ClientsModule } from "../clients/clients.module";
 import { SyncController } from "./sync.controller";
 import { SyncService } from "./sync.service";
 
 @Module({
-  imports: [PrismaModule, ChambresModule, ReservationsModule, ProduitsModule, StockModule, CafeteriaModule, DepensesModule, FacturesModule],
+  imports: [PrismaModule, ChambresModule, ReservationsModule, ProduitsModule, StockModule, CafeteriaModule, DepensesModule, FacturesModule, ClientsModule],
   controllers: [SyncController],
   providers: [SyncService],
 })

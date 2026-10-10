@@ -1,4 +1,4 @@
-import type { EntitePull, EntitePush } from "@hotel-chicago/api-client";
+import type { EntitePull, EntitePush, TypeOperationPush } from "@hotel-chicago/api-client";
 
 /** Une opération en attente d'envoi, persistée AVANT toute tentative réseau
  * (jamais seulement en mémoire) pour survivre à un kill de l'app en plein
@@ -6,7 +6,7 @@ import type { EntitePull, EntitePush } from "@hotel-chicago/api-client";
 export interface LigneFileAttente {
   /** Identifiant local de la ligne de file elle-même (pas de l'entité). */
   id: string;
-  entiteType: EntitePush;
+  entiteType: TypeOperationPush;
   localId: string;
   remoteId?: string;
   operation: "CREATE" | "UPDATE";
@@ -17,13 +17,16 @@ export interface LigneFileAttente {
   createdAt: string;
   attempts: number;
   lastError?: string;
+  /** Lignes que cette opération modifie sans en être la création (ordres : check-in → la réservation et sa chambre). Tant que
+   * l'opération est en file, un pull n'écrase pas ces lignes avec l'ancien état du serveur (voir idsEnAttente). */
+  touche?: { entiteType: EntitePull; id: string }[];
 }
 
 /** Un conflit détecté par le serveur (syncVersion périmé) — jamais résolu
  * automatiquement, toujours affiché à l'utilisateur (section 10.4). */
 export interface ConflitSync {
   id: string;
-  entiteType: EntitePush;
+  entiteType: TypeOperationPush;
   localId: string;
   remoteId?: string;
   monChangement: Record<string, unknown>;
@@ -93,5 +96,5 @@ export interface StockageLocal {
    * écrire `donneesServeur` dans le miroir. Indispensable — sans ça, la
    * prochaine modification réutilise un `baseSyncVersion` périmé et
    * re-conflicte aussitôt. */
-  appliquerResolutionConflit(entiteType: EntitePush, donneesServeur: unknown): Promise<void>;
+  appliquerResolutionConflit(entiteType: TypeOperationPush, donneesServeur: unknown): Promise<void>;
 }

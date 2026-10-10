@@ -12,6 +12,8 @@ import { StockService } from "../stock/stock.service";
 import { CafeteriaService } from "../cafeteria/cafeteria.service";
 import { DepensesService } from "../depenses/depenses.service";
 import { FacturesService } from "../factures/factures.service";
+import { ClientsService } from "../clients/clients.service";
+import { ModifierClientDto } from "../clients/dto/modifier-client.dto";
 import { CreateReservationDto } from "../reservations/dto/create-reservation.dto";
 import { CreateFactureDto } from "../factures/dto/create-facture.dto";
 import { EncaisserCompteDto } from "../cafeteria/dto/encaisser-compte.dto";
@@ -117,7 +119,8 @@ export class SyncService {
     private readonly stockService: StockService,
     private readonly cafeteriaService: CafeteriaService,
     private readonly depensesService: DepensesService,
-    private readonly facturesService: FacturesService
+    private readonly facturesService: FacturesService,
+    private readonly clientsService: ClientsService
   ) {
     // Chaque entité délègue à son service métier existant plutôt qu'à un
     // passthrough Prisma générique : ça réutilise gratuitement toute la
@@ -212,6 +215,18 @@ export class SyncService {
         create: (payload, currentUser) => this.depensesService.creer(payload as any, currentUser),
         update: (id, payload, currentUser) => this.depensesService.modifier(id, payload as any, currentUser),
       },
+      Client: {
+        rolesCreate: [],
+        rolesUpdate: [Role.RECEPTIONNISTE, Role.PATRON],
+        create: () => {
+          throw new BadRequestException("Un client se crée avec sa réservation.");
+        },
+        update: async (id, payload, currentUser) => {
+          const dto = await this.valider(ModifierClientDto, payload);
+          const client = await this.clientsService.update(id, dto, currentUser.hotelId);
+          return { id: client.id, syncVersion: client.syncVersion };
+        },
+      },
       // Encaissements : l'appareil n'envoie que l'intention ; totaux, taux de change et numéro de reçu définitif sont recalculés ici.
       Facture: {
         rolesCreate: [Role.RECEPTIONNISTE, Role.PATRON],
@@ -282,6 +297,9 @@ export class SyncService {
     // Actions du lot qui n'ont pas abouti : celles qui en dépendent (même identifiant local cité dans leur payload) ne
     // sont pas tentées — « plus tard » si la panne est passagère, « refusée » si le parent l'est.
     const echecs = new Map<string, "temporaire" | "definitif">();
+    // Modifications successives d'une même ligne dans ce lot (deux changements de statut d'une chambre faits hors ligne) : la
+    // seconde a été faite SUR la première ; sa version de départ est donc celle qu'a produite la première, pas un conflit.
+    const chaines = new Map<string, { baseOrigine: number; versionApres: number }>();
     // Séquentiel, jamais Promise.all : les opérations d'un même lot peuvent se
     // référencer entre elles dans l'ordre (ex. ouvrir un compte puis y ajouter
     // une ligne juste après), donc l'ordre chronologique d'arrivée doit être
@@ -294,7 +312,7 @@ export class SyncService {
       } else if (parent === "definitif") {
         resultat = this.erreur(operation, "Cette action dépend d'une action précédente qui a été refusée.");
       } else {
-        resultat = await this.traiterOperation(operation, currentUser);
+        resultat = await this.traiterOperation(operation, currentUser, chaines);
       }
       if (resultat.statut === "ERROR") echecs.set(operation.localId, resultat.temporaire ? "temporaire" : "definitif");
       resultats.push(resultat);
@@ -305,7 +323,8 @@ export class SyncService {
 
   private async traiterOperation(
     operation: PushOperationDto,
-    currentUser: UtilisateurAuthentifie
+    currentUser: UtilisateurAuthentifie,
+    chaines: Map<string, { baseOrigine: number; versionApres: number }> = new Map()
   ): Promise<ResultatOperation> {
     const config = this.config[operation.entiteType];
 
@@ -346,7 +365,9 @@ export class SyncService {
         return this.erreur(operation, `Aucune ligne ${operation.entiteType} trouvée avec l'identifiant ${operation.remoteId}.`);
       }
 
-      if (actuel.syncVersion !== operation.baseSyncVersion) {
+      const chaine = chaines.get(operation.remoteId);
+      const baseEffective = chaine && operation.baseSyncVersion === chaine.baseOrigine ? chaine.versionApres : operation.baseSyncVersion;
+      if (actuel.syncVersion !== baseEffective) {
         // Un envoi rejoué (réponse perdue) retombe ici : la première fois a déjà appliqué ces valeurs et fait avancer
         // la version. Si le serveur contient DÉJÀ exactement ce que l'appareil veut écrire, ce n'est pas un conflit.
         if (valeursDejaAppliquees(actuel, operation.payload)) {
@@ -364,6 +385,7 @@ export class SyncService {
       }
 
       const mis = await config.update(operation.remoteId, operation.payload, currentUser);
+      chaines.set(operation.remoteId, { baseOrigine: chaine?.baseOrigine ?? operation.baseSyncVersion, versionApres: mis.syncVersion });
       return {
         localId: operation.localId,
         remoteId: operation.remoteId,

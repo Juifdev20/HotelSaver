@@ -277,15 +277,25 @@ export const ENTITES_PUSH = [
   "SousCompte",
   "LigneCommande",
   "Depense",
+  "Facture",
+  "VenteCafeteria",
+  "Client",
 ] as const;
 export type EntitePush = (typeof ENTITES_PUSH)[number];
 
-export const ENTITES_PULL = [...ENTITES_PUSH, "Client", "Facture", "VenteCafeteria"] as const;
+/** Ordres qui font évoluer une ligne existante (check-in, annulation, avancement en cuisine) : jamais lus, seulement envoyés. */
+export const COMMANDES_PUSH = ["ActionReservation", "ActionLigne"] as const;
+export type CommandePush = (typeof COMMANDES_PUSH)[number];
+export type TypeOperationPush = EntitePush | CommandePush;
+export const ACTIONS_RESERVATION = ["CONFIRMER", "ANNULER", "CHECK_IN", "CHECK_OUT"] as const;
+export type ActionReservation = (typeof ACTIONS_RESERVATION)[number];
+
+export const ENTITES_PULL = [...ENTITES_PUSH] as const;
 export type EntitePull = (typeof ENTITES_PULL)[number];
 
 /** Un élément de `SyncPushDto.operations` (apps/api/src/sync/dto). */
 export interface OperationPush {
-  entiteType: EntitePush;
+  entiteType: TypeOperationPush;
   localId: string;
   remoteId?: string;
   operation: "CREATE" | "UPDATE";
