@@ -64,6 +64,7 @@
 
 .abo-etat {
   display: flex;
+  flex-direction: row;
   gap: var(--hc-space-4);
   align-items: flex-start;
   border-left-width: 6px;
