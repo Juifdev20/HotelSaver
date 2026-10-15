@@ -73,6 +73,9 @@ describe("etatAbonnement", () => {
   it("suspendu AUTOMATIQUEMENT et expiré : bloqué mais renouvelable (c'est le cas normal)", () => {
     expect(etatAbonnement({ ...hotel, statutLicence: "SUSPENDU", suspensionManuelle: false }, null, d("2027-01-01T00:00:00Z"))).toMatchObject({ statut: "EXPIRE", bloque: true, renouvelable: true });
   });
+  it("SUSPENDU avec une échéance encore à venir est traité comme une suspension manuelle", () => {
+    expect(etatAbonnement({ ...hotel, statutLicence: "SUSPENDU" }, null, d("2026-10-02T00:00:00Z"))).toMatchObject({ statut: "SUSPENDU", bloque: true, renouvelable: false });
+  });
   it("suspendu À LA MAIN : bloqué et NON renouvelable, même avec une échéance lointaine ; résilié idem", () => {
     const e = etatAbonnement({ ...hotel, statutLicence: "SUSPENDU", suspensionManuelle: true }, { periodeCouverteJusquau: d("2030-01-01T00:00:00Z") }, d("2026-10-10T00:00:00Z"));
     expect(e).toMatchObject({ statut: "SUSPENDU", bloque: true, renouvelable: false, alerte: "SUSPENDU" });

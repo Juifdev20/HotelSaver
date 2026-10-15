@@ -125,7 +125,8 @@ export function etatAbonnement(
   const base = { valideJusquau: fin.toISOString(), graceJusquau: grace.toISOString(), joursRestants: Math.ceil((fin.getTime() - maintenant.getTime()) / JOUR_MS) };
 
   if (hotel.statutLicence === "RESILIE") return { ...base, statut: "RESILIE", bloque: true, renouvelable: false, alerte: "RESILIE" };
-  if (hotel.statutLicence === "SUSPENDU" && hotel.suspensionManuelle) return { ...base, statut: "SUSPENDU", bloque: true, renouvelable: false, alerte: "SUSPENDU" };
+  // Suspendu à la main — ou suspendu alors que l'échéance n'est pas passée (ne peut venir que d'une main : le cron ne suspend que les échus).
+  if (hotel.statutLicence === "SUSPENDU" && (hotel.suspensionManuelle || maintenant.getTime() <= fin.getTime())) return { ...base, statut: "SUSPENDU", bloque: true, renouvelable: false, alerte: "SUSPENDU" };
 
   if (maintenant.getTime() <= fin.getTime()) {
     return { ...base, statut: dernierPaiement ? "ACTIF" : "ESSAI", bloque: false, renouvelable: true, alerte: base.joursRestants <= JOURS_PREAVIS_ABONNEMENT ? "BIENTOT" : null };
