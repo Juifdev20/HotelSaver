@@ -1,4 +1,4 @@
-import type { PaiementAbonnementVue, Devise, HotelAvecValidite, HotelCree, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
+import type { DonneesFormule, FormuleAdminVue, ParametresPlateformeVue, PaiementAbonnementVue, Devise, HotelAvecValidite, HotelCree, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
 import { ErreurApi } from "./client";
 
 /** Champs de apps/api/src/super-admin/dto/creer-hotel.dto.ts (logoUrl omis :
@@ -62,6 +62,36 @@ export class ClientSuperAdmin {
   /** Revérifie un paiement auprès de ScanLinkPay (même classé en échec) et crédite l'hôtel s'il a bien abouti. */
   async reverifierPaiementAbonnement(id: string): Promise<PaiementAbonnementVue> {
     return this.requete<PaiementAbonnementVue>(`/super-admin/paiements-abonnement/${encodeURIComponent(id)}/reverifier`, { method: "POST" });
+  }
+
+  /** Formules d'abonnement : prix, plafond de chambres, fonctions incluses — tout se règle ici. */
+  async listerFormules(): Promise<FormuleAdminVue[]> {
+    return this.requete<FormuleAdminVue[]>("/super-admin/formules");
+  }
+
+  async creerFormule(dto: DonneesFormule & { code: string }): Promise<FormuleAdminVue> {
+    return this.requete<FormuleAdminVue>("/super-admin/formules", { method: "POST", body: JSON.stringify(dto) });
+  }
+
+  async modifierFormule(code: string, dto: Partial<Omit<DonneesFormule, "code">>): Promise<FormuleAdminVue> {
+    return this.requete<FormuleAdminVue>(`/super-admin/formules/${encodeURIComponent(code)}`, { method: "PATCH", body: JSON.stringify(dto) });
+  }
+
+  async supprimerFormule(code: string): Promise<void> {
+    await this.requete<{ ok: true }>(`/super-admin/formules/${encodeURIComponent(code)}`, { method: "DELETE" });
+  }
+
+  async lireParametresAbonnement(): Promise<ParametresPlateformeVue> {
+    return this.requete<ParametresPlateformeVue>("/super-admin/parametres-abonnement");
+  }
+
+  async modifierParametresAbonnement(dto: Partial<ParametresPlateformeVue>): Promise<ParametresPlateformeVue> {
+    return this.requete<ParametresPlateformeVue>("/super-admin/parametres-abonnement", { method: "PATCH", body: JSON.stringify(dto) });
+  }
+
+  /** Attribue la formule d'un hôtel sans paiement (hôtel créé à la main, geste commercial). null = aucune. */
+  async changerFormuleHotel(hotelId: string, formule: string | null): Promise<{ id: string; formule: string | null }> {
+    return this.requete(`/super-admin/hotels/${encodeURIComponent(hotelId)}/formule`, { method: "PATCH", body: JSON.stringify({ formule }) });
   }
 
   async creerHotel(dto: DonneesCreationHotel): Promise<HotelCree> {

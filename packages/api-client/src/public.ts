@@ -1,4 +1,8 @@
 import type {
+  ApercuPaiement,
+  DemandePaiementReservation,
+  FormulesPubliques,
+  PaiementReservationVue,
   Chambre,
   CommandeWebCreee,
   CommandeWebPayload,
@@ -147,4 +151,24 @@ export function reinitialiserMotDePasse(config: ConfigApiPublique, jeton: string
     method: "POST",
     body: JSON.stringify({ jeton, motDePasse }),
   });
+}
+
+/** Les formules d'abonnement et leurs prix, tels que le super-admin les a définis (page des tarifs du site vitrine). */
+export function obtenirFormulesPubliques(config: ConfigApiPublique): Promise<FormulesPubliques> {
+  return requetePublique(config, "/public/formules");
+}
+
+/** Les frais de l'acompte restant, AVANT de payer. */
+export function apercuAcompte(config: ConfigApiPublique, sousDomaine: string, jeton: string): Promise<ApercuPaiement> {
+  return requetePublique(config, `/public/suivi/${encodeURIComponent(jeton)}/paiement/apercu?sousDomaine=${encodeURIComponent(sousDomaine)}`);
+}
+
+/** Paie l'acompte en ligne (Mobile Money ou carte). Le montant est calculé par le serveur. */
+export function payerAcompte(config: ConfigApiPublique, jeton: string, dto: DemandePaiementReservation): Promise<PaiementReservationVue> {
+  return requetePublique(config, `/public/suivi/${encodeURIComponent(jeton)}/paiement`, { method: "POST", body: JSON.stringify(dto) });
+}
+
+/** État d'un paiement d'acompte (le serveur le revérifie auprès de ScanLinkPay tant qu'il est en attente). */
+export function lirePaiementAcompte(config: ConfigApiPublique, sousDomaine: string, jeton: string, id: string): Promise<PaiementReservationVue> {
+  return requetePublique(config, `/public/suivi/${encodeURIComponent(jeton)}/paiement/${encodeURIComponent(id)}?sousDomaine=${encodeURIComponent(sousDomaine)}`);
 }

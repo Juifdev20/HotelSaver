@@ -184,3 +184,14 @@ describe("formules définies par le super-admin", () => {
     expect(lignesFormule(perso[0])[0]).toBe("Jusqu'à 5 chambres");
   });
 });
+
+import { CONTACT_SUPPORT_PAR_DEFAUT, formaterTelephone, lienWhatsApp } from "./abonnement-texte";
+
+describe("contact support", () => {
+  it("numéro lisible et lien WhatsApp", () => {
+    expect(formaterTelephone(CONTACT_SUPPORT_PAR_DEFAUT.telephone)).toBe("+243 828 497 218");
+    expect(formaterTelephone("autre")).toBe("autre");
+    expect(lienWhatsApp("+243828497218")).toBe("https://wa.me/243828497218");
+    expect(lienWhatsApp("+243 828 497 218", "Bonjour & merci")).toBe("https://wa.me/243828497218?text=Bonjour%20%26%20merci");
+  });
+});

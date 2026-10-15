@@ -1,6 +1,11 @@
 import {
+  ApercuPaiement,
   DemandePaiementAbonnement,
   EtatAbonnement,
+  ModifierReglagesPaiementEnLigne,
+  RemboursementVue,
+  ReglagesPaiementEnLigne,
+  TraiterRemboursement,
   PaiementAbonnementVue,
   VueAbonnement,
   Chambre,
@@ -936,6 +941,34 @@ export class ClientApi {
   /** État d'un paiement d'abonnement (le serveur revérifie auprès de ScanLinkPay tant qu'il est en attente), avec l'état d'abonnement à jour. */
   async paiementAbonnement(id: string): Promise<{ paiement: PaiementAbonnementVue; etat: EtatAbonnement }> {
     return this.requete(`/abonnement/paiements/${encodeURIComponent(id)}`);
+  }
+
+  /** Prix, commission ScanLinkPay et total débité pour un achat d'abonnement, AVANT de payer. PATRON. */
+  async apercuAbonnement(formule: string, mois: number, devise: "USD" | "CDF"): Promise<ApercuPaiement> {
+    const q = new URLSearchParams({ formule, mois: String(mois), devise });
+    return this.requete<ApercuPaiement>(`/abonnement/apercu?${q.toString()}`);
+  }
+
+  /** Le compte ScanLinkPay de l'hôtel et la règle d'acompte en ligne. PATRON. */
+  async reglagesPaiementEnLigne(): Promise<ReglagesPaiementEnLigne> {
+    return this.requete<ReglagesPaiementEnLigne>("/hotel/paiement-en-ligne");
+  }
+
+  async modifierReglagesPaiementEnLigne(dto: ModifierReglagesPaiementEnLigne): Promise<ReglagesPaiementEnLigne> {
+    return this.requete<ReglagesPaiementEnLigne>("/hotel/paiement-en-ligne", { method: "PATCH", body: JSON.stringify(dto) });
+  }
+
+  /** Acomptes payés en ligne à rembourser ou à conserver. PATRON. */
+  async listerRemboursements(statut?: "A_FAIRE" | "EFFECTUE" | "CONSERVE"): Promise<RemboursementVue[]> {
+    return this.requete<RemboursementVue[]>(`/remboursements${statut ? `?statut=${statut}` : ""}`);
+  }
+
+  async nombreRemboursementsAFaire(): Promise<number> {
+    return (await this.requete<{ nombre: number }>("/remboursements/a-faire")).nombre;
+  }
+
+  async traiterRemboursement(id: string, dto: TraiterRemboursement): Promise<RemboursementVue> {
+    return this.requete<RemboursementVue>(`/remboursements/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(dto) });
   }
 
   /** Change MON mot de passe (l'ancien est revérifié ; mes autres sessions sont coupées). */

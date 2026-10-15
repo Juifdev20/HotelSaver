@@ -1174,3 +1174,58 @@ export interface TraiterRemboursement {
   reference?: string;
   note?: string;
 }
+
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Administration des formules par le super-admin
+
+export type CodeFonction = "RECEPTION" | "CAFETERIA" | "SITE_PUBLIC" | "DOMAINE_PERSONNALISE" | "ACOMPTE_EN_LIGNE";
+
+/** Une formule telle que le super-admin la gère. */
+export interface FormuleAdminVue {
+  id: string;
+  code: string;
+  nom: string;
+  description: string;
+  prixMensuelUsd: number;
+  maxChambres: number | null;
+  fonctions: CodeFonction[];
+  avantages: string[];
+  recommandee: boolean;
+  /** false = n'est plus proposée à l'achat (ceux qui l'ont déjà la gardent). */
+  actif: boolean;
+  ordre: number;
+  hotelsAbonnes: number;
+}
+
+export interface DonneesFormule {
+  code?: string;
+  nom: string;
+  description?: string;
+  prixMensuelUsd: number;
+  maxChambres?: number | null;
+  fonctions: CodeFonction[];
+  avantages?: string[];
+  recommandee?: boolean;
+  actif?: boolean;
+  ordre?: number;
+}
+
+/** Réglages de la plateforme modifiables par le super-admin. */
+export interface ParametresPlateformeVue {
+  tauxCdf: number;
+  moisOffertsAnnuel: number;
+  joursEssai: number;
+  joursGrace: number;
+  fonctionsEssai: CodeFonction[];
+  fraisAbonnementPayesParClient: boolean;
+  contactTelephone: string;
+  contactWhatsapp: string;
+}
+
+/** GET /public/formules : la page des tarifs du site vitrine. */
+export interface FormulesPubliques {
+  formules: FormuleProposee[];
+  parametres: { tauxCdf: number; moisOffertsAnnuel: number; joursEssai: number; joursGrace: number };
+  contact: { telephone: string; whatsapp: string };
+}

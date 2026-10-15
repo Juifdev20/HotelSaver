@@ -86,3 +86,19 @@ export function bandeauAbonnement(etat: EtatAbonnement | undefined | null, maint
 }
 
 export const LIBELLE_OPERATEUR: Record<string, string> = Object.fromEntries(LISTE_OPERATEURS.map((o) => [o, OPERATEURS_MOBILE_MONEY[o].libelle]));
+
+/** Contact du support HotelSaver (valeurs de secours ; le super-admin les règle côté serveur et les applications reçoivent les siennes dans `VueAbonnement.contactSupport`). */
+export const CONTACT_SUPPORT_PAR_DEFAUT = { telephone: "+243828497218", whatsapp: "+243828497218" };
+
+/** « +243828497218 » → « +243 828 497 218 ». */
+export function formaterTelephone(numero: string): string {
+  const chiffres = numero.replace(/\D/g, "");
+  if (chiffres.length === 12 && chiffres.startsWith("243")) return `+243 ${chiffres.slice(3, 6)} ${chiffres.slice(6, 9)} ${chiffres.slice(9)}`;
+  return numero;
+}
+
+/** Lien WhatsApp (https://wa.me/…) vers ce numéro, avec un message prérempli facultatif. */
+export function lienWhatsApp(numero: string, message?: string): string {
+  const chiffres = numero.replace(/\D/g, "");
+  return `https://wa.me/${chiffres}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
+}
