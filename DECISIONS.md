@@ -3323,3 +3323,21 @@ une bibliothèque de chiffrement native), TLS de la base (S25), réattribution d
 
 **À faire par le patron** : exécuter `supabase-activer-rls.sql` dans l'éditeur SQL de Supabase ; définir `TURNSTILE_SECRET` (API), `VITE_TURNSTILE_SITE_KEY` (web), `CORS_ORIGIN` ;
 poser les en-têtes (`frame-ancestors`…) chez l'hébergeur du web ; régénérer le projet Android et reconstruire l'APK ; vérifier dans Supabase les options de révocation de session.
+
+## 15/10/2026 — Abonnement : paiement par Mobile Money dans l'application (via ScanLinkPay)
+
+Détail complet et marche à suivre : `docs/ABONNEMENT.md`.
+
+**Problème** : l'abonnement ne s'achetait nulle part dans l'application (saisie manuelle par le super-admin) ; un hôtel dont l'essai finissait était bloqué sans pouvoir payer.
+
+**Décisions**
+- Paiement **dans les applications** (bureau, mobile) par M-Pesa, Airtel Money, Orange Money, Africell, en USD ou FC. HotelSaver n'a **aucune clé FlexPaie** : il appelle les routes publiques de ScanLinkPay (`quick-pay` → `payments` → `payments/status`) avec le **numéro ScanLinkPay du compte marchand HotelSaver** (`LINKPAY_NUMERO_MARCHAND`, `LINKPAY_API_URL`). L'argent entre dans le portefeuille de ce marchand. Aucun changement du code ScanLinkPay.
+- Échéance : essai 14 jours → période payée → **3 jours de grâce** (alerte rouge, tout fonctionne) → accès coupé **sauf** profil / abonnement / paiement (routes `@SansLicence`) ; réponse 402 `ABONNEMENT_BLOQUE` partout ailleurs, calculée à chaque requête (le cron de minuit ne fait que poser le statut). Réouverture immédiate au paiement.
+- Source unique des règles et des textes : `packages/regles` (formules, prix, durées 1/3/6/12 mois avec 2 mois offerts sur 12, échéance, état, opérateurs/numéros). Prix FC = prix USD × `ABONNEMENT_TAUX_CDF` (2800), arrondi au-dessus à 500 FC. **Prix à valider** (29 / 59 / 99 $).
+- Crédit : seulement si ScanLinkPay confirme SUCCESS avec le montant et la devise exacts ; transition atomique (un seul crédit même en concurrence) ; idempotence par clé ; rapprochement chaque minute (paiements confirmés en retard jusqu'à 24 h) ; support : « Revérifier ».
+- Suspension **manuelle** (`Hotel.suspensionManuelle`) ≠ suspension automatique : un hôtel suspendu à la main ne se rouvre pas en payant en ligne.
+- Plafond de chambres par formule (Essentiel 15, Pro 40) appliqué à l'ajout pour un hôtel ayant payé une formule ; les autres fonctions ne sont pas verrouillées par formule (à décider).
+- Le moteur de synchro traite le 402 comme une pause (actions conservées), pas comme un refus.
+- Mobile : drapeau `PAIEMENT_DANS_APPLICATION` (`apps/mobile/src/configAbonnement.ts`) pour repasser à « renouveler sur Windows / support » si Google Play refuse le paiement dans l'appli.
+
+**À faire par le patron** : créer l'entreprise marchand HotelSaver dans ScanLinkPay, renseigner `LINKPAY_API_URL` et `LINKPAY_NUMERO_MARCHAND` sur l'API, appliquer la migration `20261011100000_abonnement_en_ligne`, faire un vrai paiement de test, valider les prix, vérifier la politique Google Play.
