@@ -548,6 +548,8 @@ export interface CommandeWebCreee {
  * (Phase 11), volontairement minimale (ni statutLicence, ni emailContact,
  * etc., qui n'ont rien à faire côté public). */
 export interface InfoHotelPublique extends ContenuSiteHotel {
+  /** false = la formule de l'hôtel n'inclut pas la réception : pas de réservation en ligne sur son site. Absent = ouverte. */
+  reservationEnLigne?: boolean;
   nom: string;
   /** Réglage hôtel : l'onglet « Cuisine » (commande en ligne) est-il visible sur le site ? */
   commandeWebActivee: boolean;
