@@ -1,0 +1,73 @@
+import { createServer, Server } from "node:http";
+import type { AddressInfo } from "node:net";
+import { uuid } from "./donnees";
+
+/** Faux ScanLinkPay : mêmes routes publiques que le vrai (quick-pay, payments, payments/status), états pilotables par le test. */
+export interface FauxPaiement { reference: string; montantCentimes: number; devise: string; statut: "SUCCESS" | "FAILED" | "PENDING"; telephone?: string; operateur?: string; cle?: string; montantAnnonce?: number }
+export class FauxLinkPay {
+  server!: Server;
+  url = "";
+  demandes = new Map<string, { reference: string; montantCentimes: number; devise: string }>();
+  paiements = new Map<string, FauxPaiement>();
+  parCle = new Map<string, string>();
+  appels: string[] = [];
+  /** Réponse forcée pour la prochaine création de paiement (ex. refus de validation de ScanLinkPay). */
+  refusProchainPaiement: { statut: number; message: string; fois?: number } | null = null;
+  numeroAttendu = "SLP-TEST01";
+
+  async demarrer() {
+    this.server = createServer((req, res) => {
+      const morceaux: Buffer[] = [];
+      req.on("data", (c) => morceaux.push(c));
+      req.on("end", () => {
+        const corps = morceaux.length ? JSON.parse(Buffer.concat(morceaux).toString()) : {};
+        const envoyer = (code: number, json: unknown) => {
+          res.writeHead(code, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(json));
+        };
+        this.appels.push(`${req.method} ${req.url}`);
+        if (req.method === "POST" && req.url === "/payment-requests/quick-pay") {
+          if (corps.scanlinkpay_number !== this.numeroAttendu) return envoyer(404, { message: "Organisation introuvable" });
+          const token = uuid().replace(/-/g, "");
+          const reference = `PR-${token.slice(0, 8)}`;
+          this.demandes.set(token, { reference, montantCentimes: corps.amount_cents, devise: corps.currency });
+          return envoyer(201, { reference, link_token: token, amount_cents: corps.amount_cents, currency: corps.currency, status: "CREATED" });
+        }
+        if (req.method === "POST" && req.url === "/payments") {
+          if (this.refusProchainPaiement) {
+            const r = this.refusProchainPaiement;
+            if (--r.fois! <= 0) this.refusProchainPaiement = null;
+            return envoyer(r.statut, { message: r.message });
+          }
+          const cle = String(req.headers["idempotency-key"] ?? "");
+          if (!cle) return envoyer(400, { message: "Idempotency-Key header is required" });
+          const existante = this.parCle.get(cle);
+          if (existante) return envoyer(201, { payment_intent_id: "pi", psp_intent_id: existante, status: "PENDING", message: "Payment intent already exists (idempotent)" });
+          const demande = this.demandes.get(corps.link_token);
+          if (!demande) return envoyer(404, { message: "Payment request not found" });
+          const reference = `FP-${uuid().slice(0, 8)}`;
+          this.paiements.set(reference, { reference, montantCentimes: demande.montantCentimes, devise: demande.devise, statut: "PENDING", telephone: corps.customer_phone, operateur: corps.mobile_money_operator, cle });
+          this.parCle.set(cle, reference);
+          return envoyer(201, { payment_intent_id: "pi", psp_intent_id: reference, status: "PENDING" });
+        }
+        const m = /^\/payments\/status\/(.+)$/.exec(req.url ?? "");
+        if (req.method === "GET" && m) {
+          const paiement = this.paiements.get(decodeURIComponent(m[1]));
+          if (!paiement) return envoyer(404, { message: "Référence de paiement introuvable" });
+          return envoyer(200, { reference: paiement.reference, status: paiement.statut, amount_cents: paiement.montantAnnonce ?? paiement.montantCentimes, currency: paiement.devise });
+        }
+        envoyer(404, { message: "?" });
+      });
+    });
+    await new Promise<void>((ok) => this.server.listen(0, "127.0.0.1", ok));
+    this.url = `http://127.0.0.1:${(this.server.address() as AddressInfo).port}`;
+  }
+
+  dernier(): FauxPaiement {
+    return [...this.paiements.values()].pop()!;
+  }
+
+  arreter() {
+    return new Promise<void>((ok) => this.server.close(() => ok()));
+  }
+}
