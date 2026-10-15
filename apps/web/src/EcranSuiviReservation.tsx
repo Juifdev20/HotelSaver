@@ -1,10 +1,11 @@
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { annulerReservationPublique, obtenirSuiviReservation, preEnregistrerReservation } from "@hotel-chicago/api-client";
+import { ErreurApi, annulerReservationPublique, obtenirSuiviReservation, preEnregistrerReservation } from "@hotel-chicago/api-client";
 import { formatMontant } from "@hotel-chicago/ui";
 import type { StatutSuiviPublic, SuiviReservationPublic, TypePiece } from "@hotel-chicago/types";
 import { configuration } from "./config";
+import { AcompteEnLigne } from "./AcompteEnLigne";
 
 const STATUTS: Record<StatutSuiviPublic, { libelle: string; texte: string; ton: "attente" | "ok" | "info" | "fin" }> = {
   EN_ATTENTE: {
@@ -75,6 +76,15 @@ export function EcranSuiviReservation({ sousDomaine }: { sousDomaine: string }) 
     };
   }, [sousDomaine, jeton]);
 
+  /** Relit la réservation (après un paiement d'acompte) sans jamais casser la page si le réseau flanche. */
+  const rafraichir = useCallback(async () => {
+    try {
+      setSuivi(await obtenirSuiviReservation({ url: configuration.apiUrl }, sousDomaine, jeton));
+    } catch {
+      // On garde l'affichage actuel ; le prochain chargement de la page remettra tout à jour.
+    }
+  }, [sousDomaine, jeton]);
+
   async function envoyerPreEnregistrement(e: React.FormEvent) {
     e.preventDefault();
     if (numeroPiece.trim().length < 3) return setErreurForm("Indiquez le numéro de votre pièce d'identité.");
@@ -104,7 +114,13 @@ export function EcranSuiviReservation({ sousDomaine }: { sousDomaine: string }) 
       setSuivi(await annulerReservationPublique({ url: configuration.apiUrl }, sousDomaine, jeton, motifAnnulation.trim() || undefined));
       setConfirmationAnnulation(false);
     } catch (err) {
-      setErreurForm(err instanceof Error ? err.message : "Annulation impossible, contactez l'hôtel.");
+      setErreurForm(
+        err instanceof ErreurApi && err.statusCode === 404
+          ? "Ce service n'est pas disponible pour cet hôtel."
+          : err instanceof Error
+            ? err.message
+            : "Annulation impossible, contactez l'hôtel."
+      );
     } finally {
       setEnCours(false);
     }
@@ -123,6 +139,12 @@ export function EcranSuiviReservation({ sousDomaine }: { sousDomaine: string }) 
   if (!suivi) return <div className="hotel-section hotel-section--etroite"><p>Chargement…</p></div>;
 
   const statut = STATUTS[suivi.statut];
+  const acompteEnLigne = suivi.acompteEnLigne;
+  const aPayeEnLigne = Boolean(acompteEnLigne && acompteEnLigne.dejaPaye > 0);
+  const texteStatut =
+    suivi.statut === "ANNULEE" && aPayeEnLigne && !acompteEnLigne?.remboursement
+      ? `${statut.texte} Votre acompte sera étudié pour remboursement selon les conditions de l'hôtel.`
+      : statut.texte;
   const pe = suivi.preEnregistrement;
   const contact = suivi.hotel.whatsapp ?? suivi.hotel.telephone;
 
@@ -135,7 +157,7 @@ export function EcranSuiviReservation({ sousDomaine }: { sousDomaine: string }) 
 
       <div className={`suivi-statut suivi-statut--${statut.ton}`} role="status">
         <strong>{statut.libelle}</strong>
-        <p>{statut.texte}</p>
+        <p>{texteStatut}</p>
       </div>
 
       <div className="suivi-carte">
@@ -168,6 +190,16 @@ export function EcranSuiviReservation({ sousDomaine }: { sousDomaine: string }) 
           )}
         </dl>
       </div>
+
+      {acompteEnLigne && (
+        <AcompteEnLigne
+          sousDomaine={sousDomaine}
+          jeton={jeton}
+          statutReservation={suivi.statut}
+          acompte={acompteEnLigne}
+          onRafraichir={rafraichir}
+        />
+      )}
 
       {suivi.reponseReception && (
         <div className="suivi-carte">
@@ -282,6 +314,12 @@ export function EcranSuiviReservation({ sousDomaine }: { sousDomaine: string }) 
         <div className="suivi-carte">
           <h3 className="suivi-sous-titre">Annuler la réservation ?</h3>
           <p>L'hôtel sera prévenu. Cette action est définitive.</p>
+          {aPayeEnLigne && (
+            <p className="suivi-ok-info">
+              Votre acompte sera étudié pour remboursement selon les conditions de l'hôtel
+              {acompteEnLigne?.conditionsAnnulation ? " (rappelées dans le bloc « Acompte en ligne »)" : ""}.
+            </p>
+          )}
           <label className="label" htmlFor="motif-annulation">
             Raison (facultatif)
           </label>

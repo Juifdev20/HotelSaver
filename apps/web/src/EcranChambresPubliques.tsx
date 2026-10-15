@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { listerChambresDisponibles } from "@hotel-chicago/api-client";
+import { ErreurApi, listerChambresDisponibles } from "@hotel-chicago/api-client";
 import type { Chambre, InfoHotelPublique } from "@hotel-chicago/types";
 import { configuration } from "./config";
 import { FormulaireDemandeReservation } from "./FormulaireDemandeReservation";
@@ -39,7 +39,7 @@ export function EcranChambresPubliques({ sousDomaine, info }: { sousDomaine: str
         );
         if (!annule) setChambres(resultat);
       } catch (e) {
-        if (!annule) setErreur(e instanceof Error ? e.message : "Erreur de chargement.");
+        if (!annule) setErreur(e instanceof ErreurApi && e.statusCode === 404 ? "Ce service n'est pas disponible pour cet hôtel." : e instanceof Error ? e.message : "Erreur de chargement.");
       } finally {
         if (!annule) setChargement(false);
       }

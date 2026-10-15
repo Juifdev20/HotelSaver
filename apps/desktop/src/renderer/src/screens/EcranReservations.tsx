@@ -16,6 +16,8 @@ export interface EcranReservationsProps {
   onFacturer: (reservationId: string) => void;
   /** Faux pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer » : lecture seule. */
   peutOperer?: boolean;
+  /** Ouvre directement la fiche de cette réservation (clic sur une notification). */
+  reservationInitiale?: string | null;
 }
 
 type Vue =
@@ -65,8 +67,8 @@ function nombreDeNuits(dateArrivee: string, dateDepart: string): number {
  * direct API comme le reste du desktop — le miroir hors-ligne n'existe
  * que sur mobile.
  */
-export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer = true }: EcranReservationsProps) {
-  const [vue, setVue] = useState<Vue>({ id: "liste" });
+export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer = true, reservationInitiale = null }: EcranReservationsProps) {
+  const [vue, setVue] = useState<Vue>(reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" });
   const [affichage, setAffichage] = useState<Affichage>("liste");
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);

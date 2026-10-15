@@ -3,8 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from "react-native";
 import * as Notifications from "expo-notifications";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import type { LienNotification, NotificationApp, Role } from "@hotel-chicago/types";
-import { ongletsPourRole, type IdOnglet } from "../navigation";
+import { Role, type LienNotification, type NotificationApp } from "@hotel-chicago/types";
+import { fonctionManquante, ongletsPourRole, type IdOnglet } from "../navigation";
+import type { CodeFonction } from "../fonctions";
 import { enregistrerAppareil } from "./push";
 import { navigationRef } from "./navigationRef";
 
@@ -12,9 +13,11 @@ const INTERVALLE_MS = 30_000;
 
 /** Vue de l'onglet « Plus » à ouvrir (les écrans qui n'ont pas leur propre onglet). */
 export interface DemandePlus {
-  vue: "stock" | "arrivees-departs" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation" | "abonnement";
+  vue: "stock" | "arrivees-departs" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation" | "abonnement" | "remboursements" | "fonction-non-incluse";
   /** Compte cafétéria à ouvrir directement (deep-link notification). */
   compteId?: string;
+  /** Avec « fonction-non-incluse » : la fonction que la formule de l'hôtel n'ouvre pas. */
+  fonction?: CodeFonction;
   cle: number;
 }
 
@@ -52,14 +55,32 @@ interface ValeurNotifications {
   ouvrirSynchronisation: () => void;
   /** Ouvre l'écran « Abonnement » (onglet Plus) — bandeau d'abonnement de EnteteMobile. */
   ouvrirAbonnement: () => void;
+  /** Ouvre l'écran « Remboursements » (onglet Plus) — acomptes payés en ligne à rendre ou à garder. */
+  ouvrirRemboursements: () => void;
 }
 
 const Contexte = createContext<ValeurNotifications | null>(null);
 
-/** Écran visé par une notification → onglet du bas (+ vue de « Plus » le cas échéant), selon le rôle. */
-export function cibleDeLien(lien: LienNotification, role: Role): { onglet: IdOnglet; plus?: DemandePlus["vue"] } {
-  const onglets = ongletsPourRole(role).map((o) => o.id);
-  const si = (onglet: IdOnglet, plus?: DemandePlus["vue"]) => (onglets.includes(onglet) ? { onglet, plus } : null);
+export interface CibleNotification {
+  onglet: IdOnglet;
+  plus?: DemandePlus["vue"];
+  /** Avec plus = « fonction-non-incluse ». */
+  fonction?: CodeFonction;
+}
+
+/** Écran visé par une notification → onglet du bas (+ vue de « Plus » le cas échéant), selon le rôle. Si la formule de l'hôtel n'ouvre pas la
+ * fonction visée (onglet masqué), on ouvre l'écran « fonction non incluse » plutôt que de ne rien faire ou d'afficher un écran vide.
+ * `type` = type de la notification : « REMBOURSEMENT_A_FAIRE » ouvre l'écran Remboursements (le lien, lui, vise la réservation). */
+export function cibleDeLien(lien: LienNotification, role: Role, fonctions?: readonly string[], type?: string): CibleNotification {
+  const onglets = ongletsPourRole(role).map((o) => o.id); // ce que le rôle voit quand tout est ouvert
+  const ouvre = (onglet: IdOnglet, plus?: DemandePlus["vue"]): CibleNotification => {
+    const manque = fonctionManquante(plus ?? onglet, role, fonctions);
+    return manque ? { onglet: "plus", plus: "fonction-non-incluse", fonction: manque } : { onglet, plus };
+  };
+  const si = (onglet: IdOnglet, plus?: DemandePlus["vue"]) => (onglets.includes(onglet) ? ouvre(onglet, plus) : null);
+
+  if (type === "REMBOURSEMENT_A_FAIRE" && role === Role.PATRON) return ouvre("plus", "remboursements");
+
   const cible =
     lien.ecran === "reservations" || lien.ecran === "facturation" // la facturation vit dans « Réserv. »
       ? si("reservations")
@@ -80,10 +101,13 @@ export function cibleDeLien(lien: LienNotification, role: Role): { onglet: IdOng
 export function FournisseurNotifications({
   client,
   role,
+  fonctions,
   children,
 }: {
   client: ClientApi;
   role: Role;
+  /** `utilisateur.fonctions` : absent = tout est ouvert. */
+  fonctions?: string[];
   children: React.ReactNode;
 }) {
   const [notifications, setNotifications] = useState<NotificationApp[]>([]);
@@ -93,7 +117,7 @@ export function FournisseurNotifications({
   const [demandeCompte, setDemandeCompte] = useState<DemandeCompte | null>(null);
   const [demandeReservation, setDemandeReservation] = useState<DemandeReservation | null>(null);
   const compteurDemandes = useRef(0);
-  const enAttente = useRef<LienNotification | null>(null);
+  const enAttente = useRef<{ lien: LienNotification; type?: string } | null>(null);
 
   const charger = useCallback(async () => {
     try {
@@ -106,8 +130,8 @@ export function FournisseurNotifications({
   }, [client]);
 
   const naviguer = useCallback(
-    (lien: LienNotification) => {
-      const { onglet, plus } = cibleDeLien(lien, role);
+    (lien: LienNotification, type?: string) => {
+      const { onglet, plus, fonction } = cibleDeLien(lien, role, fonctions, type);
       // Un lien « comptes-ouverts » porte l'id du compte : on ouvre le détail
       // directement — via l'onglet Comptes (CAFETARIA) ou la vue « compte »
       // de Plus (PATRON, qui n'a pas cet onglet).
@@ -115,11 +139,12 @@ export function FournisseurNotifications({
       // Un lien « reservations » porte l'id du séjour : le détail s'ouvre
       // directement dans l'onglet Réserv. (RECEPTIONNISTE et PATRON l'ont
       // tous deux en bas — pas de fallback Plus nécessaire).
-      const reservationId = lien.ecran === "reservations" ? lien.id : undefined;
+      const reservationId = lien.ecran === "reservations" && onglet === "reservations" ? lien.id : undefined;
       if (plus) {
         setDemandePlus({
           vue: plus === "comptes-ouverts" && compteId ? "compte" : plus,
-          compteId,
+          compteId: plus === "comptes-ouverts" ? compteId : undefined,
+          fonction,
           cle: ++compteurDemandes.current,
         });
       } else if (compteId) {
@@ -128,9 +153,9 @@ export function FournisseurNotifications({
         setDemandeReservation({ reservationId, cle: ++compteurDemandes.current });
       }
       if (navigationRef.isReady()) navigationRef.navigate(onglet as never);
-      else enAttente.current = lien; // lancement à froid : appliqué dès que la navigation est prête
+      else enAttente.current = { lien, type }; // lancement à froid : appliqué dès que la navigation est prête
     },
-    [role]
+    [role, fonctions]
   );
 
   // Interrogation toutes les 30 s + au retour au premier plan.
@@ -174,9 +199,9 @@ export function FournisseurNotifications({
   // Tap sur une notification du système (écran verrouillé, app fermée ou en arrière-plan).
   useEffect(() => {
     const traiter = (reponse: Notifications.NotificationResponse | null) => {
-      const data = reponse?.notification.request.content.data as { ecran?: string; id?: string; notificationId?: string } | undefined;
+      const data = reponse?.notification.request.content.data as { ecran?: string; id?: string; notificationId?: string; type?: string } | undefined;
       if (!data?.ecran) return;
-      naviguer({ ecran: data.ecran as LienNotification["ecran"], id: data.id });
+      naviguer({ ecran: data.ecran as LienNotification["ecran"], id: data.id }, typeof data.type === "string" ? data.type : undefined);
       if (data.notificationId) void client.marquerNotificationLue(data.notificationId).then(charger, () => undefined);
       Notifications.clearLastNotificationResponse();
     };
@@ -189,9 +214,9 @@ export function FournisseurNotifications({
   useEffect(() => {
     const minuteur = setInterval(() => {
       if (enAttente.current && navigationRef.isReady()) {
-        const lien = enAttente.current;
+        const { lien, type } = enAttente.current;
         enAttente.current = null;
-        naviguer(lien);
+        naviguer(lien, type);
       }
     }, 300);
     return () => clearInterval(minuteur);
@@ -229,6 +254,11 @@ export function FournisseurNotifications({
     if (navigationRef.isReady()) navigationRef.navigate("plus" as never);
   }, []);
 
+  const ouvrirRemboursements = useCallback(() => {
+    setDemandePlus({ vue: "remboursements", cle: ++compteurDemandes.current });
+    if (navigationRef.isReady()) navigationRef.navigate("plus" as never);
+  }, []);
+
   const valeur = useMemo<ValeurNotifications>(
     () => ({
       notifications,
@@ -241,7 +271,7 @@ export function FournisseurNotifications({
       ouvrirNotification: (notification) => {
         setCentreOuvert(false);
         if (!notification.lue) void marquerLue(notification.id).catch(() => undefined);
-        naviguer(notification.lien);
+        naviguer(notification.lien, notification.type);
       },
       demandePlus,
       consommerDemandePlus: () => setDemandePlus(null),
@@ -251,8 +281,9 @@ export function FournisseurNotifications({
       consommerDemandeReservation: () => setDemandeReservation(null),
       ouvrirSynchronisation,
       ouvrirAbonnement,
+      ouvrirRemboursements,
     }),
-    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, ouvrirSynchronisation, ouvrirAbonnement, demandePlus, demandeCompte, demandeReservation]
+    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, ouvrirSynchronisation, ouvrirAbonnement, ouvrirRemboursements, demandePlus, demandeCompte, demandeReservation]
   );
 
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;

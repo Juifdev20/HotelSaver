@@ -444,3 +444,30 @@
     padding: var(--hc-space-4);
   }
 }
+
+/* ---------- Formule actuelle, frais ScanLinkPay, mention de sécurité ---------- */
+
+.abo-etiquettes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-1);
+  align-self: flex-start;
+}
+.abo-etiquette--actuelle {
+  background-color: var(--hc-success);
+  color: var(--hc-on-status);
+}
+.abo-recap__prix p {
+  font-size: 16px;
+}
+.abo-historique__frais {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--hc-ink-muted);
+}
+.abo-securise {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-1);
+}

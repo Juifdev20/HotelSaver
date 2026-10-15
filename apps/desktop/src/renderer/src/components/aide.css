@@ -1,0 +1,78 @@
+/* « Besoin d'aide ? » et « Fonction non incluse » : jetons de la charte uniquement, le mode sombre suit tout seul. */
+
+.aide {
+  display: flex;
+  gap: var(--hc-space-3);
+  align-items: flex-start;
+  padding: var(--hc-space-4);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background-color: var(--hc-surface-200);
+  color: var(--hc-ink);
+  max-width: 560px;
+}
+.aide__icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--hc-blue-light);
+  color: var(--hc-blue);
+}
+.aide__corps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-1);
+  min-width: 0;
+}
+.aide__lien {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  align-self: flex-start;
+  min-height: 40px;
+  margin-top: var(--hc-space-1);
+  padding: 0 var(--hc-space-4);
+  border-radius: var(--hc-radius-pill);
+  background-color: var(--hc-success);
+  color: var(--hc-on-status);
+  font-weight: 700;
+  text-decoration: none;
+}
+.aide__lien:hover {
+  filter: brightness(0.95);
+}
+.aide__lien:focus-visible {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+
+.non-incluse {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hc-space-4);
+  max-width: 640px;
+  padding: var(--hc-space-6);
+  border: 1px solid var(--hc-border);
+  border-left: 6px solid var(--hc-warning);
+  border-radius: var(--hc-radius-lg);
+  background-color: var(--hc-surface-200);
+  box-shadow: var(--hc-shadow-card);
+}
+.non-incluse__icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--hc-warning-light);
+  color: var(--hc-warning);
+}
+.non-incluse h1:focus {
+  outline: none;
+}

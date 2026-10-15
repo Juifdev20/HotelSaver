@@ -17,6 +17,7 @@ import {
 } from "@hotel-chicago/regles";
 import { Role } from "@hotel-chicago/types";
 import type {
+  ApercuPaiement,
   EtatAbonnement,
   FormuleProposee,
   OperateurMobileMoney,
@@ -27,7 +28,8 @@ import type {
 } from "@hotel-chicago/types";
 import { Button, StatusBadge, useTitrePage } from "@hotel-chicago/ui";
 import type { StatusTone } from "@hotel-chicago/ui";
-import { AlertTriangle, CheckCircle2, CircleCheck, Info, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleCheck, Info, ShieldCheck, XCircle } from "lucide-react";
+import { BlocAide } from "../components/BlocAide";
 import "./abonnement.css";
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -191,7 +193,14 @@ function Historique({ historique, formules }: { historique: PaiementAbonnementVu
                   <td>
                     {nomFormule(p.formule, formules)} · {duree(p.mois)}
                   </td>
-                  <td>{montantAbonnement(p.montant, p.devise)}</td>
+                  <td>
+                    {montantAbonnement(p.montant, p.devise)}
+                    {p.commission != null && p.commission > 0 && p.total != null && (
+                      <small className="abo-historique__frais" data-testid="abonnement-historique-frais">
+                        + frais ScanLinkPay {montantAbonnement(p.commission, p.devise)} = {montantAbonnement(p.total, p.devise)}
+                      </small>
+                    )}
+                  </td>
                   <td>
                     {p.source === "SUPPORT" ? "Enregistré par le support" : `${p.operateur ? OPERATEURS_MOBILE_MONEY[p.operateur].libelle : "Mobile Money"}${p.telephoneMasque ? ` · ${p.telephoneMasque}` : ""}`}
                   </td>
@@ -273,6 +282,28 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
   const dureeChoisie = formule?.durees.find((d) => d.mois === mois) ?? formule?.durees[0];
   const prix = dureeChoisie ? (devise === "USD" ? dureeChoisie.prixUsd : dureeChoisie.prixCdf) : null;
   const montant = prix !== null ? montantAbonnement(prix, devise) : null;
+
+  // Aperçu des frais ScanLinkPay AVANT de payer : redemandé à chaque changement de formule, de durée ou de monnaie. Une réponse arrivée trop
+  // tard (l'utilisateur a déjà changé de choix) est ignorée, jamais affichée à la place de la bonne.
+  const cleApercu = formule && dureeChoisie ? `${formule.code}|${dureeChoisie.mois}|${devise}` : null;
+  const [apercu, setApercu] = useState<{ cle: string; valeur: ApercuPaiement | null } | null>(null);
+  useEffect(() => {
+    if (!formule || !dureeChoisie || !cleApercu) return;
+    let actif = true;
+    client
+      .apercuAbonnement(formule.code, dureeChoisie.mois, devise)
+      .then((valeur) => actif && setApercu({ cle: cleApercu, valeur }))
+      // Aperçu impossible : on montre le prix seul, le paiement reste possible.
+      .catch(() => actif && setApercu({ cle: cleApercu, valeur: null }));
+    return () => {
+      actif = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, cleApercu]);
+  const calculEnCours = cleApercu !== null && apercu?.cle !== cleApercu;
+  const apercuValable = apercu && apercu.cle === cleApercu ? apercu.valeur : null;
+  const fraisAjoutes = apercuValable !== null && apercuValable.disponible && apercuValable.commissionPayeePar === "PAYEUR";
+  const aPayer = fraisAjoutes && apercuValable ? montantAbonnement(apercuValable.total, devise) : montant;
 
   const chiffresTapes = telephone.replace(/\D/g, "").length;
   const problemeTel = problemeNumero(operateur, telephone);
@@ -457,9 +488,18 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
                   disabled={trop}
                   onChange={() => setFormuleCode(f.code)}
                   aria-labelledby={idNom}
-                  aria-describedby={trop ? `${idDetail} ${idAide}` : idDetail}
+                  aria-describedby={[idDetail, f.code === vue.formuleActuelle ? `abo-formule-${f.code}-actuelle` : null, trop ? idAide : null].filter(Boolean).join(" ")}
                 />
-                {f.recommandee && <span className="abo-etiquette">Le plus choisi</span>}
+                {(f.recommandee || f.code === vue.formuleActuelle) && (
+                  <span className="abo-etiquettes">
+                    {f.code === vue.formuleActuelle && (
+                      <span id={`abo-formule-${f.code}-actuelle`} className="abo-etiquette abo-etiquette--actuelle" data-testid="abonnement-formule-actuelle">
+                        Votre formule
+                      </span>
+                    )}
+                    {f.recommandee && <span className="abo-etiquette">Le plus choisi</span>}
+                  </span>
+                )}
                 <span className="abo-choix__titre">
                   <span className="abo-choix__marque" aria-hidden="true" />
                   <span id={idNom} className="hc-text-heading">
@@ -575,14 +615,32 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
 
       {formule && dureeChoisie && montant && (
         <div className="abo-recap" data-testid="abonnement-recap">
+          <div aria-live="polite" aria-atomic="true" className="abo-recap__prix">
+            {calculEnCours ? (
+              <p className="hc-text-body texte-discret" data-testid="abonnement-calcul-frais">
+                Calcul des frais ScanLinkPay…
+              </p>
+            ) : fraisAjoutes && apercuValable ? (
+              <p className="hc-text-body" data-testid="abonnement-detail-prix">
+                Prix {montant} + frais ScanLinkPay {montantAbonnement(apercuValable.commission, devise)} = <strong>{aPayer}</strong> à payer
+              </p>
+            ) : (
+              <p className="hc-text-body" data-testid="abonnement-detail-prix">
+                Prix : <strong>{montant}</strong>
+              </p>
+            )}
+          </div>
           <p className="hc-text-body">
-            Vous allez payer <strong>{montant}</strong> pour {duree(dureeChoisie.mois)} de la formule {formule.nom}. Une demande de confirmation va arriver sur le téléphone ; entrez votre code secret Mobile Money.
+            Vous allez payer <strong>{aPayer}</strong> pour {duree(dureeChoisie.mois)} de la formule {formule.nom}. Une demande de confirmation va arriver sur le téléphone ; entrez votre code secret Mobile Money.
           </p>
           <div>
-            <Button type="submit" size="lg">
-              Payer {montant}
+            <Button type="submit" size="lg" disabled={calculEnCours} aria-busy={calculEnCours || undefined}>
+              {calculEnCours ? "Payer" : `Payer ${aPayer}`}
             </Button>
           </div>
+          <p className="hc-text-caption texte-discret abo-securise" data-testid="abonnement-securise">
+            <ShieldCheck size={14} aria-hidden="true" /> Paiement sécurisé par ScanLinkPay
+          </p>
         </div>
       )}
     </form>
@@ -676,6 +734,10 @@ export function EcranAbonnement({ client, utilisateur, horsLigne, onPaiementReus
         {etat ? <CarteEtat etat={etat} vue={lecture.vue} /> : <p className="abo-message hc-text-body">L'état de votre abonnement n'est pas encore connu. Connectez-vous à Internet pour le lire.</p>}
         <ZonePaiement client={client} utilisateur={utilisateur} etat={etat} lecture={lecture} horsLigne={horsLigne} mode="page" onPaiementReussi={onPaiementReussi} />
         {utilisateur.role === Role.PATRON && lecture.vue && <Historique historique={lecture.vue.historique} formules={lecture.vue.formules} />}
+        <BlocAide contact={lecture.vue?.contactSupport} message="Bonjour, j'ai une question sur mon abonnement HotelSaver." />
+        <p className="hc-text-caption texte-discret abo-securise">
+          <ShieldCheck size={14} aria-hidden="true" /> Paiement sécurisé par ScanLinkPay
+        </p>
       </div>
     </div>
   );

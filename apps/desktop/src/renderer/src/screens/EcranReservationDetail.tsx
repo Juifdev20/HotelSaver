@@ -22,6 +22,9 @@ export interface EcranReservationDetailProps {
   interfaceImprimante?: string | null;
 }
 
+/** Texte EXACT reconnu par le serveur comme « non-présentation » (motif de remboursement NON_PRESENTATION). */
+const MOTIF_NON_PRESENTATION = "Client non présenté";
+
 function nombreDeNuits(a: string, d: string): number {
   return Math.max(1, Math.round((new Date(d).getTime() - new Date(a).getTime()) / 86400000));
 }
@@ -518,6 +521,17 @@ export function EcranReservationDetail({
                 onChange={(e) => setMotif(e.target.value)}
                 placeholder="Ex. Le client ne se présente pas"
               />
+              {/* Motif rapide : ce texte EXACT est reconnu par le serveur (non-présentation → l'acompte en ligne peut être conservé). */}
+              <div className="puces" role="group" aria-label="Motifs rapides">
+                <button type="button" className="puce" aria-pressed={motif === MOTIF_NON_PRESENTATION} onClick={() => setMotif(MOTIF_NON_PRESENTATION)}>
+                  {MOTIF_NON_PRESENTATION}
+                </button>
+              </div>
+              {Number(reservation.acompte) > 0 && (
+                <p className="hc-text-body" role="note" data-testid="annulation-avis-acompte">
+                  Si cet acompte a été payé en ligne, il apparaîtra dans Remboursements pour que vous décidiez de le rendre ou de le garder.
+                </p>
+              )}
               <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
                 <Button type="button" variant="danger" onClick={confirmerAnnulation} disabled={enCours}>
                   Confirmer l'annulation

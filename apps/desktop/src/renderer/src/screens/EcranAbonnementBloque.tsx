@@ -5,6 +5,7 @@ import { Role } from "@hotel-chicago/types";
 import type { EtatAbonnement, ProfilConnecte } from "@hotel-chicago/types";
 import { Button, useTitrePage } from "@hotel-chicago/ui";
 import { ZonePaiement, useVueAbonnement } from "./EcranAbonnement";
+import { BlocAide } from "../components/BlocAide";
 import logo from "../../../../../../assets/icons/hotelsaver-icone.png";
 import "./abonnement.css";
 
@@ -55,6 +56,8 @@ export function EcranAbonnementBloque({ client, utilisateur, horsLigne, onPaieme
         </header>
 
         <ZonePaiement client={client} utilisateur={utilisateur} etat={etat} lecture={lecture} horsLigne={horsLigne} mode="bloque" onPaiementReussi={onPaiementReussi} />
+
+        <BlocAide contact={lecture.vue?.contactSupport} message="Bonjour, l'accès de mon hôtel HotelSaver est bloqué, j'ai besoin d'aide." />
 
         <div className="abo-bloque__actions">
           <Button type="button" variant="secondary" onClick={onSeDeconnecter}>

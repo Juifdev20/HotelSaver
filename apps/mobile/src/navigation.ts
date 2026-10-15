@@ -1,4 +1,5 @@
 import { Role } from "@hotel-chicago/types";
+import { fonctionOuverte, type CodeFonction } from "./fonctions";
 
 /** Onglets du bas, filtrés par rôle — même matrice 9.3 que le desktop
  * (`apps/desktop/src/renderer/src/navigation.ts`), et même principe de 4
@@ -32,8 +33,51 @@ export const ONGLETS: OngletNavigation[] = [
   { id: "plus", libelle: "Plus", roles: TOUS, disponible: true },
 ];
 
-export function ongletsPourRole(role: Role): OngletNavigation[] {
-  return ONGLETS.filter((o) => o.roles.includes(role));
+/** Fonction d'abonnement dont dépend chaque écran (onglet, entrée de « Plus » ou vue). Absent = toujours disponible. « AU_MOINS_UNE » = écran partagé
+ * entre les deux services (journal des reçus, rapports) : utile tant qu'au moins une des fonctions de SON rôle est ouverte. */
+const FONCTION_PAR_ECRAN: Record<string, CodeFonction | "AU_MOINS_UNE"> = {
+  // Réception
+  chambres: "RECEPTION",
+  reservations: "RECEPTION",
+  "arrivees-departs": "RECEPTION",
+  planning: "RECEPTION",
+  "journal-journee": "RECEPTION",
+  clients: "RECEPTION",
+  remboursements: "RECEPTION",
+  // Cafétaria
+  caisse: "CAFETERIA",
+  "comptes-ouverts": "CAFETERIA",
+  "retrait-commande": "CAFETERIA",
+  cuisine: "CAFETERIA",
+  menu: "CAFETERIA",
+  stock: "CAFETERIA",
+  inventaire: "CAFETERIA",
+  // Les deux services
+  "journal-recus": "AU_MOINS_UNE",
+  rapports: "AU_MOINS_UNE",
+  // Site public
+  "site-hotel": "SITE_PUBLIC",
+};
+
+/** Fonctions qui font le travail d'un rôle (le patron suit les deux services). */
+export function fonctionsDuRole(role: Role): CodeFonction[] {
+  return role === Role.PATRON ? ["RECEPTION", "CAFETERIA"] : role === Role.CAFETARIA ? ["CAFETERIA"] : ["RECEPTION"];
+}
+
+/** La fonction d'abonnement qui manque pour ouvrir cet écran (`null` = il est ouvert, ou ne dépend d'aucune fonction). `fonctions` absent = tout est ouvert. */
+export function fonctionManquante(ecran: string, role: Role, fonctions: readonly string[] | undefined): CodeFonction | null {
+  const requise = FONCTION_PAR_ECRAN[ecran];
+  if (!requise) return null;
+  if (requise === "AU_MOINS_UNE") {
+    const utiles = fonctionsDuRole(role);
+    return utiles.some((f) => fonctionOuverte(fonctions, f)) ? null : (utiles[0] ?? null);
+  }
+  return fonctionOuverte(fonctions, requise) ? null : requise;
+}
+
+/** Onglets du rôle, sans ceux que la formule de l'hôtel n'ouvre pas. « Accueil » et « Plus » ne dépendent d'aucune fonction : la barre n'est jamais vide. */
+export function ongletsPourRole(role: Role, fonctions?: readonly string[]): OngletNavigation[] {
+  return ONGLETS.filter((o) => o.roles.includes(role) && fonctionManquante(o.id, role, fonctions) === null);
 }
 
 export function libelleOnglet(id: IdOnglet): string {
@@ -76,6 +120,8 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
     // patron que pour le menu hamburger de EnteteMobile, 25/09/2026).
     titre: "Réception",
     entrees: [
+      // Acomptes payés en ligne à rendre ou à garder (PATRON : c'est son argent).
+      { id: "remboursements", libelle: "Remboursements", roles: [Role.PATRON], disponible: true },
       { id: "arrivees-departs", libelle: "Arrivées et départs", roles: RECEPTION, disponible: true },
       { id: "planning", libelle: "Planning", roles: RECEPTION, disponible: true },
       { id: "journal-journee", libelle: "Journal de la journée", roles: RECEPTION, disponible: true },
@@ -128,13 +174,16 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
 ];
 
 /** `operer` = `peutOperer(utilisateur)` ; `cuisineActivee` = réglage hôtel
- * « suivi cuisine » (faux = vente au comptoir, l'écran Cuisine est masqué). */
-export function sectionsPlusPourRole(role: Role, operer = true, cuisineActivee = false): SectionMenuPlus[] {
+ * « suivi cuisine » (faux = vente au comptoir, l'écran Cuisine est masqué) ; `fonctions` = `utilisateur.fonctions` (entrées des fonctions fermées masquées). */
+export function sectionsPlusPourRole(role: Role, operer = true, cuisineActivee = false, fonctions?: readonly string[]): SectionMenuPlus[] {
   return SECTIONS_PLUS.map((section) => ({
     ...section,
     entrees: section.entrees.filter(
       (entree) =>
-        entree.roles.includes(role) && (operer || entree.id !== "caisse") && (cuisineActivee || entree.id !== "cuisine")
+        entree.roles.includes(role) &&
+        (operer || entree.id !== "caisse") &&
+        (cuisineActivee || entree.id !== "cuisine") &&
+        fonctionManquante(entree.id, role, fonctions) === null
     ),
   })).filter((section) => section.entrees.length > 0);
 }
