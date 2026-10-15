@@ -1,11 +1,12 @@
 import * as React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell, ChevronRight, CloudOff, RefreshCw, TriangleAlert } from "lucide-react-native";
+import { Bell, ChevronRight, CloudOff, CreditCard, RefreshCw, TriangleAlert } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { LIBELLE_ROLE } from "../navigation";
 import { resumerEtatSync, type NiveauSync } from "@hotel-chicago/sync-engine";
+import { bandeauAbonnement } from "@hotel-chicago/regles";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useNotifications } from "../notifications/ContexteNotifications";
 
@@ -58,6 +59,32 @@ function BandeauSync() {
   );
 }
 
+/** Bandeau d'abonnement (essai ou abonnement qui se termine bientôt, délai de grâce, expiré sur un profil ancien) : orange = à prévoir,
+ * rouge = urgent. Texte et icône portent l'information, la couleur n'est qu'un renfort. Cliquable vers l'écran « Abonnement ». Le texte
+ * vient de `bandeauAbonnement` (regles), le même que sur le bureau ; l'état vient du dernier profil reçu du serveur. */
+function BandeauAbonnement() {
+  const { utilisateur } = useSession();
+  const { ouvrirAbonnement } = useNotifications();
+  const bandeau = bandeauAbonnement(utilisateur.abonnement);
+  if (!bandeau) return null;
+  const danger = bandeau.niveau === "danger";
+  const Icone = danger ? TriangleAlert : CreditCard;
+  return (
+    <Pressable
+      style={[styles.bandeau, { backgroundColor: danger ? couleurs.danger : couleurs.alerte }]}
+      onPress={ouvrirAbonnement}
+      accessibilityRole="button"
+      accessibilityLabel={`${bandeau.texte} Ouvrir l'écran Abonnement.`}
+    >
+      <Icone size={16} color="#fff" />
+      <Text style={[styles.bandeauTexte, { color: "#fff" }]} numberOfLines={2}>
+        {bandeau.texte}
+      </Text>
+      <ChevronRight size={16} color="#fff" />
+    </Pressable>
+  );
+}
+
 function initiales(nom: string): string {
   return nom
     .split(/\s+/)
@@ -73,7 +100,7 @@ function initiales(nom: string): string {
  * l'avatar/nom dans la barre. Pas de menu hamburger ici : « Changer de
  * profil » et les infos du compte vivent déjà dans l'onglet "Plus" — un
  * deuxième accès au même endroit n'apportait rien (retour du 25/09/2026). */
-export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: boolean }) {
+export function EnteteMobile({ afficherAccueil = false, sansBandeauAbonnement = false }: { afficherAccueil?: boolean; sansBandeauAbonnement?: boolean }) {
   const { utilisateur } = useSession();
   const { nonLues, ouvrirCentre } = useNotifications();
   const insets = useSafeAreaInsets();
@@ -110,6 +137,7 @@ export function EnteteMobile({ afficherAccueil = false }: { afficherAccueil?: bo
           </Pressable>
         </View>
       </View>
+      {!sansBandeauAbonnement && <BandeauAbonnement />}
       <BandeauSync />
 
       {afficherAccueil && (

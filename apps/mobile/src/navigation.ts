@@ -120,6 +120,11 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
       { id: "taux-de-change", libelle: "Taux de change", roles: [Role.PATRON], disponible: true },
     ],
   },
+  {
+    // Visible par tous les rôles : l'état de l'abonnement concerne toute l'équipe ; seul le patron peut payer (voir EcranAbonnement).
+    titre: "Abonnement",
+    entrees: [{ id: "abonnement", libelle: "Abonnement", roles: TOUS, disponible: true }],
+  },
 ];
 
 /** `operer` = `peutOperer(utilisateur)` ; `cuisineActivee` = réglage hôtel

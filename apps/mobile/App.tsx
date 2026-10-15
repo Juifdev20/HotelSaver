@@ -30,6 +30,7 @@ import { EcranSelectionProfil } from "./src/ecrans/EcranSelectionProfil";
 import { EcranConnexion } from "./src/ecrans/EcranConnexion";
 import { EcranInscription } from "./src/ecrans/EcranInscription";
 import { CoquilleOnglets } from "./src/CoquilleOnglets";
+import { EcranAbonnementBloque } from "./src/ecrans/EcranAbonnementBloque";
 import { FournisseurSession, useSession } from "./src/contexteSession";
 import { useSyncEtat } from "./src/hooks/useSyncEtat";
 import { FournisseurNotifications } from "./src/notifications/ContexteNotifications";
@@ -150,6 +151,13 @@ export default function App() {
     return jetonRef.current;
   };
   const [utilisateur, setUtilisateur] = useState<ProfilConnecte | null>(null);
+  // Abonnement : l'application n'est remplacée par l'écran « abonnement expiré » que si le SERVEUR l'a dit pendant cette ouverture
+  // (profil reçu du serveur avec `abonnement.bloque`, ou synchronisation refusée en 402). Un profil mémorisé ancien ne bloque jamais :
+  // il peut dater d'avant un paiement fait ailleurs. `profilFraisPour` = l'utilisateur dont le profil vient d'être relu auprès du serveur.
+  const [profilFraisPour, setProfilFraisPour] = useState<string | null>(null);
+  const [syncBloquee, setSyncBloquee] = useState(false);
+  // Entre la fin d'un paiement et la fin de la synchronisation qui suit, on réaffiche l'application sans attendre.
+  const [deblocageForce, setDeblocageForce] = useState(false);
 
   // Lien profond « Ouvrir l'application » du site web (hotelsaver://connexion?email=…) : on
   // garde l'e-mail en attente puis on l'applique dès que l'écran de départ est connu, pour
@@ -220,6 +228,26 @@ export default function App() {
   }, [configuration, sessionActive, hotelId]);
   const client = miroir ? miroir.client : null;
   const moteurSync = miroir ? miroir.moteur : null;
+
+  // Le moteur de synchronisation voit le refus « abonnement expiré » (HTTP 402) avant tout autre : on ne retient que ce booléen
+  // (pas l'état entier) pour ne pas redessiner toute l'application à chaque cycle.
+  useEffect(() => {
+    if (!moteurSync) {
+      setSyncBloquee(false);
+      return;
+    }
+    return moteurSync.onChangement((etat) => setSyncBloquee(etat.abonnementBloque === true));
+  }, [moteurSync]);
+
+  useEffect(() => {
+    if (!sessionActive) {
+      setProfilFraisPour(null);
+      setDeblocageForce(false);
+    }
+  }, [sessionActive]);
+
+  const abonnementBloque =
+    !deblocageForce && (syncBloquee || (utilisateur !== null && profilFraisPour === utilisateur.userId && utilisateur.abonnement?.bloque === true));
 
   // Le tableau de bord (CoquilleOnglets, plus bas) est un tout nouvel arbre
   // de navigation à chaque connexion/changement de profil : redémarre à
@@ -344,6 +372,7 @@ export default function App() {
     await ecrireContactServeur(donnees.userId);
     jetonRef.current = session.accessToken;
     setUtilisateur(donnees);
+    setProfilFraisPour(donnees.userId);
     setSessionActive(true);
     setEcran("application");
   }
@@ -388,9 +417,44 @@ export default function App() {
       const frais = await new ClientApi(candidatsApi(), () => jetonRef.current).moi();
       await ecrireProfilCache(frais.userId, frais);
       setUtilisateur((courant) => (courant && courant.userId === frais.userId ? frais : courant));
+      setProfilFraisPour(frais.userId);
     } catch {
       // Profil non rafraîchi : la copie locale reste utilisée, on réessaiera au prochain démarrage.
     }
+  }
+
+  /** Profil relu DIRECTEMENT auprès du serveur : jamais la copie en cache du client « d'abord sur le téléphone » (valable 20 s), qui
+   * pourrait encore dire « abonnement bloqué » juste après un paiement. */
+  function lireProfilServeur(): Promise<ProfilConnecte> {
+    return new ClientApi(candidatsApi(), () => jetonRef.current).moi();
+  }
+
+  /** Un paiement d'abonnement vient d'être confirmé : profil à jour (mémorisé), application réaffichée SANS redémarrage si elle était
+   * bloquée, puis synchronisation forcée pour envoyer les actions restées en file. Échoue (et l'écran propose de réessayer) si le
+   * serveur n'est pas joignable. */
+  async function apresRenouvellement() {
+    const courant = profilRef.current;
+    const moteur = moteurSync;
+    if (!courant) return;
+    const frais = await lireProfilServeur();
+    if (frais.userId !== courant.userId) return;
+    await ecrireProfilCache(frais.userId, frais);
+    setUtilisateur((u) => (u && u.userId === frais.userId ? frais : u));
+    setProfilFraisPour(frais.userId);
+    if (frais.abonnement?.bloque) throw new Error("L'abonnement n'est pas encore actif. Patientez un instant puis réessayez.");
+    if (!moteur) return;
+    setDeblocageForce(true);
+    void (async () => {
+      try {
+        await moteur.forcerSynchronisation();
+        // Un cycle déjà en cours avant le paiement peut avoir fini sur un refus : on en relance un.
+        if (moteur.etatActuel().abonnementBloque) await moteur.forcerSynchronisation();
+      } catch {
+        // La synchronisation réessaiera seule.
+      } finally {
+        setDeblocageForce(false);
+      }
+    })();
   }
 
   // Tant que la session est ouverte : renouvellement toutes les 40 min (le jeton d'accès vit ~1 h) ; si le jeton
@@ -626,19 +690,34 @@ export default function App() {
       {contenuPret && (
         <SafeAreaProvider>
           <FrontiereErreur>
-          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, effacerDonneesAppareil, moteurSync, miroir: miroir!, rechargerProfil: async () => {
-            const frais = await client.moi();
+          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, effacerDonneesAppareil, moteurSync, miroir: miroir!, apresRenouvellement, rechargerProfil: async () => {
+            // Relecture auprès du serveur d'abord (le profil sert aussi à décider du blocage d'abonnement) ; hors ligne, la copie en cache.
+            let serveur = true;
+            let frais: ProfilConnecte;
+            try {
+              frais = await lireProfilServeur();
+            } catch {
+              serveur = false;
+              frais = await client.moi();
+            }
             if (frais.userId !== utilisateur.userId) return;
             await ecrireProfilCache(frais.userId, frais);
             setUtilisateur((courant) => (courant && JSON.stringify(courant) === JSON.stringify(frais) ? courant : frais));
+            if (serveur) setProfilFraisPour(frais.userId);
           } }}>
             <RafraichisseurProfil />
-            <FournisseurNotifications client={client} role={utilisateur.role}>
-              <NavigationContainer ref={navigationRef}>
-                <CoquilleOnglets />
-              </NavigationContainer>
-              <CentreNotifications />
-            </FournisseurNotifications>
+            {abonnementBloque ? (
+              // Abonnement expiré : l'écran de renouvellement REMPLACE l'application (la base locale et la synchronisation restent actives,
+              // rien n'est perdu). Il disparaît tout seul dès que le serveur confirme l'abonnement.
+              <EcranAbonnementBloque onContinuer={apresRenouvellement} />
+            ) : (
+              <FournisseurNotifications client={client} role={utilisateur.role}>
+                <NavigationContainer ref={navigationRef}>
+                  <CoquilleOnglets />
+                </NavigationContainer>
+                <CentreNotifications />
+              </FournisseurNotifications>
+            )}
           </FournisseurSession>
           </FrontiereErreur>
           <StatusBar style="light" />

@@ -3,7 +3,8 @@ import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
-import { LogOut, UserRound } from "lucide-react-native";
+import { CreditCard, LogOut, UserRound } from "lucide-react-native";
+import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE } from "../navigation";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -23,6 +24,8 @@ export interface EcranParametresMobileProps {
   onSeDeconnecter?: () => void;
   /** Après modification d'un réglage de l'hôtel : relit le profil pour mettre les écrans à jour. */
   onProfilModifie?: () => void;
+  /** Ouvre l'écran « Abonnement » (visible par tous les rôles ; seul le patron y paie). */
+  onOuvrirAbonnement?: () => void;
 }
 
 /**
@@ -33,9 +36,10 @@ export interface EcranParametresMobileProps {
  * thème (pas de mode sombre mobile), pas de bloc Administration (Utilisateurs et
  * Taux de change vivent dans « Plus »).
  */
-export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie }: EcranParametresMobileProps) {
+export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie, onOuvrirAbonnement }: EcranParametresMobileProps) {
   const [enregistrement, setEnregistrement] = useState(false);
-  const { miroir, effacerDonneesAppareil } = useSession();
+  const { miroir, effacerDonneesAppareil, utilisateur: profil } = useSession();
+  const resumeAbonnement = profil.abonnement ? resumerAbonnement(actualiserEtatAbonnement(profil.abonnement)) : null;
   const patronOpere = utilisateur?.patronPeutOperer === true;
   const cuisineActivee = utilisateur?.cuisineActivee === true;
   const commandeWebActivee = utilisateur?.commandeWebActivee === true;
@@ -92,6 +96,24 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
       <EnteteRetour titre="Paramètres" onRetour={onRetour} />
 
       <ConteneurFormulaire>
+          {/* Abonnement : visible par tous (l'état concerne toute l'équipe) ; le paiement, lui, est réservé au patron dans l'écran qui s'ouvre. */}
+          {onOuvrirAbonnement && (
+            <View style={[styles.carte, styles.carteAbonnement]}>
+              <View style={styles.compteLigne}>
+                <View style={styles.compteAvatar}>
+                  <CreditCard size={18} color={couleurs.bleu} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compteNom} accessibilityRole="header">Abonnement</Text>
+                  <Text style={styles.compteRole}>{resumeAbonnement ? `${resumeAbonnement.titre}. ${resumeAbonnement.detail}` : "Voir l'état de votre abonnement."}</Text>
+                </View>
+              </View>
+              <Pressable style={styles.boutonSecondaire} onPress={onOuvrirAbonnement} accessibilityRole="button" accessibilityLabel={utilisateur?.role === Role.PATRON ? "Gérer l'abonnement" : "Voir l'abonnement"}>
+                <Text style={styles.boutonSecondaireTexte}>{utilisateur?.role === Role.PATRON ? "Gérer l'abonnement" : "Voir l'abonnement"}</Text>
+              </Pressable>
+            </View>
+          )}
+
           {/* Carte « Compte » : la déconnexion vit aussi ici (et en bas de
               l'écran Plus) — un employé cherchant « sortir » dans les
               réglages la trouve sans fouiller. « Changer de profil » reste
@@ -220,6 +242,7 @@ const styles = StyleSheet.create({
   bouton: { flex: 1, minHeight: 44, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },
   carteCompte: { marginTop: espacements.s3, gap: espacements.s3 },
+  carteAbonnement: { marginBottom: espacements.s3, gap: espacements.s3 },
   compteLigne: { flexDirection: "row", alignItems: "center", gap: espacements.s3 },
   compteAvatar: {
     width: 36,

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ClipboardList,
   Coins,
+  CreditCard,
   FileText,
   Wallet,
   LucideIcon,
@@ -27,6 +28,7 @@ import {
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
 import { peutOperer } from "@hotel-chicago/types";
+import { bandeauAbonnement } from "@hotel-chicago/regles";
 import { useSession } from "../contexteSession";
 import { useNotifications } from "../notifications/ContexteNotifications";
 import { useSyncEtat } from "../hooks/useSyncEtat";
@@ -51,6 +53,7 @@ import { EcranDepenses } from "./EcranDepenses";
 import { EcranInventaire } from "./EcranInventaire";
 import { EcranCuisine } from "./EcranCuisine";
 import { EcranRetraitCommande } from "./EcranRetraitCommande";
+import { EcranAbonnement } from "./EcranAbonnement";
 
 function initiales(nom: string): string {
   return nom
@@ -65,6 +68,7 @@ type VuePlus =
   | { id: "liste" }
   | { id: "parametres" }
   | { id: "synchronisation" }
+  | { id: "abonnement" }
   | { id: "imprimante" }
   | { id: "menu" }
   | { id: "stock" }
@@ -108,6 +112,7 @@ const ICONES_MENU: Record<string, LucideIcon> = {
   "taux-de-change": Coins,
   rapports: FileText,
   depenses: Wallet,
+  abonnement: CreditCard,
 };
 
 /** Ligne de menu standardisée : icône, libellé, chevron (ou badge « Bientôt »). */
@@ -157,6 +162,7 @@ export function EcranPlus() {
   const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
   const etatSync = useSyncEtat();
   const { demandePlus, consommerDemandePlus } = useNotifications();
+  const alerteAbonnement = bandeauAbonnement(utilisateur.abonnement);
 
   // Tap sur une notification (stock, arrivées, commande web…) : ouvre
   // directement la vue concernée — le détail du compte si le lien porte un id.
@@ -177,10 +183,14 @@ export function EcranPlus() {
         utilisateur={utilisateur}
         onChangerProfil={changerDeProfil}
         onProfilModifie={() => void rechargerProfil()}
+        onOuvrirAbonnement={() => setVue({ id: "abonnement" })}
         onSeDeconnecter={seDeconnecter}
         onRetour={() => setVue(VUE_LISTE)}
       />
     );
+  }
+  if (vue.id === "abonnement") {
+    return <EcranAbonnement onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "synchronisation") {
     return <EcranSynchronisation onRetour={() => setVue(VUE_LISTE)} />;
@@ -297,10 +307,15 @@ export function EcranPlus() {
                 icone={ICONES_MENU[entree.id] ?? Settings}
                 libelle={entree.libelle}
                 desactive={!entree.disponible}
+                libelleAccessible={entree.id === "abonnement" && alerteAbonnement ? `Abonnement, ${alerteAbonnement.texte}` : undefined}
                 badge={
                   !entree.disponible ? (
                     <View style={styles.badgeBientot}>
                       <Text style={styles.badgeBientotTexte}>Bientôt</Text>
+                    </View>
+                  ) : entree.id === "abonnement" && alerteAbonnement ? (
+                    <View style={[styles.badgeCompteur, alerteAbonnement.niveau === "danger" && styles.badgeDanger]}>
+                      <Text style={styles.badgeCompteurTexte}>À renouveler</Text>
                     </View>
                   ) : undefined
                 }
@@ -315,6 +330,7 @@ export function EcranPlus() {
                       | "stock"
                       | "inventaire"
                       | "utilisateurs"
+                      | "abonnement"
                       | "site-hotel"
                       | "arrivees-departs"
                       | "planning"
@@ -420,4 +436,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   badgeCompteurTexte: { fontSize: 11, fontWeight: "700", color: "#fff" },
+  badgeDanger: { backgroundColor: couleurs.danger },
 });

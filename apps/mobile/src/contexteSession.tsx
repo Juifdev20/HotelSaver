@@ -25,6 +25,9 @@ export interface Session {
   miroir: Miroir;
   /** Relit GET /auth/me (ex. après un changement de réglage de l'hôtel) pour mettre les écrans à jour. */
   rechargerProfil: () => Promise<void>;
+  /** À appeler quand un paiement d'abonnement vient d'être confirmé : relit le profil auprès du serveur (sans cache), le mémorise,
+   * réaffiche l'application si elle était bloquée et force une synchronisation. Échoue si le téléphone est hors ligne. */
+  apresRenouvellement: () => Promise<void>;
 }
 
 const ContexteSession = createContext<Session | null>(null);

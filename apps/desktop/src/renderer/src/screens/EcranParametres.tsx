@@ -2,8 +2,10 @@ import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { Devise, Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import type { ProfilConnecte } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
-import { Bell, ChefHat, Coins, Globe, Moon, Printer, ShieldCheck, Sun, Users } from "lucide-react";
+import { Bell, ChefHat, Coins, CreditCard, Globe, Moon, Printer, ShieldCheck, Sun, Users } from "lucide-react";
+import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
 import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 import { lireTauxChange } from "@hotel-chicago/miroir-local";
@@ -13,7 +15,7 @@ export interface EcranParametresProps {
   /** Présent seulement une fois connecté. */
   client?: ClientApi;
   /** Présent seulement une fois connecté — conditionne le bloc Administration (PATRON uniquement). */
-  utilisateur?: UtilisateurAuthentifie;
+  utilisateur?: UtilisateurAuthentifie & Pick<ProfilConnecte, "abonnement">;
   /** Présent seulement une fois connecté — conditionne le bloc Impression (rien à imprimer avant l'écran de connexion). */
   onNaviguer?: (page: IdPage) => void;
   /** Mode sombre : plus de bouton dédié dans la barre du haut en fenêtre étroite
@@ -217,6 +219,24 @@ export function EcranParametres({
 
       {client && preferencesSecurite && onChangerPreferencesSecurite && (
         <BlocSecurite client={client} preferences={preferencesSecurite} onChangerPreferences={onChangerPreferencesSecurite} />
+      )}
+
+      {/* Visible pour tous : chacun voit l'état de l'abonnement ; seul le patron peut payer (l'écran Abonnement le dit aux autres). */}
+      {onNaviguer && utilisateur && (
+        <div className="carte-formulaire" data-testid="parametres-abonnement">
+          <p className="hc-text-label texte-discret">Abonnement</p>
+          <div className="parametres-ligne">
+            <span className="parametres-ligne__icone">
+              <CreditCard size={18} aria-hidden="true" />
+            </span>
+            <span className="hc-text-body">
+              {utilisateur.abonnement ? resumerAbonnement(actualiserEtatAbonnement(utilisateur.abonnement)).titre : "État de l'abonnement"}
+            </span>
+            <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("abonnement")}>
+              {utilisateur.role === Role.PATRON ? "Gérer" : "Voir"}
+            </Button>
+          </div>
+        </div>
       )}
 
       {onNaviguer && (

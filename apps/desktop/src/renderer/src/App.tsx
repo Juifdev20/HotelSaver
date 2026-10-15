@@ -35,6 +35,9 @@ import { EcranRapports } from "./screens/EcranRapports";
 import { EcranDepenses } from "./screens/EcranDepenses";
 import { EcranBientot } from "./screens/EcranBientot";
 import { EcranSynchronisation } from "./screens/EcranSynchronisation";
+import { EcranAbonnement } from "./screens/EcranAbonnement";
+import { EcranAbonnementBloque } from "./screens/EcranAbonnementBloque";
+import { BandeauAbonnement } from "./components/BandeauAbonnement";
 import { IndicateurSynchro } from "./hors-ligne/IndicateurSynchro";
 import { creerGestionnaireSession } from "./hors-ligne/session";
 import { ouvrirPersistanceHotel, purgerAncienHotel, nomBaseHotel } from "./hors-ligne/bases-locales";
@@ -261,7 +264,10 @@ export function App() {
   };
   const lienRef = useRef(ouvrirLien);
   lienRef.current = ouvrirLien;
-  const centre = useNotifications(ecran === "application" ? client : null, (lien) => lienRef.current(lien));
+  // Abonnement : l'écran « expiré » remplace l'application UNIQUEMENT si le serveur l'a dit (profil relu en ligne avec `bloque`, ou une
+  // synchronisation refusée en 402). Un profil mémorisé et ancien, ouvert sans Internet, ne bloque jamais : il n'affiche qu'un bandeau.
+  const abonnementBloque = ecran === "application" && !modeHorsLigne && (utilisateur?.abonnement?.bloque === true || etatSync?.abonnementBloque === true);
+  const centre = useNotifications(ecran === "application" && !abonnementBloque ? client : null, (lien) => lienRef.current(lien));
   const ouvrirNotification = (notification: NotificationApp) => {
     void centre.marquerLue(notification.id);
     ouvrirLien(notification.lien);
@@ -292,6 +298,31 @@ export function App() {
       window.removeEventListener("focus", rafraichir);
     };
   }, [client, utilisateur?.userId]);
+
+  /** Après un paiement d'abonnement réussi : profil relu auprès du serveur (le cache de 20 s est écrasé), mémorisé dans la session locale
+   * (pour le prochain lancement), puis synchronisation immédiate des actions restées en file. L'application normale revient sans redémarrer. */
+  const apresPaiementAbonnement = useCallback(async () => {
+    if (!miroir) return;
+    await miroir.client.rechauffer();
+    const frais = await miroir.client.moi();
+    if (frais.userId !== profilRef.current?.userId) return;
+    if (frais.abonnement?.bloque) throw new Error("Votre paiement est bien enregistré, mais l'accès n'est pas encore rouvert. Réessayez dans un instant.");
+    setUtilisateur(frais);
+    await gestionnaire.current?.memoriserProfil(frais);
+    for (let essai = 0; essai < 3; essai++) {
+      await miroir.moteur.forcerSynchronisation().catch(() => undefined);
+      if (!miroir.moteur.etatActuel().abonnementBloque) break;
+    }
+  }, [miroir]);
+
+  // Le profil relu dit « plus bloqué » (paiement fait ailleurs, réouverture par le support) alors que le moteur croit encore au blocage :
+  // on relance tout de suite la synchronisation, sans attendre son prochain essai (espacé quand l'abonnement est bloqué).
+  const profilDebloque = utilisateur?.abonnement !== undefined && utilisateur.abonnement.bloque === false;
+  const syncCroitBloque = etatSync?.abonnementBloque === true;
+  useEffect(() => {
+    if (!miroir || !profilDebloque || !syncCroitBloque) return;
+    void miroir.moteur.forcerSynchronisation().catch(() => undefined);
+  }, [miroir, profilDebloque, syncCroitBloque]);
 
   async function seConnecter(email: string, motDePasse: string) {
     const g = gestionnaire.current;
@@ -450,6 +481,18 @@ export function App() {
     );
   }
 
+  if (ecran === "application" && client && utilisateur && abonnementBloque) {
+    return (
+      <EcranAbonnementBloque
+        client={client}
+        utilisateur={utilisateur}
+        horsLigne={modeHorsLigne}
+        onPaiementReussi={apresPaiementAbonnement}
+        onSeDeconnecter={() => void seDeconnecter()}
+      />
+    );
+  }
+
   if (ecran === "application" && client && utilisateur) {
     let contenu: React.ReactNode;
     if (page === "tableau-de-bord") {
@@ -548,6 +591,16 @@ export function App() {
       contenu = <EcranUtilisateurs client={client} />;
     } else if (page === "synchronisation" && miroir) {
       contenu = <EcranSynchronisation miroir={miroir} etat={etatSync} joursRestants={modeHorsLigne ? joursRestants : null} modeHorsLigne={modeHorsLigne} onEffacerDonnees={effacerDonneesAppareil} />;
+    } else if (page === "abonnement") {
+      contenu = (
+        <EcranAbonnement
+          client={client}
+          utilisateur={utilisateur}
+          horsLigne={modeHorsLigne}
+          onPaiementReussi={apresPaiementAbonnement}
+          onRetour={() => naviguer("parametres")}
+        />
+      );
     } else if (page === "parametres") {
       contenu = (
         <EcranParametres
@@ -581,13 +634,16 @@ export function App() {
         onToutMarquerLu={() => void centre.toutMarquerLu()}
         indicateurSynchro={<IndicateurSynchro etat={etatSync} joursRestants={modeHorsLigne ? joursRestants : null} onOuvrir={() => naviguer("synchronisation")} />}
         bandeau={
-          modeHorsLigne ? (
-            <div className="bandeau-hors-ligne hc-text-body" role="status" data-testid="bandeau-hors-ligne">
-              {joursRestants === 0
-                ? "La durée de travail sans Internet est dépassée : connectez cet ordinateur à Internet dès que possible (l'accès sera refusé au prochain lancement)."
-                : `Session ouverte sans Internet. Vos actions sont enregistrées sur cet ordinateur et partiront dès le retour de la connexion.${joursRestants !== null && joursRestants <= 3 ? ` Reconnexion à Internet obligatoire dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}.` : ""}`}
-            </div>
-          ) : null
+          <>
+            {modeHorsLigne ? (
+              <div className="bandeau-hors-ligne hc-text-body" role="status" data-testid="bandeau-hors-ligne">
+                {joursRestants === 0
+                  ? "La durée de travail sans Internet est dépassée : connectez cet ordinateur à Internet dès que possible (l'accès sera refusé au prochain lancement)."
+                  : `Session ouverte sans Internet. Vos actions sont enregistrées sur cet ordinateur et partiront dès le retour de la connexion.${joursRestants !== null && joursRestants <= 3 ? ` Reconnexion à Internet obligatoire dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}.` : ""}`}
+              </div>
+            ) : null}
+            {page !== "abonnement" && <BandeauAbonnement etat={utilisateur.abonnement} onOuvrir={() => naviguer("abonnement")} />}
+          </>
         }
       >
         {contenu}

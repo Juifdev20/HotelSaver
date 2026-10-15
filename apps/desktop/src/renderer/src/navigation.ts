@@ -17,6 +17,7 @@ export type IdPage =
   | "inventaire"
   | "parametres"
   | "imprimante"
+  | "abonnement"
   | "utilisateurs"
   | "site-hotel"
   | "rapports"
@@ -115,5 +116,6 @@ export function libellePage(id: IdPage): string {
   if (id === "imprimante") return "Imprimante";
   if (id === "utilisateurs") return "Utilisateurs";
   if (id === "synchronisation") return "Synchronisation";
+  if (id === "abonnement") return "Abonnement";
   return SECTIONS.flatMap((s) => s.entrees).find((e) => e.id === id)?.libelle ?? "";
 }

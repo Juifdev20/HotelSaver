@@ -12,7 +12,7 @@ const INTERVALLE_MS = 30_000;
 
 /** Vue de l'onglet « Plus » à ouvrir (les écrans qui n'ont pas leur propre onglet). */
 export interface DemandePlus {
-  vue: "stock" | "arrivees-departs" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation";
+  vue: "stock" | "arrivees-departs" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation" | "abonnement";
   /** Compte cafétéria à ouvrir directement (deep-link notification). */
   compteId?: string;
   cle: number;
@@ -50,6 +50,8 @@ interface ValeurNotifications {
   consommerDemandeReservation: () => void;
   /** Ouvre l'écran « Synchronisation » (onglet Plus) — bandeau d'état hors ligne / action refusée de EnteteMobile. */
   ouvrirSynchronisation: () => void;
+  /** Ouvre l'écran « Abonnement » (onglet Plus) — bandeau d'abonnement de EnteteMobile. */
+  ouvrirAbonnement: () => void;
 }
 
 const Contexte = createContext<ValeurNotifications | null>(null);
@@ -222,6 +224,11 @@ export function FournisseurNotifications({
     if (navigationRef.isReady()) navigationRef.navigate("plus" as never);
   }, []);
 
+  const ouvrirAbonnement = useCallback(() => {
+    setDemandePlus({ vue: "abonnement", cle: ++compteurDemandes.current });
+    if (navigationRef.isReady()) navigationRef.navigate("plus" as never);
+  }, []);
+
   const valeur = useMemo<ValeurNotifications>(
     () => ({
       notifications,
@@ -243,8 +250,9 @@ export function FournisseurNotifications({
       demandeReservation,
       consommerDemandeReservation: () => setDemandeReservation(null),
       ouvrirSynchronisation,
+      ouvrirAbonnement,
     }),
-    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, ouvrirSynchronisation, demandePlus, demandeCompte, demandeReservation]
+    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, ouvrirSynchronisation, ouvrirAbonnement, demandePlus, demandeCompte, demandeReservation]
   );
 
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;
