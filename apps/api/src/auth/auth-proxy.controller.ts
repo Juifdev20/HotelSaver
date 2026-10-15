@@ -1,4 +1,12 @@
-import { BadGatewayException, Body, Controller, HttpCode, HttpException, InternalServerErrorException, Post } from "@nestjs/common";
+import { BadGatewayException, Body, Controller, HttpCode, HttpException, Inject, InternalServerErrorException, Post } from "@nestjs/common";
+import { PrismaClient } from "@hotel-chicago/database";
+import { normaliserTelephoneRdc } from "@hotel-chicago/types";
+import { PRISMA } from "../prisma/prisma.module";
+import { emailDuCompte } from "../common/telephone/identifiant-connexion";
+
+/** Même corps que Supabase pour de mauvais identifiants : le client affiche
+ * « Numéro ou mot de passe incorrect » sans savoir si le numéro existe. */
+const IDENTIFIANTS_INCORRECTS = { error_code: "invalid_credentials", msg: "Invalid login credentials" };
 
 /**
  * Relais d'authentification vers Supabase Auth — le client parle à NOTRE
@@ -11,13 +19,33 @@ import { BadGatewayException, Body, Controller, HttpCode, HttpException, Interna
  * qu'on cherche à obtenir). Pas de log des identifiants ; statut et corps
  * transmis tels quels : le mapping des erreurs en français reste le
  * travail du client (supabase-auth.ts, MESSAGES_PAR_CODE).
+ *
+ * Connexion par numéro (15/10/2026) : `telephone` (ou `identifiant` sans
+ * « @ ») est normalisé puis recherché dans Utilisateur / SuperAdmin ; on
+ * relaie avec l'e-mail du compte Supabase (e-mail réel ou identifiant
+ * interne, voir identifiant-connexion.ts). Un identifiant contenant « @ » est
+ * un e-mail, transmis tel quel (comptes antérieurs, transition).
  */
 @Controller("auth")
 export class AuthProxyController {
+  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+
   @Post("connexion")
   @HttpCode(200)
-  connexion(@Body() corps: { email?: string; motDePasse?: string }) {
-    return this.relayer("password", { email: corps?.email, password: corps?.motDePasse });
+  async connexion(@Body() corps: { telephone?: string; email?: string; identifiant?: string; motDePasse?: string }) {
+    const saisie = (corps?.telephone ?? corps?.identifiant ?? corps?.email ?? "").trim();
+    const email = saisie.includes("@") ? saisie : await this.emailDepuisTelephone(saisie);
+    return this.relayer("password", { email, password: corps?.motDePasse });
+  }
+
+  private async emailDepuisTelephone(saisie: string): Promise<string> {
+    const telephone = normaliserTelephoneRdc(saisie);
+    if (!telephone) throw new HttpException(IDENTIFIANTS_INCORRECTS, 400);
+    const utilisateur = await this.prisma.utilisateur.findUnique({ where: { telephone }, select: { email: true } });
+    if (utilisateur) return emailDuCompte(telephone, utilisateur.email);
+    const superAdmin = await this.prisma.superAdmin.findUnique({ where: { telephone }, select: { email: true } });
+    if (superAdmin) return emailDuCompte(telephone, superAdmin.email);
+    throw new HttpException(IDENTIFIANTS_INCORRECTS, 400);
   }
 
   @Post("rafraichir")

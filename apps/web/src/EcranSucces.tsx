@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Download, MailCheck, Monitor, Smartphone, UserPlus } from "lucide-react";
+import { Download, Monitor, Phone, Smartphone, UserPlus } from "lucide-react";
+import { formaterTelephoneRdc } from "@hotel-chicago/types";
 import { configuration } from "./config";
 import { MiseEnPageAuth } from "./auth/MiseEnPageAuth";
 import { OuvrirApplication } from "./accueil/OuvrirApplication";
@@ -32,7 +33,7 @@ function BoutonTelechargement({ url, icone: Icone, libelle }: { url: string | nu
  * suite — se connecter, créer les comptes réception et cafétaria — se passe
  * obligatoirement dans l'application. Cet écran propose de l'ouvrir si elle est déjà
  * installée, sinon de la télécharger. */
-export function EcranSucces({ email }: { email: string }) {
+export function EcranSucces({ telephone }: { telephone: string }) {
   return (
     <MiseEnPageAuth>
       <div className="carte-auth">
@@ -42,10 +43,12 @@ export function EcranSucces({ email }: { email: string }) {
 
         <ol className="parcours">
           <li>
-            <MailCheck size={20} aria-hidden="true" />
+            <Phone size={20} aria-hidden="true" />
             <span>
-              <strong>Confirmez votre adresse</strong>
-              <small>Un e-mail vous a été envoyé à {email}.</small>
+              <strong>Connectez-vous avec votre numéro</strong>
+              <small>
+                Votre identifiant : {formaterTelephoneRdc(telephone)}, avec le mot de passe que vous venez de choisir.
+              </small>
             </span>
           </li>
           <li>
@@ -65,7 +68,7 @@ export function EcranSucces({ email }: { email: string }) {
         </ol>
 
         <div className="telechargements">
-          <OuvrirApplication email={email} />
+          <OuvrirApplication telephone={telephone} />
           <BoutonTelechargement url={configuration.urlWindows} icone={Monitor} libelle="Application Windows (ordinateur)" />
         </div>
       </div>

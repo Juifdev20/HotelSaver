@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ClientApi,
   ErreurApi,
-  connecterAvecMotDePasse,
+  connecterViaApi,
   demanderReinitialisationMotDePasse,
   inscrireHotel,
   rafraichirSession,
@@ -79,7 +79,8 @@ export function App() {
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
   // Pré-remplissage / message de la connexion (après une inscription, ou un lien « Ouvrir l'application »).
-  const [emailPreRempli, setEmailPreRempli] = useState<string | undefined>(undefined);
+  /** Numéro (ou e-mail d'un ancien compte) à pré-remplir à l'écran de connexion. */
+  const [identifiantPreRempli, setIdentifiantPreRempli] = useState<string | undefined>(undefined);
   const [messageConnexion, setMessageConnexion] = useState<string | null>(null);
   const [erreurInscription, setErreurInscription] = useState<string | null>(null);
   const [inscriptionEnCours, setInscriptionEnCours] = useState(false);
@@ -140,7 +141,8 @@ export function App() {
     lienEnAttente.current = null;
     const m = /^hotelsaver:\/\/connexion(?:\?(.*))?$/i.exec(url);
     if (!m || ecran === "application") return;
-    setEmailPreRempli(new URLSearchParams(m[1] ?? "").get("email") ?? undefined);
+    const parametres = new URLSearchParams(m[1] ?? "");
+    setIdentifiantPreRempli(parametres.get("telephone") ?? parametres.get("email") ?? undefined);
     setMessageConnexion("Connectez-vous avec le compte que vous venez de créer.");
     setErreurConnexion(null);
     setEcran("connexion");
@@ -235,16 +237,15 @@ export function App() {
     };
   }, [client, utilisateur?.userId]);
 
-  async function seConnecter(email: string, motDePasse: string) {
+  /** Connexion par numéro (ou e-mail d'un ancien compte) via le relais de
+   * l'API (15/10/2026) : c'est le serveur qui traduit le numéro en compte
+   * Supabase — un appel direct à Supabase ne connaît que l'e-mail. */
+  async function seConnecter(identifiant: string, motDePasse: string) {
     if (!configuration) return;
     setErreurConnexion(null);
     setConnexionEnCours(true);
     try {
-      const session = await connecterAvecMotDePasse(
-        { url: configuration.supabaseUrl, anonKey: configuration.supabaseAnonKey },
-        email,
-        motDePasse
-      );
+      const session = await connecterViaApi([configuration.apiUrl], identifiant, motDePasse);
       await window.hotelChicago.ecrireConfiguration({ refreshToken: session.refreshToken });
       setAccessToken(session.accessToken);
     } catch (erreur) {
@@ -263,19 +264,14 @@ export function App() {
     try {
       await inscrireHotel({ url: configuration.apiUrl }, dto);
       try {
-        // Le compte est créé avec email_confirm: false (DECISIONS.md, Phase 4) : la première
-        // connexion peut échouer tant que l'adresse n'est pas confirmée. L'hôtel existe bien :
-        // on n'affiche donc jamais l'erreur brute de connexion.
-        const session = await connecterAvecMotDePasse(
-          { url: configuration.supabaseUrl, anonKey: configuration.supabaseAnonKey },
-          dto.email,
-          dto.motDePasse
-        );
+        // Connexion immédiate avec le numéro (compte confirmé d'office depuis le
+        // 15/10/2026). L'hôtel existe bien : jamais l'erreur brute de connexion ici.
+        const session = await connecterViaApi([configuration.apiUrl], dto.telephoneProprietaire, dto.motDePasse);
         await window.hotelChicago.ecrireConfiguration({ refreshToken: session.refreshToken });
         setAccessToken(session.accessToken);
       } catch {
-        setEmailPreRempli(dto.email);
-        setMessageConnexion("Compte créé ! Vérifiez votre boîte mail pour confirmer votre adresse avant de vous connecter.");
+        setIdentifiantPreRempli(dto.telephoneProprietaire);
+        setMessageConnexion("Compte créé ! Connectez-vous avec votre numéro et votre mot de passe.");
         setEcran("connexion");
       }
     } catch (erreur) {
@@ -471,10 +467,10 @@ export function App() {
 
   return (
     <EcranConnexion
-      key={emailPreRempli ?? "connexion"}
+      key={identifiantPreRempli ?? "connexion"}
       onConnexion={seConnecter}
-      onMotDePasseOublie={async (email) => {
-        await demanderReinitialisationMotDePasse({ url: configuration.apiUrl }, email);
+      onMotDePasseOublie={async (identifiant) => {
+        await demanderReinitialisationMotDePasse({ url: configuration.apiUrl }, identifiant);
       }}
       onCreerCompte={() => {
         setErreurConnexion(null);
@@ -482,7 +478,7 @@ export function App() {
         setErreurInscription(null);
         setEcran("inscription");
       }}
-      emailInitial={emailPreRempli}
+      identifiantInitial={identifiantPreRempli}
       message={messageConnexion}
       erreur={erreurConnexion}
       enCours={connexionEnCours}

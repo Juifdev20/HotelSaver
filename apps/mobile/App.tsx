@@ -12,6 +12,7 @@ import { candidatsApi, lireConfiguration, type ConfigurationApp } from "./src/st
 import { creerStockageLocalMobile } from "./src/stockage/stockageLocalMobile";
 import {
   ProfilEnregistre,
+  identifiantProfil,
   ecrireDernierUtilisateur,
   ecrireJetonRafraichissement,
   enregistrerProfil,
@@ -79,9 +80,14 @@ function EcranChargement({ onPret }: { onPret?: () => void }) {
         });
       }}
     >
-      <Image source={require("./assets/hotelsaver-logo.png")} style={styles.logoChargement} resizeMode="contain" />
-      <ActivityIndicator color="#FFFFFF" size="large" style={styles.spinnerChargement} />
-      <Text style={styles.texteChargement}>Veuillez patienter…</Text>
+      {/* Logo de 128 dp centré : même taille et même place que le splash
+       * système et le voile natif (splash_demarrage, MainActivity) — seuls
+       * les textes changent d'un écran à l'autre. */}
+      <Image source={require("./assets/hotelsaver-logo-carre.png")} style={styles.logoChargement} resizeMode="contain" />
+      <View style={styles.sousLogoChargement}>
+        <ActivityIndicator color="#FFFFFF" size="large" />
+        <Text style={styles.texteChargement}>Veuillez patienter…</Text>
+      </View>
     </View>
   );
 }
@@ -117,7 +123,8 @@ export default function App() {
   const [configuration, setConfiguration] = useState<ConfigurationApp | null>(null);
   const [profils, setProfils] = useState<ProfilEnregistre[]>([]);
   const [ecran, setEcran] = useState<Ecran>("chargement");
-  const [emailPreRempli, setEmailPreRempli] = useState<string | undefined>(undefined);
+  /** Numéro (ou e-mail d'un ancien compte) à pré-remplir à l'écran de connexion. */
+  const [identifiantPreRempli, setIdentifiantPreRempli] = useState<string | undefined>(undefined);
   const [messageConnexion, setMessageConnexion] = useState<string | null>(null);
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
@@ -136,17 +143,18 @@ export default function App() {
   };
   const [utilisateur, setUtilisateur] = useState<ProfilConnecte | null>(null);
 
-  // Lien profond « Ouvrir l'application » du site web (hotelsaver://connexion?email=…) : on
+  // Lien profond « Ouvrir l'application » du site web (hotelsaver://connexion?telephone=… ou ?email=…) : on
   // garde l'e-mail en attente puis on l'applique dès que l'écran de départ est connu, pour
   // que la logique de démarrage (profils, reconnexion silencieuse) ne l'écrase pas.
-  const lienEnAttente = useRef<{ email?: string } | null>(null);
+  const lienEnAttente = useRef<{ identifiant?: string } | null>(null);
   const [lienRecu, setLienRecu] = useState(0);
 
   useEffect(() => {
     function traiter(url: string | null) {
       const m = url ? /^hotelsaver:\/\/connexion(?:\?(.*))?$/i.exec(url) : null;
       if (!m) return;
-      lienEnAttente.current = { email: new URLSearchParams(m[1] ?? "").get("email") ?? undefined };
+      const parametres = new URLSearchParams(m[1] ?? "");
+      lienEnAttente.current = { identifiant: parametres.get("telephone") ?? parametres.get("email") ?? undefined };
       setLienRecu((n) => n + 1);
     }
     void Linking.getInitialURL().then(traiter);
@@ -160,7 +168,7 @@ export default function App() {
     lienEnAttente.current = null;
     // Déjà connecté : rien à faire. Sinon : écran de connexion, e-mail pré-rempli.
     if (ecran === "application") return;
-    setEmailPreRempli(lien.email);
+    setIdentifiantPreRempli(lien.identifiant);
     setMessageConnexion("Connectez-vous avec le compte que vous venez de créer.");
     setErreurConnexion(null);
     setEcran("connexion");
@@ -281,7 +289,7 @@ export default function App() {
               rafraichir(config, jeton),
               attendreDureeMinimale(),
             ]);
-            await terminerConnexion(session, config, profil.email);
+            await terminerConnexion(session, config, identifiantProfil(profil));
             return;
           } catch {
             // Session invalide, continuer vers sélection de profil
@@ -295,7 +303,8 @@ export default function App() {
     })();
   }, []);
 
-  async function terminerConnexion(session: { accessToken: string; refreshToken: string }, config: ConfigurationApp, email: string) {
+  /** `identifiant` : numéro « +243… » (ou e-mail d'un ancien compte) mémorisé avec le profil pour pré-remplir la prochaine connexion. */
+  async function terminerConnexion(session: { accessToken: string; refreshToken: string }, config: ConfigurationApp, identifiant?: string) {
     const clientTemporaire = new ClientApi(candidatsApi(), () => session.accessToken);
     // Timeout : sans lui, un serveur injoignable fait pendre le démarrage
     // jusqu'au timeout TCP (~2 min). En échec, le démarrage retombe sur la
@@ -306,7 +315,12 @@ export default function App() {
         setTimeout(() => rejette(new Error("Serveur injoignable")), 6_000)
       ),
     ]);
-    await enregistrerProfil({ utilisateurId: donnees.userId, nom: donnees.nom, role: donnees.role, email });
+    await enregistrerProfil({
+      utilisateurId: donnees.userId,
+      nom: donnees.nom,
+      role: donnees.role,
+      ...(identifiant?.includes("@") ? { email: identifiant } : { telephone: identifiant }),
+    });
     await ecrireJetonRafraichissement(donnees.userId, session.refreshToken);
     await ecrireDernierUtilisateur(donnees.userId);
     await ecrireProfilCache(donnees.userId, donnees);
@@ -393,7 +407,7 @@ export default function App() {
     // compte cafétaria (ou le patron) en un tap sur le téléphone partagé
     // (retour terrain 28/09). Le patron circule quand même : il connaît les
     // identifiants de chaque compte puisque c'est lui qui les crée.
-    setEmailPreRempli(profil.email);
+    setIdentifiantPreRempli(identifiantProfil(profil));
     setMessageConnexion("Entrez le mot de passe de ce compte pour continuer.");
     setEcran("connexion");
   }
@@ -402,12 +416,15 @@ export default function App() {
    * n'a besoin que du LAN, le serveur parle à Supabase à sa place) ; en
    * secours — relais absent sur une vieille API (404) — appel direct
    * Supabase qui exige l'Internet. */
-  async function connecter(config: ConfigurationApp, email: string, motDePasse: string) {
+  async function connecter(config: ConfigurationApp, identifiant: string, motDePasse: string) {
     try {
-      return await connecterViaApi(candidatsApi(), email, motDePasse);
+      return await connecterViaApi(candidatsApi(), identifiant, motDePasse);
     } catch (e) {
       if (e instanceof ErreurApi && e.statusCode === 404) {
-        return connecterAvecMotDePasse({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, email, motDePasse);
+        // Le secours direct Supabase ne connaît que l'e-mail : la traduction
+        // numéro → compte se fait sur le serveur (connexion par numéro, 15/10/2026).
+        if (!identifiant.includes("@")) throw new Error("Le serveur HotelSaver doit être mis à jour pour la connexion par numéro.");
+        return connecterAvecMotDePasse({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, identifiant, motDePasse);
       }
       throw e;
     }
@@ -424,13 +441,13 @@ export default function App() {
     }
   }
 
-  async function seConnecter(email: string, motDePasse: string) {
+  async function seConnecter(identifiant: string, motDePasse: string) {
     if (!configuration) return;
     setErreurConnexion(null);
     setConnexionEnCours(true);
     try {
-      const session = await connecter(configuration, email, motDePasse);
-      await terminerConnexion(session, configuration, email);
+      const session = await connecter(configuration, identifiant, motDePasse);
+      await terminerConnexion(session, configuration, identifiant);
     } catch (erreur) {
       setErreurConnexion(erreur instanceof Error ? messageErreurProfil(erreur) : "Erreur de connexion.");
     } finally {
@@ -445,17 +462,14 @@ export default function App() {
     try {
       await inscrireHotel({ url: candidatsApi() }, dto);
       try {
-        // Le compte Supabase créé côté serveur a email_confirm: false (choix
-        // volontaire, voir DECISIONS.md Phase 4) : la première connexion peut
-        // échouer tant que l'email n'est pas confirmé. Ce n'est pas un échec
-        // d'inscription — l'hôtel existe bel et bien — donc on ne réaffiche
-        // jamais l'erreur brute de connexion ici (ex. "Contactez le patron"
-        // n'aurait aucun sens pour quelqu'un qui vient de créer SON compte).
-        const session = await connecter(configuration, dto.email, dto.motDePasse);
-        await terminerConnexion(session, configuration, dto.email);
+        // Connexion immédiate avec le numéro (compte confirmé d'office depuis
+        // le 15/10/2026). Un échec ici n'est pas un échec d'inscription —
+        // l'hôtel existe bel et bien — donc jamais l'erreur brute de connexion.
+        const session = await connecter(configuration, dto.telephoneProprietaire, dto.motDePasse);
+        await terminerConnexion(session, configuration, dto.telephoneProprietaire);
       } catch {
-        setEmailPreRempli(dto.email);
-        setMessageConnexion("Compte créé ! Vérifiez votre boîte mail pour confirmer votre adresse avant de vous connecter.");
+        setIdentifiantPreRempli(dto.telephoneProprietaire);
+        setMessageConnexion("Compte créé ! Connectez-vous avec votre numéro et votre mot de passe.");
         setEcran("connexion");
       }
     } catch (erreur) {
@@ -470,7 +484,7 @@ export default function App() {
     setProfils(liste);
     setErreurConnexion(null);
     setMessageConnexion(null);
-    setEmailPreRempli(undefined);
+    setIdentifiantPreRempli(undefined);
     setEcran(liste.length > 0 ? "selection-profil" : "connexion");
   }
 
@@ -504,7 +518,7 @@ export default function App() {
         profils={profils}
         onChoisir={choisirProfil}
         onAjouterCompte={() => {
-          setEmailPreRempli(undefined);
+          setIdentifiantPreRempli(undefined);
           setMessageConnexion(null);
           setEcran("connexion");
         }}
@@ -519,14 +533,14 @@ export default function App() {
   if (ecran === "connexion") {
     return (
       <EcranConnexion
-        emailInitial={emailPreRempli}
+        identifiantInitial={identifiantPreRempli}
         message={messageConnexion}
         erreur={erreurConnexion}
         enCours={connexionEnCours}
         onConnexion={seConnecter}
-        onMotDePasseOublie={async (email) => {
+        onMotDePasseOublie={async (identifiant) => {
           if (!configuration) throw new Error("Application pas encore configurée.");
-          await demanderReinitialisationMotDePasse({ url: candidatsApi() }, email);
+          await demanderReinitialisationMotDePasse({ url: candidatsApi() }, identifiant);
         }}
         onRetour={profils.length > 0 ? retourSelectionProfil : undefined}
         onCreerCompte={() => {
@@ -604,7 +618,7 @@ export default function App() {
 const styles = StyleSheet.create({
   racine: { flex: 1 },
   chargement: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#053483" },
-  logoChargement: { width: 140, height: 140 },
-  spinnerChargement: { marginTop: 24 },
+  logoChargement: { width: 128, height: 128 },
+  sousLogoChargement: { position: "absolute", top: "50%", left: 0, right: 0, marginTop: 64 + 24, alignItems: "center" },
   texteChargement: { marginTop: 16, color: "#FFFFFF", fontSize: 14 },
 });

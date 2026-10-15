@@ -1,18 +1,11 @@
 import * as React from "react";
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { UserPlus } from "lucide-react-native";
-import { couleurs, espacements, rayons } from "../tokens";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { BriefcaseBusiness, ChevronRight, UserPlus } from "lucide-react-native";
+import { couleurs } from "../tokens";
 import type { ProfilEnregistre } from "../stockage/profils";
 import { LIBELLE_ROLE } from "../navigation";
-
-function initiales(nom: string): string {
-  return nom
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((mot) => mot[0]!.toUpperCase())
-    .join("");
-}
+import { AvatarUtilisateur } from "../composants/AvatarUtilisateur";
+import { PageAuth } from "../composants/PageAuth";
 
 export interface EcranSelectionProfilProps {
   profils: ProfilEnregistre[];
@@ -23,89 +16,83 @@ export interface EcranSelectionProfilProps {
 }
 
 /** Section 5 : "sélection de profil au démarrage" — plusieurs membres du
- * personnel partagent le même téléphone. */
+ * personnel partagent le même téléphone. Maquette du 15/10/2026 : même gabarit
+ * que Connexion / Inscription (PageAuth — coins et vagues bleu pâle, en-tête
+ * centré au même endroit), cartes avec rôle et chevron, « Ajouter un compte »
+ * en bouton plein. Liste en simple map : quelques profils au plus par appareil. */
 export function EcranSelectionProfil({ profils, onChoisir, onAjouterCompte, onOublierProfil }: EcranSelectionProfilProps) {
   return (
-    <View style={styles.page}>
-      <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
-      <Text style={styles.titre}>HotelSaver</Text>
-      <Text style={styles.sousTitre}>Qui utilise l'appareil ?</Text>
-      {profils.length > 0 && <Text style={styles.astuce}>Appui long sur un profil pour le retirer de cet appareil.</Text>}
+    <PageAuth>
+      <Text style={styles.titre}>Qui utilise HotelSaver sur cet appareil ?</Text>
+      <Text style={styles.sousTitre}>Choisissez un profil pour continuer.</Text>
+      {profils.length > 0 && <Text style={styles.astuce}>Appuyez longuement sur un profil pour le retirer de cet appareil.</Text>}
 
-      <FlatList
-        data={profils}
-        keyExtractor={(p) => p.utilisateurId}
-        contentContainerStyle={styles.liste}
-        renderItem={({ item }) => (
+      {profils.length > 0 && <Text style={styles.section}>COMPTES ENREGISTRÉS</Text>}
+      <View style={styles.liste}>
+        {profils.map((profil) => (
           <Pressable
-            style={styles.carte}
-            onPress={() => onChoisir(item)}
-            onLongPress={() => onOublierProfil(item)}
+            key={profil.utilisateurId}
+            style={({ pressed }) => [styles.carte, pressed && styles.cartePressee]}
+            onPress={() => onChoisir(profil)}
+            onLongPress={() => onOublierProfil(profil)}
             delayLongPress={500}
+            accessibilityRole="button"
+            accessibilityLabel={`${profil.nom}, ${LIBELLE_ROLE[profil.role]}`}
           >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarTexte}>{initiales(item.nom)}</Text>
-            </View>
+            <AvatarUtilisateur taille={48} />
             <View style={styles.identite}>
-              <Text style={styles.nom}>{item.nom}</Text>
-              <Text style={styles.role}>{LIBELLE_ROLE[item.role]}</Text>
+              <Text style={styles.nom} numberOfLines={1}>
+                {profil.nom}
+              </Text>
+              <View style={styles.ligneRole}>
+                <BriefcaseBusiness size={15} color="#5B6B8C" />
+                <Text style={styles.role}>{LIBELLE_ROLE[profil.role]}</Text>
+              </View>
             </View>
+            <ChevronRight size={20} color="#5B6B8C" />
           </Pressable>
-        )}
-      />
+        ))}
+      </View>
 
       <Pressable style={styles.boutonAjouter} onPress={onAjouterCompte}>
-        <UserPlus size={18} color={couleurs.bleu} />
+        <UserPlus size={20} color="#fff" />
         <Text style={styles.boutonAjouterTexte}>Ajouter un compte</Text>
       </Pressable>
-    </View>
+    </PageAuth>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: couleurs.surface100,
-    padding: espacements.s5,
-    paddingTop: espacements.s7,
-  },
-  logo: { width: 72, height: 72, marginBottom: espacements.s3 },
-  titre: { fontSize: 28, fontWeight: "700", color: couleurs.navy },
-  sousTitre: { fontSize: 15, color: couleurs.encreAttenuee, marginTop: espacements.s1 },
-  astuce: { fontSize: 12, color: couleurs.encreFaible, marginTop: espacements.s1, marginBottom: espacements.s5 },
-  liste: { gap: espacements.s3 },
+  titre: { fontSize: 24, fontWeight: "800", color: couleurs.navy, letterSpacing: -0.3, textAlign: "center" },
+  sousTitre: { fontSize: 15, color: "#5B6B8C", marginTop: 6, textAlign: "center" },
+  astuce: { fontSize: 12.5, color: "#7A879C", marginTop: 10, textAlign: "center" },
+  section: { fontSize: 12.5, fontWeight: "700", color: "#7A879C", letterSpacing: 0.8, marginTop: 22, marginBottom: 10 },
+  liste: { gap: 12 },
   carte: {
     flexDirection: "row",
     alignItems: "center",
-    gap: espacements.s3,
-    padding: espacements.s4,
-    backgroundColor: couleurs.surface200,
-    borderRadius: rayons.lg,
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: couleurs.bordure,
+    borderColor: "#DCE4F0",
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: rayons.pill,
-    backgroundColor: couleurs.bleuClair,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 15 },
-  identite: { flex: 1 },
-  nom: { fontSize: 16, fontWeight: "600", color: couleurs.encre },
-  role: { fontSize: 13, color: couleurs.encreAttenuee, marginTop: 2 },
+  cartePressee: { backgroundColor: "#F3F7FE" },
+  identite: { flex: 1, gap: 4 },
+  nom: { fontSize: 16, fontWeight: "700", color: couleurs.navy },
+  ligneRole: { flexDirection: "row", alignItems: "center", gap: 6 },
+  role: { fontSize: 14, color: "#5B6B8C" },
   boutonAjouter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: espacements.s2,
-    marginTop: espacements.s4,
-    paddingVertical: espacements.s3,
-    borderRadius: rayons.sm,
-    borderWidth: 1,
-    borderColor: couleurs.bleu,
+    gap: 10,
+    marginTop: 28,
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: couleurs.bleu,
   },
-  boutonAjouterTexte: { color: couleurs.bleu, fontWeight: "600", fontSize: 15 },
+  boutonAjouterTexte: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });

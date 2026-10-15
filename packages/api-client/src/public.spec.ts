@@ -20,6 +20,7 @@ const dto = {
   nom: "Hôtel Test",
   sousDomaine: "hotel-test",
   nomProprietaire: "Jean Proprio",
+  telephoneProprietaire: "+243970000000",
   email: "jean@exemple.com",
   motDePasse: "motdepasse123",
 };

@@ -5,7 +5,9 @@
 // premier compte PATRON.
 //
 // Usage (depuis la racine du dépôt) :
-//   MOT_DE_PASSE='...' pnpm --filter database creer-utilisateur <email> "<nom>" <ROLE> <hotelId>
+//   MOT_DE_PASSE='...' [EMAIL='...'] pnpm --filter database creer-utilisateur <telephone> "<nom>" <ROLE> <hotelId>
+// <telephone> : numéro RDC, identifiant de connexion depuis le 15/10/2026.
+// EMAIL optionnel (mot de passe oublié).
 // ROLE : PATRON | RECEPTIONNISTE | CAFETARIA
 // hotelId : id du Hotel auquel rattacher ce compte (voir `Hotel.id`, table
 // créée en Phase 1 — utiliser `POST /super-admin/hotels` pour un nouvel
@@ -18,6 +20,7 @@ const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 require("dotenv").config({ path: path.join(__dirname, "..", "..", "..", "apps", "api", ".env") });
 const { prisma } = require("../dist/index.js");
+const { normaliserTelephoneRdc, emailDuCompte } = require("./telephone.js");
 
 const ROLES = ["PATRON", "RECEPTIONNISTE", "CAFETARIA"];
 
@@ -37,25 +40,31 @@ async function appelAdmin(methode, chemin, corps) {
 
 async function main() {
   // pnpm transmet un "--" littéral s'il est tapé : on l'ignore.
-  const [email, nom, role, hotelId] = process.argv.slice(2).filter((argument) => argument !== "--");
+  const [saisieTelephone, nom, role, hotelId] = process.argv.slice(2).filter((argument) => argument !== "--");
   const motDePasse = process.env.MOT_DE_PASSE;
+  const telephone = normaliserTelephoneRdc(saisieTelephone);
+  const email = process.env.EMAIL || null;
 
-  if (!email || !nom || !ROLES.includes(role) || !hotelId || !motDePasse) {
+  if (!telephone || !nom || !ROLES.includes(role) || !hotelId || !motDePasse) {
     throw new Error(
-      `Usage : MOT_DE_PASSE='...' pnpm --filter database creer-utilisateur <email> "<nom>" <${ROLES.join("|")}> <hotelId>`
+      `Usage : MOT_DE_PASSE='...' [EMAIL='...'] pnpm --filter database creer-utilisateur <telephone RDC> "<nom>" <${ROLES.join("|")}> <hotelId>`
     );
   }
   for (const variable of ["DATABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) {
     if (!process.env[variable]) throw new Error(`${variable} manquant (voir les .env.example).`);
   }
 
-  const compteAuth = await appelAdmin("POST", "/users", { email, password: motDePasse, email_confirm: true });
+  const compteAuth = await appelAdmin("POST", "/users", {
+    email: emailDuCompte(telephone, email),
+    password: motDePasse,
+    email_confirm: true,
+  });
 
   try {
     const utilisateur = await prisma.utilisateur.create({
-      data: { nom, role, actif: true, supabaseAuthId: compteAuth.id, hotelId, email },
+      data: { nom, role, actif: true, supabaseAuthId: compteAuth.id, hotelId, telephone, email },
     });
-    console.log(`Compte créé : ${nom} <${email}> — rôle ${role} (Utilisateur ${utilisateur.id}).`);
+    console.log(`Compte créé : ${nom} — ${telephone} — rôle ${role} (Utilisateur ${utilisateur.id}).`);
   } catch (erreur) {
     // Ne jamais laisser un compte Supabase sans rôle : il pourrait s'authentifier
     // mais serait refusé partout, et bloquerait la réutilisation de l'email.

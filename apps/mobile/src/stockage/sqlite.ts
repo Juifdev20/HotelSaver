@@ -230,4 +230,7 @@ async function creerSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   await ajouterColonneSiAbsente("reservations", "demandeClient", "demandeClient TEXT");
   await ajouterColonneSiAbsente("reservations", "preEnregistreLe", "preEnregistreLe TEXT");
   await ajouterColonneSiAbsente("reservations", "reponseReception", "reponseReception TEXT");
+  // Heures réelles de check-in / check-out (15/10/2026).
+  await ajouterColonneSiAbsente("reservations", "arriveeLe", "arriveeLe TEXT");
+  await ajouterColonneSiAbsente("reservations", "departLe", "departLe TEXT");
 }

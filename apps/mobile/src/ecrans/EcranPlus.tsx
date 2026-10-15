@@ -47,19 +47,12 @@ import { EcranJourneeReception } from "./EcranJourneeReception";
 import { EcranTauxChange } from "./EcranTauxChange";
 import { EcranJournalRecus } from "./EcranJournalRecus";
 import { EcranRapports } from "./EcranRapports";
+import { AvatarUtilisateur } from "../composants/AvatarUtilisateur";
 import { EcranDepenses } from "./EcranDepenses";
 import { EcranInventaire } from "./EcranInventaire";
 import { EcranCuisine } from "./EcranCuisine";
 import { EcranRetraitCommande } from "./EcranRetraitCommande";
 
-function initiales(nom: string): string {
-  return nom
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((mot) => mot[0]!.toUpperCase())
-    .join("");
-}
 
 type VuePlus =
   | { id: "liste" }
@@ -273,7 +266,7 @@ export function EcranPlus() {
       <ScrollView contentContainerStyle={styles.contenu} keyboardShouldPersistTaps="handled">
         <View style={styles.carteProfil}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarTexte}>{initiales(utilisateur.nom)}</Text>
+            <AvatarUtilisateur taille={56} />
           </View>
           <Text style={styles.nom}>{utilisateur.nom}</Text>
           <Text style={styles.role}>{LIBELLE_ROLE[utilisateur.role]}</Text>
@@ -365,16 +358,7 @@ const styles = StyleSheet.create({
     padding: espacements.s5,
     marginBottom: espacements.s2,
   },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: rayons.pill,
-    backgroundColor: couleurs.bleuClair,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: espacements.s2,
-  },
-  avatarTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 18 },
+  avatar: { marginBottom: espacements.s2 },
   nom: { fontSize: 17, fontWeight: "700", color: couleurs.encre },
   role: { fontSize: 13, color: couleurs.encreAttenuee },
   section: { gap: espacements.s2, marginTop: espacements.s2 },

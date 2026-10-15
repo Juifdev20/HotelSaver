@@ -59,6 +59,8 @@ interface ReservationLigneBrute {
   demandeClient: string | null;
   preEnregistreLe: string | null;
   reponseReception: string | null;
+  arriveeLe: string | null;
+  departLe: string | null;
   updatedAt: string;
   syncVersion: number;
 }
@@ -160,6 +162,8 @@ async function assemblerReservations(
     demandeClient: brut.demandeClient ?? null,
     preEnregistreLe: brut.preEnregistreLe ?? null,
     reponseReception: brut.reponseReception ?? null,
+    arriveeLe: brut.arriveeLe ?? null,
+    departLe: brut.departLe ?? null,
     facture: null,
     syncVersion: brut.syncVersion,
   }));
@@ -301,6 +305,8 @@ export async function creerReservationLocale(donnees: DonneesReservationLocale):
     demandeClient: null,
     preEnregistreLe: null,
     reponseReception: null,
+    arriveeLe: null,
+    departLe: null,
     facture: null,
     syncVersion: 1,
   };

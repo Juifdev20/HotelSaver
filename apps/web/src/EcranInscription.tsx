@@ -1,8 +1,9 @@
 import * as React from "react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Building2, Globe, Lock, Mail, MapPin, Phone, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, Globe, Lock, MapPin, User } from "lucide-react";
 import type { InscriptionHotelPayload } from "@hotel-chicago/types";
+import { ChampTelephone, telephoneDepuisSaisie } from "@hotel-chicago/ui";
 import { MiseEnPageAuth, Etapes } from "./auth/MiseEnPageAuth";
 import { ChampAuth } from "./auth/ChampAuth";
 
@@ -33,11 +34,10 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
   const [nom, setNom] = useState("");
   const [sousDomaine, setSousDomaine] = useState("");
   const [sousDomaineModifie, setSousDomaineModifie] = useState(false);
-  const [telephoneContact, setTelephoneContact] = useState("");
   const [adresse, setAdresse] = useState("");
 
   const [nomProprietaire, setNomProprietaire] = useState("");
-  const [email, setEmail] = useState("");
+  const [telephoneProprietaire, setTelephoneProprietaire] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [confirmationMotDePasse, setConfirmationMotDePasse] = useState("");
   const [erreurLocale, setErreurLocale] = useState<string | null>(null);
@@ -66,7 +66,8 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
   function soumettre(e: React.FormEvent) {
     e.preventDefault();
     if (!nomProprietaire.trim()) return setErreurLocale("Votre nom est obligatoire.");
-    if (!email.trim()) return setErreurLocale("L'email est obligatoire.");
+    const telephone = telephoneDepuisSaisie(telephoneProprietaire);
+    if (!telephone) return setErreurLocale("Numéro invalide : 9 chiffres commençant par 8 ou 9 (ex. 970 000 000).");
     if (motDePasse.length < 8) return setErreurLocale("Le mot de passe doit contenir au moins 8 caractères.");
     if (motDePasse !== confirmationMotDePasse) return setErreurLocale("Les deux mots de passe ne correspondent pas.");
 
@@ -74,10 +75,9 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
     onSoumettre({
       nom: nom.trim(),
       sousDomaine,
-      telephoneContact: telephoneContact.trim() || undefined,
       adresse: adresse.trim() || undefined,
       nomProprietaire: nomProprietaire.trim(),
-      email: email.trim(),
+      telephoneProprietaire: telephone,
       motDePasse,
     });
   }
@@ -94,7 +94,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
         <p className="carte-auth__sous-titre">
           {etape === 1
             ? "Quelques informations suffisent pour commencer et profiter de tous nos outils."
-            : "Dernière étape : le compte du patron, qui gérera les accès de l'équipe."}
+            : "Dernière étape : votre compte. Ce numéro servira à vous connecter et à joindre votre hôtel (modifiable ensuite dans Site de l'hôtel)."}
         </p>
 
         {etape === 1 && (
@@ -115,7 +115,6 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
               autoCapitalize="none"
               spellCheck={false}
             />
-            <ChampAuth id="telephone" libelle="Téléphone (optionnel)" icone={Phone} valeur={telephoneContact} onChange={setTelephoneContact} type="tel" placeholder="Ex. +243 970 000 000" autoComplete="tel" />
             <ChampAuth id="adresse" libelle="Adresse (optionnelle)" icone={MapPin} valeur={adresse} onChange={setAdresse} placeholder="Ex. Avenue de la Paix, Goma" autoComplete="street-address" />
 
             {erreurAffichee && (
@@ -133,7 +132,10 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
         {etape === 2 && (
           <form onSubmit={soumettre} noValidate>
             <ChampAuth id="nom-proprietaire" libelle="Votre nom *" icone={User} valeur={nomProprietaire} onChange={setNomProprietaire} valide={nomProprietaire.trim().length > 1} placeholder="Ex. Jean Mukendi" autoComplete="name" />
-            <ChampAuth id="email" libelle="Adresse e-mail *" icone={Mail} valeur={email} onChange={setEmail} valide={/^\S+@\S+\.\S+$/.test(email)} type="email" placeholder="ex. hotel@monetablissement.com" autoComplete="username" />
+            <div className="champ-auth">
+              <label htmlFor="telephone-proprietaire">Numéro de téléphone * (pour vous connecter)</label>
+              <ChampTelephone id="telephone-proprietaire" value={telephoneProprietaire} onChange={setTelephoneProprietaire} required />
+            </div>
             <ChampAuth id="mot-de-passe" libelle="Mot de passe *" icone={Lock} valeur={motDePasse} onChange={setMotDePasse} type="password" placeholder="Minimum 8 caractères" autoComplete="new-password" />
             <ChampAuth id="confirmation" libelle="Confirmer le mot de passe *" icone={Lock} valeur={confirmationMotDePasse} onChange={setConfirmationMotDePasse} type="password" autoComplete="new-password" />
 

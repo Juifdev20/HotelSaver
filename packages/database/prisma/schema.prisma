@@ -257,6 +257,10 @@ model SuperAdmin {
   actif          Boolean  @default(true)
   supabaseAuthId String   @unique
   createdAt      DateTime @default(now())
+  /// Identifiant de connexion (15/10/2026) : numéro RDC normalisé « +243XXXXXXXXX ».
+  /// Nullable : les comptes antérieurs se connectent encore par e-mail.
+  telephone      String?  @unique
+  email          String?
 
   paiementsEnregistres PaiementLicence[]
 }
@@ -305,6 +309,11 @@ model Utilisateur {
   /// cette Phase (via creer-utilisateur.js, sans ce champ) n'ont pas de valeur
   /// tant qu'ils ne sont pas mis à jour manuellement.
   email          String?  @unique
+  /// Identifiant de connexion (15/10/2026) : numéro RDC normalisé « +243XXXXXXXXX ».
+  /// Le compte Supabase porte l'e-mail réel s'il existe, sinon un identifiant
+  /// interne dérivé du numéro (voir DECISIONS.md). Nullable : les comptes
+  /// antérieurs se connectent encore par e-mail jusqu'à l'ajout d'un numéro.
+  telephone      String?  @unique
   appareilsPush  AppareilPush[]
 
   @@index([hotelId])
@@ -383,6 +392,10 @@ model Reservation {
   // (« Ma réservation ») — réponse à sa demande avant confirmation ;
   // distinct de `note` qui reste interne.
   reponseReception   String?
+  // Heures RÉELLES d'arrivée et de départ (check-in / check-out, 15/10/2026) :
+  // l'occupation des rapports les préfère aux dates prévues quand elles existent.
+  arriveeLe          DateTime?
+  departLe           DateTime?
   facture     Facture?
   updatedAt   DateTime @updatedAt
   syncVersion Int      @default(1)
@@ -558,10 +571,15 @@ model LigneCommande {
   prisEnChargeA DateTime?   // horodatage du passage EN_PREPARATION
   pretA         DateTime?   // horodatage du passage PRET
   note          String?     // instruction spéciale (ex. "sans sucre")
+  // Reçu (VenteCafeteria.id) qui a réglé cette ligne — renseigné à
+  // l'encaissement (15/10/2026), sert à remettre les articles en stock si le
+  // reçu est annulé. Null = pas encore réglée, ou réglée avant cette date.
+  venteId       String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   syncVersion   Int         @default(1)
 
+  @@index([venteId])
   @@index([sousCompteId])
   @@index([produitId])
   @@index([hotelId])
@@ -591,6 +609,10 @@ model VenteCafeteria {
   // Renseigné pour un encaissement « une personne » (reçu individuel), vide pour un règlement groupé.
   sousCompteId          String?
   numeroRecu            String
+  // Identifiant commun aux reçus d'un même encaissement (PARTAGE_EGAL : un
+  // reçu par part) — les articles ne reviennent en stock qu'à l'annulation
+  // de la dernière part du lot.
+  lotEncaissement       String?
   imprimeLe             DateTime?
   annuleLe              DateTime?
   motifAnnulation       String?

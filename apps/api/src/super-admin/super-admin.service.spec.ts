@@ -112,6 +112,7 @@ describe("SuperAdminService", () => {
           id: "h1",
           createdAt: new Date("2026-09-01T00:00:00.000Z"),
           paiementsLicence: [{ periodeCouverteJusquau }],
+          utilisateurs: [{ nom: "Patron", telephone: "+243970000000" }],
         },
       ]);
 
@@ -119,9 +120,13 @@ describe("SuperAdminService", () => {
 
       expect(resultat.valideJusquau).toEqual(periodeCouverteJusquau);
       expect((resultat as any).paiementsLicence).toBeUndefined();
+      expect(resultat.patron).toEqual({ nom: "Patron", telephone: "+243970000000" });
       expect(prisma.hotel.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          include: { branding: true, paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+          include: expect.objectContaining({
+            branding: true,
+            paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 },
+          }),
         })
       );
     });

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowLeft, Lock, Mail, MailCheck, ShieldCheck } from "lucide-react";
 import { demanderReinitialisationMotDePasse, reinitialiserMotDePasse } from "@hotel-chicago/api-client";
+import { ChampTelephone, telephoneDepuisSaisie } from "@hotel-chicago/ui";
 import { configuration } from "../config";
 import { BoutonsStores } from "../accueil/Stores";
 import { OuvrirApplication } from "../accueil/OuvrirApplication";
@@ -20,8 +21,8 @@ export function EcranConnexionWeb() {
         <div className="carte-auth__marque">HotelSaver</div>
         <h1 className="carte-auth__titre">Bon retour</h1>
         <p className="carte-auth__sous-titre">
-          Votre espace hôtelier se trouve dans l'application HotelSaver. Ouvrez-la et connectez-vous avec votre adresse
-          e-mail et votre mot de passe.
+          Votre espace hôtelier se trouve dans l'application HotelSaver. Ouvrez-la et connectez-vous avec votre numéro
+          de téléphone et votre mot de passe.
         </p>
 
         <div className="telechargements">
@@ -43,8 +44,13 @@ export function EcranConnexionWeb() {
   );
 }
 
-/** Demande de lien de réinitialisation. Message identique que le compte existe ou non. */
+/** Demande de lien de réinitialisation, par numéro (cas normal depuis le
+ * 15/10/2026) ou par e-mail (anciens comptes). Message identique que le compte
+ * existe ou non ; un compte sans e-mail ne reçoit rien — d'où l'explication
+ * employé → patron, patron → support HotelSaver. */
 export function EcranMotDePasseOublie() {
+  const [parEmail, setParEmail] = useState(false);
+  const [telephone, setTelephone] = useState("");
   const [email, setEmail] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [envoye, setEnvoye] = useState(false);
@@ -52,11 +58,18 @@ export function EcranMotDePasseOublie() {
 
   async function envoyer(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErreur("Saisissez une adresse e-mail valide.");
+    let identifiant: string | null;
+    if (parEmail) {
+      identifiant = /^\S+@\S+\.\S+$/.test(email.trim()) ? email.trim() : null;
+      if (!identifiant) return setErreur("Saisissez une adresse e-mail valide.");
+    } else {
+      identifiant = telephoneDepuisSaisie(telephone);
+      if (!identifiant) return setErreur("Numéro invalide : 9 chiffres commençant par 8 ou 9 (ex. 970 000 000).");
+    }
     setErreur(null);
     setEnCours(true);
     try {
-      await demanderReinitialisationMotDePasse({ url: configuration.apiUrl }, email.trim());
+      await demanderReinitialisationMotDePasse({ url: configuration.apiUrl }, identifiant);
       setEnvoye(true);
     } catch (err) {
       setErreur(err instanceof Error ? err.message : "Envoi impossible. Réessayez.");
@@ -74,11 +87,19 @@ export function EcranMotDePasseOublie() {
         {!envoye ? (
           <>
             <h1 className="carte-auth__titre">Mot de passe oublié ?</h1>
-            <p className="carte-auth__sous-titre">
-              Saisissez l'adresse e-mail de votre compte : nous vous envoyons un lien pour choisir un nouveau mot de passe.
-            </p>
+            <p className="carte-auth__sous-titre">Saisissez le numéro de votre compte.</p>
             <form onSubmit={envoyer} noValidate>
-              <ChampAuth id="email-oubli" libelle="Adresse e-mail" icone={Mail} valeur={email} onChange={setEmail} type="email" placeholder="ex. hotel@monetablissement.com" autoComplete="username" />
+              {parEmail ? (
+                <ChampAuth id="email-oubli" libelle="Adresse e-mail" icone={Mail} valeur={email} onChange={setEmail} type="email" placeholder="nom@hotel.com" autoComplete="username" />
+              ) : (
+                <div className="champ-auth">
+                  <label htmlFor="telephone-oubli">Numéro de téléphone</label>
+                  <ChampTelephone id="telephone-oubli" value={telephone} onChange={setTelephone} required />
+                </div>
+              )}
+              <button type="button" className="lien-auth lien-auth--sans-marge" onClick={() => setParEmail((v) => !v)}>
+                {parEmail ? "Utiliser mon numéro de téléphone" : "Ancien compte ? Utiliser mon e-mail"}
+              </button>
               {erreur && (
                 <p className="auth-erreur" role="alert">
                   {erreur}
@@ -94,10 +115,14 @@ export function EcranMotDePasseOublie() {
             <div className="auth-succes-icone">
               <MailCheck size={30} aria-hidden="true" />
             </div>
-            <h1 className="carte-auth__titre">Consultez votre boîte mail</h1>
+            <h1 className="carte-auth__titre">Demande envoyée</h1>
             <p className="carte-auth__sous-titre">
-              Si un compte existe pour <strong>{email.trim()}</strong>, un e-mail vient d'être envoyé avec le lien de
-              réinitialisation. Pensez à vérifier les courriers indésirables.
+              Si une adresse e-mail est associée à ce compte, un lien pour choisir un nouveau mot de passe vient d'y être
+              envoyé (pensez aux courriers indésirables).
+            </p>
+            <p className="carte-auth__sous-titre">
+              Pas d'e-mail sur votre compte ? <strong>Employé</strong> : demandez à votre patron de changer votre mot de
+              passe. <strong>Patron</strong> : contactez le support HotelSaver.
             </p>
           </>
         )}

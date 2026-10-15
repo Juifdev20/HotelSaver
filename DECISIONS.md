@@ -3158,3 +3158,174 @@ Constat : à la cafétaria, après « Ouvrir le compte » ou « Ajouter », les 
 - **Pas de ping avant chaque envoi** si le serveur a répondu il y a < 15 s.
 - **`/sync/pull` en parallèle** côté serveur (borné par le pool `pg`, max 5) :
   mesuré sur la base réelle depuis Kasindi, 11 entités 3,1 s → 0,8 s.
+
+## Fiabilisation des chiffres : retour en stock à l'annulation, heures réelles d'arrivée et de départ (15/10/2026)
+
+Les deux limites imprimées dans chaque rapport mensuel (`LIMITES_COMMUNES`) sont
+levées. Migration `20261015090000_retour_stock_heures_reelles` (colonnes
+nullables, aucune donnée existante modifiée).
+
+### Annulation d'un reçu cafétaria → articles remis en stock
+
+- **Lien ligne ↔ reçu** : `LigneCommande.venteId` est renseigné à l'encaissement
+  (même transaction). GROUPE / UNE_PERSONNE : les lignes réglées → le reçu ;
+  PAR_SOUS_COMPTE : les lignes de chaque personne → son reçu ; PARTAGE_EGAL :
+  toutes les lignes → le premier reçu, et tous les reçus de l'encaissement
+  portent le même `VenteCafeteria.lotEncaissement`.
+- **Annulation** (`POST /cafeteria/ventes/:id/annuler`, `remettreEnStock`
+  vrai par défaut) : case « Remettre les articles en stock » **cochée par
+  défaut** dans les deux apps (décision du patron) ; il la décoche quand les
+  articles ont été consommés ou cassés. ARTICLE → `StockService.remettreEnStock`
+  (incrément atomique, jamais de lecture-écriture concurrente, `syncVersion+1`)
+  + mouvement **`RETOUR_VENTE`** ; PLAT à portions → portions rendues ; plat
+  illimité → rien. Compare-and-swap sur `annuleLe` : deux annulations
+  simultanées ne rendent pas deux fois le stock.
+- **PARTAGE_EGAL** : le stock ne revient qu'à l'annulation de la **dernière**
+  part du lot (les autres parts encore valides prouvent que la vente tient
+  toujours) ; avant, la réponse le dit.
+- **Reçus antérieurs au 15/10/2026** (aucune ligne rattachée) : l'annulation
+  marche comme avant ; la réponse invite à corriger le stock depuis l'écran
+  Stock. La réponse renvoie `articlesRemisEnStock` et `infoStock`, affichés
+  dans le message de confirmation.
+- **`RETOUR_VENTE`** est un mouvement automatique, absent de `TYPES_MOUVEMENT`
+  (jamais saisi à la main). Signe `+` partout ; dans l'inventaire (API et
+  rapport) il **réduit les sorties de vente** (ventes nettes) au lieu de tomber
+  dans « ajustements ». Libellé « Retour (annulation) » dans les écrans Stock.
+
+### Heures réelles de check-in / check-out
+
+- `Reservation.arriveeLe` / `departLe` : posés par `checkIn`, `checkOut` et
+  l'arrivée express (`installerImmediatement`). Affichés dans le détail
+  (mobile + desktop), synchronisés dans le miroir mobile.
+- **Occupation des rapports** : heure réelle si elle existe, sinon date
+  prévue (séjours d'avant, ou en cours sans départ) ; nuitées comptées en
+  **jours calendaires à Lubumbashi** (arrivée 22:00, départ le lendemain
+  10:00 = 1 nuit). Nouvelle mention en pied de rapport : seuls les séjours
+  d'avant le 15/10/2026 restent sur leurs dates prévues.
+- Le journal de la journée ne liste que les arrivées/départs **restants** :
+  pas d'heure réelle à y afficher (les faits n'y sont que comptés).
+
+## Démarrage mobile : plus d'écran « gros logo » avant la bienvenue (15/10/2026)
+
+Le patron voyait trois écrans à l'ouverture : un gros logo seul, puis le logo
++ « La gestion complète de votre hôtel, simplifiée. », puis « Veuillez
+patienter… ». Le premier est le **splash système d'Android 12+**
+(`Theme.App.SplashScreen`), imposé à chaque lancement : il ne se désactive
+pas (`windowDisablePreview` ne joue que sur les Android antérieurs). Il est
+désormais **sans icône** (`windowSplashScreenAnimatedIcon =
+@android:color/transparent`, `windowSplashScreenBehavior` retiré) sur le même
+fond navy `#053483` que le voile natif : il se fond dans l'écran de
+bienvenue. Le voile (`MainActivity.ajouterVoileDemarrage`) garde
+`@drawable/splashscreen_logo`, inchangé.
+
+`styles.xml` étant régénéré par `expo prebuild`, la retouche vit dans
+`apps/mobile/scripts/patch-native-splash.js` (idempotent, en plus de
+`windowDisablePreview` — qui manquait d'ailleurs dans le `styles.xml` actuel,
+`android/` ayant été régénéré sans le script).
+
+**Vérifié** : captures en rafale d'un démarrage à froid (Android 16) —
+bienvenue → « Veuillez patienter… » → tableau de bord, sans gros logo seul.
+La session n'est pas perdue au redémarrage (jeton de rafraîchissement et
+profil en cache, `src/stockage/profils.ts`) : un démarrage à froid après
+qu'Android a fermé l'app rouvre directement le tableau de bord.
+
+**Correction du même jour — un seul logo, fixe, sur les trois écrans.** Sans
+icône, le splash système montrait quelques secondes de **bleu vide** après
+une fermeture complète : c'est le démarrage à froid du processus (chargement
+du moteur JS et des modules natifs avant `MainActivity.onCreate`, plus long
+en APK de debug), pas un bug. Le splash système affiche désormais
+`@drawable/splash_demarrage` : canevas 288 dp (taille imposée par l'OS, seul
+le cercle central de 192 dp est visible) avec le logo carré de **128 dp** au
+centre. Le voile natif pose la même image en 288 dp centrée, le slogan
+décalé dessous (`translationY` 96 dp) ; `EcranChargement` (App.tsx) affiche
+`hotelsaver-logo-carre.png` en 128 dp centré, spinner et texte en absolu
+dessous. Le logo ne bouge plus d'un écran à l'autre, seuls les textes
+changent. PNG par densité dans `apps/mobile/assets/splash-demarrage/`,
+recopiés par `patch-native-splash.js` après `expo prebuild`. **Vérifié** :
+captures en rafale d'un démarrage à froid — boîte du logo identique au pixel
+près sur le voile et sur « Veuillez patienter ».
+
+## Écrans de connexion et d'inscription mobiles d'après la maquette (15/10/2026)
+
+Maquette fournie par le patron, à suivre fidèlement. Page blanche (fini le
+bandeau navy + feuille arrondie), gabarit commun `apps/mobile/src/composants/PageAuth.tsx` :
+formes bleu pâle en haut à droite, en-tête de marque `EnteteAuth` (logo carré
++ « HotelSaver / Gestion hôtelière » + slogan « La gestion hôtelière, en toute
+simplicité. »), contenu défilant, pied de page avec vague bleu pâle, photo
+découpée en courbe à droite (fondu blanc sur son bord). La signature
+manuscrite de la maquette a été retirée à la demande du patron (« pas
+important »), avec sa police. **Exception demandée** : l'en-tête est à la même
+position sur les deux pages (celle de l'inscription, aligné à gauche) —
+vérifié au pixel près sur captures.
+
+- Connexion : « Bon retour ! », carte d'information (bouclier, texte bleu ;
+  le `message` éventuel, ex. après inscription, prend sa place), champs,
+  « Mot de passe oublié ? », « Se connecter », « ou », « Créer un compte ».
+  Photo : hall de réception.
+- Inscription : stepper étalé (pastille active pleine, l'autre bleu pâle),
+  « Créez votre hôtel » aligné à gauche, « Continuer → ». Photo : hôtel avec
+  piscine et palmiers.
+- Photos Unsplash (licence Unsplash, usage commercial libre, sans attribution
+  obligatoire), embarquées en local (hors ligne) et réduites à 900 px :
+  `assets/auth-hotel-piscine.jpg` (unsplash.com/photos/1m34N5U9tzk) et
+  `assets/auth-hall-reception.jpg` (unsplash.com/photos/pt0nGH-NvoA).
+
+**Au passage** : `android/` étant gitignoré, le voile de démarrage modifié le
+même jour dans `MainActivity.kt` a été reporté dans le plugin
+`plugins/withSurfaceTranslucide.js`, qui le régénère à chaque `expo prebuild`.
+
+## Connexion par numéro de téléphone (+243), e-mail optionnel (15/10/2026)
+
+Beaucoup d'hôtels n'ont pas d'adresse e-mail. **Tous les comptes** (patron,
+réception, cafétaria, super-admin) se connectent désormais avec **numéro de
+téléphone + mot de passe** ; le numéro est obligatoire à l'inscription et à la
+création d'un compte employé, l'e-mail devient optionnel.
+
+- **Format** : RDC seulement pour l'instant — 9 chiffres commençant par 8 ou 9
+  après +243. `normaliserTelephoneRdc` (`packages/types`) accepte « 0970… »,
+  « 970 000 000 », « +243 970… » et stocke « +243XXXXXXXXX »
+  (`Utilisateur.telephone`, `SuperAdmin.telephone`, uniques — migration
+  `20261015150000_connexion_par_telephone`).
+- **Supabase** : le mode « Phone » exige un fournisseur SMS payant ; on garde
+  le mode e-mail. Le compte Supabase porte l'**e-mail réel** s'il existe, sinon
+  un **identifiant interne** `243XXXXXXXXX@tel.hotelsaver.app`, jamais montré
+  ni destinataire d'envoi (`email_confirm` toujours vrai —
+  `apps/api/src/common/telephone/identifiant-connexion.ts`). Règle tenue à
+  chaque création/modification (`UtilisateursService`, inscription, scripts CLI).
+- **Relais** `POST /auth/connexion` : `telephone` → recherche Utilisateur puis
+  SuperAdmin → e-mail du compte → `grant_type=password`. Numéro inconnu = même
+  réponse qu'un mauvais mot de passe. Le **desktop et le super-admin passent
+  maintenant par ce relais** (avant : Supabase en direct, qui ne connaît que
+  l'e-mail).
+- **Transition** : un identifiant contenant « @ » est relayé tel quel — les
+  comptes antérieurs (sans numéro) se connectent encore par e-mail (« Ancien
+  compte ? Se connecter avec un e-mail » sur chaque écran) jusqu'à ce que le
+  patron (écran Utilisateurs) ou le super-admin (« Accès du patron »,
+  `PATCH /super-admin/hotels/:id/patron`) leur ajoute un numéro. En ajoutant un
+  numéro à un ancien compte, son e-mail réel est relu chez Supabase et conservé.
+- **Mot de passe oublié** : par numéro (ou e-mail). Lien envoyé seulement si le
+  compte a un e-mail réel ; réponse identique dans tous les cas. Sinon :
+  employé → son patron change le mot de passe ; patron → support HotelSaver,
+  le super-admin le réinitialise (« Accès du patron »).
+- **Inscription** : compte confirmé d'office, connexion immédiate avec le
+  numéro (plus d'attente d'e-mail de confirmation).
+- **Mobile** : nouvelle maquette Connexion / Inscription (logo centré,
+  « Hotel**Saver** », coins et vagues bleu pâle, plus de photo — les deux
+  photos du matin sont supprimées), champ `ChampTelephone` (drapeau RDC dessiné
+  en SVG, « +243 », saisie « 970 000 000 »). Les profils enregistrés retiennent
+  le numéro (`ProfilEnregistre.telephone`, e-mail gardé pour les anciens).
+  Desktop / site web / super-admin : même logique sur leurs écrans actuels, avec
+  le composant web partagé `ChampTelephone` (`packages/ui`).
+- Lien profond `hotelsaver://connexion?telephone=…` (`?email=` toujours lu).
+- **Vérifié de bout en bout** (API réelle) : inscription d'un hôtel test avec
+  numéro seul → connexion par numéro ; création d'un compte Cafétaria avec
+  numéro seul → connexion ; numéro déjà pris refusé (409) ; mot de passe
+  oublié par numéro (réponse générique). Hôtel test laissé en base :
+  « Hotel Test Telephone » (sous-domaine `test-telephone-1510`).
+- **Un seul numéro à l'inscription** (retour du patron, même jour) : le champ
+  « Téléphone de l'hôtel » de l'étape 1 prêtait à confusion avec le numéro de
+  connexion de l'étape 2. Il est retiré des trois écrans d'inscription ; sans
+  téléphone d'hôtel fourni, l'API prend le numéro du patron comme contact de
+  l'hôtel (`Hotel.telephoneContact`), modifiable ensuite dans « Site de
+  l'hôtel ». La carte d'info par défaut de l'écran de connexion est aussi
+  retirée (elle ne s'affiche plus que pour un message ponctuel).

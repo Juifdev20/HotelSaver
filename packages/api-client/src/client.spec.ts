@@ -136,7 +136,7 @@ describe("ClientApi", () => {
     });
 
     it("envoie un POST JSON pour creerUtilisateur", async () => {
-      const donnees = { nom: "Employé", email: "employe@exemple.com", motDePasse: "motdepasse123", role: Role.CAFETARIA };
+      const donnees = { nom: "Employé", telephone: "+243970000000", email: "employe@exemple.com", motDePasse: "motdepasse123", role: Role.CAFETARIA };
       mockFetchOnce(201, { id: "u1", ...donnees, actif: true });
       const client = new ClientApi("http://localhost:3000", () => "jeton");
 

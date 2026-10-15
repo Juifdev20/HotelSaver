@@ -101,6 +101,7 @@ describe("agregatCafeteria", () => {
 
   it("signeMouvement : ENTREE +, AJUSTEMENT signé par la quantité, SORTIE_VENTE/PERTE −", () => {
     expect(signeMouvement("ENTREE")).toBe(1);
+    expect(signeMouvement("RETOUR_VENTE")).toBe(1); // articles remis en stock à l'annulation d'un reçu
     expect(signeMouvement("AJUSTEMENT")).toBe(1);
     expect(signeMouvement("SORTIE_VENTE")).toBe(-1);
     expect(signeMouvement("PERTE")).toBe(-1);

@@ -27,6 +27,7 @@ const TYPES: { valeur: "ENTREE" | "PERTE" | "AJUSTEMENT"; libelle: string }[] = 
 const LIBELLE_TYPE: Record<string, string> = {
   ENTREE: "Entrée",
   SORTIE_VENTE: "Vente",
+  RETOUR_VENTE: "Retour (annulation)",
   PERTE: "Perte",
   AJUSTEMENT: "Ajustement",
 };

@@ -92,6 +92,38 @@ describe("agregatReception", () => {
     expect(a.tauxOccupationPourcent).toBe(6.7);
   });
 
+  it("préfère les heures réelles d'arrivée/départ aux dates prévues (jours calendaires à Lubumbashi)", async () => {
+    const sejour = (over: Record<string, unknown>) => ({
+      chambreId: "ch1",
+      dateArrivee: new Date("2026-08-31T22:00:00Z"), // prévu : 01/09
+      dateDepart: new Date("2026-09-09T22:00:00Z"), // prévu : 10/09 → 9 nuits
+      origine: "RECEPTION",
+      statut: "TERMINEE",
+      acompte: 0,
+      chambre: { id: "ch1", numero: "12", type: "Standard", devise: "USD", prixParNuit: 45 },
+      client: { nom: "A" },
+      ...over,
+    });
+    const prisma = prismaMock({
+      chambre: { findMany: jest.fn().mockResolvedValue([{ id: "ch1", numero: "12", type: "Standard", devise: "USD", prixParNuit: 45 }]) },
+      reservation: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            // Réel : arrivé le 02/09 à 22:00, parti le 04/09 à 10:00 → 2 nuits (et non 9).
+            sejour({ arriveeLe: new Date("2026-09-02T20:00:00Z"), departLe: new Date("2026-09-04T08:00:00Z") }),
+            // Séjour sans heures réelles (enregistré avant) → dates prévues : 9 nuits.
+            sejour({}),
+          ]),
+        groupBy: jest.fn().mockResolvedValue([]),
+      },
+    });
+    const a = await agregatReception(prisma, HOTEL, MOIS);
+    expect(a.nuitees).toBe(11);
+  });
+
   it("totaux par mode de paiement et détail des factures", async () => {
     const prisma = prismaMock({
       facture: {

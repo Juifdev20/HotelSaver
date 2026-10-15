@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import type { ClientApi, DonneesModificationUtilisateur, Utilisateur } from "@hotel-chicago/api-client";
-import { Role } from "@hotel-chicago/types";
-import { Button, StatusBadge } from "@hotel-chicago/ui";
+import { Role, formaterTelephoneRdc } from "@hotel-chicago/types";
+import { Button, ChampTelephone, StatusBadge, saisieDepuisTelephone, telephoneDepuisSaisie } from "@hotel-chicago/ui";
 import { Users } from "lucide-react";
 
 export interface EcranUtilisateursProps {
@@ -19,6 +19,8 @@ const LIBELLE_ROLE: Record<Role, string> = {
 
 interface FormulaireCreation {
   nom: string;
+  /** Saisie « 970 000 000 » : identifiant de connexion (obligatoire, 15/10/2026). */
+  telephone: string;
   email: string;
   motDePasse: string;
   role: Role;
@@ -26,18 +28,20 @@ interface FormulaireCreation {
 
 interface FormulaireEdition {
   nom: string;
+  telephone: string;
   email: string;
   motDePasse: string;
 }
 
-const FORMULAIRE_VIDE: FormulaireCreation = { nom: "", email: "", motDePasse: "", role: Role.CAFETARIA };
+const FORMULAIRE_VIDE: FormulaireCreation = { nom: "", telephone: "", email: "", motDePasse: "", role: Role.CAFETARIA };
 
 /**
  * Création et gestion des comptes du personnel (Phase 15) — PATRON
  * uniquement (route protégée dans EcranParametres). Le mot de passe est
  * choisi ici par le patron et communiqué directement à l'employé (pas de
  * génération automatique — voir apps/mobile/src/ecrans/EcranUtilisateurs.tsx,
- * même logique, même API).
+ * même logique, même API). Depuis le 15/10/2026, chaque compte se connecte
+ * avec son numéro de téléphone (obligatoire) ; l'e-mail est optionnel.
  */
 export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
   const [utilisateurs, setUtilisateurs] = useState<Utilisateur[] | null>(null);
@@ -50,7 +54,7 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
   // Compte en cours d'édition (Phase 16 : rotation des identifiants quand
   // un employé part — le compte de rôle est unique, on le modifie).
   const [edition, setEdition] = useState<Utilisateur | null>(null);
-  const [formEdition, setFormEdition] = useState<FormulaireEdition>({ nom: "", email: "", motDePasse: "" });
+  const [formEdition, setFormEdition] = useState<FormulaireEdition>({ nom: "", telephone: "", email: "", motDePasse: "" });
   const [erreurEdition, setErreurEdition] = useState<string | null>(null);
 
   /** Rôles déjà dotés d'un compte — un seul compte par rôle par hôtel
@@ -65,7 +69,12 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
 
   function ouvrirEdition(utilisateur: Utilisateur) {
     setEdition(utilisateur);
-    setFormEdition({ nom: utilisateur.nom, email: utilisateur.email ?? "", motDePasse: "" });
+    setFormEdition({
+      nom: utilisateur.nom,
+      telephone: saisieDepuisTelephone(utilisateur.telephone),
+      email: utilisateur.email ?? "",
+      motDePasse: "",
+    });
     setErreurEdition(null);
   }
 
@@ -74,8 +83,9 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
     const nom = formEdition.nom.trim();
     const email = formEdition.email.trim();
     const motDePasse = formEdition.motDePasse;
-    if (!nom || !email) {
-      setErreurEdition("Le nom et l'email sont obligatoires.");
+    const telephone = telephoneDepuisSaisie(formEdition.telephone);
+    if (!nom || !telephone) {
+      setErreurEdition("Le nom et un numéro de téléphone valide sont obligatoires.");
       return;
     }
     if (motDePasse && motDePasse.length < 8) {
@@ -84,9 +94,10 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
     }
     const donnees: DonneesModificationUtilisateur = {};
     if (nom !== edition.nom) donnees.nom = nom;
+    if (telephone !== edition.telephone) donnees.telephone = telephone;
     if (email !== (edition.email ?? "")) donnees.email = email;
     if (motDePasse) donnees.motDePasse = motDePasse;
-    if (!donnees.nom && !donnees.email && !donnees.motDePasse) {
+    if (donnees.nom === undefined && donnees.telephone === undefined && donnees.email === undefined && !donnees.motDePasse) {
       setEdition(null);
       return;
     }
@@ -104,8 +115,9 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
   }
 
   async function creer() {
-    if (!formulaire.nom.trim() || !formulaire.email.trim() || formulaire.motDePasse.length < 8) {
-      setErreurFormulaire("Nom, email et mot de passe (8 caractères minimum) sont obligatoires.");
+    const telephone = telephoneDepuisSaisie(formulaire.telephone);
+    if (!formulaire.nom.trim() || !telephone || formulaire.motDePasse.length < 8) {
+      setErreurFormulaire("Nom, numéro de téléphone valide et mot de passe (8 caractères minimum) sont obligatoires.");
       return;
     }
     setEnEnvoi(true);
@@ -113,7 +125,8 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
     try {
       await client.creerUtilisateur({
         nom: formulaire.nom.trim(),
-        email: formulaire.email.trim(),
+        telephone,
+        email: formulaire.email.trim() || undefined,
         motDePasse: formulaire.motDePasse,
         role: formulaire.role,
       });
@@ -170,8 +183,17 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
             placeholder="Ex. Jeanne Kabila"
           />
 
+          <label className="hc-text-label" htmlFor="champ-telephone-utilisateur">
+            Numéro de téléphone (pour se connecter)
+          </label>
+          <ChampTelephone
+            id="champ-telephone-utilisateur"
+            value={formulaire.telephone}
+            onChange={(v) => setFormulaire((f) => ({ ...f, telephone: v }))}
+          />
+
           <label className="hc-text-label" htmlFor="champ-email-utilisateur">
-            Email
+            Email (optionnel)
           </label>
           <input
             id="champ-email-utilisateur"
@@ -238,7 +260,7 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
             Modifier — {LIBELLE_ROLE[edition.role]}
           </p>
           <p className="hc-text-caption texte-discret">
-            Changez le nom, l'email ou le mot de passe pour transmettre le compte à un nouvel employé.
+            Changez le nom, le numéro ou le mot de passe pour transmettre le compte à un nouvel employé.
           </p>
           <label className="hc-text-label" htmlFor="edit-nom-utilisateur">
             Nom
@@ -249,8 +271,17 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
             onChange={(e) => setFormEdition((f) => ({ ...f, nom: e.target.value }))}
           />
 
+          <label className="hc-text-label" htmlFor="edit-telephone-utilisateur">
+            Numéro de téléphone (pour se connecter)
+          </label>
+          <ChampTelephone
+            id="edit-telephone-utilisateur"
+            value={formEdition.telephone}
+            onChange={(v) => setFormEdition((f) => ({ ...f, telephone: v }))}
+          />
+
           <label className="hc-text-label" htmlFor="edit-email-utilisateur">
-            Email
+            Email (optionnel)
           </label>
           <input
             id="edit-email-utilisateur"
@@ -302,6 +333,7 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
             <thead>
               <tr>
                 <th>Nom</th>
+                <th>Téléphone</th>
                 <th>Email</th>
                 <th>Rôle</th>
                 <th>Statut</th>
@@ -312,6 +344,7 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
               {utilisateurs.map((u) => (
                 <tr key={u.id}>
                   <td className="hc-text-body-strong">{u.nom}</td>
+                  <td className="texte-discret">{u.telephone ? formaterTelephoneRdc(u.telephone) : "À compléter"}</td>
                   <td className="texte-discret">{u.email ?? "—"}</td>
                   <td className="texte-discret">{LIBELLE_ROLE[u.role]}</td>
                   <td>

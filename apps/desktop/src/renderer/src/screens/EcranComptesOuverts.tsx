@@ -46,6 +46,8 @@ function JournalVentes({
   const [detailDe, setDetailDe] = useState<string | null>(null);
   const [annulationDe, setAnnulationDe] = useState<string | null>(null);
   const [motif, setMotif] = useState("");
+  // Remettre les articles du reçu en stock (cochée par défaut, 15/10/2026).
+  const [remettreEnStock, setRemettreEnStock] = useState(true);
   const [enCours, setEnCours] = useState<string | null>(null);
 
   const charger = useCallback(() => {
@@ -86,7 +88,16 @@ function JournalVentes({
     setEnCours(vente.id);
     setErreur(null);
     try {
-      await client.annulerVenteCafeteria(vente.id, motif.trim());
+      const resultat = await client.annulerVenteCafeteria(vente.id, motif.trim(), remettreEnStock);
+      const remis = resultat.articlesRemisEnStock ?? [];
+      const total = remis.reduce((n, a) => n + a.quantite, 0);
+      setMessage(
+        remis.length > 0
+          ? `Reçu ${vente.numeroRecu} annulé — ${total} article${total > 1 ? "s" : ""} remis en stock (${remis
+              .map((a) => `${a.nom} ×${a.quantite}`)
+              .join(", ")}).`
+          : `Reçu ${vente.numeroRecu} annulé. ${resultat.infoStock ?? ""}`.trim()
+      );
       setAnnulationDe(null);
       setMotif("");
       charger();
@@ -168,6 +179,7 @@ function JournalVentes({
                       onClick={() => {
                         setAnnulationDe(v.id);
                         setMotif("");
+                        setRemettreEnStock(true);
                         setErreur(null);
                       }}
                     >
@@ -205,6 +217,14 @@ function JournalVentes({
                         style={{ flex: 1 }}
                         aria-label="Motif d'annulation"
                       />
+                      <label
+                        className="hc-text-body"
+                        style={{ display: "inline-flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}
+                        title="Décochez si les articles ont été consommés ou cassés"
+                      >
+                        <input type="checkbox" checked={remettreEnStock} onChange={(e) => setRemettreEnStock(e.target.checked)} />
+                        Remettre les articles en stock
+                      </label>
                       <Button type="button" size="sm" variant="danger" disabled={enCours !== null} onClick={() => void annuler(v)}>
                         Confirmer
                       </Button>

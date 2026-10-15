@@ -37,11 +37,13 @@ function cleJour(d: Date): string {
   }).format(d);
 }
 
-/** Signe d'un mouvement de stock : + pour ENTREE, − pour SORTIE_VENTE/PERTE,
+/** Signe d'un mouvement de stock : + pour ENTREE et RETOUR_VENTE (articles
+ * remis en stock à l'annulation d'un reçu), − pour SORTIE_VENTE/PERTE,
  * signé (peut être négatif) pour AJUSTEMENT. */
 export function signeMouvement(type: string): number {
   if (type === "ENTREE") return 1;
   if (type === "AJUSTEMENT") return 1; // la quantité porte déjà son signe
+  if (type === "RETOUR_VENTE") return 1;
   return -1; // SORTIE_VENTE, PERTE
 }
 
@@ -224,6 +226,8 @@ export async function agregatCafeteria(
       dansMois += signe * q;
       if (m.type === "ENTREE") entrees += q;
       else if (m.type === "SORTIE_VENTE") sortiesVentes += q;
+      // Retour d'un reçu annulé : la vente n'a pas eu lieu, les ventes nettes baissent.
+      else if (m.type === "RETOUR_VENTE") sortiesVentes -= q;
       else if (m.type === "PERTE") pertes += q;
       else ajustements += q;
       if (m.type === "PERTE" || m.type === "AJUSTEMENT") {

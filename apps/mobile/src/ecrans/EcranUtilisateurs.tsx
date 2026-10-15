@@ -2,7 +2,7 @@ import * as React from "react";
 import { useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import type { ClientApi, DonneesModificationUtilisateur, Utilisateur } from "@hotel-chicago/api-client";
-import { Role } from "@hotel-chicago/types";
+import { Role, formaterSaisieRdc, formaterTelephoneRdc } from "@hotel-chicago/types";
 import { UserRound } from "lucide-react-native";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -11,6 +11,7 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { useDonnee } from "../hooks/useDonnee";
+import { ChampTelephone, telephoneDepuisSaisie } from "../composants/ChampTelephone";
 
 export interface EcranUtilisateursProps {
   client: ClientApi;
@@ -21,6 +22,8 @@ const ROLES: Role[] = [Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON];
 
 interface FormulaireCreation {
   nom: string;
+  /** Saisie formatée « 970 000 000 » (identifiant de connexion, obligatoire). */
+  telephone: string;
   email: string;
   motDePasse: string;
   role: Role;
@@ -28,18 +31,20 @@ interface FormulaireCreation {
 
 interface FormulaireEdition {
   nom: string;
+  telephone: string;
   email: string;
   motDePasse: string;
 }
 
-const FORMULAIRE_VIDE: FormulaireCreation = { nom: "", email: "", motDePasse: "", role: Role.CAFETARIA };
+const FORMULAIRE_VIDE: FormulaireCreation = { nom: "", telephone: "", email: "", motDePasse: "", role: Role.CAFETARIA };
 
 /**
  * Création et gestion des comptes du personnel (Phase 15) — PATRON
  * uniquement (déjà filtré par `navigation.ts`/`EcranPlus.tsx`). Le mot de
  * passe est choisi ici par le patron et communiqué directement à l'employé
- * (pas de génération automatique, pas d'email de confirmation à attendre —
- * voir UtilisateursService.create, emailConfirme: true).
+ * (pas de génération automatique, pas d'email de confirmation à attendre).
+ * Depuis le 15/10/2026, l'employé se connecte avec son **numéro de
+ * téléphone** (obligatoire) ; l'e-mail est optionnel.
  */
 export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) {
   const { donnee: utilisateurs, erreur, enCours, recharger } = useDonnee(() => client.listerUtilisateurs(), client);
@@ -52,7 +57,7 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
   // Compte en cours d'édition (Phase 16 : rotation des identifiants quand
   // un employé part — le compte de rôle est unique, on le modifie).
   const [edition, setEdition] = useState<Utilisateur | null>(null);
-  const [formEdition, setFormEdition] = useState<FormulaireEdition>({ nom: "", email: "", motDePasse: "" });
+  const [formEdition, setFormEdition] = useState<FormulaireEdition>({ nom: "", telephone: "", email: "", motDePasse: "" });
   const [erreurEdition, setErreurEdition] = useState<string | null>(null);
 
   /** Rôles déjà dotés d'un compte — un seul compte par rôle par hôtel
@@ -67,13 +72,19 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
 
   function ouvrirEdition(utilisateur: Utilisateur) {
     setEdition(utilisateur);
-    setFormEdition({ nom: utilisateur.nom, email: utilisateur.email ?? "", motDePasse: "" });
+    setFormEdition({
+      nom: utilisateur.nom,
+      telephone: utilisateur.telephone ? formaterSaisieRdc(utilisateur.telephone.slice("+243".length)) : "",
+      email: utilisateur.email ?? "",
+      motDePasse: "",
+    });
     setErreurEdition(null);
   }
 
   async function creer() {
-    if (!formulaire.nom.trim() || !formulaire.email.trim() || formulaire.motDePasse.length < 8) {
-      setErreurFormulaire("Nom, email et mot de passe (8 caractères minimum) sont obligatoires.");
+    const telephone = telephoneDepuisSaisie(formulaire.telephone);
+    if (!formulaire.nom.trim() || !telephone || formulaire.motDePasse.length < 8) {
+      setErreurFormulaire("Nom, numéro de téléphone valide et mot de passe (8 caractères minimum) sont obligatoires.");
       return;
     }
     setEnEnvoi(true);
@@ -81,7 +92,8 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
     try {
       await client.creerUtilisateur({
         nom: formulaire.nom.trim(),
-        email: formulaire.email.trim(),
+        telephone,
+        email: formulaire.email.trim() || undefined,
         motDePasse: formulaire.motDePasse,
         role: formulaire.role,
       });
@@ -99,8 +111,9 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
     const nom = formEdition.nom.trim();
     const email = formEdition.email.trim();
     const motDePasse = formEdition.motDePasse;
-    if (!nom || !email) {
-      setErreurEdition("Le nom et l'email sont obligatoires.");
+    const telephone = telephoneDepuisSaisie(formEdition.telephone);
+    if (!nom || !telephone) {
+      setErreurEdition("Le nom et un numéro de téléphone valide sont obligatoires.");
       return;
     }
     if (motDePasse && motDePasse.length < 8) {
@@ -109,9 +122,10 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
     }
     const donnees: DonneesModificationUtilisateur = {};
     if (nom !== edition.nom) donnees.nom = nom;
+    if (telephone !== edition.telephone) donnees.telephone = telephone;
     if (email !== (edition.email ?? "")) donnees.email = email;
     if (motDePasse) donnees.motDePasse = motDePasse;
-    if (!donnees.nom && !donnees.email && !donnees.motDePasse) {
+    if (donnees.nom === undefined && donnees.telephone === undefined && donnees.email === undefined && !donnees.motDePasse) {
       setEdition(null);
       return;
     }
@@ -173,7 +187,8 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
             <View style={styles.carteEntete}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.nom}>{item.nom}</Text>
-                <Text style={styles.email}>{item.email ?? "—"}</Text>
+                <Text style={styles.email}>{item.telephone ? formaterTelephoneRdc(item.telephone) : "Sans numéro — à compléter"}</Text>
+                {item.email && <Text style={styles.email}>{item.email}</Text>}
               </View>
               <View style={styles.badgeRole}>
                 <Text style={styles.badgeRoleTexte}>{LIBELLE_ROLE[item.role]}</Text>
@@ -208,7 +223,15 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
           placeholderTextColor={couleurs.encreFaible}
         />
 
-        <Text style={styles.label}>Email</Text>
+        <View style={styles.champTelephone}>
+          <ChampTelephone
+            libelle="Numéro de téléphone (pour se connecter)"
+            value={formulaire.telephone}
+            onChangeText={(v) => setFormulaire((f) => ({ ...f, telephone: v }))}
+          />
+        </View>
+
+        <Text style={styles.label}>Email (optionnel)</Text>
         <TextInput
           style={styles.champ}
           value={formulaire.email}
@@ -268,7 +291,7 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
         titre={edition ? `Modifier — ${LIBELLE_ROLE[edition.role]}` : "Modifier"}
       >
         <Text style={styles.aide}>
-          Changez le nom, l'email ou le mot de passe pour transmettre le compte à un nouvel employé.
+          Changez le nom, le numéro ou le mot de passe pour transmettre le compte à un nouvel employé.
         </Text>
 
         <Text style={styles.label}>Nom</Text>
@@ -279,7 +302,15 @@ export function EcranUtilisateurs({ client, onRetour }: EcranUtilisateursProps) 
           placeholderTextColor={couleurs.encreFaible}
         />
 
-        <Text style={styles.label}>Email</Text>
+        <View style={styles.champTelephone}>
+          <ChampTelephone
+            libelle="Numéro de téléphone (pour se connecter)"
+            value={formEdition.telephone}
+            onChangeText={(v) => setFormEdition((f) => ({ ...f, telephone: v }))}
+          />
+        </View>
+
+        <Text style={styles.label}>Email (optionnel)</Text>
         <TextInput
           style={styles.champ}
           value={formEdition.email}
@@ -340,6 +371,7 @@ const styles = StyleSheet.create({
   optionRoleDesactive: { opacity: 0.45 },
   optionRoleTexteDesactive: { color: couleurs.encreFaible },
 
+  champTelephone: { marginTop: espacements.s2 },
   label: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, marginBottom: espacements.s1, marginTop: espacements.s2 },
   champ: {
     borderWidth: 1,

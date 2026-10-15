@@ -27,9 +27,11 @@ import { DepartementRapportDto, GenererRapportDto } from "./dto/generer-rapport.
 
 const DUREE_URL_SIGNEE = 300; // 5 min : le temps d'ouvrir le PDF, pas plus.
 
+// Depuis le 15/10/2026, l'occupation utilise les heures réelles d'arrivée et
+// de départ, et l'annulation d'un reçu remet ses articles en stock (sauf si
+// le patron décoche la case) : il ne reste que la limite des données anciennes.
 const LIMITES_COMMUNES = [
-  "L'occupation est calculée sur les dates prévues des réservations : l'application n'horodate pas encore l'entrée et la sortie réelles.",
-  "Une vente cafétaria annulée ne fait pas rentrer les produits en stock automatiquement : le stock affiché reflète les mouvements enregistrés.",
+  "Les séjours enregistrés avant le 15/10/2026 sont calculés sur leurs dates prévues (heures réelles d'arrivée et de départ non disponibles).",
 ];
 
 /** Prefixe du numéro officiel : RAP-CAF / RAP-REC. */

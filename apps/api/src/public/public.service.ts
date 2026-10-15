@@ -1,11 +1,12 @@
 import { BadRequestException, ConflictException, UnauthorizedException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient, StatutLigne, TypeProduit } from "@hotel-chicago/database";
 import { StatutChambre } from "@hotel-chicago/database";
-import { CommandeWebCreee, Role, StatutSuiviPublic, SuiviReservationPublic, codeSuivi } from "@hotel-chicago/types";
+import { CommandeWebCreee, Role, StatutSuiviPublic, SuiviReservationPublic, codeSuivi, normaliserTelephoneRdc } from "@hotel-chicago/types";
 import { NotificationsService } from "../notifications/notifications.service";
 import { messages } from "../notifications/messages";
 import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
+import { estIdentifiantInterne, telephoneObligatoire, verifierTelephoneLibre } from "../common/telephone/identifiant-connexion";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 import { genererPalette } from "../common/palette/generer-palette";
 import { CreerCommandeWebDto } from "./dto/creer-commande-web.dto";
@@ -150,11 +151,27 @@ export class PublicService {
   /**
    * « Mot de passe oublié » : e-mail de récupération Supabase, dont le lien
    * ramène sur la page de réinitialisation du site. Réponse identique que le
-   * compte existe ou non.
+   * compte existe ou non (pas d'énumération de comptes).
+   *
+   * Par numéro (15/10/2026) : le lien n'est envoyé que si le compte a un
+   * e-mail RÉEL ; sinon rien n'est envoyé — le client explique qu'un employé
+   * s'adresse à son patron et un patron au support HotelSaver (le
+   * super-admin réinitialise, PATCH /super-admin/hotels/:id/patron).
    */
   async demanderReinitialisation(dto: MotDePasseOublieDto): Promise<{ ok: true }> {
     const site = process.env.SITE_WEB_URL ?? "http://localhost:5175";
-    await this.supabaseAdmin.envoyerRecuperation(dto.email.trim().toLowerCase(), `${site}/reinitialiser-mot-de-passe`);
+    let email: string | null = dto.email?.trim().toLowerCase() || null;
+    if (dto.telephone) {
+      const telephone = normaliserTelephoneRdc(dto.telephone);
+      const compte = telephone
+        ? (await this.prisma.utilisateur.findUnique({ where: { telephone }, select: { email: true } })) ??
+          (await this.prisma.superAdmin.findUnique({ where: { telephone }, select: { email: true } }))
+        : null;
+      email = compte?.email ?? null;
+    }
+    if (email && !estIdentifiantInterne(email)) {
+      await this.supabaseAdmin.envoyerRecuperation(email, `${site}/reinitialiser-mot-de-passe`);
+    }
     return { ok: true };
   }
 
@@ -605,7 +622,12 @@ export class PublicService {
    * propriétaire n'a personne pour créer son premier compte à sa place.
    */
   async inscrireHotel(dto: InscriptionHotelDto) {
-    const compteAuth = await this.supabaseAdmin.creerCompte({ email: dto.email, motDePasse: dto.motDePasse });
+    // Connexion par numéro (15/10/2026) : le numéro du patron est son
+    // identifiant ; l'e-mail, optionnel, ne sert qu'à « mot de passe oublié ».
+    const telephone = telephoneObligatoire(dto.telephoneProprietaire);
+    const email = dto.email?.trim().toLowerCase() || null;
+    await verifierTelephoneLibre(this.prisma, telephone);
+    const compteAuth = await this.supabaseAdmin.creerCompte({ telephone, email, motDePasse: dto.motDePasse });
     // Un logo mal formé ne doit jamais faire échouer l'inscription :
     // extraireCouleursLogo ne lève jamais, renvoie null au moindre souci
     // (Phase 5) — genererPalette(null) retombe sur PALETTE_DEFAUT.
@@ -618,12 +640,17 @@ export class PublicService {
           nom: dto.nom,
           sousDomaine: dto.sousDomaine,
           statutLicence: "ESSAI",
-          telephoneContact: dto.telephoneContact,
+          // Un seul numéro saisi à l'inscription (15/10/2026) : sans téléphone
+          // d'hôtel fourni, celui du patron sert de contact (modifiable ensuite
+          // dans « Site de l'hôtel »).
+          telephoneContact: dto.telephoneContact?.trim() || telephone,
           adresse: dto.adresse,
-          emailContact: dto.email,
+          emailContact: email,
           branding: { create: { palette, logoUrl: dto.logoUrl } },
           utilisateurs: {
-            create: [{ nom: dto.nomProprietaire, role: "PATRON", actif: true, supabaseAuthId: compteAuth.id }],
+            create: [
+              { nom: dto.nomProprietaire, role: "PATRON", actif: true, supabaseAuthId: compteAuth.id, telephone, email },
+            ],
           },
         },
         include: { branding: true },
@@ -633,6 +660,9 @@ export class PublicService {
       // même principe que les scripts CLI (creer-utilisateur.js).
       await this.supabaseAdmin.supprimerCompte(compteAuth.id);
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const cible = String((error.meta as { target?: unknown } | undefined)?.target ?? "");
+        if (cible.includes("telephone")) throw new ConflictException("Ce numéro de téléphone est déjà utilisé par un autre compte.");
+        if (cible.includes("email")) throw new ConflictException("Cette adresse e-mail est déjà utilisée par un autre compte.");
         throw new ConflictException(`Un hôtel avec le sous-domaine "${dto.sousDomaine}" existe déjà.`);
       }
       throw error;

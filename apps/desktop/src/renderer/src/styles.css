@@ -2054,3 +2054,9 @@ button {
   color: var(--hc-text);
 }
 .inv-input-note:focus { outline: 2px solid var(--hc-blue); outline-offset: 1px; }
+
+/* Champ téléphone (@hotel-chicago/ui) aligné sur les autres champs des écrans d'authentification. */
+.hc-auth__carte .hc-champ-telephone {
+  height: 48px;
+  border-radius: var(--hc-radius-md);
+}

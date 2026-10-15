@@ -85,6 +85,8 @@ interface ReservationBrute {
   demandeClient?: string | null;
   preEnregistreLe?: string | null;
   reponseReception?: string | null;
+  arriveeLe?: string | null;
+  departLe?: string | null;
   updatedAt: string;
   syncVersion: number;
 }
@@ -413,23 +415,23 @@ async function upsertReservation(db: Awaited<ReturnType<typeof obtenirBase>>, br
   if (existant) {
     await db.runAsync(
       `UPDATE reservations SET remoteId = ?, chambreId = ?, clientId = ?, dateArrivee = ?, dateDepart = ?, acompte = ?, statut = ?, origine = ?, createdBy = ?, note = ?, annuleLe = ?, motifAnnulation = ?,
-         jetonSuivi = ?, heureArriveePrevue = ?, demandeClient = ?, preEnregistreLe = ?, reponseReception = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
+         jetonSuivi = ?, heureArriveePrevue = ?, demandeClient = ?, preEnregistreLe = ?, reponseReception = ?, arriveeLe = ?, departLe = ?, updatedAt = ?, syncVersion = ? WHERE id = ?`,
       [
         brute.id, brute.chambreId, brute.clientId, brute.dateArrivee, brute.dateDepart, brute.acompte,
         brute.statut, brute.origine, brute.createdBy, brute.note ?? null, brute.annuleLe, brute.motifAnnulation,
-        brute.jetonSuivi ?? null, brute.heureArriveePrevue ?? null, brute.demandeClient ?? null, brute.preEnregistreLe ?? null, brute.reponseReception ?? null,
+        brute.jetonSuivi ?? null, brute.heureArriveePrevue ?? null, brute.demandeClient ?? null, brute.preEnregistreLe ?? null, brute.reponseReception ?? null, brute.arriveeLe ?? null, brute.departLe ?? null,
         brute.updatedAt, brute.syncVersion, existant.id,
       ]
     );
   } else {
     await db.runAsync(
       `INSERT INTO reservations (id, remoteId, chambreId, clientId, dateArrivee, dateDepart, acompte, statut, origine, createdBy, note, annuleLe, motifAnnulation,
-         jetonSuivi, heureArriveePrevue, demandeClient, preEnregistreLe, reponseReception, updatedAt, syncVersion)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         jetonSuivi, heureArriveePrevue, demandeClient, preEnregistreLe, reponseReception, arriveeLe, departLe, updatedAt, syncVersion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         brute.id, brute.id, brute.chambreId, brute.clientId, brute.dateArrivee, brute.dateDepart, brute.acompte,
         brute.statut, brute.origine, brute.createdBy, brute.note ?? null, brute.annuleLe, brute.motifAnnulation,
-        brute.jetonSuivi ?? null, brute.heureArriveePrevue ?? null, brute.demandeClient ?? null, brute.preEnregistreLe ?? null, brute.reponseReception ?? null,
+        brute.jetonSuivi ?? null, brute.heureArriveePrevue ?? null, brute.demandeClient ?? null, brute.preEnregistreLe ?? null, brute.reponseReception ?? null, brute.arriveeLe ?? null, brute.departLe ?? null,
         brute.updatedAt, brute.syncVersion,
       ]
     );

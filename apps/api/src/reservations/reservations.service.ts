@@ -97,6 +97,8 @@ export class ReservationsService {
           acompte: dto.acompte ?? 0,
           note: dto.note,
           statut,
+          // Arrivée express : le client est là, l'heure réelle d'arrivée est maintenant.
+          ...(dto.installerImmediatement ? { arriveeLe: new Date() } : {}),
           origine: "RECEPTION",
           createdBy: currentUser.userId,
         },
@@ -220,7 +222,8 @@ export class ReservationsService {
     const [, chambre] = await this.prisma.$transaction([
       this.prisma.reservation.update({
         where: { id, hotelId },
-        data: { statut: "EN_COURS", syncVersion: { increment: 1 } },
+        // Heure réelle d'arrivée (15/10/2026) : préférée à la date prévue pour l'occupation.
+        data: { statut: "EN_COURS", arriveeLe: new Date(), syncVersion: { increment: 1 } },
       }),
       this.prisma.chambre.update({
         where: { id: reservation.chambreId, hotelId },
@@ -243,7 +246,8 @@ export class ReservationsService {
     const [, chambre] = await this.prisma.$transaction([
       this.prisma.reservation.update({
         where: { id, hotelId },
-        data: { statut: "TERMINEE", syncVersion: { increment: 1 } },
+        // Heure réelle de départ (15/10/2026).
+        data: { statut: "TERMINEE", departLe: new Date(), syncVersion: { increment: 1 } },
       }),
       this.prisma.chambre.update({
         where: { id: reservation.chambreId, hotelId },

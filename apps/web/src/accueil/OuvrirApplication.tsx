@@ -8,9 +8,10 @@ import { BoutonsStores } from "./Stores";
 const PACKAGE_ANDROID = "com.hotelsaver.app";
 
 /** Lien profond reconnu par l'application mobile ET par l'application Windows
- * (même schéma `hotelsaver://`). `email` pré-remplit l'écran de connexion. */
-function lienApplication(email?: string): { direct: string; android: string } {
-  const requete = email ? `?email=${encodeURIComponent(email)}` : "";
+ * (même schéma `hotelsaver://`). `telephone` pré-remplit l'écran de connexion
+ * (connexion par numéro, 15/10/2026). */
+function lienApplication(telephone?: string): { direct: string; android: string } {
+  const requete = telephone ? `?telephone=${encodeURIComponent(telephone)}` : "";
   const repli = configuration.urlPlayStore ? `S.browser_fallback_url=${encodeURIComponent(configuration.urlPlayStore)};` : "";
   return {
     direct: `hotelsaver://connexion${requete}`,
@@ -26,7 +27,7 @@ function lienApplication(email?: string): { direct: string; android: string } {
  * de l'ouvrir ; si la page reste visible après quelques secondes, c'est que rien ne
  * s'est ouvert, et on le dit en renvoyant vers le téléchargement juste en dessous.
  */
-export function OuvrirApplication({ email }: { email?: string }) {
+export function OuvrirApplication({ telephone }: { telephone?: string }) {
   const [essaye, setEssaye] = useState(false);
   const [introuvable, setIntrouvable] = useState(false);
   const minuteur = useRef<number | undefined>(undefined);
@@ -34,7 +35,7 @@ export function OuvrirApplication({ email }: { email?: string }) {
   useEffect(() => () => window.clearTimeout(minuteur.current), []);
 
   function ouvrir() {
-    const { direct, android } = lienApplication(email);
+    const { direct, android } = lienApplication(telephone);
     setEssaye(true);
     setIntrouvable(false);
     window.clearTimeout(minuteur.current);

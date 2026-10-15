@@ -279,7 +279,7 @@ describe("ReservationsService", () => {
 
       expect(prisma.reservation.update).toHaveBeenCalledWith({
         where: { id: "r1", hotelId: HOTEL_ID },
-        data: { statut: "EN_COURS", syncVersion: { increment: 1 } },
+        data: { statut: "EN_COURS", arriveeLe: expect.any(Date), syncVersion: { increment: 1 } },
       });
       expect(prisma.chambre.update).toHaveBeenCalledWith({
         where: { id: "c1", hotelId: HOTEL_ID },
@@ -299,6 +299,11 @@ describe("ReservationsService", () => {
 
       await service.checkOut("r1", HOTEL_ID);
 
+      // Heure réelle de départ enregistrée (occupation exacte dans les rapports).
+      expect(prisma.reservation.update).toHaveBeenCalledWith({
+        where: { id: "r1", hotelId: HOTEL_ID },
+        data: { statut: "TERMINEE", departLe: expect.any(Date), syncVersion: { increment: 1 } },
+      });
       expect(prisma.chambre.update).toHaveBeenCalledWith({
         where: { id: "c1", hotelId: HOTEL_ID },
         data: { statut: "NETTOYAGE", syncVersion: { increment: 1 } },

@@ -27,13 +27,30 @@ export class SuperAdminService {
    * dernier paiement — jamais stocké, voir calculer-validite.ts. */
   async findAllHotels() {
     const hotels = await this.prisma.hotel.findMany({
-      include: { branding: true, paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+      include: {
+        branding: true,
+        paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 },
+        // Patron : son numéro de connexion s'affiche dans la liste (15/10/2026).
+        utilisateurs: { where: { role: "PATRON" }, select: { nom: true, telephone: true }, take: 1 },
+      },
       orderBy: { createdAt: "desc" },
     });
-    return hotels.map(({ paiementsLicence, ...hotel }) => ({
+    return hotels.map(({ paiementsLicence, utilisateurs, ...hotel }) => ({
       ...hotel,
+      patron: utilisateurs?.[0] ?? null,
       valideJusquau: calculerFinValidite(hotel, paiementsLicence[0] ?? null),
     }));
+  }
+
+  /** Le compte PATRON d'un hôtel (le plus ancien s'il y en a plusieurs). */
+  async trouverPatron(hotelId: string) {
+    const patron = await this.prisma.utilisateur.findFirst({
+      where: { hotelId, role: "PATRON" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    if (!patron) throw new NotFoundException("Cet hôtel n'a pas de compte patron.");
+    return patron;
   }
 
   /**

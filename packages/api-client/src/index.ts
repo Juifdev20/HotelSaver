@@ -17,6 +17,7 @@ export type {
   OperationPush,
   ReponsePull,
   ReservationAnnulee,
+  VenteAnnulee,
   ResultatCheckInOut,
   ResultatOperation,
   TauxChange,

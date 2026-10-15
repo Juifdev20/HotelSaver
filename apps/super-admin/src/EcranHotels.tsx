@@ -2,9 +2,11 @@ import * as React from "react";
 import { useState } from "react";
 import { Button, StatusBadge, type StatusTone } from "@hotel-chicago/ui";
 import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement } from "@hotel-chicago/api-client";
+import { formaterTelephoneRdc } from "@hotel-chicago/types";
 import type { HotelAvecValidite, StatutLicence } from "@hotel-chicago/types";
 import { FormulairePaiement } from "./FormulairePaiement";
 import { FormulaireDomaine } from "./FormulaireDomaine";
+import { FormulairePatron } from "./FormulairePatron";
 
 export interface EcranHotelsProps {
   hotels: HotelAvecValidite[];
@@ -22,6 +24,10 @@ export interface EcranHotelsProps {
   onRetirerDomaine: (hotelId: string) => Promise<void>;
   domaineEnCours: boolean;
   erreurDomaine: string | null;
+  /** Numéro de connexion et/ou nouveau mot de passe du patron (15/10/2026). */
+  onModifierPatron: (hotelId: string, dto: { telephone?: string; motDePasse?: string }) => Promise<boolean>;
+  patronEnCours: boolean;
+  erreurPatron: string | null;
   onDeconnexion: () => void;
 }
 
@@ -50,8 +56,12 @@ export function EcranHotels({
   onRetirerDomaine,
   domaineEnCours,
   erreurDomaine,
+  onModifierPatron,
+  patronEnCours,
+  erreurPatron,
   onDeconnexion,
 }: EcranHotelsProps) {
+  const [hotelPourPatron, setHotelPourPatron] = useState<HotelAvecValidite | null>(null);
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
   const [hotelPourPaiement, setHotelPourPaiement] = useState<HotelAvecValidite | null>(null);
   // Par id, pas par objet : l'hôtel affiché doit refléter les données à
@@ -160,6 +170,7 @@ export function EcranHotels({
             <tr>
               <th>Nom</th>
               <th>Sous-domaine</th>
+              <th>Patron</th>
               <th>Statut</th>
               <th>Valide jusqu'au</th>
               <th>Domaine</th>
@@ -173,6 +184,11 @@ export function EcranHotels({
               <tr key={hotel.id}>
                 <td>{hotel.nom}</td>
                 <td>{hotel.sousDomaine}</td>
+                <td>
+                  <Button variant="secondary" size="sm" onClick={() => setHotelPourPatron(hotel)}>
+                    {hotel.patron?.telephone ? formaterTelephoneRdc(hotel.patron.telephone) : "Numéro à poser"}
+                  </Button>
+                </td>
                 <td>
                   <StatusBadge tone={TONE_PAR_STATUT[hotel.statutLicence] ?? "neutral"} label={hotel.statutLicence} />
                 </td>
@@ -210,7 +226,7 @@ export function EcranHotels({
             ))}
             {hotels.length === 0 && (
               <tr>
-                <td colSpan={7}>Aucun hôtel pour l'instant.</td>
+                <td colSpan={9}>Aucun hôtel pour l'instant.</td>
               </tr>
             )}
           </tbody>
@@ -227,6 +243,19 @@ export function EcranHotels({
             if (succes) setHotelPourPaiement(null);
           }}
           onFermer={() => setHotelPourPaiement(null)}
+        />
+      )}
+
+      {hotelPourPatron && (
+        <FormulairePatron
+          hotel={hotelPourPatron}
+          enCours={patronEnCours}
+          erreur={erreurPatron}
+          onSoumettre={async (dto) => {
+            const succes = await onModifierPatron(hotelPourPatron.id, dto);
+            if (succes) setHotelPourPatron(null);
+          }}
+          onFermer={() => setHotelPourPatron(null)}
         />
       )}
 

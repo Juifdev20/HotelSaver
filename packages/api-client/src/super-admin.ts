@@ -73,6 +73,14 @@ export class ClientSuperAdmin {
     });
   }
 
+  /** Numéro de connexion et/ou nouveau mot de passe du patron (15/10/2026). */
+  async modifierPatron(hotelId: string, dto: { telephone?: string; motDePasse?: string }) {
+    return this.requete(`/super-admin/hotels/${hotelId}/patron`, {
+      method: "PATCH",
+      body: JSON.stringify(dto),
+    });
+  }
+
   async verifierDomaine(hotelId: string): Promise<HotelCree> {
     return this.requete<HotelCree>(`/super-admin/hotels/${hotelId}/domaine/verifier`, { method: "POST" });
   }

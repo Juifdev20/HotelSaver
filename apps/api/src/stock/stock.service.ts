@@ -8,7 +8,7 @@ import { messages } from "../notifications/messages";
 import { CreateMouvementDto } from "./dto/create-mouvement.dto";
 import { FindMouvementsQueryDto } from "./dto/find-mouvements.query.dto";
 import { LancerInventaireDto } from "./dto/lancer-inventaire.dto";
-import { TypeMouvement } from "./types-mouvement";
+import { TYPE_RETOUR_VENTE, TypeMouvement } from "./types-mouvement";
 import { BrandingPdf } from "../rapports/pdf/commun";
 import { genererPdfInventaire } from "../rapports/pdf/inventaire";
 
@@ -124,6 +124,34 @@ export class StockService {
   }
 
   /**
+   * Remet des articles en stock à l'annulation d'un reçu cafétaria
+   * (15/10/2026). Incrément atomique en base (pas de lecture préalable : deux
+   * retours simultanés ne s'écrasent pas, et un retour ne peut jamais faire
+   * passer le stock sous zéro) + mouvement `RETOUR_VENTE` pour l'audit et
+   * l'inventaire. `syncVersion +1` : les téléphones reçoivent le nouveau stock.
+   */
+  async remettreEnStock(
+    client: ClientOuTransaction,
+    params: { hotelId: string; produitId: string; quantite: number; motif: string; createdBy: string }
+  ): Promise<void> {
+    if (params.quantite <= 0) return;
+    await client.produit.updateMany({
+      where: { id: params.produitId, hotelId: params.hotelId },
+      data: { stockActuel: { increment: params.quantite }, syncVersion: { increment: 1 } },
+    });
+    await client.mouvementStock.create({
+      data: {
+        hotelId: params.hotelId,
+        produitId: params.produitId,
+        quantite: params.quantite,
+        type: TYPE_RETOUR_VENTE,
+        motif: params.motif,
+        createdBy: params.createdBy,
+      },
+    });
+  }
+
+  /**
    * Point UNIQUE par où passe toute variation de stock (ventes cafétaria, synchronisation, écran Stock) :
    * l'alerte part donc quel que soit le chemin. On alerte au FRANCHISSEMENT du seuil (de « au-dessus » à
    * « au seuil ou en dessous », puis à zéro), pas à chaque vente : pas de spam, et réarmée dès qu'un
@@ -184,13 +212,15 @@ export class StockService {
       let entrees = 0, sortiesVentes = 0, pertes = 0, ajustements = 0;
       for (const m of mouvs) {
         const q    = Number(m.quantite);
-        const signe = m.type === "ENTREE" || m.type === "AJUSTEMENT" ? 1 : -1;
+        const signe = m.type === "ENTREE" || m.type === "AJUSTEMENT" || m.type === TYPE_RETOUR_VENTE ? 1 : -1;
         if (m.createdAt > fin) {
           apresFin += signe * q;
           continue;
         }
         if (m.type === "ENTREE")          entrees       += q;
         else if (m.type === "SORTIE_VENTE") sortiesVentes += q;
+        // Retour d'un reçu annulé : la vente n'a pas eu lieu, les ventes nettes baissent.
+        else if (m.type === TYPE_RETOUR_VENTE) sortiesVentes -= q;
         else if (m.type === "PERTE")      pertes        += q;
         else                               ajustements  += q;
       }

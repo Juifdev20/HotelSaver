@@ -7,6 +7,9 @@
  */
 export const couleurs = {
   navy: "#0F2742",
+  /** Couleur de marque, identique à l'écran de démarrage (app.json, colors.xml) :
+   * fond de la bande du haut (barre d'état + en-tête) pour qu'il n'y ait qu'un seul bleu. */
+  bleuMarque: "#053483",
   navyForte: "#0A1A2E",
   bleu: "#1769E0",
   bleuHover: "#1258C0",

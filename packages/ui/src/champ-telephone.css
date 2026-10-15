@@ -1,0 +1,46 @@
+/* Champ « Numéro de téléphone » (connexion par numéro, 15/10/2026). */
+.hc-champ-telephone {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--hc-border, #e4eaf2);
+  border-radius: var(--hc-radius-md, 10px);
+  background: var(--hc-surface-200, #fff);
+  overflow: hidden;
+}
+
+.hc-champ-telephone:focus-within {
+  border-color: var(--hc-blue, #1769e0);
+  box-shadow: 0 0 0 3px var(--hc-blue-light, #eaf3ff);
+}
+
+.hc-champ-telephone__pays {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-right: 1px solid var(--hc-border, #e4eaf2);
+  background: var(--hc-surface-100, #f6f8fc);
+  color: var(--hc-navy, #0f2742);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.hc-champ-telephone__pays svg {
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.hc-champ-telephone__saisie {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--hc-ink, #142033);
+  letter-spacing: 0.02em;
+}

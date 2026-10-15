@@ -9,6 +9,14 @@ import { Link2, MessageCircle, Pencil } from "lucide-react";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
 import { StatusBadge } from "@hotel-chicago/ui";
 
+/** « 15/10 à 14:32 » — heure réelle de check-in / check-out. */
+function jourEtHeure(iso: string): string {
+  const d = new Date(iso);
+  const jour = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+  const heure = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return `${jour} à ${heure}`;
+}
+
 export interface EcranReservationDetailProps {
   client: ClientApi;
   reservationId: string;
@@ -270,6 +278,18 @@ export function EcranReservationDetail({
               <div className="parametres-ligne">
                 <span className="hc-text-body">Origine</span>
                 <span className="texte-discret">Demande du site public</span>
+              </div>
+            )}
+            {reservation.arriveeLe && (
+              <div className="parametres-ligne">
+                <span className="hc-text-body">Arrivée réelle</span>
+                <span className="hc-text-body-strong">{jourEtHeure(reservation.arriveeLe)}</span>
+              </div>
+            )}
+            {reservation.departLe && (
+              <div className="parametres-ligne">
+                <span className="hc-text-body">Départ réel</span>
+                <span className="hc-text-body-strong">{jourEtHeure(reservation.departLe)}</span>
               </div>
             )}
             {reservation.note && (

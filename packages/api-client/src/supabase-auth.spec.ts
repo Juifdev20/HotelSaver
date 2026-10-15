@@ -1,4 +1,4 @@
-import { connecterAvecMotDePasse, rafraichirSession } from "./supabase-auth";
+import { connecterAvecMotDePasse, connecterViaApi, rafraichirSession } from "./supabase-auth";
 
 function mockFetchOnce(ok: boolean, status: number, corps: unknown) {
   (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -44,13 +44,13 @@ describe("connecterAvecMotDePasse", () => {
     mockFetchOnce(false, 400, { code: 400, error_code: "invalid_credentials", msg: "Invalid login credentials" });
 
     const promesse = connecterAvecMotDePasse(config, "a@b.com", "mauvais");
-    await expect(promesse).rejects.toThrow("Email ou mot de passe incorrect.");
+    await expect(promesse).rejects.toThrow("Numéro (ou e-mail) ou mot de passe incorrect.");
   });
 
   it("donne un message français par défaut si Supabase ne fournit aucun code connu", async () => {
     mockFetchOnce(false, 400, {});
     await expect(connecterAvecMotDePasse(config, "a@b.com", "mauvais")).rejects.toThrow(
-      "Email ou mot de passe incorrect."
+      "Numéro (ou e-mail) ou mot de passe incorrect."
     );
   });
 
@@ -82,6 +82,31 @@ describe("rafraichirSession", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       "https://xxx.supabase.co/auth/v1/token?grant_type=refresh_token",
       expect.objectContaining({ body: JSON.stringify({ refresh_token: "ancien-refresh-token" }) })
+    );
+  });
+});
+
+describe("connecterViaApi (connexion par numéro, 15/10/2026)", () => {
+  beforeEach(() => {
+    global.fetch = jest.fn();
+    jest.spyOn(Date, "now").mockReturnValue(1_000_000_000);
+  });
+
+  it("envoie `telephone` au relais quand l'identifiant est un numéro", async () => {
+    mockFetchOnce(true, 200, { access_token: "at", refresh_token: "rt", expires_in: 3600 });
+    await connecterViaApi(["http://api.test"], "+243970000000", "secret");
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://api.test/auth/connexion",
+      expect.objectContaining({ body: JSON.stringify({ telephone: "+243970000000", motDePasse: "secret" }) })
+    );
+  });
+
+  it("envoie `email` au relais pour un ancien compte (identifiant avec @)", async () => {
+    mockFetchOnce(true, 200, { access_token: "at", refresh_token: "rt", expires_in: 3600 });
+    await connecterViaApi(["http://api.test"], "a@b.com", "secret");
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://api.test/auth/connexion",
+      expect.objectContaining({ body: JSON.stringify({ email: "a@b.com", motDePasse: "secret" }) })
     );
   });
 });

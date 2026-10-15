@@ -134,10 +134,13 @@ export function listerHotelsPartenaires(config: ConfigApiPublique): Promise<Hote
   return requetePublique(config, "/public/hotels-partenaires");
 }
 
-/** POST /public/mot-de-passe-oublie — envoie l'e-mail de récupération. Même
- * réponse que le compte existe ou non (le serveur ne révèle rien). */
-export function demanderReinitialisationMotDePasse(config: ConfigApiPublique, email: string): Promise<{ ok: true }> {
-  return requetePublique(config, "/public/mot-de-passe-oublie", { method: "POST", body: JSON.stringify({ email }) });
+/** POST /public/mot-de-passe-oublie — envoie l'e-mail de récupération si le
+ * compte (trouvé par numéro ou par e-mail) a un e-mail réel. Même réponse
+ * dans tous les cas (le serveur ne révèle rien) : c'est au client d'expliquer
+ * la suite (employé → patron, patron → support HotelSaver). */
+export function demanderReinitialisationMotDePasse(config: ConfigApiPublique, identifiant: string): Promise<{ ok: true }> {
+  const corps = identifiant.includes("@") ? { email: identifiant } : { telephone: identifiant };
+  return requetePublique(config, "/public/mot-de-passe-oublie", { method: "POST", body: JSON.stringify(corps) });
 }
 
 /** POST /public/reinitialiser-mot-de-passe — `jeton` = jeton d'accès contenu dans
