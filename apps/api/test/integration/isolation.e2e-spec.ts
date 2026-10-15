@@ -242,10 +242,10 @@ decrire("Isolation entre hôtels (vraie base, deux hôtels)", () => {
   });
 
   describe("un hôtel suspendu est bloqué, l'autre continue", () => {
-    it("SUSPENDU → 401 ; l'autre hôtel n'est pas touché", async () => {
+    it("SUSPENDU → 402 ; l'autre hôtel n'est pas touché", async () => {
       await (prisma as any).hotel.update({ where: { id: B.hotelId }, data: { statutLicence: "SUSPENDU" } });
       try {
-        expect((await http().get("/chambres").set("Authorization", as(B, "recep"))).status).toBe(401);
+        expect((await http().get("/chambres").set("Authorization", as(B, "recep"))).status).toBe(402);
         expect((await http().get("/chambres").set("Authorization", as(A, "recep"))).status).toBe(200);
       } finally {
         await (prisma as any).hotel.update({ where: { id: B.hotelId }, data: { statutLicence: "ACTIF" } });
