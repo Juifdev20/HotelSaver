@@ -16,6 +16,9 @@
     "build": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json && node scripts/finaliser-build.cjs",
     "test": "jest"
   },
+  "dependencies": {
+    "@hotel-chicago/types": "workspace:*"
+  },
   "devDependencies": {
     "@types/jest": "^29.5.13",
     "@types/node": "^20.16.10",

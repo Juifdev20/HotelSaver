@@ -35,7 +35,7 @@ const PALETTE = { claire: { primary: "#123456" }, sombre: { primary: "#654321" }
 const TABLES = [
   "NotificationLue", "AppareilPush", "Notification", "InventairePhysiqueItem", "InventairePhysique", "MenuDuJourItem", "MenuDuJour",
   "RapportMensuel", "Depense", "VenteCafeteria", "LigneCommande", "SousCompte", "CompteCafeteria", "MouvementStock", "Facture",
-  "Reservation", "Client", "Chambre", "Produit", "TauxChange", "PaiementLicence", "HotelSite", "HotelBranding", "Utilisateur", "SuperAdmin", "Hotel",
+  "Reservation", "Client", "Chambre", "Produit", "TauxChange", "PaiementAbonnement", "PaiementLicence", "HotelSite", "HotelBranding", "Utilisateur", "SuperAdmin", "Hotel",
 ];
 
 export async function viderBase(prisma: PrismaClient): Promise<void> {

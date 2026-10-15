@@ -60,6 +60,8 @@ export interface ProfilConnecte extends UtilisateurAuthentifie {
   statutLicence?: string;
   /** Fin de validité de la licence (ISO), calculée côté serveur — informatif hors ligne. */
   licenceValideJusquau?: string | null;
+  /** État de l'abonnement au moment de la réponse (essai, actif, délai de grâce, expiré…) : source de vérité pour afficher les alertes et le blocage. */
+  abonnement?: EtatAbonnement;
   hotelSlogan: string | null;
   /** Adresse et téléphone de l'hôtel : imprimés dans l'en-tête des reçus. */
   hotelAdresse: string | null;
@@ -679,6 +681,7 @@ export const TYPES_NOTIFICATION = [
   "COMMANDE_WEB",
   "PRE_ENREGISTREMENT",
   "ACOMPTE_MODIFIE",
+  "ABONNEMENT_RENOUVELE",
 ] as const;
 export type TypeNotification = (typeof TYPES_NOTIFICATION)[number];
 
@@ -698,6 +701,7 @@ export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification>
   ACOMPTE_MODIFIE: "securite",
   LICENCE_BIENTOT_EXPIREE: "securite",
   LICENCE_SUSPENDUE: "securite",
+  ABONNEMENT_RENOUVELE: "securite",
   RAPPORT_A_GENERER: "quotidien",
   RAPPORT_DISPONIBLE: "quotidien",
   COMMANDE_WEB: "reservations",
@@ -906,4 +910,95 @@ export interface PreEnregistrementPayload {
   demandeClient?: string;
   email?: string;
   telephone?: string;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Abonnement (voir packages/regles/src/abonnement.ts pour les règles, apps/api/src/abonnement pour le serveur)
+
+export type StatutAbonnement = "ESSAI" | "ACTIF" | "EN_GRACE" | "EXPIRE" | "SUSPENDU" | "RESILIE";
+
+/** Ce que voient les applications (réponse de /auth/me et de /abonnement). */
+export interface EtatAbonnement {
+  statut: StatutAbonnement;
+  /** Fin de la période payée (ou de l'essai), ISO. */
+  valideJusquau: string;
+  /** Jours restants avant l'échéance, arrondis au-dessus ; 0 ou négatif une fois dépassée. */
+  joursRestants: number;
+  /** Fin du délai de grâce, ISO. */
+  graceJusquau: string;
+  /** Accès à l'application coupé : seul le renouvellement reste possible (ou rien du tout si suspendu à la main / résilié). */
+  bloque: boolean;
+  /** Le patron peut renouveler en ligne. Faux si l'hôtel est suspendu à la main ou résilié : il doit contacter le support. */
+  renouvelable: boolean;
+  /** Message d'alerte à afficher à tous (null = rien à signaler). */
+  alerte: "BIENTOT" | "GRACE" | "EXPIRE" | "SUSPENDU" | "RESILIE" | null;
+}
+
+export type OperateurMobileMoney = "VODACOM" | "ORANGE" | "AIRTEL" | "AFRICELL";
+export type StatutPaiementAbonnement = "EN_ATTENTE" | "REUSSI" | "ECHEC" | "EXPIRE";
+
+/** Une durée d'achat avec son prix dans chaque devise (calculé par le serveur — la seule référence). */
+export interface PrixDuree {
+  mois: number;
+  /** Mois offerts compris dans cette durée (ex. 2 pour 12 mois). */
+  moisOfferts: number;
+  prixUsd: number;
+  prixCdf: number;
+}
+
+export interface FormuleProposee {
+  code: "ESSENTIEL" | "PRO" | "PREMIUM";
+  nom: string;
+  description: string;
+  recommandee: boolean;
+  maxChambres: number | null;
+  inclus: string[];
+  prixMensuelUsd: number;
+  durees: PrixDuree[];
+}
+
+/** Un paiement d'abonnement vu par l'application : en cours, réussi ou échoué. */
+export interface PaiementAbonnementVue {
+  id: string;
+  formule: string;
+  mois: number;
+  montant: number;
+  devise: "USD" | "CDF";
+  /** EN_LIGNE = payé dans l'application ; SUPPORT = enregistré à la main par l'équipe HotelSaver (virement, espèces…). */
+  source: "EN_LIGNE" | "SUPPORT";
+  operateur: OperateurMobileMoney | null;
+  telephoneMasque: string | null;
+  statut: StatutPaiementAbonnement;
+  messageErreur: string | null;
+  /** Nouvelle échéance, quand le paiement a réussi. */
+  periodeCouverteJusquau: string | null;
+  createdAt: string;
+  confirmeLe: string | null;
+}
+
+/** Réponse de GET /abonnement. */
+export interface VueAbonnement {
+  etat: EtatAbonnement;
+  /** Formule payée en dernier ; null pendant l'essai. */
+  formuleActuelle: string | null;
+  nombreChambres: number;
+  /** false = le serveur n'est pas relié à ScanLinkPay : on ne peut pas payer en ligne (contacter le support). */
+  paiementEnLigne: boolean;
+  formules: FormuleProposee[];
+  /** Paiement en cours (Mobile Money envoyé, en attente de confirmation sur le téléphone), s'il y en a un. */
+  paiementEnCours: PaiementAbonnementVue | null;
+  /** Les derniers paiements, du plus récent au plus ancien (réservé au patron ; vide pour les autres rôles). */
+  historique: PaiementAbonnementVue[];
+}
+
+/** Corps de POST /abonnement/paiements. */
+export interface DemandePaiementAbonnement {
+  formule: "ESSENTIEL" | "PRO" | "PREMIUM";
+  mois: number;
+  devise: "USD" | "CDF";
+  operateur: OperateurMobileMoney;
+  telephone: string;
+  /** UUID généré par l'application pour CETTE tentative : la renvoyer après une coupure réseau ne débite pas deux fois. */
+  cleIdempotence: string;
 }

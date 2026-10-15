@@ -1,5 +1,6 @@
 import { verifierUrlsHotel } from "../common/supabase-storage/urls-hotel";
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -8,6 +9,7 @@ import {
 } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie, peutOperer } from "@hotel-chicago/types";
+import { formuleParCode } from "@hotel-chicago/regles";
 import { MESSAGE_PATRON_NON_OPERANT } from "../common/guards/roles.guard";
 import { PRISMA } from "../prisma/prisma.module";
 import { CreateChambreDto } from "./dto/create-chambre.dto";
@@ -44,6 +46,7 @@ export class ChambresService {
 
   async create(dto: CreateChambreDto, hotelId: string) {
     verifierUrlsHotel(dto.photos ?? [], hotelId);
+    await this.verifierLimiteFormule(hotelId);
     try {
       return await this.prisma.chambre.create({ data: { ...dto, hotelId } });
     } catch (error) {
@@ -51,6 +54,17 @@ export class ChambresService {
         throw new ConflictException(`Une chambre avec le numéro "${dto.numero}" existe déjà.`);
       }
       throw error;
+    }
+  }
+
+  /** Le nombre de chambres est plafonné par la formule payée (Essentiel : 15, Pro : 40). Un hôtel en essai ou créé à la main (sans formule) n'a pas de plafond. */
+  private async verifierLimiteFormule(hotelId: string) {
+    const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId }, select: { formule: true } });
+    const formule = formuleParCode(hotel?.formule);
+    if (!formule || formule.maxChambres === null) return;
+    const nombre = await this.prisma.chambre.count({ where: { hotelId } });
+    if (nombre >= formule.maxChambres) {
+      throw new BadRequestException(`La formule ${formule.nom} est limitée à ${formule.maxChambres} chambres. Passez à une formule supérieure depuis Paramètres → Abonnement pour en ajouter.`);
     }
   }
 

@@ -64,10 +64,10 @@ enum TypeProduit {
 
 /// Cycle de vie d'une ligne de commande en cuisine.
 enum StatutLigne {
-  EN_ATTENTE    // commande passée, pas encore prise en charge
+  EN_ATTENTE // commande passée, pas encore prise en charge
   EN_PREPARATION // cuisine au travail
-  PRET          // prêt à être servi
-  SERVI         // servi au client
+  PRET // prêt à être servi
+  SERVI // servi au client
 }
 
 /// Département auquel appartient un rapport mensuel PDF.
@@ -90,26 +90,32 @@ enum StatutRapport {
 /// date de validité n'est jamais stockée ici, toujours calculée depuis le
 /// dernier paiement (voir apps/api/src/super-admin/calculer-validite.ts).
 model Hotel {
-  id               String        @id @default(uuid())
-  nom              String
-  sousDomaine      String        @unique
-  statutLicence    StatutLicence @default(ESSAI)
+  id                 String        @id @default(uuid())
+  nom                String
+  sousDomaine        String        @unique
+  statutLicence      StatutLicence @default(ESSAI)
+  /// Formule payée en dernier (ESSENTIEL / PRO / PREMIUM, voir packages/regles/src/abonnement.ts). null = essai ou hôtel créé à la main :
+  /// aucune limite de formule ne s'applique.
+  formule            String?
+  /// true = suspendu À LA MAIN par le super-admin (abus, litige) : l'hôtel ne peut pas se réactiver seul en payant.
+  /// false = suspendu automatiquement à l'échéance : le patron peut payer pour rouvrir.
+  suspensionManuelle Boolean       @default(false)
   // Séparation des tâches : false (défaut) = le patron ne réalise PAS les opérations du quotidien
   // (réserver, check-in/out, facturer, ouvrir/encaisser un compte cafétaria) ; il peut l'activer s'il travaille seul.
-  patronPeutOperer Boolean @default(false)
+  patronPeutOperer   Boolean       @default(false)
   // Suivi cuisine : false (défaut) = vente au comptoir, les lignes de commande sont
   // créées directement SERVI et l'écran Cuisine est masqué ; true = file de production
   // cuisine (EN_ATTENTE → EN_PREPARATION → PRET → SERVI) pour les hôtels avec plats préparés.
-  cuisineActivee   Boolean @default(false)
+  cuisineActivee     Boolean       @default(false)
   // Commande en ligne : true = le site public de l'hôtel expose l'onglet « Cuisine »
   // (produits commandableEnLigne) et POST /public/commande crée des comptes
   // SITE_PUBLIC ; false (défaut) = pas de commande en ligne pour cet hôtel.
-  commandeWebActivee Boolean @default(false)
-  emailContact     String?
-  telephoneContact String?
-  adresse          String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  commandeWebActivee Boolean       @default(false)
+  emailContact       String?
+  telephoneContact   String?
+  adresse            String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   // Domaine personnalisé (Phase 13, onboarding manuel par le Super-Admin
   // uniquement — voir DECISIONS.md) : attaché via l'API Render Custom
@@ -126,26 +132,27 @@ model Hotel {
   domaineVerifie        Boolean   @default(false)
   domaineAjouteLe       DateTime?
 
-  branding         HotelBranding?
-  site             HotelSite?
-  notifications    Notification[]
-  appareilsPush    AppareilPush[]
+  branding      HotelBranding?
+  site          HotelSite?
+  notifications Notification[]
+  appareilsPush AppareilPush[]
 
-  utilisateurs     Utilisateur[]
-  chambres         Chambre[]
-  clients          Client[]
-  reservations     Reservation[]
-  factures         Facture[]
-  produits         Produit[]
-  tauxChanges      TauxChange[]
-  mouvementsStock  MouvementStock[]
-  comptesCafeteria CompteCafeteria[]
-  sousComptes      SousCompte[]
-  lignesCommande   LigneCommande[]
-  ventesCafeteria  VenteCafeteria[]
+  utilisateurs         Utilisateur[]
+  chambres             Chambre[]
+  clients              Client[]
+  reservations         Reservation[]
+  factures             Facture[]
+  produits             Produit[]
+  tauxChanges          TauxChange[]
+  mouvementsStock      MouvementStock[]
+  comptesCafeteria     CompteCafeteria[]
+  sousComptes          SousCompte[]
+  lignesCommande       LigneCommande[]
+  ventesCafeteria      VenteCafeteria[]
   menusDuJour          MenuDuJour[]
   inventairesPhysiques InventairePhysique[]
   paiementsLicence     PaiementLicence[]
+  paiementsAbonnement  PaiementAbonnement[]
   rapportsMensuels     RapportMensuel[]
   depenses             Depense[]
   syncCorrespondances  SyncCorrespondance[]
@@ -277,36 +284,87 @@ enum MethodePaiementLicence {
 /// calculée à partir du dernier paiement (voir calculer-validite.ts) : une
 /// seule source de vérité, aucune désynchronisation possible.
 model PaiementLicence {
-  id                     String                 @id @default(uuid())
-  hotel                  Hotel                  @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  hotelId                String
-  montant                Decimal
-  devise                 Devise
-  methode                MethodePaiementLicence
-  periodeCouverteJusquau DateTime
-  note                   String?
-  enregistrePar          SuperAdmin             @relation(fields: [enregistreParSuperAdminId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  enregistreParSuperAdminId String
-  createdAt              DateTime               @default(now())
+  id                        String                 @id @default(uuid())
+  hotel                     Hotel                  @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId                   String
+  montant                   Decimal
+  devise                    Devise
+  methode                   MethodePaiementLicence
+  periodeCouverteJusquau    DateTime
+  note                      String?
+  /// null = paiement en ligne confirmé automatiquement (voir PaiementAbonnement) ; sinon le super-admin qui l'a saisi à la main.
+  enregistrePar             SuperAdmin?            @relation(fields: [enregistreParSuperAdminId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  enregistreParSuperAdminId String?
+  paiementAbonnement        PaiementAbonnement?
+  createdAt                 DateTime               @default(now())
 
   @@index([hotelId])
 }
 
+enum StatutPaiementAbonnement {
+  EN_ATTENTE
+  REUSSI
+  ECHEC
+  EXPIRE
+}
+
+enum OperateurMobileMoney {
+  VODACOM
+  ORANGE
+  AIRTEL
+  AFRICELL
+}
+
+/// Une tentative de paiement d'abonnement par Mobile Money (M-Pesa, Airtel Money, Orange Money, Africell), encaissée par ScanLinkPay
+/// sur le compte marchand de la plateforme (voir apps/api/src/abonnement). Le montant, la formule et la durée sont fixés PAR LE SERVEUR à
+/// la création ; l'hôtel n'est crédité (ligne PaiementLicence + nouvelle échéance) que lorsque ScanLinkPay confirme un paiement RÉUSSI du
+/// bon montant dans la bonne devise — jamais sur la parole de l'application.
+model PaiementAbonnement {
+  id                     String                   @id @default(uuid())
+  hotel                  Hotel                    @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId                String
+  utilisateurId          String
+  formule                String
+  mois                   Int
+  montant                Decimal
+  devise                 Devise
+  operateur              OperateurMobileMoney
+  /// Numéro débité, masqué (« +243 82• ••• •18 ») : on ne garde jamais le numéro entier.
+  telephoneMasque        String
+  statut                 StatutPaiementAbonnement @default(EN_ATTENTE)
+  messageErreur          String?
+  /// Référence de la demande de paiement chez ScanLinkPay (payment_requests.reference).
+  referenceDemande       String?
+  /// Identifiant du paiement chez ScanLinkPay (payment_intents.psp_intent_id) : sert à interroger son état.
+  referenceFournisseur   String?                  @unique
+  /// Fournie par l'application : rejouer la même demande ne crée jamais un second débit.
+  cleIdempotence         String                   @unique
+  paiementLicence        PaiementLicence?         @relation(fields: [paiementLicenceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paiementLicenceId      String?                  @unique
+  derniereVerificationLe DateTime?
+  confirmeLe             DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  @@index([hotelId, createdAt])
+  @@index([statut, createdAt])
+}
+
 model Utilisateur {
-  id             String   @id @default(uuid())
-  hotel          Hotel    @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id             String               @id @default(uuid())
+  hotel          Hotel                @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   hotelId        String
   nom            String
   role           Role
-  actif          Boolean  @default(true)
-  supabaseAuthId String   @unique
-  createdAt      DateTime @default(now())
+  actif          Boolean              @default(true)
+  supabaseAuthId String               @unique
+  createdAt      DateTime             @default(now())
   /// Dénormalisé depuis Supabase Auth (source de vérité pour l'authentification
   /// elle-même) — évite un appel à l'API Admin Supabase par ligne pour afficher
   /// l'écran "Utilisateurs" (Phase 15). Nullable : les comptes créés avant
   /// cette Phase (via creer-utilisateur.js, sans ce champ) n'ont pas de valeur
   /// tant qu'ils ne sont pas mis à jour manuellement.
-  email          String?  @unique
+  email          String?              @unique
   appareilsPush  AppareilPush[]
   sessions       SessionUtilisateur[]
 
@@ -327,19 +385,19 @@ model SessionUtilisateur {
 }
 
 model Chambre {
-  id           String         @id @default(uuid())
-  hotel        Hotel          @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id           String        @id @default(uuid())
+  hotel        Hotel         @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   hotelId      String
   // Unique PAR HÔTEL (@@unique ci-dessous), pas sur toute la plateforme : deux hôtels ont chacun leur chambre « 101 ».
   numero       String
   type         String
   prixParNuit  Decimal
   devise       Devise // USD ou CDF, propre à chaque chambre
-  statut       StatutChambre  @default(LIBRE)
+  statut       StatutChambre @default(LIBRE)
   photos       String[] // URLs Supabase Storage (bucket chambres-photos), ajoutées depuis l'app — voir section 5.1
   reservations Reservation[]
-  updatedAt    DateTime       @updatedAt
-  syncVersion  Int            @default(1)
+  updatedAt    DateTime      @updatedAt
+  syncVersion  Int           @default(1)
 
   @@unique([hotelId, numero])
   @@index([statut])
@@ -369,26 +427,26 @@ model Client {
 }
 
 model Reservation {
-  id          String   @id @default(uuid())
-  hotel       Hotel    @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  hotelId     String
-  chambre     Chambre  @relation(fields: [chambreId], references: [id])
-  chambreId   String
-  client      Client   @relation(fields: [clientId], references: [id])
-  clientId    String
-  dateArrivee DateTime
-  dateDepart  DateTime
-  acompte     Decimal  @default(0)
-  statut      String // EN_ATTENTE, CONFIRMEE, EN_COURS, TERMINEE, ANNULEE
-  origine     String // RECEPTION, SITE_PUBLIC
-  createdBy   String // Utilisateur.id
+  id                 String    @id @default(uuid())
+  hotel              Hotel     @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId            String
+  chambre            Chambre   @relation(fields: [chambreId], references: [id])
+  chambreId          String
+  client             Client    @relation(fields: [clientId], references: [id])
+  clientId           String
+  dateArrivee        DateTime
+  dateDepart         DateTime
+  acompte            Decimal   @default(0)
+  statut             String // EN_ATTENTE, CONFIRMEE, EN_COURS, TERMINEE, ANNULEE
+  origine            String // RECEPTION, SITE_PUBLIC
+  createdBy          String // Utilisateur.id
   // Ajoutés en Phase 2 (absents du schéma section 7, mais requis par la section 8/17 :
   // "aucune suppression physique ... uniquement des annulations tracées avec motif") :
-  annuleLe        DateTime?
-  motifAnnulation String?
+  annuleLe           DateTime?
+  motifAnnulation    String?
   // Demandes spéciales du client (lit bébé, étage, régime…) saisies à la
   // réservation et affichées à l'arrivée :
-  note        String?
+  note               String?
   // Suivi par le client depuis le site (07/10/2026) : secret du lien
   // « Ma réservation » (UUID v4, jamais devinable), puis pré-enregistrement
   // en ligne. `demandeClient` = texte du client, distinct de `note` qui
@@ -401,9 +459,9 @@ model Reservation {
   // (« Ma réservation ») — réponse à sa demande avant confirmation ;
   // distinct de `note` qui reste interne.
   reponseReception   String?
-  facture     Facture?
-  updatedAt   DateTime @updatedAt
-  syncVersion Int      @default(1)
+  facture            Facture?
+  updatedAt          DateTime  @updatedAt
+  syncVersion        Int       @default(1)
 
   @@index([chambreId])
   @@index([clientId])
@@ -412,19 +470,19 @@ model Reservation {
 }
 
 model Facture {
-  id            String      @id @default(uuid())
-  hotel         Hotel       @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  hotelId       String
-  reservation   Reservation @relation(fields: [reservationId], references: [id])
-  reservationId String      @unique
+  id                    String       @id @default(uuid())
+  hotel                 Hotel        @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId               String
+  reservation           Reservation  @relation(fields: [reservationId], references: [id])
+  reservationId         String       @unique
   // Montant du séjour lui-même, dans la devise propre à la chambre (Chambre.devise) :
-  montantChambre Decimal
-  deviseChambre  Devise
+  montantChambre        Decimal
+  deviseChambre         Devise
   // Totaux incluant les ventes cafétaria liées à ce séjour (VenteCafeteria.reservationLieeId),
   // jamais convertis ni fusionnés entre devises (voir section 9.4) :
-  montantTotalUSD Decimal @default(0)
-  montantTotalCDF Decimal @default(0)
-  modePaiement    ModePaiement
+  montantTotalUSD       Decimal      @default(0)
+  montantTotalCDF       Decimal      @default(0)
+  modePaiement          ModePaiement
   // Ce que le client a réellement remis, si différent de la devise due (paiement croisé) :
   deviseRegleeParClient Devise?
   montantRegleParClient Decimal?
@@ -441,9 +499,9 @@ model Facture {
   imprimeLe             DateTime?
   annuleLe              DateTime?
   motifAnnulation       String?
-  createdAt             DateTime  @default(now())
-  updatedAt              DateTime @updatedAt
-  syncVersion            Int      @default(1)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  syncVersion           Int          @default(1)
 
   @@unique([hotelId, numeroRecu])
   @@index([hotelId])
@@ -451,36 +509,36 @@ model Facture {
 }
 
 model Produit {
-  id              String           @id @default(uuid())
-  hotel           Hotel            @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  hotelId         String
-  nom             String
-  categorie       String
-  prix            Decimal
-  devise          Devise // USD ou CDF, propre à chaque produit
-  typeProduit     TypeProduit      @default(ARTICLE) // PLAT = préparé (cuisine/site, sans stock) ; ARTICLE = comptoir (stocké, servi direct)
-  photo           String? // URL Supabase Storage (bucket menu-photos), ajoutée depuis l'app — voir section 5.1
-  stockActuel     Decimal          @default(0)
-  seuilAlerte     Decimal          @default(5)
-  prixAchat       Decimal?         // Prix d'acquisition unitaire (facultatif — calcul de marge inventaire)
-  actif           Boolean          @default(true)
+  id                  String                   @id @default(uuid())
+  hotel               Hotel                    @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId             String
+  nom                 String
+  categorie           String
+  prix                Decimal
+  devise              Devise // USD ou CDF, propre à chaque produit
+  typeProduit         TypeProduit              @default(ARTICLE) // PLAT = préparé (cuisine/site, sans stock) ; ARTICLE = comptoir (stocké, servi direct)
+  photo               String? // URL Supabase Storage (bucket menu-photos), ajoutée depuis l'app — voir section 5.1
+  stockActuel         Decimal                  @default(0)
+  seuilAlerte         Decimal                  @default(5)
+  prixAchat           Decimal? // Prix d'acquisition unitaire (facultatif — calcul de marge inventaire)
+  actif               Boolean                  @default(true)
   // Opt-in site public : true = le produit apparaît sur le menu/commande du site
   // (uniquement si l'hôtel a activé commandeWebActivee) ; rien n'est publié sans choix explicite.
-  commandableEnLigne Boolean       @default(false)
-  description     String? // texte libre affiché sur la page « Cuisine » du site public
+  commandableEnLigne  Boolean                  @default(false)
+  description         String? // texte libre affiché sur la page « Cuisine » du site public
   // PLAT uniquement : portions préparées disponibles à la vente. null =
   // illimité (on cuisine à la commande) ; sinon décrémenté à chaque ligne
   // vendue et le plat passe « Épuisé » à 0 (comptoir + site).
   portionsDisponibles Int?
   // Code-barres (ARTICLE seulement, 08/10/2026) : code du fabricant ou EAN-13
   // interne préfixe 2 généré par l'app. Identifiant seul, jamais le prix.
-  codeBarres      String?
-  mouvementsStock MouvementStock[]
-  lignesCommande  LigneCommande[]
-  menuDuJourItems MenuDuJourItem[]
-  inventaireItems InventairePhysiqueItem[]
-  updatedAt       DateTime         @updatedAt
-  syncVersion     Int              @default(1)
+  codeBarres          String?
+  mouvementsStock     MouvementStock[]
+  lignesCommande      LigneCommande[]
+  menuDuJourItems     MenuDuJourItem[]
+  inventaireItems     InventairePhysiqueItem[]
+  updatedAt           DateTime                 @updatedAt
+  syncVersion         Int                      @default(1)
 
   @@unique([hotelId, codeBarres])
   @@index([hotelId])
@@ -490,12 +548,12 @@ model Produit {
 // à titre informatif (dashboard, paiement croisé) — jamais pour fusionner deux totaux
 // légaux de devises différentes en un seul montant comptable.
 model TauxChange {
-  id         String   @id @default(uuid())
-  hotel      Hotel    @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  hotelId    String
-  cdfParUsd  Decimal // ex: 2800 (1 USD = 2800 CDF)
-  definiPar  String // Utilisateur.id (PATRON)
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId   String
+  cdfParUsd Decimal // ex: 2800 (1 USD = 2800 CDF)
+  definiPar String // Utilisateur.id (PATRON)
+  createdAt DateTime @default(now())
 
   @@index([hotelId])
 }
@@ -519,25 +577,25 @@ model MouvementStock {
 }
 
 model CompteCafeteria {
-  id          String        @id @default(uuid())
-  hotel       Hotel         @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  hotelId     String
-  tableOuNom  String
-  statut      StatutCompte  @default(OUVERT)
+  id            String           @id @default(uuid())
+  hotel         Hotel            @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId       String
+  tableOuNom    String
+  statut        StatutCompte     @default(OUVERT)
   // Origine de la commande : null/vide = comptoir ; "SITE_PUBLIC" = commande
   // passée sur le site web public de l'hôtel (même convention que Reservation.origine).
-  origine     String?
+  origine       String?
   // Coordonnées du client web (téléphone, chambre) pour l'identifier au comptoir.
   contactClient String?
   // Instruction globale saisie par le client web (ex. « sans piment »).
-  noteClient  String?
-  ouvertPar   String // Utilisateur.id
-  ouvertLe    DateTime      @default(now())
-  fermeLe     DateTime?
-  sousComptes SousCompte[]
-  ventes      VenteCafeteria[]
-  updatedAt   DateTime      @updatedAt
-  syncVersion Int           @default(1)
+  noteClient    String?
+  ouvertPar     String // Utilisateur.id
+  ouvertLe      DateTime         @default(now())
+  fermeLe       DateTime?
+  sousComptes   SousCompte[]
+  ventes        VenteCafeteria[]
+  updatedAt     DateTime         @updatedAt
+  syncVersion   Int              @default(1)
 
   @@index([statut])
   @@index([hotelId])
@@ -562,23 +620,23 @@ model SousCompte {
 }
 
 model LigneCommande {
-  id           String     @id @default(uuid())
-  hotel        Hotel      @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  hotelId      String
-  sousCompte   SousCompte @relation(fields: [sousCompteId], references: [id])
-  sousCompteId String
-  produit      Produit    @relation(fields: [produitId], references: [id])
-  produitId    String
-  quantite     Decimal
+  id            String      @id @default(uuid())
+  hotel         Hotel       @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId       String
+  sousCompte    SousCompte  @relation(fields: [sousCompteId], references: [id])
+  sousCompteId  String
+  produit       Produit     @relation(fields: [produitId], references: [id])
+  produitId     String
+  quantite      Decimal
   // Copie du prix ET de la devise du produit au moment de la commande (jamais recalculés
   // si le prix ou la devise du produit change ensuite) :
   prixUnitaire  Decimal
   devise        Devise
   // Cycle de vie cuisine : EN_ATTENTE → EN_PREPARATION → PRET → SERVI
   statut        StatutLigne @default(EN_ATTENTE)
-  prisEnChargeA DateTime?   // horodatage du passage EN_PREPARATION
-  pretA         DateTime?   // horodatage du passage PRET
-  note          String?     // instruction spéciale (ex. "sans sucre")
+  prisEnChargeA DateTime? // horodatage du passage EN_PREPARATION
+  pretA         DateTime? // horodatage du passage PRET
+  note          String? // instruction spéciale (ex. "sans sucre")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   syncVersion   Int         @default(1)
@@ -590,15 +648,15 @@ model LigneCommande {
 }
 
 model VenteCafeteria {
-  id      String          @id @default(uuid())
-  hotel   Hotel           @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  hotelId String
-  compte  CompteCafeteria @relation(fields: [compteId], references: [id])
-  compteId String
+  id                    String          @id @default(uuid())
+  hotel                 Hotel           @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId               String
+  compte                CompteCafeteria @relation(fields: [compteId], references: [id])
+  compteId              String
   // Un même compte peut mélanger des articles en USD et en CDF : deux totaux séparés,
   // jamais additionnés entre eux (voir section 9.4) :
-  montantTotalUSD       Decimal      @default(0)
-  montantTotalCDF       Decimal      @default(0)
+  montantTotalUSD       Decimal         @default(0)
+  montantTotalCDF       Decimal         @default(0)
   modePaiement          ModePaiement
   deviseRegleeParClient Devise?
   montantRegleParClient Decimal?
@@ -618,9 +676,9 @@ model VenteCafeteria {
   annuleLe              DateTime?
   motifAnnulation       String?
   createdBy             String
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
-  syncVersion           Int          @default(1)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  syncVersion           Int             @default(1)
 
   @@unique([hotelId, numeroRecu])
   @@index([compteId])
@@ -696,14 +754,14 @@ model Depense {
 /// avec un prix spécial optionnel. Une seule entrée par hôtel par jour (unique).
 /// Défini par le PATRON ou le CAFETARIA depuis EcranMenu (desktop) ou EcranPlus (mobile).
 model MenuDuJour {
-  id        String         @id @default(uuid())
-  hotel     Hotel          @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  id        String           @id @default(uuid())
+  hotel     Hotel            @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   hotelId   String
-  date      DateTime       @db.Date
-  actif     Boolean        @default(true)
-  createdBy String         // Utilisateur.id
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  date      DateTime         @db.Date
+  actif     Boolean          @default(true)
+  createdBy String // Utilisateur.id
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   items     MenuDuJourItem[]
 
   @@unique([hotelId, date])
@@ -718,8 +776,8 @@ model MenuDuJourItem {
   menuId         String
   produit        Produit    @relation(fields: [produitId], references: [id])
   produitId      String
-  prixSpecial    Decimal?   // null = prix catalogue
-  deviseSpeciale Devise?    // null = devise du produit
+  prixSpecial    Decimal? // null = prix catalogue
+  deviseSpeciale Devise? // null = devise du produit
 
   @@unique([menuId, produitId])
   @@index([menuId])
@@ -752,12 +810,11 @@ model InventairePhysiqueItem {
   produitId      String
   stockTheorique Decimal
   stockPhysique  Decimal
-  ecart          Decimal            // stockPhysique - stockTheorique
+  ecart          Decimal // stockPhysique - stockTheorique
   note           String?
 
   @@index([inventaireId])
 }
-
 
 /// Idempotence de la synchronisation hors ligne. Un appareil qui n'a pas reçu la réponse d'un envoi (coupure en plein
 /// envoi) le renvoie : sans cette table, un CREATE rejoué créerait un doublon (ligne de commande facturée deux fois,

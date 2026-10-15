@@ -156,6 +156,15 @@ export const messages = {
     };
   },
 
+  abonnementRenouvele(p: { jusquau: string; formule: string }): MessageNotification {
+    return {
+      type: "ABONNEMENT_RENOUVELE",
+      titre: "Abonnement renouvelé",
+      corps: `Merci ! Votre formule ${p.formule} est active jusqu'au ${p.jusquau}.`,
+      lien: { ecran: "tableau-de-bord" },
+    };
+  },
+
   rapportAGenerer(p: { departement: string; mois: string }): MessageNotification {
     return {
       type: "RAPPORT_A_GENERER",

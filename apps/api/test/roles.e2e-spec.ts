@@ -20,9 +20,11 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
 
   const HOTEL_ID = "hotel-1";
 
-  const HOTEL_ACTIF = { id: HOTEL_ID, statutLicence: "ACTIF", patronPeutOperer: false };
+  // createdAt/paiementsLicence/suspensionManuelle : la garde calcule l'état d'abonnement à chaque requête (essai de 14 jours depuis la création).
+  const ABONNEMENT_OK = { createdAt: new Date(), paiementsLicence: [], suspensionManuelle: false };
+  const HOTEL_ACTIF = { id: HOTEL_ID, statutLicence: "ACTIF", patronPeutOperer: false, ...ABONNEMENT_OK };
   // Hôtel où le patron travaille seul : il a activé « le patron peut aussi opérer ».
-  const HOTEL_PATRON_OPERANT = { id: HOTEL_ID, statutLicence: "ACTIF", patronPeutOperer: true };
+  const HOTEL_PATRON_OPERANT = { id: HOTEL_ID, statutLicence: "ACTIF", patronPeutOperer: true, ...ABONNEMENT_OK };
 
   const utilisateurs: Record<
     string,

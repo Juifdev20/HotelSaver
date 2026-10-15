@@ -1,10 +1,15 @@
 import {
   CanActivate,
   ExecutionContext,
+  HttpException,
   Inject,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { etatAbonnement } from "@hotel-chicago/regles";
+import { SANS_LICENCE_KEY } from "../decorators/sans-licence.decorator";
 import type { PrismaClient } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../../prisma/prisma.module";
@@ -21,7 +26,8 @@ import { SessionRevoqueeError, verifierSession } from "../auth/sessions";
 export class SupabaseAuthGuard implements CanActivate {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    @Inject(VERIFICATEUR_JWT) private readonly verificateurJwt: VerificateurJwt
+    @Inject(VERIFICATEUR_JWT) private readonly verificateurJwt: VerificateurJwt,
+    @Optional() private readonly reflector?: Reflector
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -42,7 +48,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
     const utilisateur = await this.prisma.utilisateur.findUnique({
       where: { supabaseAuthId: sub },
-      include: { hotel: true },
+      include: { hotel: { include: { paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } } } },
     });
 
     if (!utilisateur || !utilisateur.actif) {
@@ -59,13 +65,25 @@ export class SupabaseAuthGuard implements CanActivate {
       }
     }
 
-    // Rend enfin réel le statutLicence posé en Phase 1 (ESSAI/ACTIF/SUSPENDU/
-    // RESILIE) : jusqu'ici purement décoratif, PATCH /super-admin/hotels/:id/statut
-    // n'avait aucun effet. ESSAI et ACTIF restent équivalents pour l'instant
-    // (pas de date d'expiration d'essai — ça reste dans PaiementLicence,
-    // hors scope, phase facturation).
-    if (utilisateur.hotel.statutLicence === "SUSPENDU" || utilisateur.hotel.statutLicence === "RESILIE") {
-      throw new UnauthorizedException("Cet hôtel n'a plus accès à la plateforme (licence suspendue ou résiliée).");
+    // Abonnement : essai, période payée, 3 jours de grâce, puis accès coupé — calculé À CHAQUE requête depuis le dernier paiement (le cron
+    // de minuit ne fait que poser le statut SUSPENDU et prévenir). Un hôtel bloqué garde TROIS routes (profil, abonnement, paiement,
+    // marquées @SansLicence) : de quoi comprendre pourquoi et renouveler. Tout le reste répond 402, que les applications savent lire.
+    const etat = etatAbonnement(utilisateur.hotel, utilisateur.hotel.paiementsLicence[0] ?? null, new Date());
+    if (etat.bloque) {
+      const exempte = this.reflector?.getAllAndOverride<boolean>(SANS_LICENCE_KEY, [context.getHandler(), context.getClass()]) === true;
+      if (!exempte) {
+        throw new HttpException(
+          {
+            statusCode: 402,
+            code: "ABONNEMENT_BLOQUE",
+            message:
+              etat.statut === "EXPIRE"
+                ? "L'abonnement de cet hôtel a expiré. Le patron peut le renouveler depuis l'application."
+                : "L'accès de cet hôtel est suspendu. Contactez le support HotelSaver.",
+          },
+          402
+        );
+      }
     }
 
     const user: UtilisateurAuthentifie = {

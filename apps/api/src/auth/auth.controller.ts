@@ -5,6 +5,8 @@ import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { PRISMA } from "../prisma/prisma.module";
 import { calculerFinValidite } from "../super-admin/calculer-validite";
+import { etatAbonnement } from "@hotel-chicago/regles";
+import { SansLicence } from "../common/decorators/sans-licence.decorator";
 
 /**
  * Toute app cliente (Electron, mobile, futur tableau de bord) s'authentifie
@@ -35,6 +37,7 @@ export class AuthController {
    * réception, cafétaria).
    */
   @Get("me")
+  @SansLicence()
   async moi(@CurrentUser() currentUser: UtilisateurAuthentifie) {
     const hotel = await this.prisma.hotel.findUnique({
       where: { id: currentUser.hotelId },
@@ -47,6 +50,7 @@ export class AuthController {
         domaineVerifie: true,
         statutLicence: true,
         createdAt: true,
+        suspensionManuelle: true,
         site: { select: { slogan: true } },
         paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
       },
@@ -61,6 +65,7 @@ export class AuthController {
       // Copiés dans le profil mémorisé par les applications pour décider, hors ligne, de la durée de grâce.
       statutLicence: hotel?.statutLicence,
       licenceValideJusquau: hotel ? calculerFinValidite(hotel, hotel.paiementsLicence[0] ?? null).toISOString() : null,
+      abonnement: hotel ? etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date()) : undefined,
     };
   }
 }

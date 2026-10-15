@@ -39,6 +39,7 @@ describe("AuthController.moi", () => {
         domaineVerifie: true,
         statutLicence: true,
         createdAt: true,
+        suspensionManuelle: true,
         site: { select: { slogan: true } },
         paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
       },
@@ -52,6 +53,7 @@ describe("AuthController.moi", () => {
       hotelUrlSite: expect.stringMatching(/\/\?hotel=test$/),
       statutLicence: "ACTIF",
       licenceValideJusquau: "2026-12-31T00:00:00.000Z",
+      abonnement: expect.objectContaining({ valideJusquau: "2026-12-31T00:00:00.000Z", renouvelable: true }),
     });
   });
 

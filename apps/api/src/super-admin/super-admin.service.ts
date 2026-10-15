@@ -10,6 +10,7 @@ import { EnregistrerPaiementDto } from "./dto/enregistrer-paiement.dto";
 import { AjouterDomaineDto } from "./dto/ajouter-domaine.dto";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 import { genererPalette } from "../common/palette/generer-palette";
+import { etatAbonnement } from "@hotel-chicago/regles";
 import { calculerFinValidite } from "./calculer-validite";
 import { RenderDomainsService } from "./render-domains.service";
 
@@ -73,7 +74,8 @@ export class SuperAdminService {
     if (!hotel) {
       throw new NotFoundException(`Aucun hôtel trouvé avec l'identifiant ${id}.`);
     }
-    return this.prisma.hotel.update({ where: { id }, data: { statutLicence: dto.statutLicence } });
+    // SUSPENDU posé à la main = l'hôtel ne peut pas se rouvrir seul en payant en ligne ; tout autre statut efface cette marque.
+    return this.prisma.hotel.update({ where: { id }, data: { statutLicence: dto.statutLicence, suspensionManuelle: dto.statutLicence === "SUSPENDU" } });
   }
 
   /**
@@ -99,7 +101,7 @@ export class SuperAdminService {
           enregistreParSuperAdminId: superAdminId,
         },
       }),
-      this.prisma.hotel.update({ where: { id: hotelId }, data: { statutLicence: "ACTIF" } }),
+      this.prisma.hotel.update({ where: { id: hotelId }, data: { statutLicence: "ACTIF", suspensionManuelle: false } }),
     ]);
 
     return paiement;
@@ -119,14 +121,14 @@ export class SuperAdminService {
     });
 
     const maintenant = new Date();
-    const aSuspendre = hotels.filter(
-      (hotel) => calculerFinValidite(hotel, hotel.paiementsLicence[0] ?? null) < maintenant
-    );
+    // Suspendu seulement APRÈS le délai de grâce (3 jours) : c'est le même calcul que la garde d'accès (etatAbonnement), pour que le statut
+    // posé ici ne contredise jamais ce que voit l'application.
+    const aSuspendre = hotels.filter((hotel) => etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, maintenant).bloque);
 
     if (aSuspendre.length > 0) {
       await this.prisma.hotel.updateMany({
         where: { id: { in: aSuspendre.map((h) => h.id) } },
-        data: { statutLicence: "SUSPENDU" },
+        data: { statutLicence: "SUSPENDU", suspensionManuelle: false },
       });
       this.logger.log(`${aSuspendre.length} hôtel(s) suspendu(s) pour licence expirée : ${aSuspendre.map((h) => h.sousDomaine).join(", ")}`);
       // Le patron l'apprend même si l'accès à l'application lui est désormais refusé (le push, lui, part).

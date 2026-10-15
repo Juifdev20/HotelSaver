@@ -99,8 +99,15 @@ describe("SuperAdminService", () => {
 
       expect(prisma.hotel.update).toHaveBeenCalledWith({
         where: { id: "h1" },
-        data: { statutLicence: "SUSPENDU" },
+        data: { statutLicence: "SUSPENDU", suspensionManuelle: true },
       });
+    });
+
+    it("un statut autre que SUSPENDU efface la marque « suspendu à la main »", async () => {
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1", statutLicence: "SUSPENDU" });
+      prisma.hotel.update.mockResolvedValue({ id: "h1", statutLicence: "ACTIF" });
+      await service.changerStatut("h1", { statutLicence: "ACTIF" } as any);
+      expect(prisma.hotel.update).toHaveBeenCalledWith({ where: { id: "h1" }, data: { statutLicence: "ACTIF", suspensionManuelle: false } });
     });
   });
 
@@ -169,7 +176,7 @@ describe("SuperAdminService", () => {
           enregistreParSuperAdminId: "admin-1",
         },
       });
-      expect(prisma.hotel.update).toHaveBeenCalledWith({ where: { id: "h1" }, data: { statutLicence: "ACTIF" } });
+      expect(prisma.hotel.update).toHaveBeenCalledWith({ where: { id: "h1" }, data: { statutLicence: "ACTIF", suspensionManuelle: false } });
       expect(resultat).toEqual({ id: "p1", ...dto, hotelId: "h1" });
     });
 
@@ -179,19 +186,22 @@ describe("SuperAdminService", () => {
 
       await service.enregistrerPaiement("h1", dto as any, "admin-1");
 
-      expect(prisma.hotel.update).toHaveBeenCalledWith({ where: { id: "h1" }, data: { statutLicence: "ACTIF" } });
+      expect(prisma.hotel.update).toHaveBeenCalledWith({ where: { id: "h1" }, data: { statutLicence: "ACTIF", suspensionManuelle: false } });
     });
   });
 
   describe("suspendreHotelsExpires", () => {
     it("suspend les hôtels ESSAI/ACTIF dont la date de validité est dépassée", async () => {
       const hier = new Date();
-      hier.setDate(hier.getDate() - 1);
+      hier.setDate(hier.getDate() - 5); // au-delà des 3 jours de grâce
+      const hierSeulement = new Date();
+      hierSeulement.setDate(hierSeulement.getDate() - 1); // encore dans la grâce : pas suspendu
       const demain = new Date();
       demain.setDate(demain.getDate() + 1);
 
       prisma.hotel.findMany.mockResolvedValue([
         { id: "expire-1", sousDomaine: "expire-1", createdAt: new Date(), paiementsLicence: [{ periodeCouverteJusquau: hier }] },
+        { id: "en-grace", sousDomaine: "en-grace", createdAt: new Date(), paiementsLicence: [{ periodeCouverteJusquau: hierSeulement }] },
         { id: "encore-valide", sousDomaine: "encore-valide", createdAt: new Date(), paiementsLicence: [{ periodeCouverteJusquau: demain }] },
       ]);
 
@@ -200,7 +210,7 @@ describe("SuperAdminService", () => {
       expect(nombre).toBe(1);
       expect(prisma.hotel.updateMany).toHaveBeenCalledWith({
         where: { id: { in: ["expire-1"] } },
-        data: { statutLicence: "SUSPENDU" },
+        data: { statutLicence: "SUSPENDU", suspensionManuelle: false },
       });
     });
 

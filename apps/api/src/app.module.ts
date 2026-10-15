@@ -26,6 +26,7 @@ import { ReglagesHotelModule } from "./reglages-hotel/reglages-hotel.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { RapportsModule } from "./rapports/rapports.module";
 import { DepensesModule } from "./depenses/depenses.module";
+import { AbonnementModule } from "./abonnement/abonnement.module";
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { DepensesModule } from "./depenses/depenses.module";
     NotificationsModule,
     RapportsModule,
     DepensesModule,
+    AbonnementModule,
   ],
   providers: [
     // Limitation de débit : évaluée avant tout le reste (voir throttle.config.ts).
