@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
 import { Apparition } from "./animations";
+import { ContactWhatsApp } from "./ContactWhatsApp";
 
 export function AppelFinal() {
   return (
@@ -32,6 +33,7 @@ export function PiedPage() {
           <a href="#faq">FAQ</a>
           <Link to="/inscription">Créer un compte</Link>
         </nav>
+        <ContactWhatsApp className="contact-whatsapp--pied" />
         <small>© {new Date().getFullYear()} HotelSaver. Tous droits réservés.</small>
       </div>
     </footer>

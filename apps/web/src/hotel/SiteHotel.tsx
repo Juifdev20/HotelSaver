@@ -67,7 +67,7 @@ export function SiteHotel({ info, sousDomaine }: { info: InfoHotelPublique; sous
       <div className="hotel-contenu">
         <Routes>
           <Route path="/" element={<AccueilHotel info={info} sousDomaine={sousDomaine} />} />
-          <Route path="/chambres" element={<EcranChambresPubliques sousDomaine={sousDomaine} />} />
+          <Route path="/chambres" element={<EcranChambresPubliques sousDomaine={sousDomaine} info={info} />} />
           <Route path="/menu" element={<EcranMenuPublique sousDomaine={sousDomaine} />} />
           {info.commandeWebActivee && (
             <Route path="/cuisine" element={<EcranCuisinePublique sousDomaine={sousDomaine} />} />

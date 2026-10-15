@@ -212,3 +212,13 @@ body {
   padding: var(--hc-space-2);
   min-height: 44px;
 }
+
+.reservation-info {
+  margin: 0 0 var(--hc-space-3);
+  padding: var(--hc-space-2) var(--hc-space-3);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--hc-ink);
+  background: var(--hc-blue-very-light);
+  border-radius: var(--hc-radius-sm);
+}

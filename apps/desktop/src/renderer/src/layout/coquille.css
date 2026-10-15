@@ -182,6 +182,48 @@
   flex-shrink: 0;
 }
 
+/* Petit nombre rouge sur une entrée (ex. remboursements à faire) : jamais la couleur seule, le nombre est écrit. */
+.lien-nav__pastille {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background-color: var(--hc-danger);
+  color: var(--hc-on-status);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.lien-nav--bas {
+  position: relative;
+}
+.lien-nav--bas .lien-nav__pastille {
+  position: absolute;
+  top: 2px;
+  left: 55%;
+  min-width: 17px;
+  height: 17px;
+  line-height: 17px;
+  font-size: 10px;
+  padding: 0 4px;
+}
+/* Barre réduite : le nombre se pose en coin de l'icône. */
+.coquille--reduite .lien-nav--laterale {
+  position: relative;
+}
+.coquille--reduite .lien-nav--laterale .lien-nav__pastille {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  font-size: 10px;
+  padding: 0 3px;
+}
+
 .lien-nav--danger {
   color: var(--hc-danger);
 }
@@ -224,6 +266,10 @@
   background-color: var(--hc-surface-300);
   border: 1px solid transparent;
   color: var(--hc-ink-faint);
+}
+
+.coquille__recherche-vide {
+  flex: 1;
 }
 
 .coquille__recherche:focus-within {

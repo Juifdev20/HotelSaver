@@ -62,7 +62,7 @@ export function badgeAbonnement(hotel: HotelListe, maintenant: Date = new Date()
 /** Nom de la formule (jamais son code) ; `formules` = le catalogue courant défini par le super-admin. */
 export function libelleFormule(formule: string | null | undefined, formules?: FormuleAbonnement[]): string {
   if (!formule) return "—";
-  return formuleParCode(formule, formules)?.nom ?? formule;
+  return formuleParCode(formule, formules && formules.length > 0 ? formules : undefined)?.nom ?? formule;
 }
 
 /** « 12 novembre 2026 » (jour de Lubumbashi, comme dans les applications). */

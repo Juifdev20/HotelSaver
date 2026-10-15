@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import type { InfoHotelPublique } from "@hotel-chicago/types";
 import { cheminHotel } from "../resoudreSousDomaine";
+import { reservationOuverte } from "./reservation";
 
 function initiales(nom: string): string {
   return nom
@@ -53,9 +54,11 @@ export function BarreHotel({ info }: { info: InfoHotelPublique }) {
           <NavLink to={cheminHotel("/menu")}>Menu</NavLink>
           {info.commandeWebActivee && <NavLink to={cheminHotel("/cuisine")}>Cuisine</NavLink>}
           <a href={ancre("contact")}>Contact</a>
-          <Link to={cheminHotel("/chambres")} className="hotel-bouton hotel-bouton--primaire hotel-nav__cta">
-            Réserver
-          </Link>
+          {reservationOuverte(info) && (
+            <Link to={cheminHotel("/chambres")} className="hotel-bouton hotel-bouton--primaire hotel-nav__cta">
+              Réserver
+            </Link>
+          )}
         </div>
 
         <button

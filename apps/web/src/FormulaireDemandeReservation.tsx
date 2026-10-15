@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import { Captcha, captchaActif } from "./Captcha";
 import { useNavigate } from "react-router-dom";
 import { Button, useDialogue } from "@hotel-chicago/ui";
-import { creerDemandeReservationPublique } from "@hotel-chicago/api-client";
+import { ErreurApi, creerDemandeReservationPublique } from "@hotel-chicago/api-client";
 import type { Chambre } from "@hotel-chicago/types";
 import { configuration } from "./config";
 import { cheminHotel } from "./resoudreSousDomaine";
@@ -67,7 +67,13 @@ export function FormulaireDemandeReservation({
       );
       naviguer(cheminHotel(`/ma-reservation/${jetonSuivi}`));
     } catch (err) {
-      setErreur(err instanceof Error ? err.message : "Erreur lors de l'envoi de la demande.");
+      setErreur(
+        err instanceof ErreurApi && err.statusCode === 404
+          ? "Ce service n'est pas disponible pour cet hôtel."
+          : err instanceof Error
+            ? err.message
+            : "Erreur lors de l'envoi de la demande."
+      );
     } finally {
       setEnCours(false);
     }
@@ -82,6 +88,11 @@ export function FormulaireDemandeReservation({
             </h2>
             <p className="sous-titre">
               Du {dateJJMMAAAA(dateArrivee)} au {dateJJMMAAAA(dateDepart)}
+            </p>
+
+            <p className="reservation-info">
+              Vous pourrez ensuite suivre votre demande sur la page « Ma réservation » et, si l'hôtel le propose, y payer votre acompte en ligne
+              (Mobile Money ou carte).
             </p>
 
             <label className="label" htmlFor="nom-client">

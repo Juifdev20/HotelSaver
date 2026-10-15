@@ -29,11 +29,12 @@ export class SuperAdminService {
    * dernier paiement — jamais stocké, voir calculer-validite.ts. */
   async findAllHotels() {
     const hotels = await this.prisma.hotel.findMany({
-      include: { branding: true, paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+      include: { branding: true, paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 }, _count: { select: { chambres: true } } },
       orderBy: { createdAt: "desc" },
     });
-    return hotels.map(({ paiementsLicence, ...hotel }) => ({
+    return hotels.map(({ paiementsLicence, _count, ...hotel }) => ({
       ...hotel,
+      nombreChambres: _count?.chambres ?? 0,
       valideJusquau: calculerFinValidite(hotel, paiementsLicence[0] ?? null),
     }));
   }

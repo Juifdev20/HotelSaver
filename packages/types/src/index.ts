@@ -665,6 +665,8 @@ export interface HotelAvecValidite extends HotelCree {
   formule?: string | null;
   /** Suspendu À LA MAIN par le support : ne peut pas se rouvrir en payant. */
   suspensionManuelle?: boolean;
+  /** Nombre de chambres de l'hôtel (à comparer au plafond de sa formule). */
+  nombreChambres?: number;
 }
 
 // ---------------------------------------------------------------------------

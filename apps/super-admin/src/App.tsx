@@ -1,13 +1,14 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { ClientSuperAdmin, ErreurApi, connecterAvecMotDePasse, rafraichirSession } from "@hotel-chicago/api-client";
-import type { StatutLicence } from "@hotel-chicago/types";
+import type { DonneesFormule, FormuleAdminVue, ParametresPlateformeVue, StatutLicence } from "@hotel-chicago/types";
 import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement, PaiementAbonnementSupport } from "@hotel-chicago/api-client";
 import { configuration } from "./config";
 import { ecrireJetonRafraichissement, lireJetonRafraichissement, oublierJetonRafraichissement } from "./stockage";
 import { EcranConnexion } from "./EcranConnexion";
 import { EcranHotels } from "./EcranHotels";
 import { EcranPaiements } from "./EcranPaiements";
+import { EcranAbonnements } from "./EcranAbonnements";
 import type { Onglet } from "./EnteteApp";
 import type { HotelListe } from "./etatHotel";
 
@@ -37,6 +38,11 @@ export default function App() {
   const [paiements, setPaiements] = useState<PaiementAbonnementSupport[]>([]);
   const [chargementPaiements, setChargementPaiements] = useState(false);
   const [erreurPaiements, setErreurPaiements] = useState<string | null>(null);
+
+  const [formules, setFormules] = useState<FormuleAdminVue[]>([]);
+  const [parametres, setParametres] = useState<ParametresPlateformeVue | null>(null);
+  const [chargementAbonnements, setChargementAbonnements] = useState(false);
+  const [erreurAbonnements, setErreurAbonnements] = useState<string | null>(null);
 
   const client = accessToken ? new ClientSuperAdmin(configuration.apiUrl, () => accessToken) : null;
 
@@ -97,6 +103,64 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, onglet]);
 
+  async function chargerAbonnements(clientCourant: ClientSuperAdmin) {
+    setChargementAbonnements(true);
+    setErreurAbonnements(null);
+    try {
+      const [listeFormules, reglages] = await Promise.all([clientCourant.listerFormules(), clientCourant.lireParametresAbonnement()]);
+      setFormules(listeFormules);
+      setParametres(reglages);
+    } catch (erreur) {
+      setErreurAbonnements(erreur instanceof Error ? erreur.message : "Impossible de charger les formules et les réglages.");
+    } finally {
+      setChargementAbonnements(false);
+    }
+  }
+
+  // Les formules servent aussi à nommer celle de chaque hôtel et de chaque paiement : on les charge dès la connexion, puis à chaque ouverture de l'onglet.
+  useEffect(() => {
+    if (client) void chargerAbonnements(client);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, onglet === "abonnements"]);
+
+  /** Les actions sur les formules et les réglages rejettent avec le message du serveur : l'écran l'affiche tel quel. */
+  async function creerFormule(dto: DonneesFormule & { code: string }): Promise<void> {
+    if (!client) throw new Error("Session expirée. Reconnectez-vous.");
+    await client.creerFormule(dto);
+    await chargerAbonnements(client);
+  }
+
+  async function modifierFormule(code: string, partiel: Partial<Omit<DonneesFormule, "code">>): Promise<void> {
+    if (!client) throw new Error("Session expirée. Reconnectez-vous.");
+    await client.modifierFormule(code, partiel);
+    await chargerAbonnements(client);
+  }
+
+  async function supprimerFormule(code: string): Promise<void> {
+    if (!client) throw new Error("Session expirée. Reconnectez-vous.");
+    await client.supprimerFormule(code);
+    await chargerAbonnements(client);
+  }
+
+  async function enregistrerParametres(partiel: Partial<ParametresPlateformeVue>): Promise<void> {
+    if (!client) throw new Error("Session expirée. Reconnectez-vous.");
+    setParametres(await client.modifierParametresAbonnement(partiel));
+  }
+
+  /** Attribue une formule à un hôtel sans paiement. `true` si c'est enregistré. */
+  async function changerFormuleHotel(hotelId: string, formule: string | null): Promise<boolean> {
+    if (!client) return false;
+    setErreurHotels(null);
+    try {
+      await client.changerFormuleHotel(hotelId, formule);
+      await Promise.all([chargerHotels(client), chargerAbonnements(client)]);
+      return true;
+    } catch (erreur) {
+      setErreurHotels(erreur instanceof Error ? erreur.message : "Erreur lors du changement de formule.");
+      return false;
+    }
+  }
+
   /** Revérifie auprès de ScanLinkPay. Un paiement crédité change la validité de l'hôtel : on recharge aussi la liste des hôtels. */
   async function reverifierPaiement(id: string): Promise<"credite" | "toujours"> {
     if (!client) throw new Error("Session expirée. Reconnectez-vous.");
@@ -129,6 +193,8 @@ export default function App() {
     setAccessToken(null);
     setHotels([]);
     setPaiements([]);
+    setFormules([]);
+    setParametres(null);
     setOnglet("hotels");
     setEcran("connexion");
   }
@@ -247,6 +313,7 @@ export default function App() {
     return (
       <EcranPaiements
         paiements={paiements}
+        formules={formules}
         chargement={chargementPaiements}
         erreur={erreurPaiements}
         onActualiser={() => client && void chargerPaiements(client)}
@@ -257,10 +324,30 @@ export default function App() {
     );
   }
 
+  if (onglet === "abonnements") {
+    return (
+      <EcranAbonnements
+        formules={formules}
+        parametres={parametres}
+        chargement={chargementAbonnements}
+        erreur={erreurAbonnements}
+        onActualiser={() => client && void chargerAbonnements(client)}
+        onCreerFormule={creerFormule}
+        onModifierFormule={modifierFormule}
+        onSupprimerFormule={supprimerFormule}
+        onEnregistrerParametres={enregistrerParametres}
+        onChangerOnglet={setOnglet}
+        onDeconnexion={seDeconnecter}
+      />
+    );
+  }
+
   return (
     <EcranHotels
       onChangerOnglet={setOnglet}
       hotels={hotels}
+      formules={formules}
+      onChangerFormule={changerFormuleHotel}
       chargement={chargementHotels}
       erreur={erreurHotels}
       creationEnCours={creationEnCours}

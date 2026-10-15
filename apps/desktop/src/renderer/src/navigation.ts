@@ -1,9 +1,11 @@
 import { Role } from "@hotel-chicago/types";
+import { pageOuverte } from "./fonctions";
 
 export type IdPage =
   | "tableau-de-bord"
   | "chambres"
   | "reservations"
+  | "remboursements"
   | "arrivees-departs"
   | "journal-journee"
   | "clients"
@@ -54,6 +56,8 @@ export const SECTIONS: SectionNavigation[] = [
     entrees: [
       { id: "chambres", libelle: "Chambres", libelleCourt: "Chambres", roles: RECEPTION, disponible: true },
       { id: "reservations", libelle: "Réservations", libelleCourt: "Réserv.", roles: RECEPTION, disponible: true },
+      // Acomptes payés en ligne à rendre ou à garder : c'est l'argent du patron, lui seul décide (pastille « à faire » dans la barre).
+      { id: "remboursements", libelle: "Remboursements", libelleCourt: "Rembours.", roles: [Role.PATRON], disponible: true },
       { id: "arrivees-departs", libelle: "Arrivées et départs", libelleCourt: "Arrivées", roles: RECEPTION, disponible: true },
       { id: "journal-journee", libelle: "Journal de la journée", libelleCourt: "Journal", roles: RECEPTION, disponible: true },
       { id: "clients", libelle: "Clients", libelleCourt: "Clients", roles: RECEPTION, disponible: true },
@@ -93,21 +97,27 @@ export const SECTIONS: SectionNavigation[] = [
 /** Pages purement opérationnelles : le patron n'y a accès que s'il a le droit d'opérer (séparation des tâches). */
 const PAGES_OPERATIONNELLES: IdPage[] = ["caisse"];
 
-/** `operer` = `peutOperer(utilisateur)` : faux pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer ». */
-export function sectionsPourRole(role: Role, operer = true, cuisineActivee = false): SectionNavigation[] {
+/**
+ * `operer` = `peutOperer(utilisateur)` : faux pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer ».
+ * `fonctions` = `profil.fonctions` : ce que la formule de l'hôtel ouvre (absent = tout). Un écran d'une fonction non incluse n'est pas proposé.
+ */
+export function sectionsPourRole(role: Role, operer = true, cuisineActivee = false, fonctions?: string[]): SectionNavigation[] {
   return SECTIONS.map((section) => ({
     ...section,
     entrees: section.entrees.filter(
       (entree) =>
-        entree.roles.includes(role) && (operer || !PAGES_OPERATIONNELLES.includes(entree.id)) && (cuisineActivee || entree.id !== "cuisine")
+        entree.roles.includes(role) &&
+        (operer || !PAGES_OPERATIONNELLES.includes(entree.id)) &&
+        (cuisineActivee || entree.id !== "cuisine") &&
+        pageOuverte({ fonctions }, entree.id)
     ),
   })).filter((section) => section.entrees.length > 0);
 }
 
 /** Barre du bas : les 3 premières entrées du rôle (disponibles d'abord) + « Plus »
  * (ajouté par l'appelant) = 4 icônes au total, comme la maquette mobile. */
-export function entreesBarreDuBas(role: Role, operer = true, cuisineActivee = false): EntreeNavigation[] {
-  const toutes = sectionsPourRole(role, operer, cuisineActivee).flatMap((section) => section.entrees);
+export function entreesBarreDuBas(role: Role, operer = true, cuisineActivee = false, fonctions?: string[]): EntreeNavigation[] {
+  const toutes = sectionsPourRole(role, operer, cuisineActivee, fonctions).flatMap((section) => section.entrees);
   return [...toutes.filter((e) => e.disponible), ...toutes.filter((e) => !e.disponible)].slice(0, 3);
 }
 

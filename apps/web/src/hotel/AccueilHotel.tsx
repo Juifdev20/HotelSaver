@@ -11,6 +11,7 @@ import { configuration } from "../config";
 import { cheminHotel } from "../resoudreSousDomaine";
 import { Apparition } from "../accueil/animations";
 import { CarteChambre } from "./CarteChambre";
+import { reservationOuverte } from "./reservation";
 import { ICONES_SERVICES, IconeReseau, LIBELLE_RESEAU } from "./icones";
 
 /** Les hôtels sont au Congo (UTC+2, sans heure d'été) : « aujourd'hui » est le jour LÀ-BAS, pas la date UTC (qui retarde d'un jour après 22 h). */
@@ -42,6 +43,7 @@ function EnteteSection({ etiquette, titre, texte }: { etiquette: string; titre: 
 
 /** Hero : photo de couverture plein écran (zoom lent), nom, slogan, recherche de dates. */
 function Hero({ info }: { info: InfoHotelPublique }) {
+  const reservation = reservationOuverte(info);
   const navigate = useNavigate();
   const reduit = useReducedMotion();
   const [arrivee, setArrivee] = useState(aujourdhui(1));
@@ -86,36 +88,38 @@ function Hero({ info }: { info: InfoHotelPublique }) {
         </motion.div>
       </div>
 
-      <motion.form className="hotel-recherche" onSubmit={rechercher} {...entree(0.45)} aria-label="Rechercher une chambre">
-        <label>
-          <CalendarDays size={18} aria-hidden="true" />
-          <span>
-            Arrivée
-            <input
-              type="date"
-              value={arrivee}
-              min={aujourdhui()}
-              onChange={(e) => {
-                const nouvelle = e.target.value;
-                setArrivee(nouvelle);
-                // Le départ suit : jamais avant le lendemain de l'arrivée.
-                if (nouvelle && depart <= nouvelle) setDepart(lendemain(nouvelle));
-              }}
-              required
-            />
-          </span>
-        </label>
-        <label>
-          <CalendarDays size={18} aria-hidden="true" />
-          <span>
-            Départ
-            <input type="date" value={depart} min={arrivee ? lendemain(arrivee) : undefined} onChange={(e) => setDepart(e.target.value)} required />
-          </span>
-        </label>
-        <button type="submit" className="hotel-bouton hotel-bouton--primaire">
-          Vérifier la disponibilité
-        </button>
-      </motion.form>
+      {reservation && (
+        <motion.form className="hotel-recherche" onSubmit={rechercher} {...entree(0.45)} aria-label="Rechercher une chambre">
+          <label>
+            <CalendarDays size={18} aria-hidden="true" />
+            <span>
+              Arrivée
+              <input
+                type="date"
+                value={arrivee}
+                min={aujourdhui()}
+                onChange={(e) => {
+                  const nouvelle = e.target.value;
+                  setArrivee(nouvelle);
+                  // Le départ suit : jamais avant le lendemain de l'arrivée.
+                  if (nouvelle && depart <= nouvelle) setDepart(lendemain(nouvelle));
+                }}
+                required
+              />
+            </span>
+          </label>
+          <label>
+            <CalendarDays size={18} aria-hidden="true" />
+            <span>
+              Départ
+              <input type="date" value={depart} min={arrivee ? lendemain(arrivee) : undefined} onChange={(e) => setDepart(e.target.value)} required />
+            </span>
+          </label>
+          <button type="submit" className="hotel-bouton hotel-bouton--primaire">
+            Vérifier la disponibilité
+          </button>
+        </motion.form>
+      )}
     </header>
   );
 }
@@ -151,7 +155,7 @@ function APropos({ info }: { info: InfoHotelPublique }) {
   );
 }
 
-function ChambresApercu({ sousDomaine }: { sousDomaine: string }) {
+function ChambresApercu({ sousDomaine, reservation }: { sousDomaine: string; reservation: boolean }) {
   const [chambres, setChambres] = useState<Chambre[] | null>(null);
 
   useEffect(() => {
@@ -193,7 +197,7 @@ function ChambresApercu({ sousDomaine }: { sousDomaine: string }) {
       </div>
       <Apparition className="hotel-centre">
         <Link to={cheminHotel("/chambres")} className="hotel-bouton hotel-bouton--contour">
-          Voir toutes les chambres et réserver
+          {reservation ? "Voir toutes les chambres et réserver" : "Voir toutes les chambres"}
         </Link>
       </Apparition>
     </section>
@@ -351,11 +355,31 @@ function Contact({ info }: { info: InfoHotelPublique }) {
 
         <Apparition direction="droite">
           <div className="hotel-contact__carte">
-            <h3>Réservez votre séjour</h3>
-            <p>Choisissez vos dates et envoyez votre demande : l'hôtel vous répond pour confirmer.</p>
-            <Link to={cheminHotel("/chambres")} className="hotel-bouton hotel-bouton--primaire">
-              Demander une réservation
-            </Link>
+            {reservationOuverte(info) ? (
+              <>
+                <h3>Réservez votre séjour</h3>
+                <p>Choisissez vos dates et envoyez votre demande : l'hôtel vous répond pour confirmer.</p>
+                <Link to={cheminHotel("/chambres")} className="hotel-bouton hotel-bouton--primaire">
+                  Demander une réservation
+                </Link>
+              </>
+            ) : (
+              <>
+                <h3>Réserver votre chambre</h3>
+                <p>Pour réserver, contactez directement l'hôtel par téléphone ou par WhatsApp : il vous répondra avec plaisir.</p>
+                {info.telephoneContact && (
+                  <a href={`tel:${info.telephoneContact.replace(/\s/g, "")}`} className="hotel-bouton hotel-bouton--primaire">
+                    <Phone size={16} aria-hidden="true" /> Appeler l'hôtel
+                  </a>
+                )}
+                {whatsapp && (
+                  <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer" className="hotel-bouton hotel-bouton--contour">
+                    <MessageCircle size={16} aria-hidden="true" /> Écrire sur WhatsApp
+                    <span className="visuellement-cache"> (s'ouvre dans un nouvel onglet)</span>
+                  </a>
+                )}
+              </>
+            )}
             {itineraire && (
               <a href={itineraire} target="_blank" rel="noopener noreferrer" className="hotel-bouton hotel-bouton--contour">
                 <Navigation size={16} aria-hidden="true" /> Itinéraire
@@ -382,7 +406,7 @@ export function AccueilHotel({ info, sousDomaine }: { info: InfoHotelPublique; s
     <>
       <Hero info={info} />
       <APropos info={info} />
-      <ChambresApercu sousDomaine={sousDomaine} />
+      <ChambresApercu sousDomaine={sousDomaine} reservation={reservationOuverte(info)} />
       <Services info={info} />
       <Galerie info={info} />
       <Contact info={info} />

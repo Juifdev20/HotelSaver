@@ -1461,3 +1461,99 @@ html {
 .marketing-nav__connexion:hover {
   text-decoration: underline;
 }
+
+/* ---------- Tarifs : prix en francs, squelettes, ScanLinkPay, contact WhatsApp ---------- */
+.formule__cdf {
+  margin: calc(-1 * var(--hc-space-3)) 0 var(--hc-space-4);
+  font-size: 14px;
+  color: var(--hc-ink-muted);
+}
+
+.formule__cdf + .formule__annuel {
+  margin-top: 0;
+}
+
+.formule__essai {
+  margin: 0 0 var(--hc-space-3);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hc-success);
+}
+
+.formule--squelette {
+  min-height: 420px;
+  background: linear-gradient(90deg, var(--hc-surface-200), var(--hc-surface-300), var(--hc-surface-200));
+  background-size: 200% 100%;
+  animation: tarifs-chargement 1.4s ease-in-out infinite;
+}
+
+@keyframes tarifs-chargement {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.tarifs__note {
+  max-width: 640px;
+  margin: var(--hc-space-4) auto 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--hc-ink-muted);
+}
+
+.scanlinkpay-carte {
+  max-width: 720px;
+  margin: var(--hc-space-6) auto 0;
+  padding: var(--hc-space-5);
+  text-align: center;
+  background: var(--hc-blue-very-light);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+}
+
+.scanlinkpay-carte h3 {
+  margin: 0 0 var(--hc-space-2);
+  font-size: 18px;
+  color: var(--hc-navy);
+}
+
+.scanlinkpay-carte p {
+  margin: 0 0 var(--hc-space-3);
+  color: var(--hc-ink);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.scanlinkpay-carte p:last-child {
+  margin-bottom: 0;
+}
+
+.contact-whatsapp {
+  margin: 0;
+  font-size: 15px;
+  color: var(--hc-ink);
+}
+
+.contact-whatsapp a {
+  color: var(--hc-blue);
+  font-weight: 700;
+}
+
+.contact-whatsapp--centre {
+  margin-top: var(--hc-space-6);
+  text-align: center;
+}
+
+.contact-whatsapp--pied {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.contact-whatsapp--pied a {
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .formule--squelette {
+    animation: none;
+  }
+}

@@ -2,7 +2,8 @@ import * as React from "react";
 import { useState } from "react";
 import { Button, StatusBadge, useTitrePage, type StatusTone } from "@hotel-chicago/ui";
 import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement } from "@hotel-chicago/api-client";
-import type { StatutLicence } from "@hotel-chicago/types";
+import type { FormuleAdminVue, StatutLicence } from "@hotel-chicago/types";
+import { AIDE_FORMULES } from "./fonctions";
 import { FormulairePaiement } from "./FormulairePaiement";
 import { FormulaireDomaine } from "./FormulaireDomaine";
 import { DialogueConfirmation } from "./DialogueConfirmation";
@@ -11,6 +12,10 @@ import { badgeAbonnement, dateFin, libelleFormule, type HotelListe } from "./eta
 
 export interface EcranHotelsProps {
   hotels: HotelListe[];
+  /** Catalogue des formules (pour nommer celle de chaque hôtel et la changer). */
+  formules: FormuleAdminVue[];
+  /** Retourne `true` si la formule a été enregistrée. `null` = aucune formule. */
+  onChangerFormule: (hotelId: string, formule: string | null) => Promise<boolean>;
   chargement: boolean;
   erreur: string | null;
   creationEnCours: boolean;
@@ -62,12 +67,29 @@ const AVERTISSEMENT_STATUT: Record<string, string> = {
     "Le statut ne prolonge pas l'abonnement : si la date de fin est dépassée de plus de 3 jours, l'accès reste bloqué jusqu'au prochain paiement (en ligne ou enregistré à la main).",
 };
 
+/** Nom de la formule choisie dans le sélecteur ("" = Aucune). */
+function nomChoixFormule(code: string, formules: FormuleAdminVue[]): string {
+  return code ? libelleFormule(code, formules) : "Aucune";
+}
+
+/** Plafond de chambres de la formule de l'hôtel, comparé à son nombre de chambres quand le serveur le donne. */
+function texteChambres(hotel: HotelListe, formules: FormuleAdminVue[]): string {
+  const formule = hotel.formule ? formules.find((f) => f.code === hotel.formule) : undefined;
+  const nombre = hotel.nombreChambres;
+  if (!formule) return typeof nombre === "number" ? `${nombre} chambre${nombre > 1 ? "s" : ""}` : "";
+  if (formule.maxChambres === null) return typeof nombre === "number" ? `${nombre} chambres (illimité)` : "Chambres illimitées";
+  if (typeof nombre === "number") return `${nombre} / ${formule.maxChambres} chambres${nombre > formule.maxChambres ? " : plafond dépassé" : ""}`;
+  return `Plafond : ${formule.maxChambres} chambres`;
+}
+
 function libelleStatut(statut: string): string {
   return LIBELLE_STATUT[statut] ?? statut;
 }
 
 export function EcranHotels({
   hotels,
+  formules,
+  onChangerFormule,
   chargement,
   erreur,
   creationEnCours,
@@ -103,7 +125,29 @@ export function EcranHotels({
   const [statutEnCours, setStatutEnCours] = useState(false);
   const [messageStatut, setMessageStatut] = useState<string | null>(null);
 
+  // Changement de formule : même principe que la licence (choisir, puis « Appliquer » ouvre une confirmation). "" = Aucune.
+  const [choixFormule, setChoixFormule] = useState<Record<string, string>>({});
+  const [formuleAConfirmer, setFormuleAConfirmer] = useState<{ hotel: HotelListe; formule: string } | null>(null);
+  const [formuleEnCours, setFormuleEnCours] = useState(false);
+
   useTitrePage("Hôtels", "HotelSaver Super-Admin");
+
+  async function appliquerFormule() {
+    if (!formuleAConfirmer) return;
+    const { hotel, formule } = formuleAConfirmer;
+    setFormuleEnCours(true);
+    setMessageStatut(null);
+    const ok = await onChangerFormule(hotel.id, formule || null);
+    setFormuleEnCours(false);
+    setFormuleAConfirmer(null);
+    if (ok) {
+      setChoixFormule((courant) => {
+        const { [hotel.id]: _retire, ...reste } = courant;
+        return reste;
+      });
+      setMessageStatut(`Formule de « ${hotel.nom} » : ${libelleFormule(hotel.formule, formules)} → ${formule ? libelleFormule(formule, formules) : "Aucune"}. Enregistré, sans paiement.`);
+    }
+  }
 
   async function appliquerStatut() {
     if (!statutAConfirmer) return;
@@ -201,6 +245,10 @@ export function EcranHotels({
         </form>
       )}
 
+      <aside className="encart" aria-label="Aide">
+        <p>{AIDE_FORMULES}</p>
+      </aside>
+
       {chargement && (
         <p role="status" className="chargement">
           {hotels.length === 0 ? "Chargement des hôtels…" : "Actualisation…"}
@@ -228,6 +276,7 @@ export function EcranHotels({
                 <th scope="col">Licence</th>
                 <th scope="col">Abonnement</th>
                 <th scope="col">Formule</th>
+                <th scope="col">Changer la formule</th>
                 <th scope="col">Valide jusqu'au</th>
                 <th scope="col">Domaine</th>
                 <th scope="col">Créé le</th>
@@ -252,7 +301,39 @@ export function EcranHotels({
                       <StatusBadge tone={badge.tone} label={badge.libelle} />
                       <span className="hotel-aide">{badge.aide}</span>
                     </td>
-                    <td>{libelleFormule(hotel.formule)}</td>
+                    <td>
+                      {libelleFormule(hotel.formule, formules)}
+                      <span className="hotel-aide">{texteChambres(hotel, formules)}</span>
+                    </td>
+                    <td>
+                      <div className="cellule-statut">
+                        <select
+                          aria-label={`Nouvelle formule de ${hotel.nom}`}
+                          value={choixFormule[hotel.id] ?? hotel.formule ?? ""}
+                          onChange={(e) => setChoixFormule((courant) => ({ ...courant, [hotel.id]: e.target.value }))}
+                        >
+                          <option value="">Aucune</option>
+                          {formules
+                            .filter((f) => f.actif || f.code === hotel.formule)
+                            .map((f) => (
+                              <option key={f.code} value={f.code}>
+                                {f.nom}
+                                {f.actif ? "" : " (retirée de la vente)"}
+                              </option>
+                            ))}
+                          {hotel.formule && !formules.some((f) => f.code === hotel.formule) && <option value={hotel.formule}>{hotel.formule}</option>}
+                        </select>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={(choixFormule[hotel.id] ?? hotel.formule ?? "") === (hotel.formule ?? "") || formuleEnCours}
+                          aria-label={`Appliquer la formule ${nomChoixFormule(choixFormule[hotel.id] ?? hotel.formule ?? "", formules)} à ${hotel.nom}`}
+                          onClick={() => setFormuleAConfirmer({ hotel, formule: choixFormule[hotel.id] ?? hotel.formule ?? "" })}
+                        >
+                          Appliquer
+                        </Button>
+                      </div>
+                    </td>
                     <td>{dateFin(hotel)}</td>
                     <td>
                       {hotel.domainePersonnalise ? (
@@ -310,7 +391,7 @@ export function EcranHotels({
               })}
               {hotels.length === 0 && (
                 <tr>
-                  <td colSpan={10}>Aucun hôtel pour l'instant.</td>
+                  <td colSpan={11}>Aucun hôtel pour l'instant.</td>
                 </tr>
               )}
             </tbody>
@@ -338,6 +419,28 @@ export function EcranHotels({
           enCours={statutEnCours}
           onConfirmer={() => void appliquerStatut()}
           onAnnuler={() => setStatutAConfirmer(null)}
+        />
+      )}
+
+      {formuleAConfirmer && (
+        <DialogueConfirmation
+          titre={`Donner la formule « ${nomChoixFormule(formuleAConfirmer.formule, formules)} » à « ${formuleAConfirmer.hotel.nom} » ?`}
+          message={
+            <>
+              <p>
+                Formule actuelle : {libelleFormule(formuleAConfirmer.hotel.formule, formules) === "—" ? "Aucune" : libelleFormule(formuleAConfirmer.hotel.formule, formules)}. Nouvelle formule :{" "}
+                <strong>{nomChoixFormule(formuleAConfirmer.formule, formules)}</strong>.
+              </p>
+              <p className="avertissement">
+                Cela se fait sans paiement : c'est un geste commercial. La date de fin de l'abonnement ne change pas ; ce sont les fonctions et le plafond de chambres de la formule qui s'appliquent tout de suite.
+              </p>
+              {!formuleAConfirmer.formule && <p>Sans formule, l'hôtel retrouve le régime de l'essai ou, s'il a déjà payé, garde toutes les fonctions.</p>}
+            </>
+          }
+          libelleConfirmer={formuleAConfirmer.formule ? "Changer la formule" : "Retirer la formule"}
+          enCours={formuleEnCours}
+          onConfirmer={() => void appliquerFormule()}
+          onAnnuler={() => setFormuleAConfirmer(null)}
         />
       )}
 

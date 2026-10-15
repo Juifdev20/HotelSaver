@@ -6,7 +6,7 @@ import { configuration } from "../config";
 import { Apparition } from "./animations";
 import { EnteteSection } from "./Sections";
 import { ContactWhatsApp } from "./ContactWhatsApp";
-import { ETAPES_ABONNEMENT } from "./donnees";
+import { etapesAbonnement } from "./donnees";
 import { useFormulesPubliques } from "./useFormules";
 
 /** Durée d'achat qui donne des mois offerts (12 mois pour le prix de 12 − N). */
@@ -108,7 +108,7 @@ export function Tarifs() {
           <h3 className="abonnement-etapes__titre">Comment ça marche</h3>
         </Apparition>
         <ol className="etapes">
-          {ETAPES_ABONNEMENT.map((e, i) => (
+          {etapesAbonnement(parametres.joursEssai).map((e, i) => (
             <Apparition key={e.titre} delai={i * 0.12}>
               <li className="etape">
                 <span className="etape__numero">{i + 1}</span>

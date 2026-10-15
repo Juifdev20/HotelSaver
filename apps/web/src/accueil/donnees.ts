@@ -4,11 +4,14 @@
 // Les formules et les prix ne sont PAS ici : ils viennent de FORMULES (@hotel-chicago/regles), la même liste que celle des applications et
 // du serveur. Une seule source de prix.
 
-/** Comment fonctionne l'abonnement, en trois étapes (section Tarifs). */
-export const ETAPES_ABONNEMENT = [
-  { titre: "Créez votre hôtel et essayez 14 jours", texte: "L'essai est gratuit, sur toutes les formules, sans carte bancaire." },
+/** Comment fonctionne l'abonnement, en trois étapes (section Tarifs). La durée de l'essai est celle réglée par HotelSaver (voir useFormules). */
+export const etapesAbonnement = (joursEssai: number) => [
+  { titre: `Créez votre hôtel et essayez ${joursEssai} jours`, texte: "L'essai est gratuit, sur toutes les formules, sans carte bancaire." },
   { titre: "Choisissez une formule", texte: "Dans l'application : Paramètres → Abonnement. Vous choisissez la formule et la durée." },
-  { titre: "Payez avec votre téléphone", texte: "Mobile Money, directement dans l'application. L'accès continue sans interruption." },
+  {
+    titre: "Payez avec votre téléphone ou votre carte",
+    texte: "Mobile Money ou carte bancaire (Visa, Mastercard), avec ScanLinkPay. Aucun prélèvement automatique, l'accès continue sans interruption.",
+  },
 ];
 
 export const CHIFFRES = [
@@ -91,7 +94,7 @@ export const FAQ = [
   {
     question: "L'essai est-il vraiment gratuit ?",
     reponse:
-      "Oui, 14 jours sans carte bancaire. Ensuite, vous payez votre abonnement par Mobile Money (M-Pesa, Airtel Money, Orange Money ou Africell), directement dans l'application. Il n'y a aucun prélèvement automatique.",
+      "Oui, l'essai est gratuit et sans carte bancaire. Ensuite, vous payez votre abonnement par Mobile Money (M-Pesa, Airtel Money, Orange Money ou Africell) ou par carte bancaire (Visa, Mastercard), directement dans l'application, avec ScanLinkPay. Il n'y a aucun prélèvement automatique.",
   },
   {
     question: "Et si ma connexion internet est instable ?",
@@ -107,6 +110,11 @@ export const FAQ = [
     question: "Mes employés ont-ils tous accès à tout ?",
     reponse:
       "Non. Il existe un compte par rôle (patron, réception, cafétaria) et chacun ne voit que son module. Quand un employé part, le patron change les identifiants du compte.",
+  },
+  {
+    question: "Mes clients peuvent-ils payer leur acompte en ligne ?",
+    reponse:
+      "Oui, avec les formules qui incluent cette fonction. Le patron fixe un pourcentage du séjour ; le client le paie par Mobile Money ou par carte bancaire depuis la page de sa réservation. L'argent va directement sur le compte ScanLinkPay de l'hôtel, et en cas d'annulation l'acompte peut être remboursé.",
   },
   {
     question: "Puis-je imprimer des reçus ?",

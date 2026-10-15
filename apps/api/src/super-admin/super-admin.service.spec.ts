@@ -128,7 +128,7 @@ describe("SuperAdminService", () => {
       expect((resultat as any).paiementsLicence).toBeUndefined();
       expect(prisma.hotel.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          include: { branding: true, paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+          include: { branding: true, paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 }, _count: { select: { chambres: true } } },
         })
       );
     });

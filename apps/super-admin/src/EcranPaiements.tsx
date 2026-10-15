@@ -2,6 +2,7 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, StatusBadge, useTitrePage, type StatusTone } from "@hotel-chicago/ui";
 import { LIBELLE_OPERATEUR, formuleParCode, montantAbonnement } from "@hotel-chicago/regles";
+import type { FormuleAbonnement } from "@hotel-chicago/regles";
 import type { PaiementAbonnementSupport } from "@hotel-chicago/api-client";
 import type { StatutPaiementAbonnement } from "@hotel-chicago/types";
 import { EnteteApp, type Onglet } from "./EnteteApp";
@@ -10,6 +11,8 @@ export type ResultatReverification = "credite" | "toujours";
 
 export interface EcranPaiementsProps {
   paiements: PaiementAbonnementSupport[];
+  /** Catalogue courant des formules (pour afficher leur nom). */
+  formules: FormuleAbonnement[];
   chargement: boolean;
   erreur: string | null;
   onActualiser: () => void;
@@ -48,8 +51,13 @@ function dateHeure(iso: string): string {
   return Number.isNaN(d.getTime()) ? "—" : formatDate.format(d);
 }
 
-function libelleFormule(code: string): string {
-  return formuleParCode(code)?.nom ?? code;
+function libelleFormule(code: string, formules: FormuleAbonnement[]): string {
+  return formuleParCode(code, formules.length > 0 ? formules : undefined)?.nom ?? code;
+}
+
+/** Montant dans la devise du paiement, ou « — » si ScanLinkPay ne l'a pas donné (ou paiement saisi à la main). */
+function montantOuTiret(montant: number | null | undefined, devise: "USD" | "CDF"): string {
+  return typeof montant === "number" ? montantAbonnement(montant, devise) : "—";
 }
 
 /** Référence en police mono + bouton Copier (retour « Copié » annoncé aux lecteurs d'écran). */
@@ -94,7 +102,7 @@ function Reference({ etiquette, valeur }: { etiquette: string; valeur: string | 
   );
 }
 
-export function EcranPaiements({ paiements, chargement, erreur, onActualiser, onReverifier, onChangerOnglet, onDeconnexion }: EcranPaiementsProps) {
+export function EcranPaiements({ paiements, formules, chargement, erreur, onActualiser, onReverifier, onChangerOnglet, onDeconnexion }: EcranPaiementsProps) {
   const [filtre, setFiltre] = useState<Filtre>("TOUS");
   const [idEnCours, setIdEnCours] = useState<string | null>(null);
   const [retour, setRetour] = useState<{ type: "succes" | "info" | "erreur"; texte: string } | null>(null);
@@ -178,6 +186,8 @@ export function EcranPaiements({ paiements, chargement, erreur, onActualiser, on
                 <th scope="col">Formule</th>
                 <th scope="col">Durée</th>
                 <th scope="col">Montant</th>
+                <th scope="col">Commission ScanLinkPay</th>
+                <th scope="col">Total débité</th>
                 <th scope="col">Opérateur</th>
                 <th scope="col">Numéro</th>
                 <th scope="col">Statut</th>
@@ -197,9 +207,11 @@ export function EcranPaiements({ paiements, chargement, erreur, onActualiser, on
                       {p.hotelNom}
                       <span className="cellule-hotel__sous">{p.sousDomaine}</span>
                     </th>
-                    <td>{libelleFormule(p.formule)}</td>
+                    <td>{libelleFormule(p.formule, formules)}</td>
                     <td>{p.mois} mois</td>
                     <td className="nombre">{montantAbonnement(p.montant, p.devise)}</td>
+                    <td className="nombre">{montantOuTiret(p.commission, p.devise)}</td>
+                    <td className="nombre">{montantOuTiret(p.total, p.devise)}</td>
                     <td>{p.source === "SUPPORT" ? "Saisi à la main" : (p.operateur && LIBELLE_OPERATEUR[p.operateur]) || p.operateur || "—"}</td>
                     <td>{p.telephoneMasque ?? "—"}</td>
                     <td>

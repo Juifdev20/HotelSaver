@@ -1,7 +1,4 @@
-/** Un lien venu de la configuration n'est repris que s'il est en https (rien d'autre ne doit finir dans un href). */
-function lienHttps(valeur: string | undefined): string | null {
-  return valeur && /^https:\/\//i.test(valeur.trim()) ? valeur.trim() : null;
-}
+import { lienHttps } from "./liensSurs";
 
 export const configuration = {
   apiUrl: import.meta.env.VITE_API_URL as string,

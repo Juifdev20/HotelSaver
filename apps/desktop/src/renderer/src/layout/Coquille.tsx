@@ -15,6 +15,7 @@ import {
   ClipboardList,
   CreditCard,
   FileText,
+  HandCoins,
   Wallet,
   LayoutDashboard,
   LogOut,
@@ -38,6 +39,7 @@ import {
 } from "lucide-react";
 import { useDialogue, useTitrePage } from "@hotel-chicago/ui";
 import { EntreeNavigation, IdPage, entreesBarreDuBas, libellePage, sectionsPourRole } from "../navigation";
+import { fonctionOuverte } from "../fonctions";
 // Logo de l'APPLICATION HotelSaver (identité plateforme, distincte du logo
 // de chaque hôtel — voir DECISIONS.md « branding application vs hôtel »).
 import logoHotelSaver from "../../../../../../assets/icons/hotelsaver-icone.png";
@@ -58,6 +60,7 @@ const ICONES: Record<IdPage, LucideIcon> = {
   "tableau-de-bord": LayoutDashboard,
   chambres: BedDouble,
   reservations: CalendarDays,
+  remboursements: HandCoins,
   "arrivees-departs": ArrowLeftRight,
   "journal-journee": BookOpenCheck,
   clients: Users,
@@ -138,6 +141,8 @@ export interface CoquilleProps {
   nonLues: number;
   onOuvrirNotification: (notification: NotificationApp) => void;
   onToutMarquerLu: () => void;
+  /** Petits nombres affichés sur une entrée de la navigation (ex. remboursements à faire). */
+  pastilles?: Partial<Record<IdPage, number>>;
   /** Indicateur de synchronisation (en-tête) et bandeau « sans Internet » ; fournis par l'application. */
   indicateurSynchro?: React.ReactNode;
   bandeau?: React.ReactNode;
@@ -149,13 +154,17 @@ function LienNavigation({
   actif,
   onNaviguer,
   variante,
+  pastille = 0,
 }: {
   entree: Pick<EntreeNavigation, "id" | "libelle" | "libelleCourt" | "disponible">;
   actif: boolean;
   onNaviguer: (page: IdPage) => void;
   variante: "laterale" | "bas";
+  /** Nombre à signaler sur l'entrée (0 = rien). */
+  pastille?: number;
 }) {
   const Icone = ICONES[entree.id];
+  const nomAccessible = pastille > 0 ? `${entree.libelle}, ${pastille} à faire` : entree.libelle;
   return (
     <button
       type="button"
@@ -163,11 +172,16 @@ function LienNavigation({
       onClick={() => onNaviguer(entree.id)}
       aria-current={actif ? "page" : undefined}
       // Barre réduite : le libellé est masqué, l'infobulle et le nom accessible le remplacent.
-      title={variante === "laterale" ? entree.libelle : undefined}
-      aria-label={variante === "laterale" ? entree.libelle : undefined}
+      title={variante === "laterale" ? nomAccessible : undefined}
+      aria-label={variante === "laterale" || pastille > 0 ? nomAccessible : undefined}
     >
       <Icone size={variante === "bas" ? 22 : 19} strokeWidth={1.9} aria-hidden="true" />
       <span className="lien-nav__libelle">{variante === "bas" ? entree.libelleCourt : entree.libelle}</span>
+      {pastille > 0 && (
+        <span className="lien-nav__pastille" data-testid={`pastille-${entree.id}`} aria-hidden="true">
+          {pastille > 99 ? "99+" : pastille}
+        </span>
+      )}
       {!entree.disponible && variante === "laterale" && <span className="lien-nav__bientot">Bientôt</span>}
     </button>
   );
@@ -185,6 +199,7 @@ export function Coquille({
   nonLues,
   onOuvrirNotification,
   onToutMarquerLu,
+  pastilles,
   indicateurSynchro,
   bandeau,
   children,
@@ -194,8 +209,10 @@ export function Coquille({
   const [notificationsOuvertes, setNotificationsOuvertes] = useState(false);
   const [recherche, setRecherche] = useState("");
   const [barreReduite, setBarreReduite] = useState(barreReduitePreferee);
-  const sections = sectionsPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true);
-  const barreDuBas = entreesBarreDuBas(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true);
+  const sections = sectionsPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true, utilisateur.fonctions);
+  const barreDuBas = entreesBarreDuBas(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true, utilisateur.fonctions);
+  // La recherche mène à l'écran Chambres : sans la réception, elle n'a plus de sens.
+  const rechercheDisponible = fonctionOuverte(utilisateur, "RECEPTION");
 
   const refProfil = useFermetureExterne(menuProfilOuvert, () => setMenuProfilOuvert(false));
   const refNotifications = useFermetureExterne(notificationsOuvertes, () => setNotificationsOuvertes(false));
@@ -272,6 +289,7 @@ export function Coquille({
               actif={entree.id === pageActive}
               onNaviguer={naviguer}
               variante="laterale"
+              pastille={pastilles?.[entree.id]}
             />
           ))}
         </div>
@@ -329,6 +347,7 @@ export function Coquille({
             HotelSaver
           </span>
 
+          {rechercheDisponible ? (
           <label className="coquille__recherche coquille__masque-etroit">
             <Search size={18} aria-hidden="true" />
             <span className="visuellement-cache">Rechercher une chambre, un client…</span>
@@ -342,6 +361,9 @@ export function Coquille({
               }}
             />
           </label>
+          ) : (
+            <span className="coquille__recherche-vide coquille__masque-etroit" aria-hidden="true" />
+          )}
 
           <div className="coquille__actions-haut">
             {indicateurSynchro}
@@ -488,6 +510,7 @@ export function Coquille({
             actif={entree.id === pageActive}
             onNaviguer={naviguer}
             variante="bas"
+            pastille={pastilles?.[entree.id]}
           />
         ))}
         <button type="button" className="lien-nav lien-nav--bas" onClick={() => setMenuMobileOuvert(true)}>
