@@ -6,6 +6,7 @@ import {
   LIMITE_INSCRIPTION,
   LIMITE_MOT_DE_PASSE_OUBLIE,
 } from "../common/throttle/throttle.config";
+import { PayerAcompteDto } from "../acompte/dto/paiement-reservation.dto";
 import { PublicService } from "./public.service";
 import { CreerCommandeWebDto } from "./dto/creer-commande-web.dto";
 import { CreerDemandeReservationDto } from "./dto/creer-demande-reservation.dto";
@@ -64,6 +65,28 @@ export class PublicController {
   @Get("suivi/:jeton")
   obtenirSuiviReservation(@Param("jeton") jeton: string, @Query() query: SuiviReservationQueryDto) {
     return this.publicService.obtenirSuiviReservation(jeton, query);
+  }
+
+  /** Les frais de l'acompte restant, AVANT de payer (ce que le client verra débité). */
+  @Get("suivi/:jeton/paiement/apercu")
+  @Throttle(LIMITE_ECRITURE_PUBLIQUE)
+  apercuAcompte(@Param("jeton") jeton: string, @Query() query: SuiviReservationQueryDto) {
+    return this.publicService.apercuAcompte(jeton, query);
+  }
+
+  /** Paie l'acompte en ligne (Mobile Money ou carte) : le montant est calculé par le serveur, jamais fourni. CAPTCHA + débit limité : cette
+   * route envoie une demande de confirmation sur un téléphone. */
+  @Post("suivi/:jeton/paiement")
+  @UseGuards(CaptchaGuard)
+  @Throttle(LIMITE_ECRITURE_PUBLIQUE)
+  payerAcompte(@Param("jeton") jeton: string, @Body() dto: PayerAcompteDto) {
+    return this.publicService.payerAcompte(jeton, dto);
+  }
+
+  @Get("suivi/:jeton/paiement/:id")
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  lirePaiementAcompte(@Param("jeton") jeton: string, @Param("id") id: string, @Query() query: SuiviReservationQueryDto) {
+    return this.publicService.lirePaiementAcompte(jeton, id, query);
   }
 
   @Post("suivi/:jeton/annuler")

@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { RemboursementsService, motifDepuisTexte } from "../acompte/remboursements.service";
 import { PrismaClient, StatutChambre } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
@@ -23,7 +24,8 @@ function montantLisible(valeur: number, devise: string): string {
 export class ReservationsService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly notifications: NotificationsService
+    private readonly notifications: NotificationsService,
+    @Optional() private readonly remboursements?: RemboursementsService
   ) {}
 
   findAll(query: FindReservationsQueryDto, hotelId: string) {
@@ -194,6 +196,9 @@ export class ReservationsService {
       where: { id, hotelId },
       data: { statut: "ANNULEE", annuleLe: new Date(), motifAnnulation: dto.motif, syncVersion: { increment: 1 } },
     });
+
+    // Un acompte payé en ligne ne disparaît pas avec l'annulation : le patron doit décider de le rendre ou de le garder.
+    await this.remboursements?.creerSiAcompteEnLigne(id, motifDepuisTexte(dto.motif));
 
     if (par?.role !== Role.PATRON) {
       void this.notifications.emettre({

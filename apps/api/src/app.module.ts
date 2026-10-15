@@ -27,6 +27,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { RapportsModule } from "./rapports/rapports.module";
 import { DepensesModule } from "./depenses/depenses.module";
 import { AbonnementModule } from "./abonnement/abonnement.module";
+import { AcompteModule } from "./acompte/acompte.module";
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { AbonnementModule } from "./abonnement/abonnement.module";
     RapportsModule,
     DepensesModule,
     AbonnementModule,
+    AcompteModule,
   ],
   providers: [
     // Limitation de débit : évaluée avant tout le reste (voir throttle.config.ts).

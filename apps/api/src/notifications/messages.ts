@@ -165,6 +165,24 @@ export const messages = {
     };
   },
 
+  acomptePayeEnLigne(p: { client: string; chambre: string; montant: string; reservationId: string; confirmee: boolean }): MessageNotification {
+    return {
+      type: "ACOMPTE_PAYE_EN_LIGNE",
+      titre: "Acompte payé en ligne",
+      corps: `${p.client} a payé ${p.montant} pour la chambre ${p.chambre}${p.confirmee ? " : la réservation est confirmée." : "."}`,
+      lien: { ecran: "reservations", id: p.reservationId },
+    };
+  },
+
+  remboursementAFaire(p: { client: string; montant: string; motif: string; reservationId: string }): MessageNotification {
+    return {
+      type: "REMBOURSEMENT_A_FAIRE",
+      titre: "Acompte à rembourser ?",
+      corps: `${p.client} avait payé ${p.montant} en ligne (${p.motif}). Décidez : rembourser ou conserver (Réservations → Remboursements).`,
+      lien: { ecran: "reservations", id: p.reservationId },
+    };
+  },
+
   rapportAGenerer(p: { departement: string; mois: string }): MessageNotification {
     return {
       type: "RAPPORT_A_GENERER",

@@ -16,6 +16,7 @@ function creerPrismaMock() {
       create: jest.fn(),
     },
     paiementLicence: { count: jest.fn().mockResolvedValue(0) },
+    paiementReservation: { findMany: jest.fn().mockResolvedValue([]) },
     chambre: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     reservation: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     hotelSite: { findUnique: jest.fn().mockResolvedValue({ whatsapp: "+243970000000" }) },
@@ -45,6 +46,8 @@ describe("PublicService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
   let supabaseAdmin: ReturnType<typeof creerSupabaseAdminMock>;
   let notifications: { emettre: jest.Mock };
+  let paiements: { presenter: jest.Mock };
+  let remboursements: { creerSiAcompteEnLigne: jest.Mock };
   let service: PublicService;
 
   beforeEach(() => {
@@ -52,7 +55,9 @@ describe("PublicService", () => {
     prisma = creerPrismaMock();
     supabaseAdmin = creerSupabaseAdminMock();
     notifications = { emettre: jest.fn() };
-    service = new PublicService(prisma, supabaseAdmin, notifications as any);
+    paiements = { presenter: jest.fn().mockResolvedValue(null) };
+    remboursements = { creerSiAcompteEnLigne: jest.fn().mockResolvedValue(undefined) };
+    service = new PublicService(prisma, supabaseAdmin, notifications as any, paiements as any, remboursements as any);
     (extraireCouleursLogo as jest.Mock).mockResolvedValue(null);
   });
 

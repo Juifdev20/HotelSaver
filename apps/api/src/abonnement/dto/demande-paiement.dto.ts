@@ -3,8 +3,9 @@ import { Type } from "class-transformer";
 import { IsInt } from "class-validator";
 
 export class DemandePaiementAbonnementDto {
-  @IsIn(["ESSENTIEL", "PRO", "PREMIUM"], { message: "Formule inconnue." })
-  formule!: "ESSENTIEL" | "PRO" | "PREMIUM";
+  @IsString()
+  @MaxLength(40)
+  formule!: string;
 
   @Type(() => Number)
   @IsInt({ message: "La durée doit être un nombre de mois." })
@@ -23,4 +24,17 @@ export class DemandePaiementAbonnementDto {
 
   @IsUUID("4", { message: "La clé d'idempotence doit être un UUID." })
   cleIdempotence!: string;
+}
+
+export class ApercuAbonnementQueryDto {
+  @IsString()
+  @MaxLength(40)
+  formule!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  mois!: number;
+
+  @IsIn(["USD", "CDF"], { message: "La devise doit être USD ou CDF." })
+  devise!: "USD" | "CDF";
 }

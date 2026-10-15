@@ -17,11 +17,11 @@ import {
 import { lireCatalogue } from "../common/abonnement/catalogue";
 import { formulesProposees } from "../common/abonnement/formules-proposees";
 import { Role } from "@hotel-chicago/types";
-import type { DemandePaiementAbonnement, FormuleProposee, OperateurMobileMoney, PaiementAbonnementVue, UtilisateurAuthentifie, VueAbonnement } from "@hotel-chicago/types";
+import type { ApercuPaiement, DemandePaiementAbonnement, FormuleProposee, OperateurMobileMoney, PaiementAbonnementVue, UtilisateurAuthentifie, VueAbonnement } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import { NotificationsService } from "../notifications/notifications.service";
 import { messages } from "../notifications/messages";
-import { ErreurLinkPay, LinkPayClient } from "./linkpay.client";
+import { ErreurLinkPay, LinkPayClient, type ModeleCommission } from "./linkpay.client";
 
 const MINUTE = 60_000;
 /** Tant qu'une demande est en attente de confirmation sur le téléphone, un second paiement est refusé (évite de débiter deux fois par impatience). */
@@ -80,6 +80,8 @@ export class AbonnementService {
           telephoneMasque: null,
           statut: "REUSSI",
           messageErreur: null,
+          commission: null,
+          total: null,
           periodeCouverteJusquau: m.periodeCouverteJusquau.toISOString(),
           createdAt: m.createdAt.toISOString(),
           confirmeLe: m.createdAt.toISOString(),
@@ -114,10 +116,30 @@ export class AbonnementService {
       telephoneMasque: p.telephoneMasque,
       statut: p.statut,
       messageErreur: p.messageErreur,
+      commission: p.commissionCentimes === null ? null : p.commissionCentimes / 100,
+      total: p.totalCentimes === null ? null : p.totalCentimes / 100,
       periodeCouverteJusquau: p.paiementLicence?.periodeCouverteJusquau.toISOString() ?? null,
       createdAt: p.createdAt.toISOString(),
       confirmeLe: p.confirmeLe?.toISOString() ?? null,
     };
+  }
+
+  /** Le prix d'un achat et la commission ScanLinkPay qui s'y ajoute, AVANT de payer (rien n'est créé). */
+  async apercu(utilisateur: UtilisateurAuthentifie, formuleCode: string, mois: number, devise: "USD" | "CDF"): Promise<ApercuPaiement> {
+    const catalogue = await lireCatalogue(this.prisma);
+    const formule = catalogue.proposees.includes(formuleCode) ? formuleParCode(formuleCode, catalogue.formules) : undefined;
+    if (!formule || !(DUREES_MOIS as readonly number[]).includes(mois)) throw new BadRequestException("Formule ou durée inconnue.");
+    const montant = prixAbonnement({ formule: formule.code, mois, devise, tauxCdf: catalogue.parametres.tauxCdf, formules: catalogue.formules, moisOffertsAnnuel: catalogue.parametres.moisOffertsAnnuel });
+    const payeur = catalogue.parametres.fraisAbonnementPayesParClient;
+    const base: ApercuPaiement = { devise, montant, commission: 0, total: montant, commissionPayeePar: payeur ? "PAYEUR" : "BENEFICIAIRE", disponible: false };
+    const marchand = this.linkpay.marchandPlateforme();
+    if (!marchand || !this.linkpay.estConfigure()) return base;
+    try {
+      const { frais } = await this.linkpay.apercuFrais({ marchand, montantCentimes: Math.round(montant * 100), devise, modele: payeur ? "CUSTOMER_PAID" : "MERCHANT_PAID" });
+      return { ...base, commission: frais.commissionCentimes / 100, total: frais.totalCentimes / 100, disponible: true };
+    } catch {
+      return base; // ScanLinkPay injoignable : on montre le prix seul, sans bloquer l'achat
+    }
   }
 
   // ------------------------------------------------------------------------------------------------ paiement
@@ -189,8 +211,18 @@ export class AbonnementService {
     }
 
     try {
-      const demande = await this.linkpay.creerDemande({ montantCentimes: Math.round(montant * 100), devise: dto.devise });
-      await this.prisma.paiementAbonnement.update({ where: { id: ligne.id }, data: { referenceDemande: demande.reference } });
+      // Commission ScanLinkPay : par défaut le patron la paie EN PLUS du prix (la plateforme reçoit le prix plein) ; réglable par le super-admin.
+      const modele: ModeleCommission = catalogue.parametres.fraisAbonnementPayesParClient ? "CUSTOMER_PAID" : "MERCHANT_PAID";
+      const demande = await this.linkpay.creerDemande({
+        montantCentimes: Math.round(montant * 100),
+        devise: dto.devise,
+        modele,
+        description: `Abonnement HotelSaver ${formule.nom} · ${dto.mois} mois — ${hotel.nom}`.slice(0, 200),
+      });
+      await this.prisma.paiementAbonnement.update({
+        where: { id: ligne.id },
+        data: { referenceDemande: demande.reference, modeleCommission: modele, commissionCentimes: demande.frais?.commissionCentimes ?? null, totalCentimes: demande.frais?.totalCentimes ?? null },
+      });
       const lance = await this.lancerAvecReprise({ linkToken: demande.linkToken, cleIdempotence: ligne.id, telephone, operateur: dto.operateur as OperateurMobileMoney, nom: utilisateur.nom });
       await this.prisma.paiementAbonnement.update({ where: { id: ligne.id }, data: { referenceFournisseur: lance.referenceFournisseur } });
     } catch (e) {

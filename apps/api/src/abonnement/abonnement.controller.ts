@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { Role } from "@hotel-chicago/types";
 import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
@@ -9,7 +9,7 @@ import { SansLicence } from "../common/decorators/sans-licence.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { MINUTE } from "../common/throttle/throttle.config";
 import { AbonnementService } from "./abonnement.service";
-import { DemandePaiementAbonnementDto } from "./dto/demande-paiement.dto";
+import { ApercuAbonnementQueryDto, DemandePaiementAbonnementDto } from "./dto/demande-paiement.dto";
 
 /**
  * Abonnement de l'hôtel : état, formules, paiement par Mobile Money. TOUTES ces routes restent ouvertes quand l'abonnement a expiré
@@ -25,6 +25,13 @@ export class AbonnementController {
   @Get()
   vue(@CurrentUser() utilisateur: UtilisateurAuthentifie) {
     return this.abonnement.vue(utilisateur);
+  }
+
+  @Get("apercu")
+  @Roles(Role.PATRON)
+  @Throttle({ default: { limit: 30, ttl: MINUTE } })
+  apercu(@CurrentUser() utilisateur: UtilisateurAuthentifie, @Query() q: ApercuAbonnementQueryDto) {
+    return this.abonnement.apercu(utilisateur, q.formule, q.mois, q.devise);
   }
 
   @Post("paiements")

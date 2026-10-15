@@ -90,32 +90,44 @@ enum StatutRapport {
 /// date de validité n'est jamais stockée ici, toujours calculée depuis le
 /// dernier paiement (voir apps/api/src/super-admin/calculer-validite.ts).
 model Hotel {
-  id                 String        @id @default(uuid())
-  nom                String
-  sousDomaine        String        @unique
-  statutLicence      StatutLicence @default(ESSAI)
+  id                         String        @id @default(uuid())
+  nom                        String
+  sousDomaine                String        @unique
+  statutLicence              StatutLicence @default(ESSAI)
   /// Formule payée en dernier (ESSENTIEL / PRO / PREMIUM, voir packages/regles/src/abonnement.ts). null = essai ou hôtel créé à la main :
   /// aucune limite de formule ne s'applique.
-  formule            String?
+  formule                    String?
   /// true = suspendu À LA MAIN par le super-admin (abus, litige) : l'hôtel ne peut pas se réactiver seul en payant.
   /// false = suspendu automatiquement à l'échéance : le patron peut payer pour rouvrir.
-  suspensionManuelle Boolean       @default(false)
+  suspensionManuelle         Boolean       @default(false)
+  /// Compte marchand ScanLinkPay DE L'HÔTEL (SLP-…) : les acomptes payés en ligne y arrivent directement ; l'hôtel les retire ensuite vers son Mobile Money.
+  numeroScanLinkPay          String?
+  /// Boutique ScanLinkPay à créditer, seulement si l'entreprise en a plusieurs.
+  boutiqueScanLinkPayId      String?
+  /// Nom de l'entreprise tel que ScanLinkPay le connaît (affiché pour que le patron vérifie son numéro, et au client avant de payer).
+  nomScanLinkPay             String?
+  /// Part du séjour demandée en acompte sur le site (0 = pas de paiement en ligne), fixée par le patron.
+  pourcentageAcompte         Int           @default(0)
+  /// true = le client paie la commission ScanLinkPay EN PLUS (l'hôtel reçoit l'acompte entier) ; false = l'hôtel la supporte.
+  acompteFraisPayesParClient Boolean       @default(true)
+  /// Conditions d'annulation et de remboursement affichées au client avant de payer.
+  conditionsAnnulation       String?
   // Séparation des tâches : false (défaut) = le patron ne réalise PAS les opérations du quotidien
   // (réserver, check-in/out, facturer, ouvrir/encaisser un compte cafétaria) ; il peut l'activer s'il travaille seul.
-  patronPeutOperer   Boolean       @default(false)
+  patronPeutOperer           Boolean       @default(false)
   // Suivi cuisine : false (défaut) = vente au comptoir, les lignes de commande sont
   // créées directement SERVI et l'écran Cuisine est masqué ; true = file de production
   // cuisine (EN_ATTENTE → EN_PREPARATION → PRET → SERVI) pour les hôtels avec plats préparés.
-  cuisineActivee     Boolean       @default(false)
+  cuisineActivee             Boolean       @default(false)
   // Commande en ligne : true = le site public de l'hôtel expose l'onglet « Cuisine »
   // (produits commandableEnLigne) et POST /public/commande crée des comptes
   // SITE_PUBLIC ; false (défaut) = pas de commande en ligne pour cet hôtel.
-  commandeWebActivee Boolean       @default(false)
-  emailContact       String?
-  telephoneContact   String?
-  adresse            String?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  commandeWebActivee         Boolean       @default(false)
+  emailContact               String?
+  telephoneContact           String?
+  adresse                    String?
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
 
   // Domaine personnalisé (Phase 13, onboarding manuel par le Super-Admin
   // uniquement — voir DECISIONS.md) : attaché via l'API Render Custom
@@ -153,6 +165,8 @@ model Hotel {
   inventairesPhysiques InventairePhysique[]
   paiementsLicence     PaiementLicence[]
   paiementsAbonnement  PaiementAbonnement[]
+  paiementsReservation PaiementReservation[]
+  remboursements       Remboursement[]
   rapportsMensuels     RapportMensuel[]
   depenses             Depense[]
   syncCorrespondances  SyncCorrespondance[]
@@ -333,6 +347,10 @@ model PaiementAbonnement {
   telephoneMasque        String
   statut                 StatutPaiementAbonnement @default(EN_ATTENTE)
   messageErreur          String?
+  /// Commission ScanLinkPay et total débité (en centimes), tels que ScanLinkPay les a calculés pour ce paiement.
+  modeleCommission       String?
+  commissionCentimes     Int?
+  totalCentimes          Int?
   /// Référence de la demande de paiement chez ScanLinkPay (payment_requests.reference).
   referenceDemande       String?
   /// Identifiant du paiement chez ScanLinkPay (payment_intents.psp_intent_id) : sert à interroger son état.
@@ -892,4 +910,101 @@ model ParametresPlateforme {
   contactTelephone              String   @default("+243828497218")
   contactWhatsapp               String   @default("+243828497218")
   updatedAt                     DateTime @updatedAt
+}
+
+enum MoyenPaiementEnLigne {
+  MOBILE_MONEY
+  CARTE
+}
+
+/// Un paiement d'ACOMPTE de réservation fait par le client sur le site de l'hôtel, encaissé par ScanLinkPay sur le compte marchand DE L'HÔTEL.
+/// Le montant est calculé par le serveur (pourcentage du patron × séjour) ; la réservation n'est créditée que sur confirmation de ScanLinkPay
+/// (bon montant, bonne devise), une seule fois.
+model PaiementReservation {
+  id                      String                   @id @default(uuid())
+  hotel                   Hotel                    @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId                 String
+  reservationId           String
+  /// L'acompte lui-même (ce que l'hôtel reçoit), dans la devise de la chambre.
+  montant                 Decimal
+  devise                  Devise
+  pourcentage             Int
+  moyen                   MoyenPaiementEnLigne
+  operateur               OperateurMobileMoney?
+  telephoneMasque         String?
+  statut                  StatutPaiementAbonnement @default(EN_ATTENTE)
+  messageErreur           String?
+  modeleCommission        String
+  commissionCentimes      Int?
+  /// Ce que le client débourse (acompte + sa part de commission).
+  totalCentimes           Int?
+  /// Page de paiement par carte du fournisseur (moyen CARTE).
+  urlPaiement             String?
+  referenceDemande        String?
+  referenceFournisseur    String?                  @unique
+  cleIdempotence          String                   @unique
+  /// Numéro ScanLinkPay du client, s'il en a un : c'est là que l'acompte lui sera remboursé.
+  numeroScanLinkPayClient String?
+  derniereVerificationLe  DateTime?
+  confirmeLe              DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  remboursements          Remboursement[]
+
+  @@index([hotelId, reservationId])
+  @@index([statut, createdAt])
+}
+
+enum MotifRemboursement {
+  ANNULATION_CLIENT
+  ANNULATION_HOTEL
+  NON_PRESENTATION
+  CHAMBRE_INDISPONIBLE
+  AUTRE
+}
+
+enum StatutRemboursement {
+  A_FAIRE
+  EFFECTUE
+  CONSERVE
+}
+
+enum ModeRemboursement {
+  SCANLINKPAY
+  MOBILE_MONEY
+  ESPECES
+  AUTRE
+}
+
+/// Un acompte payé en ligne à rendre (ou à garder) quand une réservation est annulée ou que le client ne se présente pas. Créé tout seul ;
+/// c'est le PATRON qui décide (rembourser en tout ou en partie, ou conserver) puis marque « fait » après avoir envoyé l'argent
+/// (idéalement vers le compte ScanLinkPay du client). Jamais supprimé : trace comptable.
+model Remboursement {
+  id                      String               @id @default(uuid())
+  hotel                   Hotel                @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId                 String
+  reservationId           String
+  paiement                PaiementReservation? @relation(fields: [paiementReservationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paiementReservationId   String?
+  devise                  Devise
+  /// Total des acomptes payés en ligne pour cette réservation.
+  montantPaye             Decimal
+  /// Ce que le patron a décidé de rendre (proposé : tout).
+  montantARembourser      Decimal
+  motif                   MotifRemboursement
+  statut                  StatutRemboursement  @default(A_FAIRE)
+  mode                    ModeRemboursement?
+  /// Destinataire : numéro ScanLinkPay du client s'il l'a donné, sinon son téléphone.
+  destinataireScanLinkPay String?
+  destinataireTelephone   String?
+  clientNom               String
+  reference               String?
+  note                    String?
+  traiteParId             String?
+  traiteLe                DateTime?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  @@index([hotelId, statut])
+  @@index([reservationId])
 }

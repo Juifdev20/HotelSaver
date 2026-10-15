@@ -12,6 +12,6 @@ import { LinkPayClient } from "./linkpay.client";
   imports: [PrismaModule],
   controllers: [AbonnementController, SupportAbonnementController, FormulesAdminController],
   providers: [FormulesAdminService, AbonnementService, AbonnementSchedulerService, LinkPayClient],
-  exports: [AbonnementService],
+  exports: [AbonnementService, LinkPayClient],
 })
 export class AbonnementModule {}

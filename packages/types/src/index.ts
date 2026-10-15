@@ -689,6 +689,8 @@ export const TYPES_NOTIFICATION = [
   "PRE_ENREGISTREMENT",
   "ACOMPTE_MODIFIE",
   "ABONNEMENT_RENOUVELE",
+  "ACOMPTE_PAYE_EN_LIGNE",
+  "REMBOURSEMENT_A_FAIRE",
 ] as const;
 export type TypeNotification = (typeof TYPES_NOTIFICATION)[number];
 
@@ -709,6 +711,8 @@ export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification>
   LICENCE_BIENTOT_EXPIREE: "securite",
   LICENCE_SUSPENDUE: "securite",
   ABONNEMENT_RENOUVELE: "securite",
+  ACOMPTE_PAYE_EN_LIGNE: "reservations",
+  REMBOURSEMENT_A_FAIRE: "securite",
   RAPPORT_A_GENERER: "quotidien",
   RAPPORT_DISPONIBLE: "quotidien",
   COMMANDE_WEB: "reservations",
@@ -904,6 +908,8 @@ export interface SuiviReservationPublic {
   reponseReception: string | null;
   peutAnnuler: boolean;
   peutPreEnregistrer: boolean;
+  /** Paiement de l'acompte en ligne ; null = non proposé par cet hôtel. */
+  acompteEnLigne: AcompteEnLigne | null;
 }
 
 export type TypePiece = "CNI" | "PASSEPORT" | "PERMIS" | "AUTRE";
@@ -982,6 +988,9 @@ export interface PaiementAbonnementVue {
   telephoneMasque: string | null;
   statut: StatutPaiementAbonnement;
   messageErreur: string | null;
+  /** Commission ScanLinkPay et total débité, dans la devise du paiement (null si ScanLinkPay ne les a pas donnés ou paiement saisi à la main). */
+  commission?: number | null;
+  total?: number | null;
   /** Nouvelle échéance, quand le paiement a réussi. */
   periodeCouverteJusquau: string | null;
   createdAt: string;
@@ -1007,6 +1016,21 @@ export interface VueAbonnement {
   historique: PaiementAbonnementVue[];
 }
 
+/** Ce que coûterait un paiement, AVANT de le lancer : le prix, la commission ScanLinkPay (règles du super admin ScanLinkPay, par devise) et le total débité. */
+export interface ApercuPaiement {
+  devise: "USD" | "CDF";
+  /** Le prix (ou l'acompte) : ce que le bénéficiaire doit recevoir. */
+  montant: number;
+  /** Commission ScanLinkPay. */
+  commission: number;
+  /** Ce que le payeur débourse : `montant` + sa part de commission. */
+  total: number;
+  /** Qui porte la commission : le payeur (en plus), le bénéficiaire (retenue), ou moitié-moitié. */
+  commissionPayeePar: "PAYEUR" | "BENEFICIAIRE" | "PARTAGE";
+  /** null si ScanLinkPay n'a pas pu répondre : on affiche alors le montant seul. */
+  disponible: boolean;
+}
+
 /** Corps de POST /abonnement/paiements. */
 export interface DemandePaiementAbonnement {
   formule: string;
@@ -1016,4 +1040,137 @@ export interface DemandePaiementAbonnement {
   telephone: string;
   /** UUID généré par l'application pour CETTE tentative : la renvoyer après une coupure réseau ne débite pas deux fois. */
   cleIdempotence: string;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Acompte de réservation payé en ligne (site public → compte ScanLinkPay de l'hôtel) et remboursements
+
+export type MoyenPaiementEnLigne = "MOBILE_MONEY" | "CARTE";
+export type ModeRemboursement = "SCANLINKPAY" | "MOBILE_MONEY" | "ESPECES" | "AUTRE";
+export type MotifRemboursement = "ANNULATION_CLIENT" | "ANNULATION_HOTEL" | "NON_PRESENTATION" | "CHAMBRE_INDISPONIBLE" | "AUTRE";
+export type StatutRemboursement = "A_FAIRE" | "EFFECTUE" | "CONSERVE";
+
+/** Un paiement d'acompte vu du client ou du personnel. Les montants sont dans la devise de la chambre. */
+export interface PaiementReservationVue {
+  id: string;
+  /** L'acompte lui-même (ce que l'hôtel reçoit). */
+  montant: number;
+  devise: "USD" | "CDF";
+  moyen: MoyenPaiementEnLigne;
+  operateur: OperateurMobileMoney | null;
+  telephoneMasque: string | null;
+  statut: StatutPaiementAbonnement;
+  messageErreur: string | null;
+  /** Commission ScanLinkPay et total débité au client (null si inconnus). */
+  commission: number | null;
+  total: number | null;
+  /** Carte : la page de paiement sécurisée où envoyer le client (https), tant que le paiement est en attente. */
+  urlPaiement: string | null;
+  createdAt: string;
+  confirmeLe: string | null;
+}
+
+export interface RemboursementClientVue {
+  statut: "EN_COURS" | "EFFECTUE" | "CONSERVE";
+  montant: number;
+  devise: "USD" | "CDF";
+  mode: ModeRemboursement | null;
+  le: string | null;
+}
+
+/** L'acompte en ligne tel que la page « Ma réservation » le présente au client. `null` dans le suivi = ce service n'existe pas sur ce site. */
+export interface AcompteEnLigne {
+  disponible: boolean;
+  /** Pourquoi on ne peut pas payer maintenant (réservation annulée, chambre prise, déjà soldé…) ; null si disponible. */
+  indisponibleRaison: string | null;
+  pourcentage: number;
+  devise: "USD" | "CDF";
+  /** L'acompte demandé au total (pourcentage × séjour). */
+  objectif: number;
+  dejaPaye: number;
+  reste: number;
+  moyens: { mobileMoney: boolean; carte: boolean };
+  /** true = le client paie la commission ScanLinkPay en plus de l'acompte. */
+  fraisPayesParClient: boolean;
+  /** Nom de l'entreprise chez ScanLinkPay (« vous payez à : … »). */
+  nomMarchand: string | null;
+  conditionsAnnulation: string | null;
+  paiementEnCours: PaiementReservationVue | null;
+  paiements: PaiementReservationVue[];
+  remboursement: RemboursementClientVue | null;
+  /** Adresse pour créer un compte ScanLinkPay (remboursement rapide, paiements partout) ; null si inconnue. */
+  urlScanLinkPay: string | null;
+}
+
+/** Corps de POST /public/suivi/:jeton/paiement. */
+export interface DemandePaiementReservation {
+  sousDomaine: string;
+  moyen: MoyenPaiementEnLigne;
+  operateur?: OperateurMobileMoney;
+  telephone?: string;
+  /** Le numéro ScanLinkPay du client, s'il en a un : l'acompte y sera remboursé en cas d'annulation. */
+  numeroScanLinkPay?: string;
+  email?: string;
+  /** UUID propre à cette tentative : la renvoyer après une coupure ne débite pas deux fois. */
+  cleIdempotence: string;
+  captchaToken?: string;
+}
+
+/** GET/PATCH /hotel/paiement-en-ligne : le compte ScanLinkPay de l'hôtel et la règle d'acompte, réservés au PATRON. */
+export interface ReglagesPaiementEnLigne {
+  /** La formule de l'hôtel ouvre-t-elle le paiement en ligne ? */
+  fonctionIncluse: boolean;
+  /** Le serveur HotelSaver est-il relié à ScanLinkPay ? */
+  serveurRelie: boolean;
+  numeroScanLinkPay: string | null;
+  boutiqueScanLinkPayId: string | null;
+  /** Nom de l'entreprise connu de ScanLinkPay pour ce numéro : le patron vérifie que c'est bien la sienne. */
+  nomScanLinkPay: string | null;
+  /** 0 = pas de paiement en ligne. */
+  pourcentageAcompte: number;
+  fraisPayesParClient: boolean;
+  conditionsAnnulation: string | null;
+  urlScanLinkPay: string | null;
+}
+
+export interface ModifierReglagesPaiementEnLigne {
+  /** null = retirer le compte (le paiement en ligne s'arrête). */
+  numeroScanLinkPay?: string | null;
+  boutiqueScanLinkPayId?: string | null;
+  pourcentageAcompte?: number;
+  fraisPayesParClient?: boolean;
+  conditionsAnnulation?: string | null;
+}
+
+/** Un remboursement d'acompte à faire (ou fait) — écran « Remboursements » du patron. */
+export interface RemboursementVue {
+  id: string;
+  reservationId: string;
+  clientNom: string;
+  chambreNumero: string | null;
+  dateArrivee: string | null;
+  devise: "USD" | "CDF";
+  montantPaye: number;
+  montantARembourser: number;
+  motif: MotifRemboursement;
+  statut: StatutRemboursement;
+  mode: ModeRemboursement | null;
+  /** Où envoyer l'argent : le numéro ScanLinkPay du client s'il l'a donné, sinon son téléphone. */
+  destinataireScanLinkPay: string | null;
+  destinataireTelephone: string | null;
+  reference: string | null;
+  note: string | null;
+  traiteLe: string | null;
+  createdAt: string;
+}
+
+/** Corps de PATCH /remboursements/:id. */
+export interface TraiterRemboursement {
+  action: "EFFECTUE" | "CONSERVE";
+  /** Montant réellement rendu (par défaut le montant proposé ; jamais plus que ce qui a été payé). */
+  montant?: number;
+  mode?: ModeRemboursement;
+  reference?: string;
+  note?: string;
 }

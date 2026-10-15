@@ -7,6 +7,10 @@ import { messages } from "../notifications/messages";
 import { fonctionsAutorisees, type Fonction } from "@hotel-chicago/regles";
 import { lireCatalogue } from "../common/abonnement/catalogue";
 import { formulesProposees } from "../common/abonnement/formules-proposees";
+import { PaiementReservationService } from "../acompte/paiement-reservation.service";
+import { RemboursementsService } from "../acompte/remboursements.service";
+import type { ApercuPaiement, PaiementReservationVue } from "@hotel-chicago/types";
+import { PayerAcompteDto } from "../acompte/dto/paiement-reservation.dto";
 import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
 import { revoquerSessions } from "../common/auth/sessions";
@@ -66,7 +70,9 @@ export class PublicService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     private readonly supabaseAdmin: SupabaseAdminService,
-    private readonly notifications: NotificationsService
+    private readonly notifications: NotificationsService,
+    private readonly paiements: PaiementReservationService,
+    private readonly remboursements: RemboursementsService
   ) {}
 
   /**
@@ -575,6 +581,7 @@ export class PublicService {
       reponseReception: r.reponseReception,
       peutAnnuler: modifiable,
       peutPreEnregistrer: modifiable,
+      acompteEnLigne: await this.paiements.presenter(hotel, r),
     };
   }
 
@@ -587,8 +594,11 @@ export class PublicService {
     if (!PublicService.modifiableParClient(reservation)) {
       throw new ConflictException("Cette réservation ne peut plus être annulée en ligne. Contactez l'hôtel.");
     }
-    // Un acompte déjà versé ne s'annule pas depuis un simple lien (relayé par WhatsApp, transmissible) : la réception décide du remboursement.
-    if (Number(reservation.acompte) > 0) {
+    // Un acompte versé EN MAIN PROPRE ne s'annule pas depuis un simple lien (relayé par WhatsApp, transmissible) : la réception décide.
+    // Un acompte payé EN LIGNE, lui, s'annule : l'argent n'est jamais rendu automatiquement — il apparaît dans les « remboursements » du
+    // patron, qui décide selon ses conditions, et l'envoie à la destination notée AU PAIEMENT (jamais choisie ici).
+    const payeEnLigne = (await this.prisma.paiementReservation.findMany({ where: { reservationId: reservation.id, statut: "REUSSI" }, select: { montant: true } })).reduce((s, p) => s + Number(p.montant), 0);
+    if (Number(reservation.acompte) > payeEnLigne + 0.005) {
       throw new ConflictException("Un acompte a été versé pour cette réservation : contactez l'hôtel pour l'annuler.");
     }
     const precision = dto.motif?.trim();
@@ -597,6 +607,7 @@ export class PublicService {
       where: { id: reservation.id },
       data: { statut: "ANNULEE", annuleLe: new Date(), motifAnnulation: motif, syncVersion: { increment: 1 } },
     });
+    await this.remboursements.creerSiAcompteEnLigne(reservation.id, "ANNULATION_CLIENT");
     void this.notifications.emettre({
       hotelId: hotel.id,
       roles: [Role.RECEPTIONNISTE, Role.PATRON],
@@ -609,6 +620,22 @@ export class PublicService {
       }),
     });
     return this.obtenirSuiviReservation(jeton, query);
+  }
+
+  /** Les frais de l'acompte restant, avant que le client ne paie. */
+  async apercuAcompte(jeton: string, query: SuiviReservationQueryDto): Promise<ApercuPaiement> {
+    const { hotel, reservation } = await this.reservationParJeton(jeton, query.sousDomaine);
+    return this.paiements.apercu(hotel, reservation);
+  }
+
+  async payerAcompte(jeton: string, dto: PayerAcompteDto): Promise<PaiementReservationVue> {
+    const { hotel, reservation } = await this.reservationParJeton(jeton, dto.sousDomaine);
+    return this.paiements.creerPaiement(hotel, reservation, dto);
+  }
+
+  async lirePaiementAcompte(jeton: string, id: string, query: SuiviReservationQueryDto): Promise<PaiementReservationVue> {
+    const { reservation } = await this.reservationParJeton(jeton, query.sousDomaine);
+    return this.paiements.lirePaiement(reservation.id, id);
   }
 
   /** Pré-enregistrement en ligne : la pièce va sur la fiche Client, l'heure

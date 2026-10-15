@@ -118,11 +118,21 @@ decrire("Abonnement : formules, paiement Mobile Money par ScanLinkPay, expiratio
       finAvant = new Date((await vue(A)).body.etat.valideJusquau);
       const r = await payer(A, demande({ cleIdempotence: cle, formule: "PRO", mois: 3, devise: "USD", operateur: "VODACOM" })).expect(201);
       id = r.body.id;
-      expect(r.body).toMatchObject({ statut: "EN_ATTENTE", formule: "PRO", mois: 3, montant: 177, devise: "USD", operateur: "VODACOM", source: "EN_LIGNE" });
+      expect(r.body).toMatchObject({ statut: "EN_ATTENTE", formule: "PRO", mois: 3, montant: 177, devise: "USD", operateur: "VODACOM", source: "EN_LIGNE", commission: 3.54, total: 180.54 });
       expect(r.body.telephoneMasque).toBe("+243 82• ••• •18");
       expect(JSON.stringify(r.body)).not.toContain("0828497218");
       const lance = faux.dernier();
-      expect(lance).toMatchObject({ montantCentimes: 17_700, devise: "USD", telephone: "+243828497218", operateur: "vodacom", cle: id });
+      expect(lance).toMatchObject({ montantCentimes: 17_700, devise: "USD", telephone: "+243828497218", operateur: "vodacom", cle: id, modele: "CUSTOMER_PAID", numero: "SLP-TEST01" });
+      expect(lance.description).toMatch(/Abonnement HotelSaver Pro · 3 mois/);
+    });
+
+    it("l'aperçu montre le prix, la commission ScanLinkPay et le total AVANT de payer ; le patron seul y accède", async () => {
+      const r = await http().get("/abonnement/apercu").query({ formule: "ESSENTIEL", mois: 1, devise: "USD" }).set("Authorization", as(A, "patron")).expect(200);
+      expect(r.body).toEqual({ devise: "USD", montant: 29, commission: 0.58, total: 29.58, commissionPayeePar: "PAYEUR", disponible: true });
+      const cdf = await http().get("/abonnement/apercu").query({ formule: "ESSENTIEL", mois: 1, devise: "CDF" }).set("Authorization", as(A, "patron")).expect(200);
+      expect(cdf.body).toMatchObject({ montant: 81_500, commission: 1_630, total: 83_130 });
+      await http().get("/abonnement/apercu").query({ formule: "ESSENTIEL", mois: 1, devise: "USD" }).set("Authorization", as(A, "recep")).expect(403);
+      await http().get("/abonnement/apercu").query({ formule: "INCONNUE", mois: 1, devise: "USD" }).set("Authorization", as(A, "patron")).expect(400);
     });
 
     it("rejouer la MÊME demande ne débite pas deux fois (clé d'idempotence)", async () => {
