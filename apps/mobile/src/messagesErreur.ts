@@ -3,6 +3,8 @@
  * ou un message anglais de bibliothèque. Les messages métier du serveur (déjà en français) passent tels quels.
  * (Une table centrale dans api-client est prévue — U13 ; en attendant, ce filtre local couvre le terrain.)
  */
+import { estFonctionNonIncluse, signalerFonctionNonIncluse } from "./fonctions";
+
 const PAR_STATUT: Record<number, string> = {
   400: "La demande n'est pas valide. Vérifiez les informations saisies.",
   401: "Votre session a expiré : reconnectez-vous.",
@@ -21,6 +23,12 @@ export function messageErreur(erreur: unknown, parDefaut = "Une erreur est surve
   const message = erreur instanceof Error ? erreur.message.trim() : typeof erreur === "string" ? erreur.trim() : "";
   const statut = typeof (erreur as { statusCode?: unknown } | null)?.statusCode === "number" ? (erreur as { statusCode: number }).statusCode : undefined;
 
+  // Fonction fermée par la formule de l'hôtel : le serveur donne déjà la phrase (en français). On prévient aussi l'application, qui relit le profil
+  // pour que l'écran concerné disparaisse des menus.
+  if (estFonctionNonIncluse(erreur)) {
+    signalerFonctionNonIncluse();
+    return message || "Cette fonction n'est pas incluse dans votre formule. Le patron peut passer à une formule supérieure dans Paramètres → Abonnement.";
+  }
   if (!message) return parDefaut;
   // « Erreur 500 sur /chemin. » (message de repli de l'api-client quand le serveur n'a rien dit d'utile)
   const generique = /^Erreur (\d{3}) sur /.exec(message);
