@@ -2,18 +2,20 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { Prisma, type PrismaClient } from "@hotel-chicago/database";
 import {
   DUREES_MOIS,
-  FORMULES,
-  MOIS_OFFERTS,
-  TAUX_CDF_ABONNEMENT_DEFAUT,
   etatAbonnement,
   finValidite,
+  fonctionsAutorisees,
   formuleParCode,
+  lignesFormule,
   masquerNumero,
   nouvelleFinValidite,
   numeroInternational,
   prixAbonnement,
   problemeNumero,
+  type FormuleAbonnement,
 } from "@hotel-chicago/regles";
+import { lireCatalogue } from "../common/abonnement/catalogue";
+import { formulesProposees } from "../common/abonnement/formules-proposees";
 import { Role } from "@hotel-chicago/types";
 import type { DemandePaiementAbonnement, FormuleProposee, OperateurMobileMoney, PaiementAbonnementVue, UtilisateurAuthentifie, VueAbonnement } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
@@ -41,31 +43,6 @@ export class AbonnementService {
     private readonly notifications: NotificationsService
   ) {}
 
-  /** Taux USD → CDF appliqué aux abonnements payés en francs (variable ABONNEMENT_TAUX_CDF, entre 500 et 20 000). */
-  tauxCdf(): number {
-    const t = Number(process.env.ABONNEMENT_TAUX_CDF);
-    return Number.isFinite(t) && t >= 500 && t <= 20_000 ? t : TAUX_CDF_ABONNEMENT_DEFAUT;
-  }
-
-  formulesProposees(): FormuleProposee[] {
-    const tauxCdf = this.tauxCdf();
-    return FORMULES.map((f) => ({
-      code: f.code,
-      nom: f.nom,
-      description: f.description,
-      recommandee: f.recommandee === true,
-      maxChambres: f.maxChambres,
-      inclus: f.inclus,
-      prixMensuelUsd: f.prixMensuelUsd,
-      durees: DUREES_MOIS.map((mois) => ({
-        mois,
-        moisOfferts: MOIS_OFFERTS[mois] ?? 0,
-        prixUsd: prixAbonnement({ formule: f.code, mois, devise: "USD", tauxCdf }),
-        prixCdf: prixAbonnement({ formule: f.code, mois, devise: "CDF", tauxCdf }),
-      })),
-    }));
-  }
-
   private async chargerHotel(hotelId: string) {
     const hotel = await this.prisma.hotel.findUnique({
       where: { id: hotelId },
@@ -79,6 +56,7 @@ export class AbonnementService {
 
   async vue(utilisateur: UtilisateurAuthentifie): Promise<VueAbonnement> {
     const hotel = await this.chargerHotel(utilisateur.hotelId);
+    const catalogue = await lireCatalogue(this.prisma);
     const estPatron = utilisateur.role === Role.PATRON;
     const [nombreChambres, enCours, historique, manuels] = await Promise.all([
       this.prisma.chambre.count({ where: { hotelId: hotel.id } }),
@@ -112,11 +90,13 @@ export class AbonnementService {
       .slice(0, NOMBRE_HISTORIQUE);
 
     return {
-      etat: etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date()),
+      etat: etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres),
       formuleActuelle: hotel.formule,
       nombreChambres,
       paiementEnLigne: this.linkpay.estConfigure(),
-      formules: this.formulesProposees(),
+      fonctions: fonctionsAutorisees(hotel, hotel.paiementsLicence.length > 0, catalogue.formules, catalogue.parametres),
+      contactSupport: { telephone: catalogue.parametres.contactTelephone, whatsapp: catalogue.parametres.contactWhatsapp },
+      formules: formulesProposees(catalogue),
       paiementEnCours: enCours ? this.versVue(enCours) : null,
       historique: lignes,
     };
@@ -147,7 +127,8 @@ export class AbonnementService {
       throw new ServiceUnavailableException("Le paiement en ligne n'est pas encore disponible. Contactez le support HotelSaver pour renouveler votre abonnement.");
     }
     const hotel = await this.chargerHotel(utilisateur.hotelId);
-    const etat = etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date());
+    const catalogue = await lireCatalogue(this.prisma);
+    const etat = etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres);
     if (!etat.renouvelable) throw new ForbiddenException("Cet hôtel ne peut pas renouveler en ligne. Contactez le support HotelSaver.");
 
     // Rejouer la même demande (coupure réseau, double clic) ne crée jamais un second débit : on renvoie la tentative d'origine.
@@ -158,7 +139,8 @@ export class AbonnementService {
       return this.vuePaiement(existante.id);
     }
 
-    const formule = formuleParCode(dto.formule);
+    // Seules les formules encore proposées s'achètent (une formule retirée reste valable pour ceux qui l'ont déjà).
+    const formule = catalogue.proposees.includes(dto.formule) ? formuleParCode(dto.formule, catalogue.formules) : undefined;
     if (!formule) throw new BadRequestException("Formule inconnue.");
     if (!(DUREES_MOIS as readonly number[]).includes(dto.mois)) throw new BadRequestException("Durée inconnue : choisissez 1, 3, 6 ou 12 mois.");
     const probleme = problemeNumero(dto.operateur, dto.telephone);
@@ -178,7 +160,7 @@ export class AbonnementService {
     }
 
     // Le montant vient UNIQUEMENT de la table des prix du serveur, jamais de l'application.
-    const montant = prixAbonnement({ formule: formule.code, mois: dto.mois, devise: dto.devise, tauxCdf: this.tauxCdf() });
+    const montant = prixAbonnement({ formule: formule.code, mois: dto.mois, devise: dto.devise, tauxCdf: catalogue.parametres.tauxCdf, formules: catalogue.formules, moisOffertsAnnuel: catalogue.parametres.moisOffertsAnnuel });
     if (!(montant > 0)) throw new BadRequestException("Montant invalide.");
 
     let ligne;
@@ -250,7 +232,8 @@ export class AbonnementService {
     if (!ligne || ligne.hotelId !== utilisateur.hotelId) throw new NotFoundException("Paiement introuvable.");
     await this.rapprocher(id);
     const hotel = await this.chargerHotel(utilisateur.hotelId);
-    return { paiement: await this.vuePaiement(id), etat: etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date()) };
+    const catalogue = await lireCatalogue(this.prisma);
+    return { paiement: await this.vuePaiement(id), etat: etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres) };
   }
 
   // ------------------------------------------------------------------------------------------------ rapprochement
@@ -331,8 +314,9 @@ export class AbonnementService {
         where: { id: ligne.hotelId },
         include: { paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } },
       });
-      const fin = nouvelleFinValidite(finValidite(hotel, hotel.paiementsLicence[0] ?? null), maintenant, ligne.mois);
-      const nom = formuleParCode(ligne.formule)?.nom ?? ligne.formule;
+      const catalogue = await lireCatalogue(this.prisma);
+      const fin = nouvelleFinValidite(finValidite(hotel, hotel.paiementsLicence[0] ?? null, catalogue.parametres.joursEssai), maintenant, ligne.mois);
+      const nom = formuleParCode(ligne.formule, catalogue.formules)?.nom ?? ligne.formule;
       const licence = await tx.paiementLicence.create({
         data: {
           hotelId: hotel.id,

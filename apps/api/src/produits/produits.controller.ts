@@ -9,6 +9,7 @@ import { CreateProduitDto } from "./dto/create-produit.dto";
 import { UpdateProduitDto } from "./dto/update-produit.dto";
 import { FindProduitsQueryDto } from "./dto/find-produits.query.dto";
 import { AssocierCodeBarresDto } from "./dto/code-barres";
+import { Fonction } from "../common/decorators/fonction.decorator";
 
 /**
  * Permissions (section 9.3 "Menu cafétaria") : RECEPTIONNISTE n'a aucun
@@ -17,6 +18,7 @@ import { AssocierCodeBarresDto } from "./dto/code-barres";
  * "PATRON : accès total" doit s'étendre à CAFETARIA — la matrice restreint
  * ici une action précise (gestion du menu) à PATRON seul, sans ambiguïté.
  */
+@Fonction("CAFETERIA")
 @Controller("produits")
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 export class ProduitsController {

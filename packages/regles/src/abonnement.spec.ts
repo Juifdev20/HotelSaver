@@ -146,3 +146,41 @@ describe("textes d'abonnement", () => {
     expect(actualiserEtatAbonnement(s)).toBe(s);
   });
 });
+
+import { FONCTIONS, fonctionsAutorisees, lignesFormule, type FormuleAbonnement } from "./abonnement";
+
+describe("formules définies par le super-admin", () => {
+  const perso: FormuleAbonnement[] = [
+    { code: "MINI", nom: "Mini", prixMensuelUsd: 10, maxChambres: 5, description: "", fonctions: ["RECEPTION"], avantages: [] },
+    { code: "GRAND", nom: "Grand", prixMensuelUsd: 150, maxChambres: null, description: "", fonctions: ["RECEPTION", "CAFETERIA"], avantages: ["Formation sur place"] },
+  ];
+  it("les prix viennent de la liste fournie (et l'ancienne liste ne sert plus)", () => {
+    expect(prixAbonnement({ formule: "MINI", mois: 3, devise: "USD", formules: perso })).toBe(30);
+    expect(prixAbonnement({ formule: "MINI", mois: 1, devise: "CDF", tauxCdf: 3000, formules: perso })).toBe(30_000);
+    expect(prixAbonnement({ formule: "PRO", mois: 1, devise: "USD", formules: perso })).toBe(0);
+    expect(formuleParCode("GRAND", perso)?.prixMensuelUsd).toBe(150);
+  });
+  it("les mois offerts de l'année sont réglables", () => {
+    expect(prixAbonnement({ formule: "MINI", mois: 12, devise: "USD", formules: perso, moisOffertsAnnuel: 3 })).toBe(90);
+    expect(prixAbonnement({ formule: "MINI", mois: 12, devise: "USD", formules: perso, moisOffertsAnnuel: 0 })).toBe(120);
+    expect(prixAbonnement({ formule: "MINI", mois: 6, devise: "USD", formules: perso, moisOffertsAnnuel: 3 })).toBe(60); // jamais d'offre sur 6 mois
+  });
+  it("durée d'essai et de grâce réglables", () => {
+    const hotel = { createdAt: new Date("2026-10-01T00:00:00Z"), statutLicence: "ESSAI" };
+    expect(etatAbonnement(hotel, null, new Date("2026-10-20T00:00:00Z"), { joursEssai: 30 })).toMatchObject({ statut: "ESSAI", bloque: false });
+    expect(etatAbonnement(hotel, null, new Date("2026-10-17T00:00:00Z"), { joursEssai: 14, joursGrace: 0 })).toMatchObject({ statut: "EXPIRE", bloque: true });
+  });
+  it("fonctions : formule payée, essai, ou historique sans formule", () => {
+    const param = { fonctionsEssai: ["RECEPTION", "CAFETERIA"] as any };
+    expect(fonctionsAutorisees({ formule: "MINI" }, true, perso, param)).toEqual(["RECEPTION"]);
+    expect(fonctionsAutorisees({ formule: "GRAND" }, true, perso, param)).toEqual(["RECEPTION", "CAFETERIA"]);
+    expect(fonctionsAutorisees({ formule: null }, false, perso, param)).toEqual(["RECEPTION", "CAFETERIA"]); // essai
+    expect(fonctionsAutorisees({ formule: null }, true, perso, param)).toEqual([...FONCTIONS]); // créé à la main, jamais restreint par surprise
+    expect(fonctionsAutorisees({ formule: "SUPPRIMEE" }, true, perso, param)).toEqual([...FONCTIONS]);
+    expect(fonctionsAutorisees({ formule: "MINI" }, true, [{ ...perso[0], fonctions: ["RECEPTION", "N_IMPORTE_QUOI" as any] }], param)).toEqual(["RECEPTION"]);
+  });
+  it("lignes d'une formule", () => {
+    expect(lignesFormule(perso[1])).toEqual(["Chambres illimitées", expect.stringContaining("Réception"), expect.stringContaining("Cafétaria"), "Formation sur place"]);
+    expect(lignesFormule(perso[0])[0]).toBe("Jusqu'à 5 chambres");
+  });
+});

@@ -9,12 +9,14 @@ import { CreateMouvementDto } from "./dto/create-mouvement.dto";
 import { FindMouvementsQueryDto } from "./dto/find-mouvements.query.dto";
 import { LancerInventaireDto } from "./dto/lancer-inventaire.dto";
 import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
+import { Fonction } from "../common/decorators/fonction.decorator";
 
 /**
  * Permissions (section 9.3 "Stock") : RECEPTIONNISTE aucun accès ;
  * CAFETARIA crée des mouvements + lecture ; PATRON lecture + ajustements
  * (via un mouvement de type AJUSTEMENT, pas d'endpoint séparé).
  */
+@Fonction("CAFETERIA")
 @Controller("stock")
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.CAFETARIA, Role.PATRON)

@@ -40,6 +40,9 @@ export interface UtilisateurAuthentifie {
   /** Réglage de l'hôtel : les clients peuvent commander depuis le site public
    * (onglet « Cuisine » du site, POST /public/commande). Absent/false = canal fermé. */
   commandeWebActivee?: boolean;
+  /** Fonctions ouvertes à l'hôtel (RECEPTION, CAFETERIA, SITE_PUBLIC, DOMAINE_PERSONNALISE, ACOMPTE_EN_LIGNE) selon sa formule : les
+   * applications masquent les écrans des autres, le serveur les refuse de toute façon (403 FONCTION_NON_INCLUSE). Absent = tout (anciens profils). */
+  fonctions?: string[];
 }
 
 /**
@@ -952,12 +955,16 @@ export interface PrixDuree {
 }
 
 export interface FormuleProposee {
-  code: "ESSENTIEL" | "PRO" | "PREMIUM";
+  /** Identifiant libre défini par le super-admin (ESSENTIEL, PRO, PREMIUM au départ). */
+  code: string;
   nom: string;
   description: string;
   recommandee: boolean;
   maxChambres: number | null;
+  /** Lignes prêtes à afficher : plafond de chambres, fonctions ouvertes, avantages libres. */
   inclus: string[];
+  /** Fonctions ouvertes (RECEPTION, CAFETERIA, SITE_PUBLIC, DOMAINE_PERSONNALISE, ACOMPTE_EN_LIGNE). */
+  fonctions: string[];
   prixMensuelUsd: number;
   durees: PrixDuree[];
 }
@@ -989,6 +996,10 @@ export interface VueAbonnement {
   nombreChambres: number;
   /** false = le serveur n'est pas relié à ScanLinkPay : on ne peut pas payer en ligne (contacter le support). */
   paiementEnLigne: boolean;
+  /** Fonctions ouvertes à cet hôtel en ce moment (formule payée, ou essai). */
+  fonctions: string[];
+  /** Contact du support HotelSaver (téléphone et WhatsApp). */
+  contactSupport: { telephone: string; whatsapp: string };
   formules: FormuleProposee[];
   /** Paiement en cours (Mobile Money envoyé, en attente de confirmation sur le téléphone), s'il y en a un. */
   paiementEnCours: PaiementAbonnementVue | null;
@@ -998,7 +1009,7 @@ export interface VueAbonnement {
 
 /** Corps de POST /abonnement/paiements. */
 export interface DemandePaiementAbonnement {
-  formule: "ESSENTIEL" | "PRO" | "PREMIUM";
+  formule: string;
   mois: number;
   devise: "USD" | "CDF";
   operateur: OperateurMobileMoney;

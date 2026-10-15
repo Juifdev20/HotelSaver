@@ -4,6 +4,9 @@ import { StatutChambre } from "@hotel-chicago/database";
 import { CommandeWebCreee, Role, StatutSuiviPublic, SuiviReservationPublic, codeSuivi } from "@hotel-chicago/types";
 import { NotificationsService } from "../notifications/notifications.service";
 import { messages } from "../notifications/messages";
+import { fonctionsAutorisees, type Fonction } from "@hotel-chicago/regles";
+import { lireCatalogue } from "../common/abonnement/catalogue";
+import { formulesProposees } from "../common/abonnement/formules-proposees";
 import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
 import { revoquerSessions } from "../common/auth/sessions";
@@ -95,12 +98,32 @@ export class PublicService {
    * SUSPENDU/RESILIE (même raisonnement que SupabaseAuthGuard, Phase 4) : ne
    * pas révéler qu'un hôte existe mais est suspendu.
    */
-  private async resoudreHotel(identifiant: string) {
+  private async resoudreHotel(identifiant: string, exigees: Fonction[] = ["SITE_PUBLIC", "RECEPTION"]) {
     const hotel = await this.prisma.hotel.findFirst({ where: this.construireFiltreHote(identifiant) });
     if (!hotel || hotel.statutLicence === "SUSPENDU" || hotel.statutLicence === "RESILIE") {
       throw new NotFoundException(`Aucun hôtel disponible pour "${identifiant}".`);
     }
+    // Le site et ses services dépendent de la formule payée : fonction non incluse = même 404 qu'un hôtel inconnu.
+    const fonctions = await this.fonctionsDe(hotel);
+    const viaDomaine = hotel.domainePersonnalise !== null && hotel.domainePersonnalise === identifiant;
+    if (exigees.some((f) => !fonctions.includes(f)) || (viaDomaine && !fonctions.includes("DOMAINE_PERSONNALISE"))) {
+      throw new NotFoundException(`Aucun hôtel disponible pour "${identifiant}".`);
+    }
     return hotel;
+  }
+
+  /** Page des tarifs du site vitrine : les formules proposées avec leurs prix, tels que le super-admin les a définis. */
+  async obtenirFormules() {
+    const catalogue = await lireCatalogue(this.prisma);
+    const { tauxCdf, moisOffertsAnnuel, joursEssai, joursGrace, contactTelephone, contactWhatsapp } = catalogue.parametres;
+    return { formules: formulesProposees(catalogue), parametres: { tauxCdf, moisOffertsAnnuel, joursEssai, joursGrace }, contact: { telephone: contactTelephone, whatsapp: contactWhatsapp } };
+  }
+
+  /** Fonctions ouvertes à un hôtel par sa formule (ou son essai) : voir `fonctionsAutorisees`. */
+  private async fonctionsDe(hotel: { id: string; formule: string | null }): Promise<Fonction[]> {
+    const catalogue = await lireCatalogue(this.prisma);
+    const aPaye = (await this.prisma.paiementLicence.count({ where: { hotelId: hotel.id } })) > 0;
+    return fonctionsAutorisees(hotel, aPaye, catalogue.formules, catalogue.parametres);
   }
 
   /**
@@ -114,6 +137,11 @@ export class PublicService {
       include: { branding: true, site: true },
     });
     if (!hotel || hotel.statutLicence === "SUSPENDU" || hotel.statutLicence === "RESILIE") {
+      throw new NotFoundException(`Aucun hôtel disponible pour "${query.sousDomaine}".`);
+    }
+    const fonctions = await this.fonctionsDe(hotel);
+    const viaDomaine = hotel.domainePersonnalise !== null && hotel.domainePersonnalise === query.sousDomaine;
+    if (!fonctions.includes("SITE_PUBLIC") || (viaDomaine && !fonctions.includes("DOMAINE_PERSONNALISE"))) {
       throw new NotFoundException(`Aucun hôtel disponible pour "${query.sousDomaine}".`);
     }
     const site = hotel.site;
@@ -135,7 +163,8 @@ export class PublicService {
       reception24h: site?.reception24h ?? false,
       lienCarte: site?.lienCarte ?? null,
       reseaux: site?.reseaux ?? {},
-      commandeWebActivee: hotel.commandeWebActivee,
+      commandeWebActivee: Boolean(hotel.commandeWebActivee) && fonctions.includes("CAFETERIA"),
+      reservationEnLigne: fonctions.includes("RECEPTION"),
       logoUrl: hotel.branding?.logoUrl ?? null,
       policeAffichage: hotel.branding?.policeAffichage ?? "Fraunces",
       policeCorps: hotel.branding?.policeCorps ?? "Public Sans",
@@ -231,7 +260,7 @@ export class PublicService {
    * portions limitées (null = illimité).
    */
   async findMenu(query: FindMenuQueryDto) {
-    const { id: hotelId } = await this.resoudreHotel(query.sousDomaine);
+    const { id: hotelId } = await this.resoudreHotel(query.sousDomaine, ["SITE_PUBLIC", "CAFETERIA"]);
     // Carte du restaurant : uniquement les PLATS (les articles de comptoir —
     // bière, sucre… — ne sont pas un « menu » et n'ont pas vocation à être
     // commandés en ligne).
@@ -260,7 +289,7 @@ export class PublicService {
    *   sinon (même règle que CafeteriaService.ajouterLigne).
    */
   async creerCommandeWeb(dto: CreerCommandeWebDto): Promise<CommandeWebCreee> {
-    const hotel = await this.resoudreHotel(dto.sousDomaine);
+    const hotel = await this.resoudreHotel(dto.sousDomaine, ["SITE_PUBLIC", "CAFETERIA"]);
     if (!hotel.commandeWebActivee) {
       throw new NotFoundException(`Aucun hôtel disponible pour "${dto.sousDomaine}".`);
     }
@@ -385,7 +414,7 @@ export class PublicService {
    * exposé ici.
    */
   async genererTicketCommandeWeb(compteId: string, query: FindTicketCommandeQueryDto): Promise<Buffer> {
-    const hotel = await this.resoudreHotel(query.sousDomaine);
+    const hotel = await this.resoudreHotel(query.sousDomaine, ["SITE_PUBLIC", "CAFETERIA"]);
     const compte = await this.prisma.compteCafeteria.findFirst({
       where: { id: compteId, hotelId: hotel.id, origine: "SITE_PUBLIC" },
       include: { sousComptes: { include: { lignes: { include: { produit: true } } } } },

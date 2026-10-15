@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@hotel-chicago/database";
+import { FONCTIONS, FORMULES } from "@hotel-chicago/regles";
+import { invaliderCatalogue } from "../../src/common/abonnement/catalogue";
 
 /** Tout ce qu'un hôtel de test possède : de quoi vérifier qu'un autre hôtel n'y touche jamais. */
 export interface JeuHotel {
@@ -40,6 +42,22 @@ const TABLES = [
 
 export async function viderBase(prisma: PrismaClient): Promise<void> {
   for (const t of TABLES) await prisma.$executeRawUnsafe(`DELETE FROM "${t}"`);
+  await reinitialiserCatalogue(prisma);
+}
+
+/** Remet les formules et réglages d'abonnement à leurs valeurs de DÉPART (celles de la migration) : un test qui les modifie ne gêne pas les autres. */
+export async function reinitialiserCatalogue(prisma: PrismaClient): Promise<void> {
+  const p = prisma as any;
+  await p.formuleAbonnement.deleteMany();
+  await p.formuleAbonnement.createMany({
+    data: FORMULES.map((f, i) => ({
+      code: f.code, nom: f.nom, description: f.description, prixMensuelUsd: f.prixMensuelUsd, maxChambres: f.maxChambres, fonctions: f.fonctions,
+      avantages: f.avantages, recommandee: f.recommandee === true, actif: true, ordre: i + 1,
+    })),
+  });
+  await p.parametresPlateforme.deleteMany();
+  await p.parametresPlateforme.create({ data: { id: "plateforme", fonctionsEssai: [...FONCTIONS] } });
+  invaliderCatalogue();
 }
 
 /** Crée un hôtel complet : 3 comptes, une chambre, un client, 2 réservations, une facture, de la cafétaria, une dépense… */

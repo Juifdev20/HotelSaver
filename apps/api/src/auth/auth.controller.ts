@@ -6,6 +6,7 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { PRISMA } from "../prisma/prisma.module";
 import { calculerFinValidite } from "../super-admin/calculer-validite";
 import { etatAbonnement } from "@hotel-chicago/regles";
+import { lireCatalogue } from "../common/abonnement/catalogue";
 import { SansLicence } from "../common/decorators/sans-licence.decorator";
 
 /**
@@ -20,8 +21,8 @@ import { SansLicence } from "../common/decorators/sans-licence.decorator";
 /** Adresse publique du site d'un hôtel : son domaine personnalisé une fois
  * vérifié, sinon le site HotelSaver avec `?hotel=` (résolu par
  * apps/web/src/resoudreSousDomaine.ts). Base du lien de suivi client. */
-export function urlSiteHotel(hotel: { sousDomaine: string; domainePersonnalise: string | null; domaineVerifie: boolean }): string {
-  if (hotel.domainePersonnalise && hotel.domaineVerifie) return `https://${hotel.domainePersonnalise}`;
+export function urlSiteHotel(hotel: { sousDomaine: string; domainePersonnalise: string | null; domaineVerifie: boolean }, domaineAutorise = true): string {
+  if (domaineAutorise && hotel.domainePersonnalise && hotel.domaineVerifie) return `https://${hotel.domainePersonnalise}`;
   const site = (process.env.SITE_WEB_URL ?? "http://localhost:5175").replace(/\/+$/, "");
   return `${site}/?hotel=${encodeURIComponent(hotel.sousDomaine)}`;
 }
@@ -55,17 +56,18 @@ export class AuthController {
         paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
       },
     });
+    const catalogue = await lireCatalogue(this.prisma);
     return {
       ...currentUser,
       hotelNom: hotel?.nom ?? "",
       hotelSlogan: hotel?.site?.slogan?.trim() || null,
       hotelAdresse: hotel?.adresse?.trim() || null,
       hotelTelephone: hotel?.telephoneContact?.trim() || null,
-      hotelUrlSite: hotel ? urlSiteHotel(hotel) : "",
+      hotelUrlSite: hotel ? urlSiteHotel(hotel, currentUser.fonctions?.includes("DOMAINE_PERSONNALISE") ?? true) : "",
       // Copiés dans le profil mémorisé par les applications pour décider, hors ligne, de la durée de grâce.
       statutLicence: hotel?.statutLicence,
       licenceValideJusquau: hotel ? calculerFinValidite(hotel, hotel.paiementsLicence[0] ?? null).toISOString() : null,
-      abonnement: hotel ? etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date()) : undefined,
+      abonnement: hotel ? etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres) : undefined,
     };
   }
 }

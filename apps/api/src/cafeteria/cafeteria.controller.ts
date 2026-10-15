@@ -15,6 +15,7 @@ import { AnnulerVenteDto } from "./dto/annuler-vente.dto";
 import { MajStatutLigneDto } from "./dto/maj-statut-ligne.dto";
 import { DefinirMenuDuJourDto } from "./dto/definir-menu-du-jour.dto";
 import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
+import { Fonction } from "../common/decorators/fonction.decorator";
 
 /**
  * Permissions (section 9.3, lignes Comptes/Ventes cafétaria) : RECEPTIONNISTE
@@ -28,6 +29,7 @@ import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.p
  * voir DECISIONS.md) mais est SEUL à pouvoir annuler une vente déjà encaissée
  * (section 9.3 : "Ventes cafétaria" ne donne "Annuler avec motif" qu'à PATRON).
  */
+@Fonction("CAFETERIA")
 @Controller("cafeteria")
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.CAFETARIA, Role.PATRON)

@@ -85,6 +85,28 @@ const ROLES_LECTURE: Record<EntitePull, Role[]> = {
   Depense: [Role.RECEPTIONNISTE, Role.CAFETARIA, Role.PATRON],
 };
 
+/** Fonction d'abonnement qu'exige chaque entité (les dépenses, communes aux deux services, n'en exigent aucune). Un appareil dont la formule ne
+ * l'ouvre pas ne reçoit rien de cette entité et ne peut pas en écrire — même chose que les routes HTTP marquées @Fonction. */
+const FONCTION_PAR_ENTITE: Partial<Record<TypeOperationPush, string>> = {
+  Chambre: "RECEPTION",
+  Reservation: "RECEPTION",
+  ActionReservation: "RECEPTION",
+  Client: "RECEPTION",
+  Facture: "RECEPTION",
+  Produit: "CAFETERIA",
+  MouvementStock: "CAFETERIA",
+  CompteCafeteria: "CAFETERIA",
+  SousCompte: "CAFETERIA",
+  LigneCommande: "CAFETERIA",
+  VenteCafeteria: "CAFETERIA",
+};
+
+const ouverte = (currentUser: UtilisateurAuthentifie, entite: string): boolean => {
+  const requise = (FONCTION_PAR_ENTITE as Record<string, string | undefined>)[entite];
+  // `fonctions` absent = ancien contexte (tests, outils) : pas de restriction. Le profil réel d'un utilisateur en contient toujours.
+  return !requise || !currentUser.fonctions || currentUser.fonctions.includes(requise);
+};
+
 /** Filtre de lecture supplémentaire par entité, au-delà de l'hôtel : un
  * réceptionniste ne doit pas recevoir les dépenses de la cafétaria (et
  * inversement) ; le patron reçoit tout. */
@@ -345,6 +367,10 @@ export class SyncService {
   ): Promise<ResultatOperation> {
     const config = this.config[operation.entiteType];
 
+    if (!ouverte(currentUser, operation.entiteType)) {
+      return this.erreur(operation, "Cette fonction n'est pas incluse dans la formule de votre hôtel. Le patron peut passer à une formule supérieure dans Paramètres → Abonnement.");
+    }
+
     // L'annulation d'une réservation reste ouverte au patron (comme la route HTTP, qui n'est pas @Operationnel).
     const operationnel = operation.entiteType === "ActionReservation" ? operation.payload?.action !== "ANNULER" : ENTITES_OPERATIONNELLES.has(operation.entiteType);
     if (operationnel && !peutOperer(currentUser)) {
@@ -565,9 +591,7 @@ export class SyncService {
       ? (query.entites.split(",").map((e) => e.trim()) as EntitePull[])
       : [...ENTITES_PULL];
 
-    const entitesAutorisees = entitesDemandees.filter((entite) =>
-      (ROLES_LECTURE[entite] ?? []).includes(currentUser.role)
-    );
+    const entitesAutorisees = entitesDemandees.filter((entite) => (ROLES_LECTURE[entite] ?? []).includes(currentUser.role) && ouverte(currentUser, entite));
 
     // En parallèle (08/10/2026) : chaque lecture coûte ~300 ms depuis Kasindi ;
     // en série, 11 entités faisaient ~3 s par synchronisation et retardaient

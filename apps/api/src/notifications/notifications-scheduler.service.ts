@@ -4,7 +4,8 @@ import { PrismaClient } from "@hotel-chicago/database";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { DashboardService } from "../dashboard/dashboard.service";
 import { PRISMA } from "../prisma/prisma.module";
-import { calculerFinValidite } from "../super-admin/calculer-validite";
+import { finValidite } from "@hotel-chicago/regles";
+import { lireCatalogue } from "../common/abonnement/catalogue";
 import { messages } from "./messages";
 import { NotificationsService } from "./notifications.service";
 import { libelleMois } from "../rapports/agregats/bornes";
@@ -170,8 +171,9 @@ export class NotificationsSchedulerService {
         include: { paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
       });
       const { cle } = bornesDuJour(maintenant);
+      const { parametres } = await lireCatalogue(this.prisma);
       for (const hotel of hotels) {
-        const fin = calculerFinValidite(hotel, hotel.paiementsLicence[0] ?? null);
+        const fin = finValidite(hotel, hotel.paiementsLicence[0] ?? null, parametres.joursEssai);
         const jours = Math.ceil((fin.getTime() - maintenant.getTime()) / JOUR_MS);
         if (jours < 1 || jours > JOURS_PREAVIS_LICENCE) continue;
         await this.notifications.emettre({

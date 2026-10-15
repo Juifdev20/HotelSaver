@@ -851,3 +851,45 @@ model Suppression {
 
   @@index([hotelId, createdAt])
 }
+
+/// Une formule d'abonnement, entièrement définie par le SUPER-ADMIN (nom, prix, plafond de chambres, fonctions incluses). Le prix en francs
+/// se déduit du taux de ParametresPlateforme. Modifier un prix n'affecte jamais une période déjà payée ; modifier les fonctions ou le plafond
+/// s'applique tout de suite aux hôtels abonnés à cette formule. Une formule utilisée par un hôtel ne se supprime pas : on la désactive.
+model FormuleAbonnement {
+  id             String   @id @default(uuid())
+  /// Identifiant stable (ESSENTIEL, PRO…) gardé dans Hotel.formule et dans les paiements.
+  code           String   @unique
+  nom            String
+  description    String   @default("")
+  prixMensuelUsd Decimal
+  /// null = chambres illimitées.
+  maxChambres    Int?
+  /// Fonctions ouvertes : RECEPTION, CAFETERIA, SITE_PUBLIC, DOMAINE_PERSONNALISE, ACOMPTE_EN_LIGNE.
+  fonctions      String[]
+  /// Lignes libres affichées sur la page des tarifs en plus des fonctions.
+  avantages      String[]
+  recommandee    Boolean  @default(false)
+  /// false = n'est plus proposée à l'achat (les hôtels qui l'ont déjà la gardent).
+  actif          Boolean  @default(true)
+  ordre          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+/// Réglages de la plateforme, une seule ligne (id = « plateforme »), modifiables par le super-admin sans redéploiement.
+model ParametresPlateforme {
+  id                            String   @id @default("plateforme")
+  /// Francs congolais pour 1 dollar, appliqué aux abonnements payés en francs.
+  tauxCdf                       Int      @default(2800)
+  /// Mois offerts quand on paie 12 mois d'un coup.
+  moisOffertsAnnuel             Int      @default(2)
+  joursEssai                    Int      @default(14)
+  joursGrace                    Int      @default(3)
+  /// Fonctions ouvertes pendant l'essai gratuit.
+  fonctionsEssai                String[]
+  /// true = les frais ScanLinkPay des abonnements s'ajoutent au prix payé par le patron (vous recevez le prix plein).
+  fraisAbonnementPayesParClient Boolean  @default(true)
+  contactTelephone              String   @default("+243828497218")
+  contactWhatsapp               String   @default("+243828497218")
+  updatedAt                     DateTime @updatedAt
+}

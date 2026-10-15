@@ -37,8 +37,8 @@ function utilisateurDe(h: any) {
 describe("SupabaseAuthGuard — abonnement", () => {
   const token = jwt.sign({ sub: "auth-1" }, JWT_SECRET);
   const verificateurJwt = new VerificateurJwtHs256(JWT_SECRET);
-  const reflecteur = (exempte: boolean) => ({ getAllAndOverride: jest.fn().mockReturnValue(exempte) }) as any;
-  const garde = (h: any, exempte = false) => new SupabaseAuthGuard(creerPrismaMock(utilisateurDe(h)), verificateurJwt, reflecteur(exempte));
+  const reflecteur = (exempte: boolean, fonctions?: string[]) => ({ getAllAndOverride: jest.fn((cle: string) => (cle === "sansLicence" ? exempte : cle === "fonctionRequise" ? fonctions : undefined)) }) as any;
+  const garde = (h: any, exempte = false, fonctions?: string[]) => new SupabaseAuthGuard(creerPrismaMock(utilisateurDe(h)), verificateurJwt, reflecteur(exempte, fonctions));
   const appeler = (g: SupabaseAuthGuard) => g.canActivate(creerContexte(`Bearer ${token}`));
 
   it("autorise un hôtel en essai ou payé", async () => {
@@ -78,5 +78,32 @@ describe("SupabaseAuthGuard — abonnement", () => {
     expect(expire.getResponse().message).toMatch(/expiré/);
     const suspendu = await appeler(garde(hotel("SUSPENDU", { age: 30, suspensionManuelle: true }))).catch((e) => e);
     expect(suspendu.getResponse().message).toMatch(/support/i);
+  });
+
+  describe("fonctions de la formule", () => {
+    const payeAvec = (formule: string) => ({ ...hotel("ACTIF", { age: 200, payeJusqua: 30 }), formule });
+
+    it("une route @Fonction est ouverte si la formule de l'hôtel l'inclut, fermée (403 FONCTION_NON_INCLUSE) sinon", async () => {
+      // le catalogue réel est lu en base : sans table (mock), ce sont les formules de départ — Essentiel = réception seulement
+      await expect(appeler(garde(payeAvec("ESSENTIEL"), false, ["RECEPTION"]))).resolves.toBe(true);
+      const erreur = await appeler(garde(payeAvec("ESSENTIEL"), false, ["CAFETERIA"])).catch((e) => e);
+      expect(erreur).toBeInstanceOf(HttpException);
+      expect(erreur.getStatus()).toBe(403);
+      expect(erreur.getResponse()).toMatchObject({ code: "FONCTION_NON_INCLUSE", fonction: "CAFETERIA" });
+      expect(erreur.getResponse().message).toMatch(/Paramètres → Abonnement/);
+      await expect(appeler(garde(payeAvec("PRO"), false, ["CAFETERIA", "SITE_PUBLIC"]))).resolves.toBe(true);
+      await expect(appeler(garde(payeAvec("PRO"), false, ["DOMAINE_PERSONNALISE"]))).rejects.toMatchObject({ status: 403 });
+    });
+
+    it("pendant l'essai tout est ouvert ; un hôtel payé sans formule (créé à la main) n'est jamais restreint par surprise", async () => {
+      await expect(appeler(garde(hotel("ESSAI", { age: 3 }), false, ["CAFETERIA", "DOMAINE_PERSONNALISE"]))).resolves.toBe(true);
+      await expect(appeler(garde({ ...hotel("ACTIF", { age: 200, payeJusqua: 30 }), formule: null }, false, ["CAFETERIA"]))).resolves.toBe(true);
+    });
+
+    it("l'utilisateur reçoit la liste de ses fonctions", async () => {
+      const ctx = creerContexte(`Bearer ${token}`);
+      await garde(payeAvec("ESSENTIEL")).canActivate(ctx);
+      expect((ctx.switchToHttp().getRequest() as any).user.fonctions).toEqual(["RECEPTION"]);
+    });
   });
 });

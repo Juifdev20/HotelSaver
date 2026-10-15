@@ -16,7 +16,7 @@ function creerPrismaMock() {
       update: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
-    paiementLicence: { create: jest.fn() },
+    paiementLicence: { create: jest.fn(), count: jest.fn().mockResolvedValue(0) },
     $transaction: jest.fn((ops: any[]) => Promise.all(ops)),
   };
   return prisma;

@@ -1,3 +1,4 @@
+import { Fonction } from "../common/decorators/fonction.decorator";
 import { Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
@@ -34,12 +35,14 @@ export class DashboardController {
 
   /** Journal de la journée pour la remise de poste (heure de Lubumbashi). */
   @Get("journee-reception")
+  @Fonction("RECEPTION")
   @Roles(Role.RECEPTIONNISTE, Role.PATRON)
   journeeReception(@CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.dashboardService.journeeReception(currentUser);
   }
 
   @Get("occupation")
+  @Fonction("RECEPTION")
   @Roles(Role.RECEPTIONNISTE, Role.PATRON)
   occupation(@CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.dashboardService.occupation(currentUser.hotelId);
@@ -52,6 +55,7 @@ export class DashboardController {
   }
 
   @Get("stock-bas")
+  @Fonction("CAFETERIA")
   @Roles(Role.CAFETARIA, Role.PATRON)
   stockBas(@CurrentUser() currentUser: UtilisateurAuthentifie) {
     return this.dashboardService.stockBas(currentUser.hotelId);

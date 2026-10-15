@@ -10,7 +10,8 @@ import { EnregistrerPaiementDto } from "./dto/enregistrer-paiement.dto";
 import { AjouterDomaineDto } from "./dto/ajouter-domaine.dto";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 import { genererPalette } from "../common/palette/generer-palette";
-import { etatAbonnement } from "@hotel-chicago/regles";
+import { etatAbonnement, fonctionsAutorisees } from "@hotel-chicago/regles";
+import { lireCatalogue } from "../common/abonnement/catalogue";
 import { calculerFinValidite } from "./calculer-validite";
 import { RenderDomainsService } from "./render-domains.service";
 
@@ -121,9 +122,10 @@ export class SuperAdminService {
     });
 
     const maintenant = new Date();
+    const { parametres } = await lireCatalogue(this.prisma);
     // Suspendu seulement APRÈS le délai de grâce (3 jours) : c'est le même calcul que la garde d'accès (etatAbonnement), pour que le statut
     // posé ici ne contredise jamais ce que voit l'application.
-    const aSuspendre = hotels.filter((hotel) => etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, maintenant).bloque);
+    const aSuspendre = hotels.filter((hotel) => etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, maintenant, parametres).bloque);
 
     if (aSuspendre.length > 0) {
       await this.prisma.hotel.updateMany({
@@ -155,6 +157,11 @@ export class SuperAdminService {
     const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId } });
     if (!hotel) {
       throw new NotFoundException(`Aucun hôtel trouvé avec l'identifiant ${hotelId}.`);
+    }
+    const catalogue = await lireCatalogue(this.prisma);
+    const fonctions = fonctionsAutorisees(hotel, (await this.prisma.paiementLicence.count({ where: { hotelId } })) > 0, catalogue.formules, catalogue.parametres);
+    if (!fonctions.includes("DOMAINE_PERSONNALISE")) {
+      throw new BadRequestException("La formule de cet hôtel n'inclut pas le domaine personnalisé : changez sa formule d'abord.");
     }
     if (hotel.domainePersonnalise) {
       throw new ConflictException(

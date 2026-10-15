@@ -10,6 +10,7 @@ import { CreateReservationDto } from "./dto/create-reservation.dto";
 import { UpdateReservationDto } from "./dto/update-reservation.dto";
 import { AnnulerReservationDto } from "./dto/annuler-reservation.dto";
 import { FindReservationsQueryDto } from "./dto/find-reservations.query.dto";
+import { Fonction } from "../common/decorators/fonction.decorator";
 
 /**
  * Permissions (section 9.3 "Réservations" + "Check-in/Check-out", lues avec
@@ -17,6 +18,7 @@ import { FindReservationsQueryDto } from "./dto/find-reservations.query.dto";
  * RECEPTIONNISTE et PATRON ont tous deux accès à toutes les actions.
  * CAFETARIA n'a aucun accès à ce module.
  */
+@Fonction("RECEPTION")
 @Controller("reservations")
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.RECEPTIONNISTE, Role.PATRON)

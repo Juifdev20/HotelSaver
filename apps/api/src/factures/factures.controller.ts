@@ -9,12 +9,14 @@ import { FacturesService } from "./factures.service";
 import { CreateFactureDto } from "./dto/create-facture.dto";
 import { AnnulerFactureDto } from "./dto/annuler-facture.dto";
 import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
+import { Fonction } from "../common/decorators/fonction.decorator";
 
 /**
  * Permissions (section 9.3 "Facture séjour", lue avec la section 9.1 —
  * voir DECISIONS.md) : RECEPTIONNISTE et PATRON ont tous deux accès à
  * toutes les actions. CAFETARIA n'a aucun accès à ce module.
  */
+@Fonction("RECEPTION")
 @Controller("factures")
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.RECEPTIONNISTE, Role.PATRON)

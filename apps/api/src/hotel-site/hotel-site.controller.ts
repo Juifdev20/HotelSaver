@@ -7,8 +7,10 @@ import { Roles } from "../common/decorators/roles.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { HotelSiteService } from "./hotel-site.service";
 import { ModifierSiteDto } from "./dto/modifier-site.dto";
+import { Fonction } from "../common/decorators/fonction.decorator";
 
 /** Le site public de l'hôtel est défini par le PATRON depuis son compte. */
+@Fonction("SITE_PUBLIC")
 @Controller("hotel-site")
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.PATRON)

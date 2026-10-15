@@ -9,6 +9,7 @@ import { CreateChambreDto } from "./dto/create-chambre.dto";
 import { UpdateChambreDto } from "./dto/update-chambre.dto";
 import { FindChambresQueryDto } from "./dto/find-chambres.query.dto";
 import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { Fonction } from "../common/decorators/fonction.decorator";
 
 /**
  * Permissions (section 9.3, "Chambres (types, prix)" + "Statut chambre") :
@@ -16,6 +17,7 @@ import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
  * réservées à PATRON ; modif statut/photos ouverte aux deux (contrôlé dans
  * le service, pas ici, car ça dépend du contenu du corps de la requête).
  */
+@Fonction("RECEPTION")
 @Controller("chambres")
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 export class ChambresController {

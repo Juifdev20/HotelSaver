@@ -8,7 +8,9 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { etatAbonnement } from "@hotel-chicago/regles";
+import { LIBELLE_FONCTION, etatAbonnement, fonctionsAutorisees, type Fonction as CodeFonction } from "@hotel-chicago/regles";
+import { FONCTION_KEY } from "../decorators/fonction.decorator";
+import { lireCatalogue } from "../abonnement/catalogue";
 import { SANS_LICENCE_KEY } from "../decorators/sans-licence.decorator";
 import type { PrismaClient } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
@@ -68,7 +70,8 @@ export class SupabaseAuthGuard implements CanActivate {
     // Abonnement : essai, période payée, 3 jours de grâce, puis accès coupé — calculé À CHAQUE requête depuis le dernier paiement (le cron
     // de minuit ne fait que poser le statut SUSPENDU et prévenir). Un hôtel bloqué garde TROIS routes (profil, abonnement, paiement,
     // marquées @SansLicence) : de quoi comprendre pourquoi et renouveler. Tout le reste répond 402, que les applications savent lire.
-    const etat = etatAbonnement(utilisateur.hotel, utilisateur.hotel.paiementsLicence[0] ?? null, new Date());
+    const catalogue = await lireCatalogue(this.prisma);
+    const etat = etatAbonnement(utilisateur.hotel, utilisateur.hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres);
     if (etat.bloque) {
       const exempte = this.reflector?.getAllAndOverride<boolean>(SANS_LICENCE_KEY, [context.getHandler(), context.getClass()]) === true;
       if (!exempte) {
@@ -86,6 +89,22 @@ export class SupabaseAuthGuard implements CanActivate {
       }
     }
 
+    // Fonctions ouvertes par la formule de l'hôtel (ou par l'essai) : une route marquée @Fonction(...) est fermée aux autres.
+    const fonctions = fonctionsAutorisees(utilisateur.hotel, utilisateur.hotel.paiementsLicence.length > 0, catalogue.formules, catalogue.parametres);
+    const requises = this.reflector?.getAllAndOverride<CodeFonction[]>(FONCTION_KEY, [context.getHandler(), context.getClass()]);
+    const manquante = requises?.find((f) => !fonctions.includes(f));
+    if (manquante) {
+      throw new HttpException(
+        {
+          statusCode: 403,
+          code: "FONCTION_NON_INCLUSE",
+          fonction: manquante,
+          message: `Cette fonction (${LIBELLE_FONCTION[manquante].split(" : ")[0].toLowerCase()}) n'est pas incluse dans la formule de votre hôtel. Le patron peut passer à une formule supérieure dans Paramètres → Abonnement.`,
+        },
+        403
+      );
+    }
+
     const user: UtilisateurAuthentifie = {
       userId: utilisateur.id,
       supabaseAuthId: utilisateur.supabaseAuthId,
@@ -95,6 +114,7 @@ export class SupabaseAuthGuard implements CanActivate {
       patronPeutOperer: utilisateur.hotel.patronPeutOperer,
       cuisineActivee: utilisateur.hotel.cuisineActivee,
       commandeWebActivee: utilisateur.hotel.commandeWebActivee,
+      fonctions,
     };
 
     request.user = user;

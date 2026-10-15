@@ -9,6 +9,7 @@ import {
 } from "@nestjs/common";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie, peutOperer } from "@hotel-chicago/types";
+import { lireCatalogue } from "../common/abonnement/catalogue";
 import { formuleParCode } from "@hotel-chicago/regles";
 import { MESSAGE_PATRON_NON_OPERANT } from "../common/guards/roles.guard";
 import { PRISMA } from "../prisma/prisma.module";
@@ -60,7 +61,8 @@ export class ChambresService {
   /** Le nombre de chambres est plafonné par la formule payée (Essentiel : 15, Pro : 40). Un hôtel en essai ou créé à la main (sans formule) n'a pas de plafond. */
   private async verifierLimiteFormule(hotelId: string) {
     const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId }, select: { formule: true } });
-    const formule = formuleParCode(hotel?.formule);
+    const catalogue = await lireCatalogue(this.prisma);
+    const formule = formuleParCode(hotel?.formule, catalogue.formules);
     if (!formule || formule.maxChambres === null) return;
     const nombre = await this.prisma.chambre.count({ where: { hotelId } });
     if (nombre >= formule.maxChambres) {

@@ -42,6 +42,11 @@ export class PublicController {
     return this.publicService.obtenirInfoPublique(query);
   }
 
+  @Get("formules")
+  formules() {
+    return this.publicService.obtenirFormules();
+  }
+
   @Get("hotels-partenaires")
   listerHotelsPartenaires() {
     return this.publicService.listerHotelsPartenaires();

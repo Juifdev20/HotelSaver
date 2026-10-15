@@ -7,6 +7,7 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ClientsService } from "./clients.service";
 import { ModifierClientDto } from "./dto/modifier-client.dto";
 import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.pipe";
+import { Fonction } from "../common/decorators/fonction.decorator";
 
 /**
  * Répertoire clients — les clients sont créés implicitement à la création
@@ -15,6 +16,7 @@ import { ParamChainePipe, ParamEntierPipe } from "../common/pipes/param-chaine.p
  * d'identité, notes — registre de police). RECEPTIONNISTE et PATRON
  * (même périmètre que le module Réservations, matrice 9.3).
  */
+@Fonction("RECEPTION")
 @Controller("clients")
 @UseGuards(SupabaseAuthGuard, RolesGuard)
 @Roles(Role.RECEPTIONNISTE, Role.PATRON)

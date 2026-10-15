@@ -6,7 +6,24 @@
 
 import type { EtatAbonnement } from "@hotel-chicago/types";
 
-export type CodeFormule = "ESSENTIEL" | "PRO" | "PREMIUM";
+/** Identifiant d'une formule. Les trois premières sont celles de départ ; le super-admin peut en créer d'autres (le code est libre). */
+export type CodeFormule = string;
+
+/** Ce qu'une formule peut ouvrir. Le super-admin coche celles de chaque formule. */
+export const FONCTIONS = ["RECEPTION", "CAFETERIA", "SITE_PUBLIC", "DOMAINE_PERSONNALISE", "ACOMPTE_EN_LIGNE"] as const;
+export type Fonction = (typeof FONCTIONS)[number];
+
+export const LIBELLE_FONCTION: Record<Fonction, string> = {
+  RECEPTION: "Réception : chambres, réservations, clients, facturation",
+  CAFETERIA: "Cafétaria : menu, stock, comptes ouverts, ventes",
+  SITE_PUBLIC: "Site public de réservation à vos couleurs",
+  DOMAINE_PERSONNALISE: "Domaine personnalisé (votre-hotel.com)",
+  ACOMPTE_EN_LIGNE: "Acompte payé en ligne (Mobile Money et carte) sur le site",
+};
+
+export function estFonction(valeur: unknown): valeur is Fonction {
+  return (FONCTIONS as readonly string[]).includes(valeur as string);
+}
 
 export interface FormuleAbonnement {
   code: CodeFormule;
@@ -17,10 +34,30 @@ export interface FormuleAbonnement {
   maxChambres: number | null;
   description: string;
   recommandee?: boolean;
-  inclus: string[];
+  /** Fonctions ouvertes par cette formule. */
+  fonctions: Fonction[];
+  /** Lignes libres affichées en plus des fonctions sur la page des tarifs. */
+  avantages: string[];
 }
 
-// À VALIDER PAR LE PATRON : prix et périmètres indicatifs (repris de la page d'accueil, qui lit désormais cette liste).
+/** Les réglages modifiables par le super-admin (ParametresPlateforme). */
+export interface ParametresAbonnement {
+  tauxCdf: number;
+  moisOffertsAnnuel: number;
+  joursEssai: number;
+  joursGrace: number;
+  fonctionsEssai: Fonction[];
+}
+
+export const PARAMETRES_PAR_DEFAUT: ParametresAbonnement = {
+  tauxCdf: 2800,
+  moisOffertsAnnuel: 2,
+  joursEssai: 14,
+  joursGrace: 3,
+  fonctionsEssai: [...FONCTIONS],
+};
+
+/** Formules de DÉPART (reprises par la migration) — la vérité est dans la base, éditable par le super-admin ; ceci sert de valeur de secours et aux tests. */
 export const FORMULES: FormuleAbonnement[] = [
   {
     code: "ESSENTIEL",
@@ -28,7 +65,8 @@ export const FORMULES: FormuleAbonnement[] = [
     prixMensuelUsd: 29,
     maxChambres: 15,
     description: "Pour un petit hôtel qui démarre.",
-    inclus: ["Jusqu'à 15 chambres", "Réception et réservations", "Facturation et reçus imprimés", "Double devise USD / CDF", "Application mobile et ordinateur"],
+    fonctions: ["RECEPTION"],
+    avantages: ["Réception et réservations", "Facturation et reçus imprimés", "Double devise USD / CDF", "Application mobile et ordinateur"],
   },
   {
     code: "PRO",
@@ -37,7 +75,8 @@ export const FORMULES: FormuleAbonnement[] = [
     maxChambres: 40,
     description: "Pour un hôtel avec cafétaria et réservations en ligne.",
     recommandee: true,
-    inclus: ["Jusqu'à 40 chambres", "Tout Essentiel", "Cafétaria, stock et comptes ouverts", "Site public de réservation à vos couleurs", "Fonctionnement hors ligne et synchronisation"],
+    fonctions: ["RECEPTION", "CAFETERIA", "SITE_PUBLIC", "ACOMPTE_EN_LIGNE"],
+    avantages: ["Fonctionnement hors ligne et synchronisation", "Site public de réservation à vos couleurs", "Acompte payé en ligne par Mobile Money ou carte"],
   },
   {
     code: "PREMIUM",
@@ -45,12 +84,38 @@ export const FORMULES: FormuleAbonnement[] = [
     prixMensuelUsd: 99,
     maxChambres: null,
     description: "Pour les établissements qui veulent leur propre identité.",
-    inclus: ["Chambres illimitées", "Tout Pro", "Domaine personnalisé (votre-hotel.com)", "Accompagnement à la mise en route", "Support prioritaire"],
+    fonctions: ["RECEPTION", "CAFETERIA", "SITE_PUBLIC", "DOMAINE_PERSONNALISE", "ACOMPTE_EN_LIGNE"],
+    avantages: ["Accompagnement à la mise en route", "Support prioritaire"],
   },
 ];
 
-export function formuleParCode(code: unknown): FormuleAbonnement | undefined {
-  return FORMULES.find((f) => f.code === code);
+export function formuleParCode(code: unknown, formules: FormuleAbonnement[] = FORMULES): FormuleAbonnement | undefined {
+  return formules.find((f) => f.code === code);
+}
+
+/** Les lignes affichées pour une formule : plafond, fonctions cochées, puis les avantages libres. */
+export function lignesFormule(f: Pick<FormuleAbonnement, "maxChambres" | "fonctions" | "avantages">): string[] {
+  return [
+    f.maxChambres === null ? "Chambres illimitées" : `Jusqu'à ${f.maxChambres} chambres`,
+    ...f.fonctions.map((fn) => LIBELLE_FONCTION[fn]),
+    ...f.avantages,
+  ];
+}
+
+/**
+ * Fonctions dont un hôtel dispose : celles de sa formule payée ; pendant l'essai, celles de l'essai ; un hôtel créé à la main avec des
+ * paiements mais sans formule garde TOUT (cas historique, jamais restreint par surprise). Un hôtel dont l'accès est coupé n'en a aucune.
+ */
+export function fonctionsAutorisees(
+  hotel: { formule?: string | null },
+  aPaye: boolean,
+  formules: FormuleAbonnement[],
+  parametres: Pick<ParametresAbonnement, "fonctionsEssai">
+): Fonction[] {
+  const formule = hotel.formule ? formuleParCode(hotel.formule, formules) : undefined;
+  if (formule) return formule.fonctions.filter(estFonction);
+  if (!aPaye) return parametres.fonctionsEssai.filter(estFonction);
+  return [...FONCTIONS];
 }
 
 /** Durées proposées à l'achat, en mois. */
@@ -73,18 +138,20 @@ const JOUR_MS = 86_400_000;
 
 export type DeviseAbonnement = "USD" | "CDF";
 
-export function moisFactures(mois: number): number {
-  return Math.max(0, mois - (MOIS_OFFERTS[mois] ?? 0));
+/** Mois réellement payés pour `mois` mois obtenus : 12 mois d'un coup = 12 − `moisOffertsAnnuel` payés (2 par défaut). */
+export function moisFactures(mois: number, moisOffertsAnnuel: number = MOIS_OFFERTS[12]): number {
+  const offerts = mois === 12 ? Math.min(Math.max(0, Math.floor(moisOffertsAnnuel)), 11) : 0;
+  return Math.max(0, mois - offerts);
 }
 
 /**
  * Prix à payer pour `mois` mois de `formule`, dans la devise choisie.
  * USD : au cent près. CDF : converti au taux de la plateforme puis arrondi au-dessus au pas de 500 FC. 0 si la formule ou la durée est inconnue.
  */
-export function prixAbonnement(p: { formule: unknown; mois: number; devise: DeviseAbonnement; tauxCdf?: number }): number {
-  const formule = formuleParCode(p.formule);
+export function prixAbonnement(p: { formule: unknown; mois: number; devise: DeviseAbonnement; tauxCdf?: number; formules?: FormuleAbonnement[]; moisOffertsAnnuel?: number }): number {
+  const formule = formuleParCode(p.formule, p.formules);
   if (!formule || !(DUREES_MOIS as readonly number[]).includes(p.mois)) return 0;
-  const usd = Math.round(formule.prixMensuelUsd * moisFactures(p.mois) * 100) / 100;
+  const usd = Math.round(formule.prixMensuelUsd * moisFactures(p.mois, p.moisOffertsAnnuel) * 100) / 100;
   if (p.devise === "USD") return usd;
   const taux = p.tauxCdf && p.tauxCdf > 0 ? p.tauxCdf : TAUX_CDF_ABONNEMENT_DEFAUT;
   return Math.ceil((usd * taux) / PAS_ARRONDI_CDF) * PAS_ARRONDI_CDF;
@@ -108,20 +175,21 @@ export function nouvelleFinValidite(finActuelle: Date, maintenant: Date, mois: n
 }
 
 /** Fin de validité : le dernier paiement, ou, à défaut, la fin de l'essai (création + 14 jours). */
-export function finValidite(hotel: { createdAt: Date }, dernierPaiement: { periodeCouverteJusquau: Date } | null): Date {
+export function finValidite(hotel: { createdAt: Date }, dernierPaiement: { periodeCouverteJusquau: Date } | null, joursEssai: number = JOURS_ESSAI): Date {
   if (dernierPaiement) return dernierPaiement.periodeCouverteJusquau;
   const fin = new Date(hotel.createdAt);
-  fin.setDate(fin.getDate() + JOURS_ESSAI);
+  fin.setDate(fin.getDate() + joursEssai);
   return fin;
 }
 
 export function etatAbonnement(
   hotel: { createdAt: Date; statutLicence: string; suspensionManuelle?: boolean },
   dernierPaiement: { periodeCouverteJusquau: Date } | null,
-  maintenant: Date
+  maintenant: Date,
+  parametres: Partial<Pick<ParametresAbonnement, "joursEssai" | "joursGrace">> = {}
 ): EtatAbonnement {
-  const fin = finValidite(hotel, dernierPaiement);
-  const grace = new Date(fin.getTime() + JOURS_GRACE_ABONNEMENT * JOUR_MS);
+  const fin = finValidite(hotel, dernierPaiement, parametres.joursEssai);
+  const grace = new Date(fin.getTime() + (parametres.joursGrace ?? JOURS_GRACE_ABONNEMENT) * JOUR_MS);
   const base = { valideJusquau: fin.toISOString(), graceJusquau: grace.toISOString(), joursRestants: Math.ceil((fin.getTime() - maintenant.getTime()) / JOUR_MS) };
 
   if (hotel.statutLicence === "RESILIE") return { ...base, statut: "RESILIE", bloque: true, renouvelable: false, alerte: "RESILIE" };
