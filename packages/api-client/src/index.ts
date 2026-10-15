@@ -41,3 +41,5 @@ export { inscrireHotel, listerChambresDisponibles, listerMenu, creerDemandeReser
 export type { ConfigApiPublique } from "./public";
 export { ClientSuperAdmin } from "./super-admin";
 export type { DonneesCreationHotel, DonneesEnregistrementPaiement, DonneesAjoutDomaine, PaiementAbonnementSupport } from "./super-admin";
+export { SuiviPaiement } from "./suivi-paiement";
+export type { EtatSuivi, OptionsSuivi, PaiementSuivi, PhasePaiement, SourcePaiement } from "./suivi-paiement";
