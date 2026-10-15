@@ -1,12 +1,15 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { ClientSuperAdmin, ErreurApi, connecterAvecMotDePasse, rafraichirSession } from "@hotel-chicago/api-client";
-import type { HotelAvecValidite, StatutLicence } from "@hotel-chicago/types";
-import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement } from "@hotel-chicago/api-client";
+import type { StatutLicence } from "@hotel-chicago/types";
+import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement, PaiementAbonnementSupport } from "@hotel-chicago/api-client";
 import { configuration } from "./config";
 import { ecrireJetonRafraichissement, lireJetonRafraichissement, oublierJetonRafraichissement } from "./stockage";
 import { EcranConnexion } from "./EcranConnexion";
 import { EcranHotels } from "./EcranHotels";
+import { EcranPaiements } from "./EcranPaiements";
+import type { Onglet } from "./EnteteApp";
+import type { HotelListe } from "./etatHotel";
 
 type Ecran = "chargement" | "connexion" | "application";
 
@@ -20,7 +23,7 @@ export default function App() {
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
 
-  const [hotels, setHotels] = useState<HotelAvecValidite[]>([]);
+  const [hotels, setHotels] = useState<HotelListe[]>([]);
   const [chargementHotels, setChargementHotels] = useState(false);
   const [erreurHotels, setErreurHotels] = useState<string | null>(null);
   const [creationEnCours, setCreationEnCours] = useState(false);
@@ -29,6 +32,11 @@ export default function App() {
   const [erreurPaiement, setErreurPaiement] = useState<string | null>(null);
   const [domaineEnCours, setDomaineEnCours] = useState(false);
   const [erreurDomaine, setErreurDomaine] = useState<string | null>(null);
+
+  const [onglet, setOnglet] = useState<Onglet>("hotels");
+  const [paiements, setPaiements] = useState<PaiementAbonnementSupport[]>([]);
+  const [chargementPaiements, setChargementPaiements] = useState(false);
+  const [erreurPaiements, setErreurPaiements] = useState<string | null>(null);
 
   const client = accessToken ? new ClientSuperAdmin(configuration.apiUrl, () => accessToken) : null;
 
@@ -71,6 +79,32 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
+  async function chargerPaiements(clientCourant: ClientSuperAdmin) {
+    setChargementPaiements(true);
+    setErreurPaiements(null);
+    try {
+      setPaiements(await clientCourant.listerPaiementsAbonnement(100));
+    } catch (erreur) {
+      setErreurPaiements(erreur instanceof Error ? erreur.message : "Impossible de charger les paiements.");
+    } finally {
+      setChargementPaiements(false);
+    }
+  }
+
+  // La liste des paiements se recharge à chaque ouverture de l'onglet (elle change sans cesse : paiements en cours, confirmations).
+  useEffect(() => {
+    if (client && onglet === "paiements") void chargerPaiements(client);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, onglet]);
+
+  /** Revérifie auprès de ScanLinkPay. Un paiement crédité change la validité de l'hôtel : on recharge aussi la liste des hôtels. */
+  async function reverifierPaiement(id: string): Promise<"credite" | "toujours"> {
+    if (!client) throw new Error("Session expirée. Reconnectez-vous.");
+    const resultat = await client.reverifierPaiementAbonnement(id);
+    await Promise.all([chargerPaiements(client), chargerHotels(client)]);
+    return resultat.statut === "REUSSI" ? "credite" : "toujours";
+  }
+
   async function seConnecter(email: string, motDePasse: string) {
     setErreurConnexion(null);
     setConnexionEnCours(true);
@@ -94,6 +128,8 @@ export default function App() {
     oublierJetonRafraichissement();
     setAccessToken(null);
     setHotels([]);
+    setPaiements([]);
+    setOnglet("hotels");
     setEcran("connexion");
   }
 
@@ -207,8 +243,23 @@ export default function App() {
     return <EcranConnexion erreur={erreurConnexion} enCours={connexionEnCours} onConnexion={seConnecter} />;
   }
 
+  if (onglet === "paiements") {
+    return (
+      <EcranPaiements
+        paiements={paiements}
+        chargement={chargementPaiements}
+        erreur={erreurPaiements}
+        onActualiser={() => client && void chargerPaiements(client)}
+        onReverifier={reverifierPaiement}
+        onChangerOnglet={setOnglet}
+        onDeconnexion={seDeconnecter}
+      />
+    );
+  }
+
   return (
     <EcranHotels
+      onChangerOnglet={setOnglet}
       hotels={hotels}
       chargement={chargementHotels}
       erreur={erreurHotels}

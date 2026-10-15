@@ -2,13 +2,15 @@ import * as React from "react";
 import { useState } from "react";
 import { Button, StatusBadge, useTitrePage, type StatusTone } from "@hotel-chicago/ui";
 import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement } from "@hotel-chicago/api-client";
-import type { HotelAvecValidite, StatutLicence } from "@hotel-chicago/types";
+import type { StatutLicence } from "@hotel-chicago/types";
 import { FormulairePaiement } from "./FormulairePaiement";
 import { FormulaireDomaine } from "./FormulaireDomaine";
 import { DialogueConfirmation } from "./DialogueConfirmation";
+import { EnteteApp, type Onglet } from "./EnteteApp";
+import { badgeAbonnement, dateFin, libelleFormule, type HotelListe } from "./etatHotel";
 
 export interface EcranHotelsProps {
-  hotels: HotelAvecValidite[];
+  hotels: HotelListe[];
   chargement: boolean;
   erreur: string | null;
   creationEnCours: boolean;
@@ -25,6 +27,7 @@ export interface EcranHotelsProps {
   domaineEnCours: boolean;
   erreurDomaine: string | null;
   onDeconnexion: () => void;
+  onChangerOnglet: (onglet: Onglet) => void;
 }
 
 const TONE_PAR_STATUT: Record<string, StatusTone> = {
@@ -51,6 +54,14 @@ const CONSEQUENCE_STATUT: Record<string, string> = {
   RESILIE: "L'hôtel et son personnel perdent l'accès à l'application et le site public de l'hôtel n'est plus disponible.",
 };
 
+/** Mise en garde propre à certains statuts. SUSPENDU posé ici est TOUJOURS une suspension manuelle (marquée côté serveur). */
+const AVERTISSEMENT_STATUT: Record<string, string> = {
+  SUSPENDU:
+    "C'est une suspension manuelle : l'hôtel ne pourra pas rouvrir son accès en payant son abonnement dans l'application. Vous pourrez le réactiver ici (changement de statut ou paiement enregistré à la main).",
+  ACTIF:
+    "Le statut ne prolonge pas l'abonnement : si la date de fin est dépassée de plus de 3 jours, l'accès reste bloqué jusqu'au prochain paiement (en ligne ou enregistré à la main).",
+};
+
 function libelleStatut(statut: string): string {
   return LIBELLE_STATUT[statut] ?? statut;
 }
@@ -72,9 +83,10 @@ export function EcranHotels({
   domaineEnCours,
   erreurDomaine,
   onDeconnexion,
+  onChangerOnglet,
 }: EcranHotelsProps) {
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
-  const [hotelPourPaiement, setHotelPourPaiement] = useState<HotelAvecValidite | null>(null);
+  const [hotelPourPaiement, setHotelPourPaiement] = useState<HotelListe | null>(null);
   // Par id, pas par objet : l'hôtel affiché doit refléter les données à
   // jour après chaque action (ajout/vérification/retrait), sans fermer la
   // modale entre chaque étape (voir FormulaireDomaine).
@@ -87,7 +99,7 @@ export function EcranHotels({
   const [adresse, setAdresse] = useState("");
   // Changement de licence : on CHOISIT dans la liste, puis « Appliquer » ouvre une confirmation (jamais d'effet au simple choix).
   const [choixStatut, setChoixStatut] = useState<Record<string, StatutLicence>>({});
-  const [statutAConfirmer, setStatutAConfirmer] = useState<{ hotel: HotelAvecValidite; statut: StatutLicence } | null>(null);
+  const [statutAConfirmer, setStatutAConfirmer] = useState<{ hotel: HotelListe; statut: StatutLicence } | null>(null);
   const [statutEnCours, setStatutEnCours] = useState(false);
   const [messageStatut, setMessageStatut] = useState<string | null>(null);
 
@@ -126,20 +138,14 @@ export function EcranHotels({
 
   return (
     <div className="page">
-      <header className="entete">
-        <div className="marque">
-          <img className="marque__logo" src="/logo-hotelsaver.png" alt="HotelSaver" />
-          <h1 className="titre-page">Hôtels</h1>
-        </div>
-        <div className="entete-actions">
-          <Button variant="secondary" onClick={() => setFormulaireOuvert((v) => !v)}>
-            {formulaireOuvert ? "Annuler" : "Nouvel hôtel"}
-          </Button>
-          <Button variant="secondary" onClick={onDeconnexion}>
-            Déconnexion
-          </Button>
-        </div>
-      </header>
+      <EnteteApp titre="Hôtels" onglet="hotels" onChangerOnglet={onChangerOnglet}>
+        <Button variant="secondary" onClick={() => setFormulaireOuvert((v) => !v)}>
+          {formulaireOuvert ? "Annuler" : "Nouvel hôtel"}
+        </Button>
+        <Button variant="secondary" onClick={onDeconnexion}>
+          Déconnexion
+        </Button>
+      </EnteteApp>
 
       {formulaireOuvert && (
         <form className="carte" onSubmit={soumettreCreation} style={{ marginBottom: 24 }}>
@@ -219,7 +225,9 @@ export function EcranHotels({
               <tr>
                 <th scope="col">Nom</th>
                 <th scope="col">Sous-domaine</th>
-                <th scope="col">Statut</th>
+                <th scope="col">Licence</th>
+                <th scope="col">Abonnement</th>
+                <th scope="col">Formule</th>
                 <th scope="col">Valide jusqu'au</th>
                 <th scope="col">Domaine</th>
                 <th scope="col">Créé le</th>
@@ -232,6 +240,7 @@ export function EcranHotels({
             <tbody>
               {hotels.map((hotel) => {
                 const choix = choixStatut[hotel.id] ?? hotel.statutLicence;
+                const badge = badgeAbonnement(hotel);
                 return (
                   <tr key={hotel.id}>
                     <td>{hotel.nom}</td>
@@ -239,7 +248,12 @@ export function EcranHotels({
                     <td>
                       <StatusBadge tone={TONE_PAR_STATUT[hotel.statutLicence] ?? "neutral"} label={libelleStatut(hotel.statutLicence)} />
                     </td>
-                    <td>{new Date(hotel.valideJusquau).toLocaleDateString("fr-FR")}</td>
+                    <td>
+                      <StatusBadge tone={badge.tone} label={badge.libelle} />
+                      <span className="hotel-aide">{badge.aide}</span>
+                    </td>
+                    <td>{libelleFormule(hotel.formule)}</td>
+                    <td>{dateFin(hotel)}</td>
                     <td>
                       {hotel.domainePersonnalise ? (
                         <Button
@@ -296,7 +310,7 @@ export function EcranHotels({
               })}
               {hotels.length === 0 && (
                 <tr>
-                  <td colSpan={8}>Aucun hôtel pour l'instant.</td>
+                  <td colSpan={10}>Aucun hôtel pour l'instant.</td>
                 </tr>
               )}
             </tbody>
@@ -313,6 +327,10 @@ export function EcranHotels({
                 Statut actuel : {libelleStatut(statutAConfirmer.hotel.statutLicence)}. Nouveau statut : <strong>{libelleStatut(statutAConfirmer.statut)}</strong>.
               </p>
               <p>{CONSEQUENCE_STATUT[statutAConfirmer.statut] ?? ""}</p>
+              {AVERTISSEMENT_STATUT[statutAConfirmer.statut] && <p className="avertissement">{AVERTISSEMENT_STATUT[statutAConfirmer.statut]}</p>}
+              {statutAConfirmer.hotel.statutLicence === "SUSPENDU" && statutAConfirmer.hotel.suspensionManuelle && statutAConfirmer.statut !== "SUSPENDU" && (
+                <p>Cela lève la suspension manuelle : l'hôtel pourra de nouveau payer son abonnement dans l'application.</p>
+              )}
             </>
           }
           libelleConfirmer={`Passer en ${libelleStatut(statutAConfirmer.statut)}`}

@@ -1,0 +1,441 @@
+/* Abonnement : écran, plein écran « abonnement expiré » et bandeau. Que des jetons de la charte : le mode sombre suit tout seul. */
+
+/* ---------- Bandeau en haut de l'application ---------- */
+
+.bandeau-abonnement {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  width: 100%;
+  padding: var(--hc-space-2) var(--hc-space-4);
+  border: 0;
+  border-bottom: 1px solid var(--hc-border);
+  font-family: var(--hc-font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.bandeau-abonnement--attention {
+  background-color: var(--hc-warning-light);
+  color: var(--hc-warning);
+  border-bottom-color: var(--hc-warning);
+}
+.bandeau-abonnement--danger {
+  background-color: var(--hc-danger-light);
+  color: var(--hc-danger);
+  border-bottom-color: var(--hc-danger);
+}
+.bandeau-abonnement:hover {
+  filter: brightness(0.97);
+}
+.bandeau-abonnement:focus-visible {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: -3px;
+}
+.bandeau-abonnement__texte {
+  flex: 1;
+  font-weight: 600;
+}
+.bandeau-abonnement__action {
+  white-space: nowrap;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+/* ---------- Mise en page ---------- */
+
+.abo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-5);
+  width: 100%;
+  max-width: 860px;
+}
+
+.abo-carte {
+  padding: var(--hc-space-5);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  background-color: var(--hc-surface-200);
+  box-shadow: var(--hc-shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-4);
+}
+
+.abo-etat {
+  display: flex;
+  gap: var(--hc-space-4);
+  align-items: flex-start;
+  border-left-width: 6px;
+  border-left-style: solid;
+}
+.abo-etat--ok {
+  border-left-color: var(--hc-success);
+}
+.abo-etat--attention {
+  border-left-color: var(--hc-warning);
+}
+.abo-etat--danger {
+  border-left-color: var(--hc-danger);
+}
+.abo-etat__icone {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+.abo-etat--ok .abo-etat__icone {
+  background-color: var(--hc-success-light);
+  color: var(--hc-success);
+}
+.abo-etat--attention .abo-etat__icone {
+  background-color: var(--hc-warning-light);
+  color: var(--hc-warning);
+}
+.abo-etat--danger .abo-etat__icone {
+  background-color: var(--hc-danger-light);
+  color: var(--hc-danger);
+}
+.abo-etat__corps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+  min-width: 0;
+}
+.abo-faits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2) var(--hc-space-6);
+  margin: var(--hc-space-2) 0 0;
+}
+.abo-faits div {
+  display: flex;
+  flex-direction: column;
+}
+.abo-faits dt {
+  color: var(--hc-ink-muted);
+  font-size: 12px;
+}
+.abo-faits dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.abo-message {
+  padding: var(--hc-space-3) var(--hc-space-4);
+  border-radius: var(--hc-radius-sm);
+  background-color: var(--hc-info-light);
+  color: var(--hc-ink);
+  border: 1px solid var(--hc-border);
+}
+.abo-message--erreur {
+  background-color: var(--hc-danger-light);
+  border-color: var(--hc-danger);
+}
+
+/* ---------- Formulaire de paiement ---------- */
+
+.abo-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-5);
+}
+.abo-groupe {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+}
+.abo-groupe > legend {
+  padding: 0;
+  margin-bottom: var(--hc-space-2);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--hc-ink);
+}
+.abo-choix-liste {
+  display: grid;
+  gap: var(--hc-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.abo-choix-liste--formules {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+/* Un choix = une étiquette cliquable autour d'un vrai bouton radio (clavier : flèches, Espace). */
+.abo-choix {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-1);
+  padding: var(--hc-space-3) var(--hc-space-4);
+  border: 2px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background-color: var(--hc-surface-300);
+  color: var(--hc-ink);
+  cursor: pointer;
+}
+.abo-choix:hover {
+  border-color: var(--hc-blue);
+}
+.abo-choix--actif {
+  border-color: var(--hc-blue);
+  background-color: var(--hc-blue-light);
+}
+.abo-choix:focus-within {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+.abo-choix--inactif {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.abo-choix--inactif:hover {
+  border-color: var(--hc-border);
+}
+.abo-choix input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+.abo-choix__titre {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  font-weight: 700;
+}
+.abo-choix__marque {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--hc-ink-muted);
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+.abo-choix--actif .abo-choix__marque {
+  border-color: var(--hc-blue);
+}
+.abo-choix--actif .abo-choix__marque::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--hc-blue);
+}
+.abo-choix__prix {
+  font-size: 20px;
+  font-weight: 700;
+}
+.abo-choix__prix small {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--hc-ink-muted);
+}
+.abo-choix__detail {
+  font-size: 13px;
+  color: var(--hc-ink-muted);
+}
+.abo-choix ul {
+  margin: var(--hc-space-2) 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.abo-etiquette {
+  align-self: flex-start;
+  padding: 2px var(--hc-space-2);
+  border-radius: var(--hc-radius-pill);
+  background-color: var(--hc-blue);
+  color: var(--hc-on-accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+.abo-offert {
+  align-self: flex-start;
+  padding: 2px var(--hc-space-2);
+  border-radius: var(--hc-radius-pill);
+  background-color: var(--hc-success-light);
+  color: var(--hc-success);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.abo-champ {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+  max-width: 360px;
+}
+.abo-champ input {
+  height: 44px;
+  padding: 0 var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  border: 1px solid var(--hc-border);
+  background-color: var(--hc-surface-100);
+  color: var(--hc-ink);
+  font-family: var(--hc-font-body);
+  font-size: 16px;
+}
+.abo-champ input:focus {
+  outline: none;
+  border-color: var(--hc-blue);
+  box-shadow: 0 0 0 3px var(--hc-blue-light);
+}
+.abo-champ input[aria-invalid="true"] {
+  border-color: var(--hc-danger);
+}
+
+.abo-recap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-4);
+  border-radius: var(--hc-radius-md);
+  background-color: var(--hc-blue-very-light);
+  border: 1px solid var(--hc-border);
+}
+
+/* ---------- Attente, réussite, échec ---------- */
+
+.abo-etape {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-5) var(--hc-space-3);
+}
+.abo-etape h2:focus {
+  outline: none;
+}
+.abo-etape__icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+.abo-etape__icone--ok {
+  background-color: var(--hc-success-light);
+  color: var(--hc-success);
+}
+.abo-etape__icone--danger {
+  background-color: var(--hc-danger-light);
+  color: var(--hc-danger);
+}
+.abo-spinner {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 5px solid var(--hc-blue-light);
+  border-top-color: var(--hc-blue);
+  animation: abo-tourne 1s linear infinite;
+}
+@keyframes abo-tourne {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .abo-spinner {
+    animation-duration: 3s;
+  }
+}
+.abo-conseils {
+  align-self: stretch;
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: left;
+  padding: var(--hc-space-3) var(--hc-space-4) var(--hc-space-3) var(--hc-space-6);
+  border-radius: var(--hc-radius-md);
+  background-color: var(--hc-warning-light);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-1);
+}
+
+/* ---------- Historique ---------- */
+
+.abo-historique {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.abo-historique caption {
+  text-align: left;
+  font-weight: 700;
+  font-size: 16px;
+  padding-bottom: var(--hc-space-3);
+}
+.abo-historique th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hc-ink-muted);
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-bottom: 1px solid var(--hc-border);
+}
+.abo-historique td {
+  padding: var(--hc-space-3);
+  border-bottom: 1px solid var(--hc-border);
+  vertical-align: top;
+}
+.abo-historique-scroll {
+  overflow-x: auto;
+}
+
+/* ---------- Plein écran « abonnement expiré » ---------- */
+
+.abo-bloque {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--hc-space-6) var(--hc-space-4);
+  background-color: var(--hc-surface-100);
+  color: var(--hc-ink);
+  overflow-y: auto;
+}
+.abo-bloque__contenu {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-5);
+}
+.abo-bloque__entete {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+}
+.abo-bloque__logo {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--hc-radius-sm);
+}
+.abo-bloque__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-3);
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .abo-carte {
+    padding: var(--hc-space-4);
+  }
+}

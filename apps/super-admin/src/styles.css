@@ -14,7 +14,7 @@ body {
 }
 
 .page {
-  max-width: 960px;
+  max-width: 1240px;
   margin: 0 auto;
   padding: var(--hc-space-6) var(--hc-space-5);
 }
@@ -255,4 +255,172 @@ body {
   .carte {
     padding: var(--hc-space-4);
   }
+}
+
+/* ── Navigation entre sections ───────────────────────────────────────── */
+.onglets {
+  display: flex;
+  gap: var(--hc-space-2);
+  margin-bottom: var(--hc-space-5);
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.onglet {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  padding: var(--hc-space-2) var(--hc-space-4);
+  min-height: 44px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--hc-ink-muted);
+  cursor: pointer;
+}
+
+.onglet:hover {
+  color: var(--hc-ink);
+}
+
+.onglet--actif {
+  color: var(--hc-navy);
+  border-bottom-color: var(--hc-blue);
+}
+
+.onglet:focus-visible,
+.filtre:focus-visible {
+  outline: 2px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+
+/* ── Paiements en ligne ──────────────────────────────────────────────── */
+.encart {
+  background: var(--hc-info-light);
+  border: 1px solid var(--hc-border);
+  border-left: 4px solid var(--hc-info);
+  border-radius: var(--hc-radius-sm);
+  padding: var(--hc-space-3) var(--hc-space-4);
+  margin-bottom: var(--hc-space-4);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--hc-ink);
+}
+
+.encart p {
+  margin: 0;
+}
+
+.barre-filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2);
+  margin-bottom: var(--hc-space-4);
+}
+
+.filtre {
+  min-height: 36px;
+  padding: 0 var(--hc-space-4);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-pill);
+  background: var(--hc-surface-200);
+  color: var(--hc-ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.filtre--actif {
+  background: var(--hc-blue);
+  border-color: var(--hc-blue);
+  color: var(--hc-on-accent);
+  font-weight: 600;
+}
+
+.filtre__nombre {
+  opacity: 0.8;
+}
+
+.info {
+  color: var(--hc-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.vide {
+  color: var(--hc-ink-muted);
+  font-size: 14px;
+}
+
+.tableau td,
+.tableau th[scope="row"] {
+  vertical-align: top;
+}
+
+.tableau th[scope="row"] {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--hc-ink);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.cellule-hotel__sous,
+.message-paiement {
+  display: block;
+  font-size: 12px;
+  color: var(--hc-ink-muted);
+  margin-top: 2px;
+}
+
+.message-paiement {
+  max-width: 200px;
+  white-space: normal;
+}
+
+.nombre {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.reference {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--hc-space-2);
+}
+
+.reference__etiquette {
+  font-size: 11px;
+  color: var(--hc-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.reference__ligne {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+}
+
+.reference__valeur {
+  font-family: var(--hc-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.reference__vide {
+  color: var(--hc-ink-muted);
+}
+
+.hotel-aide {
+  display: block;
+  font-size: 12px;
+  color: var(--hc-ink-muted);
+  margin-top: 2px;
+}
+
+.texte-confirmation .avertissement {
+  border-left: 3px solid var(--hc-warning);
+  padding-left: var(--hc-space-3);
+  font-weight: 600;
 }

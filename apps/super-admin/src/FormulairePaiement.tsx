@@ -3,10 +3,10 @@ import { useId, useState } from "react";
 import { Button, useDialogue } from "@hotel-chicago/ui";
 import type { DonneesEnregistrementPaiement } from "@hotel-chicago/api-client";
 import { Devise, MethodePaiementLicence } from "@hotel-chicago/types";
-import type { HotelAvecValidite } from "@hotel-chicago/types";
+import type { HotelListe } from "./etatHotel";
 
 export interface FormulairePaiementProps {
-  hotel: HotelAvecValidite;
+  hotel: HotelListe;
   enCours: boolean;
   erreur: string | null;
   onSoumettre: (dto: DonneesEnregistrementPaiement) => void;
@@ -58,6 +58,10 @@ export function FormulairePaiement({ hotel, enCours, erreur, onSoumettre, onFerm
           Enregistrer un paiement
         </h2>
         <p className="sous-titre">{hotel.nom}</p>
+        <p className="sous-titre">
+          Pour un virement, des espèces ou un paiement reçu hors de l'application. Les paiements Mobile Money faits dans l'application apparaissent dans « Paiements en ligne ».
+          {hotel.suspensionManuelle && " Cet hôtel est suspendu à la main : enregistrer un paiement lève la suspension et rouvre son accès."}
+        </p>
 
         <label className="label" htmlFor="montant">
           Montant

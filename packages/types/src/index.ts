@@ -658,6 +658,10 @@ export enum MethodePaiementLicence {
  * endpoints d'onboarding/inscription, qui n'ont pas cette notion. */
 export interface HotelAvecValidite extends HotelCree {
   valideJusquau: string;
+  /** Formule payée en dernier (null = essai ou hôtel créé à la main). */
+  formule?: string | null;
+  /** Suspendu À LA MAIN par le support : ne peut pas se rouvrir en payant. */
+  suspensionManuelle?: boolean;
 }
 
 // ---------------------------------------------------------------------------
