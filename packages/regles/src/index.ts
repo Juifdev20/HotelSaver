@@ -5,3 +5,4 @@ export * from "./recu-provisoire";
 export * from "./saisie";
 export * from "./mobile-money";
 export * from "./abonnement";
+export * from "./abonnement-texte";

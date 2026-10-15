@@ -33,6 +33,9 @@ const actions = (n: number) => `${n} action${n > 1 ? "s" : ""}`;
 export function resumerEtatSync(etat: EtatSync, maintenant: number = Date.now()): ResumeSync {
   const derniere = depuis(etat.derniereSyncReussieLe, maintenant);
 
+  if (etat.abonnementBloque) {
+    return { niveau: "danger", titre: "Abonnement expiré", detail: "L'abonnement de l'hôtel a expiré : rien n'est envoyé au serveur. Vos données restent sur cet appareil ; le patron peut renouveler dans Paramètres → Abonnement." };
+  }
   if (etat.conflits > 0) {
     return { niveau: "danger", titre: "Conflit à vérifier", detail: `${etat.conflits} modification${etat.conflits > 1 ? "s" : ""} en conflit avec le serveur : ouvrez « Synchronisation » pour décider.` };
   }

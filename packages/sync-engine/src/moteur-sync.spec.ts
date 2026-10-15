@@ -516,4 +516,25 @@ describe("MoteurSync", () => {
     expect(moteur.etatActuel()).toMatchObject({ enLigne: false, derniereErreur: null, enAttente: 1 });
     expect(stockage.file).toHaveLength(1);
   });
+
+  it("abonnement expiré (402) : l'action reste en file, l'état le dit, et un paiement fait repartir la synchro", async () => {
+    const stockage = creerStockageFactice();
+    let bloque = true;
+    const client = creerClientFactice({
+      syncPush: async (ops: any[]) => {
+        if (bloque) throw new ErreurApi(402, "L'abonnement de cet hôtel a expiré.", "ABONNEMENT_BLOQUE");
+        return { resultats: ops.map((o) => ({ localId: o.localId, statut: "SYNCED", remoteId: o.remoteId ?? o.localId, syncVersion: 2 })) };
+      },
+    });
+    const moteur = new MoteurSync(client, stockage, []);
+    await moteur.forcerSynchronisation();
+    await stockage.ajouterFileAttente({ entiteType: "Chambre", localId: "c1", remoteId: "c1", operation: "UPDATE", payload: { statut: "LIBRE" }, baseSyncVersion: 1 });
+    await moteur.forcerSynchronisation();
+    expect(moteur.etatActuel()).toMatchObject({ abonnementBloque: true, enAttente: 1 });
+    expect(stockage.file).toHaveLength(1);
+    expect(stockage.file[0].attempts).toBe(0); // ce n'est pas un refus de l'action : elle ne sera jamais abandonnée
+    bloque = false;
+    await moteur.forcerSynchronisation();
+    expect(moteur.etatActuel()).toMatchObject({ abonnementBloque: false, enAttente: 0 });
+  });
 });

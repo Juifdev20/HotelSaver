@@ -1,4 +1,4 @@
-import type { Devise, HotelAvecValidite, HotelCree, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
+import type { PaiementAbonnementVue, Devise, HotelAvecValidite, HotelCree, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
 import { ErreurApi } from "./client";
 
 /** Champs de apps/api/src/super-admin/dto/creer-hotel.dto.ts (logoUrl omis :
@@ -22,6 +22,15 @@ export interface DonneesEnregistrementPaiement {
   note?: string;
 }
 
+/** Ligne de la liste de suivi des paiements d'abonnement (réponse de GET /super-admin/paiements-abonnement). */
+export interface PaiementAbonnementSupport extends PaiementAbonnementVue {
+  hotelId: string;
+  hotelNom: string;
+  sousDomaine: string;
+  referenceDemande: string | null;
+  referenceFournisseur: string | null;
+}
+
 /** Champ de apps/api/src/super-admin/dto/ajouter-domaine.dto.ts
  * (Phase 13, domaines personnalisés — onboarding manuel uniquement). */
 export interface DonneesAjoutDomaine {
@@ -43,6 +52,16 @@ export class ClientSuperAdmin {
 
   async listerHotels(): Promise<HotelAvecValidite[]> {
     return this.requete<HotelAvecValidite[]>("/super-admin/hotels");
+  }
+
+  /** Paiements d'abonnement en ligne (tous hôtels) : en attente, réussis, échoués. */
+  async listerPaiementsAbonnement(limite = 100): Promise<PaiementAbonnementSupport[]> {
+    return this.requete<PaiementAbonnementSupport[]>(`/super-admin/paiements-abonnement?limite=${limite}`);
+  }
+
+  /** Revérifie un paiement auprès de ScanLinkPay (même classé en échec) et crédite l'hôtel s'il a bien abouti. */
+  async reverifierPaiementAbonnement(id: string): Promise<PaiementAbonnementVue> {
+    return this.requete<PaiementAbonnementVue>(`/super-admin/paiements-abonnement/${encodeURIComponent(id)}/reverifier`, { method: "POST" });
   }
 
   async creerHotel(dto: DonneesCreationHotel): Promise<HotelCree> {

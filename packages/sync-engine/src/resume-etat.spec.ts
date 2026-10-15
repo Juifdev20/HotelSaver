@@ -30,4 +30,11 @@ describe("resumerEtatSync", () => {
   it("synchro vieille de plus de 24 h : données anciennes", () => {
     expect(r({ derniereSyncReussieLe: "2026-10-08T12:00:00.000Z" }).niveau).toBe("attention");
   });
+
+  it("abonnement expiré : alerte rouge claire, prioritaire sur le reste", () => {
+    const x = r({ abonnementBloque: true, enAttente: 2, derniereErreur: "x" });
+    expect(x.niveau).toBe("danger");
+    expect(x.titre).toBe("Abonnement expiré");
+    expect(x.detail).toMatch(/Paramètres → Abonnement/);
+  });
 });

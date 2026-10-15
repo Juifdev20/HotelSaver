@@ -1,4 +1,8 @@
 import {
+  DemandePaiementAbonnement,
+  EtatAbonnement,
+  PaiementAbonnementVue,
+  VueAbonnement,
   Chambre,
   Client,
   CompteCafeteria,
@@ -55,7 +59,9 @@ function signalAvecDelai(ms: number): AbortSignal | undefined {
 export class ErreurApi extends Error {
   constructor(
     public readonly statusCode: number,
-    message: string
+    message: string,
+    /** Code métier renvoyé par le serveur (ex. « ABONNEMENT_BLOQUE » sur une réponse 402). */
+    public readonly code?: string
   ) {
     super(message);
     this.name = "ErreurApi";
@@ -917,6 +923,21 @@ export class ClientApi {
     return this.requete<ReponsePull>(`/sync/pull?${params.toString()}`);
   }
 
+  /** État de l'abonnement de l'hôtel, formules et prix (ouvert même quand l'abonnement a expiré). Historique réservé au patron. */
+  async abonnement(): Promise<VueAbonnement> {
+    return this.requete<VueAbonnement>("/abonnement");
+  }
+
+  /** Lance un paiement d'abonnement par Mobile Money : le téléphone du patron reçoit une demande de confirmation. PATRON uniquement. */
+  async payerAbonnement(demande: DemandePaiementAbonnement): Promise<PaiementAbonnementVue> {
+    return this.requete<PaiementAbonnementVue>("/abonnement/paiements", { method: "POST", body: JSON.stringify(demande) });
+  }
+
+  /** État d'un paiement d'abonnement (le serveur revérifie auprès de ScanLinkPay tant qu'il est en attente), avec l'état d'abonnement à jour. */
+  async paiementAbonnement(id: string): Promise<{ paiement: PaiementAbonnementVue; etat: EtatAbonnement }> {
+    return this.requete(`/abonnement/paiements/${encodeURIComponent(id)}`);
+  }
+
   /** Change MON mot de passe (l'ancien est revérifié ; mes autres sessions sont coupées). */
   async changerMotDePasse(motDePasseActuel: string, nouveauMotDePasse: string): Promise<void> {
     await this.requete<{ ok: true }>("/auth/mot-de-passe", { method: "POST", body: JSON.stringify({ motDePasseActuel, nouveauMotDePasse }) });
@@ -958,7 +979,8 @@ export class ClientApi {
 
     if (!reponse.ok) {
       const corps = await reponse.json().catch(() => ({}));
-      throw new ErreurApi(reponse.status, messageErreurHttp(reponse.status, corps));
+      const code = typeof (corps as { code?: unknown })?.code === "string" ? (corps as { code: string }).code : undefined;
+      throw new ErreurApi(reponse.status, messageErreurHttp(reponse.status, corps), code);
     }
 
     // Corps vide possible sans 204 : NestJS sérialise `null`/`undefined` en
@@ -986,6 +1008,7 @@ export function messageErreurHttp(statut: number, corps: unknown): string {
   if (texte && !technique) return texte;
   if (statut === 400 || statut === 422) return "Les informations saisies sont incomplètes ou incorrectes.";
   if (statut === 401) return "Votre session a pris fin. Reconnectez-vous.";
+  if (statut === 402) return "L'abonnement de l'hôtel a expiré. Le patron peut le renouveler depuis Paramètres → Abonnement.";
   if (statut === 403) return "Vous n'avez pas le droit d'effectuer cette action.";
   if (statut === 404) return "Élément introuvable. Il a peut-être été supprimé.";
   if (statut === 409) return "Cette action n'est plus possible : les données ont changé entre-temps. Actualisez puis réessayez.";

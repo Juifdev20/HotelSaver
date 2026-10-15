@@ -51,6 +51,8 @@ export interface EtatSync {
   decalageHorlogeMs: number | null;
   /** Horloge de l'appareil à plus de 5 minutes de celle du serveur : à signaler (dates des ventes, expiration de licence). */
   horlogeSuspecte: boolean;
+  /** Le serveur refuse tout (402 « abonnement expiré ») : les actions restent sur l'appareil, mais rien ne part tant que le patron n'a pas renouvelé. */
+  abonnementBloque?: boolean;
 }
 
 /**

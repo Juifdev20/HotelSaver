@@ -212,6 +212,7 @@ export class MoteurSync {
         ...this.etat,
         enLigne: true,
         derniereErreur: null,
+        abonnementBloque: false,
         dernierePousseeLe: maintenant,
         derniereSyncReussieLe: maintenant,
       };
@@ -223,11 +224,15 @@ export class MoteurSync {
         await this.rafraichirCompteurs();
         return;
       }
-      this.palierBackoff = Math.min(this.palierBackoff + 1, PALIERS_BACKOFF_MS.length - 1);
+      // Abonnement expiré : ce n'est pas une panne. Les actions restent en file (rien n'est perdu), les écrans affichent l'écran de
+      // renouvellement, et on ne martèle pas le serveur : essai espacé jusqu'à ce que le patron ait payé.
+      const bloque = erreur instanceof ErreurApi && erreur.statusCode === 402 && erreur.code === "ABONNEMENT_BLOQUE";
+      this.palierBackoff = bloque ? PALIERS_BACKOFF_MS.length - 1 : Math.min(this.palierBackoff + 1, PALIERS_BACKOFF_MS.length - 1);
       this.prochainEssaiAu = Date.now() + PALIERS_BACKOFF_MS[this.palierBackoff];
       this.etat = {
         ...this.etat,
         enLigne: true,
+        abonnementBloque: bloque,
         derniereErreur: erreur instanceof Error ? erreur.message : "Erreur de synchronisation.",
       };
     }

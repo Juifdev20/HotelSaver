@@ -101,3 +101,45 @@ describe("numéros Mobile Money", () => {
     expect(masquerNumero("n'importe quoi")).toBe("••••");
   });
 });
+
+import { actualiserEtatAbonnement, bandeauAbonnement, dateAbonnement, montantAbonnement, resumerAbonnement } from "./abonnement-texte";
+
+describe("textes d'abonnement", () => {
+  it("dates en français, au jour de Lubumbashi", () => {
+    expect(dateAbonnement("2026-11-12T10:00:00Z")).toBe("12 novembre 2026");
+    expect(dateAbonnement("2026-11-30T23:00:00Z")).toBe("1er décembre 2026"); // 01:00 à Lubumbashi
+    expect(dateAbonnement("n'importe quoi")).toBe("—");
+  });
+  it("montants lisibles", () => {
+    expect(montantAbonnement(59, "USD")).toBe("59 $");
+    expect(montantAbonnement(165500, "CDF")).toBe("165 500 FC");
+    expect(montantAbonnement(29.5, "USD")).toBe("29,50 $");
+  });
+  const etatDans = (jours: number, over: object = {}) => ({
+    ...etatAbonnement({ createdAt: new Date(Date.now() - 100 * J), statutLicence: "ACTIF" }, { periodeCouverteJusquau: new Date(Date.now() + jours * J) }, new Date()),
+    ...over,
+  });
+  it("résumé : actif, bientôt fini, échu, expiré", () => {
+    expect(resumerAbonnement(etatDans(60), "PRO")).toMatchObject({ niveau: "ok", titre: "Abonnement actif" });
+    expect(resumerAbonnement(etatDans(60), "PRO").detail).toContain("formule Pro");
+    expect(resumerAbonnement(etatDans(3))).toMatchObject({ niveau: "attention" });
+    expect(resumerAbonnement(etatDans(-1))).toMatchObject({ niveau: "danger", titre: "Abonnement échu" });
+    expect(resumerAbonnement(etatDans(-10))).toMatchObject({ niveau: "danger", titre: "Abonnement expiré" });
+    expect(resumerAbonnement({ ...etatDans(10), statut: "ESSAI" })).toMatchObject({ niveau: "ok" });
+    expect(resumerAbonnement({ ...etatDans(2), statut: "ESSAI" }).titre).toMatch(/2 jours/);
+  });
+  it("le bandeau suit l'horloge même sans nouvelle réponse du serveur", () => {
+    const etat = etatDans(10);
+    expect(bandeauAbonnement(etat)).toBeNull();
+    expect(bandeauAbonnement(etat, new Date(Date.now() + 5 * J))?.niveau).toBe("attention");
+    expect(bandeauAbonnement(etat, new Date(Date.now() + 11 * J))?.niveau).toBe("danger");
+    expect(bandeauAbonnement(etat, new Date(Date.now() + 20 * J))?.texte).toMatch(/expiré/);
+    expect(bandeauAbonnement(null)).toBeNull();
+    expect(actualiserEtatAbonnement(etat, new Date(Date.now() + 5 * J)).joursRestants).toBe(5);
+  });
+  it("suspendu / résilié : pas de bandeau (écran dédié), état inchangé", () => {
+    const s = etatAbonnement({ createdAt: new Date(), statutLicence: "RESILIE" }, null, new Date());
+    expect(bandeauAbonnement(s)).toBeNull();
+    expect(actualiserEtatAbonnement(s)).toBe(s);
+  });
+});
