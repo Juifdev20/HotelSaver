@@ -1,10 +1,11 @@
 import * as React from "react";
 
-export type Onglet = "hotels" | "paiements";
+export type Onglet = "hotels" | "paiements" | "abonnements";
 
 const ONGLETS: { id: Onglet; libelle: string }[] = [
   { id: "hotels", libelle: "Hôtels" },
   { id: "paiements", libelle: "Paiements en ligne" },
+  { id: "abonnements", libelle: "Abonnements" },
 ];
 
 export interface EnteteAppProps {

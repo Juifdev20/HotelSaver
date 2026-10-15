@@ -1,4 +1,5 @@
 import { dateAbonnement, etatAbonnement, finValidite, formuleParCode } from "@hotel-chicago/regles";
+import type { FormuleAbonnement } from "@hotel-chicago/regles";
 import type { EtatAbonnement, HotelAvecValidite } from "@hotel-chicago/types";
 import type { StatusTone } from "@hotel-chicago/ui";
 
@@ -12,6 +13,8 @@ export interface HotelListe extends HotelAvecValidite {
   formule?: string | null;
   /** true = suspendu À LA MAIN : l'hôtel ne peut pas se réactiver en payant. */
   suspensionManuelle?: boolean;
+  /** Nombre de chambres de l'hôtel, si le serveur le fournit (sinon on n'affiche que le plafond de la formule). */
+  nombreChambres?: number;
 }
 
 export interface BadgeAbonnement {
@@ -56,9 +59,10 @@ export function badgeAbonnement(hotel: HotelListe, maintenant: Date = new Date()
   }
 }
 
-export function libelleFormule(formule: string | null | undefined): string {
+/** Nom de la formule (jamais son code) ; `formules` = le catalogue courant défini par le super-admin. */
+export function libelleFormule(formule: string | null | undefined, formules?: FormuleAbonnement[]): string {
   if (!formule) return "—";
-  return formuleParCode(formule)?.nom ?? formule;
+  return formuleParCode(formule, formules)?.nom ?? formule;
 }
 
 /** « 12 novembre 2026 » (jour de Lubumbashi, comme dans les applications). */
