@@ -754,7 +754,8 @@ html {
   box-shadow: 0 0 0 8px var(--hc-blue-light);
 }
 
-.etape h3 {
+.etape h3,
+.etape h4 {
   font-size: 18px;
   color: var(--hc-navy);
   margin: 0 0 var(--hc-space-2);
@@ -943,6 +944,29 @@ html {
 
 .formule__prix span {
   color: var(--hc-ink-muted);
+}
+
+.formule__annuel {
+  margin: calc(-1 * var(--hc-space-3)) 0 var(--hc-space-4);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hc-ink);
+}
+
+.formule__annuel span {
+  font-weight: 400;
+  color: var(--hc-ink-muted);
+}
+
+.abonnement-etapes {
+  margin-top: var(--hc-space-7);
+}
+
+.abonnement-etapes__titre {
+  text-align: center;
+  font-size: 22px;
+  color: var(--hc-navy);
+  margin: 0 0 var(--hc-space-5);
 }
 
 .formule__liste {

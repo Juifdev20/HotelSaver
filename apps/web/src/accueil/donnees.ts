@@ -1,55 +1,14 @@
 /** Tout le contenu éditorial de la page d'accueil est ici : modifier un texte
  * ou un prix = éditer ce fichier, aucun composant à toucher. */
 
-export interface Formule {
-  nom: string;
-  /** Prix mensuel en USD. */
-  prix: number;
-  description: string;
-  recommandee?: boolean;
-  inclus: string[];
-}
+// Les formules et les prix ne sont PAS ici : ils viennent de FORMULES (@hotel-chicago/regles), la même liste que celle des applications et
+// du serveur. Une seule source de prix.
 
-// À VALIDER PAR LE PATRON : prix et périmètres de formules indicatifs, aucun
-// tarif n'est défini ailleurs dans le projet.
-export const FORMULES: Formule[] = [
-  {
-    nom: "Essentiel",
-    prix: 29,
-    description: "Pour un petit hôtel qui démarre.",
-    inclus: [
-      "Jusqu'à 15 chambres",
-      "Réception et réservations",
-      "Facturation et reçus imprimés",
-      "Double devise USD / CDF",
-      "Application mobile et ordinateur",
-    ],
-  },
-  {
-    nom: "Pro",
-    prix: 59,
-    description: "Pour un hôtel avec cafétaria et réservations en ligne.",
-    recommandee: true,
-    inclus: [
-      "Jusqu'à 40 chambres",
-      "Tout Essentiel",
-      "Cafétaria, stock et comptes ouverts",
-      "Site public de réservation à vos couleurs",
-      "Fonctionnement hors ligne et synchronisation",
-    ],
-  },
-  {
-    nom: "Premium",
-    prix: 99,
-    description: "Pour les établissements qui veulent leur propre identité.",
-    inclus: [
-      "Chambres illimitées",
-      "Tout Pro",
-      "Domaine personnalisé (votre-hotel.com)",
-      "Accompagnement à la mise en route",
-      "Support prioritaire",
-    ],
-  },
+/** Comment fonctionne l'abonnement, en trois étapes (section Tarifs). */
+export const ETAPES_ABONNEMENT = [
+  { titre: "Créez votre hôtel et essayez 14 jours", texte: "L'essai est gratuit, sur toutes les formules, sans carte bancaire." },
+  { titre: "Choisissez une formule", texte: "Dans l'application : Paramètres → Abonnement. Vous choisissez la formule et la durée." },
+  { titre: "Payez avec votre téléphone", texte: "Mobile Money, directement dans l'application. L'accès continue sans interruption." },
 ];
 
 export const CHIFFRES = [
@@ -132,7 +91,7 @@ export const FAQ = [
   {
     question: "L'essai est-il vraiment gratuit ?",
     reponse:
-      "Oui, 14 jours sans carte bancaire. À la fin, l'abonnement se règle par virement, Mobile Money ou en espèces. Il n'y a aucun prélèvement automatique.",
+      "Oui, 14 jours sans carte bancaire. Ensuite, vous payez votre abonnement par Mobile Money (M-Pesa, Airtel Money, Orange Money ou Africell), directement dans l'application. Il n'y a aucun prélèvement automatique.",
   },
   {
     question: "Et si ma connexion internet est instable ?",
@@ -158,5 +117,20 @@ export const FAQ = [
     question: "Mes données sont-elles séparées de celles des autres hôtels ?",
     reponse:
       "Oui. Chaque hôtel a son espace isolé : ses clients, ses chambres et ses ventes ne sont jamais visibles par un autre établissement.",
+  },
+  {
+    question: "Que se passe-t-il à la fin de l'essai ?",
+    reponse:
+      "Après l'échéance, vous avez 3 jours de grâce pour payer : l'application continue de fonctionner et affiche une alerte. Ensuite, l'accès est bloqué, mais vos données sont conservées. Dès que vous payez, l'accès rouvre immédiatement.",
+  },
+  {
+    question: "Mes données sont-elles conservées si je ne paie pas ?",
+    reponse:
+      "Oui. Si l'accès est bloqué faute de paiement, vos réservations, clients et ventes restent en sécurité. Ils sont de nouveau disponibles dès que l'abonnement est payé.",
+  },
+  {
+    question: "Puis-je changer de formule ?",
+    reponse:
+      "Oui, à tout moment : vous choisissez une autre formule à votre prochain paiement. Payer d'avance ne fait perdre aucun jour. Les plafonds sont de 15 chambres pour Essentiel, 40 pour Pro, et sans limite pour Premium.",
   },
 ];

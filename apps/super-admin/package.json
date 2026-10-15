@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@hotel-chicago/api-client": "workspace:*",
+    "@hotel-chicago/regles": "workspace:*",
     "@hotel-chicago/types": "workspace:*",
     "@hotel-chicago/ui": "workspace:*",
     "react": "^18.3.1",

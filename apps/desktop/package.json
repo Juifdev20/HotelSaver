@@ -17,6 +17,7 @@
     "@hotel-chicago/miroir-local": "workspace:*",
     "@hotel-chicago/receipts": "workspace:*",
     "@hotel-chicago/sync-engine": "workspace:*",
+    "@hotel-chicago/regles": "workspace:*",
     "@hotel-chicago/types": "workspace:*",
     "@hotel-chicago/ui": "workspace:*",
     "@zxing/browser": "^0.2.1",

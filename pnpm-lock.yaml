@@ -323,6 +323,9 @@ importers:
       '@hotel-chicago/receipts':
         specifier: workspace:*
         version: link:../../packages/receipts
+      '@hotel-chicago/regles':
+        specifier: workspace:*
+        version: link:../../packages/regles
       '@hotel-chicago/sync-engine':
         specifier: workspace:*
         version: link:../../packages/sync-engine
@@ -484,6 +487,9 @@ importers:
       '@hotel-chicago/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@hotel-chicago/regles':
+        specifier: workspace:*
+        version: link:../../packages/regles
       '@hotel-chicago/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -518,6 +524,9 @@ importers:
       '@hotel-chicago/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@hotel-chicago/regles':
+        specifier: workspace:*
+        version: link:../../packages/regles
       '@hotel-chicago/types':
         specifier: workspace:*
         version: link:../../packages/types
