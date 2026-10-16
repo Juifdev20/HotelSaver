@@ -18,7 +18,6 @@ function creerPrismaMock() {
     paiementLicence: { count: jest.fn().mockResolvedValue(0) },
     paiementReservation: { findMany: jest.fn().mockResolvedValue([]) },
     chambre: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
-    paiementReservation: { findMany: jest.fn().mockResolvedValue([]) },
     reservation: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     hotelSite: { findUnique: jest.fn().mockResolvedValue({ whatsapp: "+243970000000" }) },
     $transaction: jest.fn().mockResolvedValue([]),
