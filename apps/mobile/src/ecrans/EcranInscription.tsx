@@ -173,12 +173,15 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 onSubmitEditing={soumettre}
               />
 
+              {/* Version compacte (choix du patron, 16/10/2026) : deux petits
+               * boutons côte à côte, sans phrase d'explication à l'écran — le
+               * détail reste lu par le lecteur d'écran — pour que l'étape 2
+               * tienne sans défiler. */}
               <View accessibilityRole="radiogroup" accessibilityLabel="Comment voulez-vous commencer ?" style={styles.demarrage}>
-                <Text style={styles.demarrageTitre}>Comment voulez-vous commencer ?</Text>
                 {(
                   [
                     [false, "Essai gratuit", "Testez toutes les fonctions sans payer. Vous choisirez votre formule plus tard."],
-                    [true, "Payer mon abonnement maintenant", "Pour ne plus y penser. Vos jours d'essai ne sont pas perdus : ils s'ajoutent à votre abonnement."],
+                    [true, "Payer maintenant", "Pour ne plus y penser. Vos jours d'essai ne sont pas perdus : ils s'ajoutent à votre abonnement."],
                   ] as const
                 ).map(([valeur, titre, detail]) => (
                   <Pressable
@@ -189,8 +192,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                     accessibilityState={{ checked: payerMaintenant === valeur }}
                     accessibilityLabel={`${titre}. ${detail}`}
                   >
-                    <Text style={styles.choixTitre}>{titre}</Text>
-                    <Text style={styles.choixDetail}>{detail}</Text>
+                    <Text style={[styles.choixTitre, payerMaintenant === valeur && styles.choixTitreActif]}>{titre}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -224,12 +226,19 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
 }
 
 const styles = StyleSheet.create({
-  demarrage: { gap: espacements.s2, marginTop: espacements.s3, marginBottom: espacements.s2 },
-  demarrageTitre: { fontSize: 15, fontWeight: "700", color: couleurs.navy },
-  choix: { borderWidth: 2, borderColor: couleurs.bordure, borderRadius: rayons.md, padding: espacements.s3, gap: 2, minHeight: 56 },
+  demarrage: { flexDirection: "row", gap: espacements.s2, marginTop: 2, marginBottom: espacements.s2 },
+  choix: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1.5,
+    borderColor: "#D8E1EE",
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   choixActif: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
-  choixTitre: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
-  choixDetail: { fontSize: 13, color: "#5B6B8C" },
+  choixTitre: { fontSize: 14, fontWeight: "600", color: "#3B4A63" },
+  choixTitreActif: { color: couleurs.bleu, fontWeight: "700" },
   // Maquette du 15/10/2026 (seconde version) : titre et sous-titre centrés.
   titre: { fontSize: 28, fontWeight: "800", color: couleurs.navy, letterSpacing: -0.3, textAlign: "center" },
   sousTitre: { fontSize: 14, color: "#5B6B8C", marginTop: 2, marginBottom: 14, textAlign: "center" },

@@ -72,7 +72,10 @@ const styles = StyleSheet.create({
   boite: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 46,
+    // Hauteur FIXE : la saisie et l'œil prennent `height: "100%"` — avec un
+    // simple minHeight, Android étire le champ sur la moitié de l'écran
+    // (constaté au mot de passe de la connexion après la fusion du 16/10/2026).
+    height: 46,
     borderWidth: 1,
     borderColor: "#D8E1EE",
     borderRadius: 12,
