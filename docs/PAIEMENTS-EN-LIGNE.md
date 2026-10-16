@@ -51,7 +51,7 @@ Où payer, selon l'endroit :
 | Site `…/payer` | Connexion du patron puis paiement Mobile Money, dans n'importe quel navigateur (aussi depuis un téléphone). |
 | Application mobile (Play Store) | Bouton « Payer sur le site HotelSaver » (ouvre `…/payer`), ou WhatsApp du support. Réglage : `apps/mobile/src/configAbonnement.ts`. |
 
-> Raison : Google Play impose en général sa propre facturation pour les achats numériques dans une application. L'application mobile ne contient donc plus de formulaire de paiement par défaut (`PAIEMENT_DANS_APPLICATION = false`) ; le paiement, lui, reste disponible partout via le site. Hors Play Store (APK direct) on peut remettre `true`. Voir `docs/ABONNEMENT.md`.
+> Raison : Google Play impose en général sa propre facturation pour les achats numériques dans une application. Pour l'instant le formulaire reste dans l'application mobile (`PAIEMENT_DANS_APPLICATION = true`, décision du 17/10) ; on le retirera (`false`) si Google Play refuse ou taxe ; le paiement, lui, reste disponible partout via le site. Hors Play Store (APK direct) on peut remettre `true`. Voir `docs/ABONNEMENT.md`.
 
 ## Contact support
 **+243 828 497 218** (téléphone et WhatsApp). Réglable dans le super-admin ; affiché dans l'écran Abonnement, l'écran « abonnement expiré », les panneaux « fonction non incluse » et sur le site.

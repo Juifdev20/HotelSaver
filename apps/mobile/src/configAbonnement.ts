@@ -13,9 +13,9 @@
  *   paiement du site. `false` : le bouton disparaît (au cas où Google Play refuserait un lien vers un paiement externe) ; il reste le
  *   texte, l'application Windows et le support WhatsApp. Il suffit de changer ces lignes puis de republier : aucun autre fichier à modifier.
  *
- * Application publiée HORS Play Store (APK envoyé directement) : on peut remettre `PAIEMENT_DANS_APPLICATION = true`.
+ * Décision actuelle (17/10/2026) : on GARDE le paiement dans l'application (`true`) et on le retirera (`false`) si Google Play nous le refuse ou nous taxe.
  */
-export const PAIEMENT_DANS_APPLICATION = false;
+export const PAIEMENT_DANS_APPLICATION = true;
 
 export const AFFICHER_LIEN_PAIEMENT_SITE = true;
 
