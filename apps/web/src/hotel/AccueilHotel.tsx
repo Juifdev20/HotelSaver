@@ -6,7 +6,7 @@ import { CalendarDays, Clock, Mail, MapPin, MessageCircle, Navigation, Phone, X 
 import { listerChambresDisponibles } from "@hotel-chicago/api-client";
 import { useDialogue } from "@hotel-chicago/ui";
 import { RESEAUX_SOCIAUX } from "@hotel-chicago/types";
-import type { Chambre, InfoHotelPublique } from "@hotel-chicago/types";
+import type { Chambre, ChambrePublique, InfoHotelPublique } from "@hotel-chicago/types";
 import { configuration } from "../config";
 import { cheminHotel } from "../resoudreSousDomaine";
 import { Apparition } from "../accueil/animations";
@@ -156,7 +156,7 @@ function APropos({ info }: { info: InfoHotelPublique }) {
 }
 
 function ChambresApercu({ sousDomaine, reservation }: { sousDomaine: string; reservation: boolean }) {
-  const [chambres, setChambres] = useState<Chambre[] | null>(null);
+  const [chambres, setChambres] = useState<ChambrePublique[] | null>(null);
 
   useEffect(() => {
     let annule = false;
@@ -183,7 +183,9 @@ function ChambresApercu({ sousDomaine, reservation }: { sousDomaine: string; res
   if (chambres.length === 0) return null;
 
   // Les chambres avec photo d'abord : c'est ce qui donne envie.
-  const choisies = [...chambres].sort((a, b) => (b.photos?.length ?? 0) - (a.photos?.length ?? 0)).slice(0, 3);
+  // Les chambres libres d'abord, puis avec photo ; une chambre déjà réservée garde son étiquette « Déjà réservée ».
+  const libre = (c: ChambrePublique) => (c.disponibilite === "DISPONIBLE" ? 1 : 0);
+  const choisies = [...chambres].sort((a, b) => libre(b) - libre(a) || (b.photos?.length ?? 0) - (a.photos?.length ?? 0)).slice(0, 3);
 
   return (
     <section id="chambres" className="hotel-section hotel-section--alt">

@@ -93,6 +93,11 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     });
     // E : l'autre réservation (chambre 102, en cours) porte un acompte de 20 $ ; D : une commande web pointe vers un écran de cafétaria.
     await p.reservation.update({ where: { id: E.reservationTermineeId }, data: { acompte: 20 } });
+    // E : une chambre 777 déjà réservée (confirmée) et, pour les MÊMES dates, la demande d'un autre client encore en attente → la réception doit voir « Chambre déjà réservée ».
+    const ch777 = await p.chambre.create({ data: { hotelId: E.hotelId, numero: "777", type: "Suite", prixParNuit: 90, devise: "USD" } });
+    const dans = (n: number) => new Date(Date.now() + n * JOUR);
+    await p.reservation.create({ data: { hotelId: E.hotelId, chambreId: ch777.id, clientId: E.clientId, dateArrivee: dans(20), dateDepart: dans(23), statut: "CONFIRMEE", origine: "SITE_PUBLIC", createdBy: E.userIds.recep } });
+    await p.reservation.create({ data: { hotelId: E.hotelId, chambreId: ch777.id, clientId: E.clientId, dateArrivee: dans(21), dateDepart: dans(24), statut: "EN_ATTENTE", origine: "SITE_PUBLIC", createdBy: E.userIds.recep } });
     const notif = (j: JeuHotel, cle: string, type: string, titre: string, lien: object) =>
       p.notification.create({ data: { hotelId: j.hotelId, type, titre, corps: "Test navigateur.", roles: ["PATRON"], lien, cleDedup: cle } });
     await notif(E, "k-E-remb", "REMBOURSEMENT_A_FAIRE", "Acompte à rembourser ?", { ecran: "reservations", id: E.reservationId });
@@ -366,6 +371,9 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     // La réception et le patron voient d'un coup d'œil, dans la liste des réservations, que cet acompte a été payé en ligne (et qu'il attend une décision).
     await menu().getByRole("button", { name: "Réservations", exact: true }).click();
     await expect_(page.getByTestId("badge-paye-en-ligne")).toContainText("Payé en ligne · à rembourser ?", 30_000);
+    // Demande en attente sur une chambre DÉJÀ réservée par un autre client : signalée en rouge dans la liste (une seule, celle de la chambre 777).
+    await expect_(page.getByTestId("badge-chambre-deja-prise")).toContainText("Chambre déjà réservée");
+    await expect_(page.getByTestId("badge-chambre-deja-prise")).toHaveCount(1);
 
     // La notification « Acompte à rembourser ? » ouvre l'écran Remboursements.
     await page.getByRole("button", { name: /^Notifications/ }).click();

@@ -18,6 +18,7 @@ import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 import { genererPalette } from "../common/palette/generer-palette";
 import { CreerCommandeWebDto } from "./dto/creer-commande-web.dto";
 import { CreerDemandeReservationDto } from "./dto/creer-demande-reservation.dto";
+import { MESSAGE_CHAMBRE_EN_COURS, MESSAGE_CHAMBRE_RESERVEE, chambresPrises } from "../common/disponibilite-chambre";
 import { FindChambresDisponiblesQueryDto } from "./dto/find-chambres-disponibles.query.dto";
 import { FindHotelPublicQueryDto } from "./dto/find-hotel-public.query.dto";
 import { FindMenuQueryDto } from "./dto/find-menu.query.dto";
@@ -36,7 +37,6 @@ const MOTIF_ANNULATION_CLIENT = "Annulée par le client depuis le site";
 /** Réservations qui bloquent réellement une chambre (voir ReservationsService —
  * dupliqué ici volontairement : ce service public ne doit dépendre d'aucun
  * état interne du module Réservations, juste de la base). */
-const STATUTS_OCCUPANTS = ["CONFIRMEE", "EN_COURS"] as const;
 
 /** Utilisateur.id n'existe pas pour un visiteur anonyme du site public ; comme
  * Reservation.createdBy est un simple champ String (pas une relation Prisma
@@ -228,34 +228,40 @@ export class PublicService {
     return { ok: true };
   }
 
+  /**
+   * Les chambres de l'hôtel avec leur disponibilité pour la période demandée (par défaut : aujourd'hui) :
+   * DISPONIBLE, RESERVEE (déjà prise : acompte payé ou réservation confirmée) ou EN_COURS_DE_PAIEMENT (un autre client est en train de payer).
+   * Les chambres prises restent visibles, marquées « Déjà réservée » : le site ne les cache plus, il ne laisse simplement pas les réserver.
+   * Sans dates, `libreLe` dit à partir de quand une chambre prise redevient libre. Rien sur l'autre client n'est jamais renvoyé.
+   */
   async findChambresDisponibles(query: FindChambresDisponiblesQueryDto) {
     const { id: hotelId } = await this.resoudreHotel(query.sousDomaine);
 
-    if (!query.dateArrivee || !query.dateDepart) {
-      return this.prisma.chambre.findMany({ where: { hotelId, statut: StatutChambre.LIBRE }, select: CHAMPS_CHAMBRE_PUBLICS, orderBy: { numero: "asc" } });
+    let debut: Date;
+    let fin: Date;
+    const avecDates = Boolean(query.dateArrivee && query.dateDepart);
+    if (avecDates) {
+      debut = new Date(query.dateArrivee!);
+      fin = new Date(query.dateDepart!);
+      if (debut >= fin) {
+        throw new BadRequestException("La date de départ doit être postérieure à la date d'arrivée.");
+      }
+    } else {
+      debut = new Date(new Date().toISOString().slice(0, 10));
+      fin = new Date(debut.getTime() + 86_400_000);
     }
 
-    const dateArrivee = new Date(query.dateArrivee);
-    const dateDepart = new Date(query.dateDepart);
-    if (dateArrivee >= dateDepart) {
-      throw new BadRequestException("La date de départ doit être postérieure à la date d'arrivée.");
-    }
-
-    const chambresOccupees = await this.prisma.reservation.findMany({
-      where: {
-        hotelId,
-        statut: { in: [...STATUTS_OCCUPANTS] },
-        dateArrivee: { lt: dateDepart },
-        dateDepart: { gt: dateArrivee },
-      },
-      select: { chambreId: true },
-    });
-    const idsOccupees = chambresOccupees.map((r) => r.chambreId);
-
-    return this.prisma.chambre.findMany({
-      where: { hotelId, id: { notIn: idsOccupees } },
-      select: CHAMPS_CHAMBRE_PUBLICS,
-      orderBy: { numero: "asc" },
+    const [chambres, prises] = await Promise.all([
+      this.prisma.chambre.findMany({ where: { hotelId }, select: CHAMPS_CHAMBRE_PUBLICS, orderBy: { numero: "asc" } }),
+      chambresPrises(this.prisma, { hotelId, debut, fin }),
+    ]);
+    return chambres.map((c) => {
+      const prise = prises.get(c.id);
+      return {
+        ...c,
+        disponibilite: prise ? prise.etat : ("DISPONIBLE" as const),
+        libreLe: prise && !avecDates ? prise.libreLe.toISOString().slice(0, 10) : null,
+      };
     });
   }
 
@@ -485,9 +491,11 @@ export class PublicService {
       throw new BadRequestException("La date de départ doit être postérieure à la date d'arrivée.");
     }
 
-    // Une demande EN_ATTENTE n'occupe pas la chambre (voir ReservationsService) :
-    // plusieurs demandes peuvent chevaucher la même période, à arbitrer par la
-    // réception. Pas de vérification de conflit ici, volontairement.
+    // Une demande EN_ATTENTE n'occupe pas la chambre (voir ReservationsService) : plusieurs demandes peuvent chevaucher la même période, à
+    // arbitrer par la réception. MAIS une chambre déjà prise (réservation confirmée, acompte payé) ne se demande plus, ni pendant qu'un autre
+    // client est en train de la payer : le site la montre « Déjà réservée » et le serveur refuse, même si quelqu'un contourne l'écran.
+    const prise = (await chambresPrises(this.prisma, { hotelId, debut: dateArrivee, fin: dateDepart, chambreId: chambre.id })).get(chambre.id);
+    if (prise) throw new ConflictException(prise.etat === "RESERVEE" ? MESSAGE_CHAMBRE_RESERVEE : MESSAGE_CHAMBRE_EN_COURS);
 
     // Jamais de fusion avec une fiche existante depuis le canal public : n'importe qui peut taper le téléphone d'un vrai client et
     // se rattacher à sa fiche (nom, pièce d'identité visibles sur la page de suivi, fiche écrasée au pré-enregistrement).

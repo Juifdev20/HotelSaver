@@ -1750,3 +1750,21 @@
     transition: none;
   }
 }
+
+/* Chambre déjà réservée : visible, estompée, sans bouton. */
+.chambre-carte--prise .chambre-carte__media {
+  filter: grayscale(0.7);
+  opacity: 0.8;
+}
+.chambre-carte__etiquette--prise {
+  background: var(--hc-danger);
+}
+.chambre-carte__prise {
+  margin: 0;
+  padding: var(--hc-space-3) var(--hc-space-4);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hc-danger);
+  background: var(--hc-danger-light);
+  border-radius: 0 0 var(--hc-radius-md) var(--hc-radius-md);
+}

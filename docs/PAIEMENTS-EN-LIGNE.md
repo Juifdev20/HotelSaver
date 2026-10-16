@@ -61,6 +61,14 @@ Dès que ScanLinkPay confirme le paiement du client :
 4. Si la réservation est annulée, le repère devient **« à rembourser ? »**, puis **« remboursé »** ou **« conservé »** selon la décision du patron.
 Le repère vient du serveur (`GET /acomptes-en-ligne`, réception et patron, réservations dont le départ date de moins de 45 jours ou à venir) : sans Internet il n'apparaît pas, mais le montant d'acompte reste affiché. Le client, lui, voit son paiement sur sa page « Ma réservation ». L'argent est déjà dans le compte ScanLinkPay de l'hôtel : rien à encaisser à l'arrivée pour cette part.
 
+## Une chambre réservée ne se réserve plus une deuxième fois
+Règle unique (serveur, `common/disponibilite-chambre.ts`) pour le site, la demande de réservation et le paiement de l'acompte :
+- **Déjà réservée** : une réservation **confirmée** (acompte payé en ligne, ou validée par la réception) ou **en cours** couvre ces dates. Sur le **site de l'hôtel** la chambre reste visible, marquée « Déjà réservée » (et « Libre à partir du … » quand on n'a pas choisi de dates), **sans bouton** pour la demander. Le serveur la refuse aussi (409) si quelqu'un contourne l'écran : demande de réservation comme paiement.
+- **Réservation en cours** : pendant qu'un client attend la confirmation de son paiement (jusqu'à 10 minutes), la chambre lui est **retenue** : les autres la voient « Réservation en cours » et ne peuvent ni la payer ni la demander. Le premier qui confirme garde la chambre ; si le paiement échoue, elle se libère.
+- Un client qui avait déjà envoyé une demande pour ces dates voit, sur sa page « Ma réservation », que la chambre vient d'être réservée par un autre client **avant** de payer (rien n'est débité pour rien).
+- **Réception et patron** : la demande en attente dont la chambre est déjà prise est signalée « Chambre déjà réservée » dans la liste (Windows et mobile), un avertissement rouge s'affiche dans sa fiche et « Confirmer la demande » est grisé : proposer une autre chambre ou d'autres dates, ou refuser. L'écran « Nouvelle réservation » grise déjà les chambres « déjà réservées sur la période ». Le jour du départ est libre : on peut arriver le jour où l'autre repart.
+- Aucune information sur l'autre client n'est jamais montrée.
+
 ## Contact support
 **+243 828 497 218** (téléphone et WhatsApp). Réglable dans le super-admin ; affiché dans l'écran Abonnement, l'écran « abonnement expiré », les panneaux « fonction non incluse » et sur le site.
 

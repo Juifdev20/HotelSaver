@@ -4,6 +4,7 @@ import type {
   FormulesPubliques,
   PaiementReservationVue,
   Chambre,
+  ChambrePublique,
   CommandeWebCreee,
   CommandeWebPayload,
   DemandeReservationPayload,
@@ -64,7 +65,7 @@ export function listerChambresDisponibles(
   config: ConfigApiPublique,
   sousDomaine: string,
   dates?: { dateArrivee: string; dateDepart: string }
-): Promise<Chambre[]> {
+): Promise<ChambrePublique[]> {
   const params = new URLSearchParams({ sousDomaine, ...(dates ?? {}) }).toString();
   return requetePublique(config, `/public/chambres-disponibles?${params}`);
 }

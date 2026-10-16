@@ -2,6 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { peutOperer } from "@hotel-chicago/types";
+import { demandesSurChambrePrise } from "@hotel-chicago/regles";
 import type { Reservation, StatutReservation } from "@hotel-chicago/types";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -108,6 +109,8 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
   const [vue, setVue] = useState<Vue>(reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" });
   const [segment, setSegment] = useState<SegmentId>(segmentInitial);
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
+  // Demandes en attente dont la chambre est DÉJÀ prise par un autre client (acompte payé, réservation confirmée).
+  const demandesBloquees = useMemo(() => demandesSurChambrePrise(reservations ?? []), [reservations]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
 
@@ -262,6 +265,7 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
                     {item.origine === "SITE_PUBLIC" ? " · site public" : ""}
                   </Text>
                   <BadgePayeEnLigne paiements={acomptes.get(item.id)} />
+                  {demandesBloquees.has(item.id) && <Text style={styles.chambreDejaPrise}>Chambre déjà réservée par un autre client</Text>}
                   {item.note && <Text style={styles.noteTexte}>Note : {item.note}</Text>}
                   {item.preEnregistreLe && (
                     <Text style={styles.preEnregistre}>
@@ -329,5 +333,6 @@ const styles = StyleSheet.create({
   ligne: { fontSize: 14, color: couleurs.encre },
   ligneSecondaire: { fontSize: 12, color: couleurs.encreAttenuee },
   noteTexte: { fontSize: 12, color: couleurs.violet, fontStyle: "italic" },
+  chambreDejaPrise: { fontSize: 12, fontWeight: "700", color: couleurs.danger },
   preEnregistre: { fontSize: 12, fontWeight: "600", color: couleurs.succes },
 });

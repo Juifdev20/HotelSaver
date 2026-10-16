@@ -10,6 +10,7 @@ import { messages } from "../notifications/messages";
 import { estViolationChevauchement } from "../common/chevauchement";
 import { ErreurLinkPay, LinkPayClient, type FraisPaiement, type ModeleCommission } from "../abonnement/linkpay.client";
 import { depuisCentimes, nombreDeNuits, objectifAcompte, resteAPayer, versCentimes } from "./calcul-acompte";
+import { MESSAGE_CHAMBRE_EN_COURS, MESSAGE_CHAMBRE_RESERVEE, chambresPrises } from "../common/disponibilite-chambre";
 import { RemboursementsService } from "./remboursements.service";
 import { urlScanLinkPay } from "./reglages-paiement.service";
 import type { PayerAcompteDto } from "./dto/paiement-reservation.dto";
@@ -103,6 +104,11 @@ export class PaiementReservationService {
     else if (Date.now() > reservation.dateArrivee.getTime() + 24 * 3600_000) indisponibleRaison = "La date d'arrivée est passée.";
     else if (objectif <= 0) indisponibleRaison = "Aucun acompte n'est demandé pour cette réservation.";
     else if (reste <= 0) indisponibleRaison = "L'acompte est déjà payé. Merci !";
+    else if (reservation.statut === "EN_ATTENTE") {
+      // Une autre personne a déjà confirmé (ou est en train de payer) cette chambre pour ces dates : on le dit AVANT de payer, pas après.
+      const prise = (await chambresPrises(this.prisma, { hotelId: reservation.hotelId, debut: reservation.dateArrivee, fin: reservation.dateDepart, chambreId: reservation.chambreId, exclureReservationId: reservation.id })).get(reservation.chambreId);
+      if (prise) indisponibleRaison = prise.etat === "RESERVEE" ? "Cette chambre vient d'être réservée par un autre client pour ces dates. L'hôtel va vous contacter pour vous proposer une autre chambre ou d'autres dates." : MESSAGE_CHAMBRE_EN_COURS;
+    }
 
     const remboursement = await this.prisma.remboursement.findFirst({ where: { reservationId: reservation.id }, orderBy: { createdAt: "desc" } });
     const remboursementVue: RemboursementClientVue | null = remboursement
@@ -182,12 +188,10 @@ export class PaiementReservationService {
       telephone = numeroInternational(dto.telephone)!;
     }
 
-    // La chambre doit être libre pour ces dates AU MOMENT de payer : on n'encaisse jamais un acompte pour une chambre déjà prise.
-    const prise = await this.prisma.reservation.findFirst({
-      where: { chambreId: reservation.chambreId, id: { not: reservation.id }, statut: { in: ["CONFIRMEE", "EN_COURS"] }, dateArrivee: { lt: reservation.dateDepart }, dateDepart: { gt: reservation.dateArrivee } },
-      select: { id: true },
-    });
-    if (prise) throw new ConflictException("Cette chambre n'est plus disponible pour ces dates. Contactez l'hôtel ou choisissez d'autres dates.");
+    // La chambre doit être libre pour ces dates AU MOMENT de payer : on n'encaisse jamais un acompte pour une chambre déjà prise, ni pendant
+    // qu'un AUTRE client est en train de payer la même (retenue de 10 minutes) — le premier qui confirme garde la chambre.
+    const prise = (await chambresPrises(this.prisma, { hotelId: hotel.id, debut: reservation.dateArrivee, fin: reservation.dateDepart, chambreId: reservation.chambreId, exclureReservationId: reservation.id })).get(reservation.chambreId);
+    if (prise) throw new ConflictException(prise.etat === "RESERVEE" ? MESSAGE_CHAMBRE_RESERVEE : MESSAGE_CHAMBRE_EN_COURS);
 
     const recent = await this.prisma.paiementReservation.findFirst({ where: { reservationId: reservation.id, statut: "EN_ATTENTE", createdAt: { gt: new Date(Date.now() - DELAI_NOUVEL_ESSAI_MS) } } });
     if (recent) throw new ConflictException("Un paiement est déjà en attente de confirmation. Validez-le sur votre téléphone, ou patientez quelques minutes avant de réessayer.");

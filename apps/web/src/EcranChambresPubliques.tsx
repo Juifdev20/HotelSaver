@@ -2,16 +2,15 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ErreurApi, listerChambresDisponibles } from "@hotel-chicago/api-client";
-import type { Chambre, InfoHotelPublique } from "@hotel-chicago/types";
+import type { ChambrePublique, InfoHotelPublique } from "@hotel-chicago/types";
 import { configuration } from "./config";
 import { FormulaireDemandeReservation } from "./FormulaireDemandeReservation";
 import { CarteChambre } from "./hotel/CarteChambre";
 import { Apparition } from "./accueil/animations";
 import { reservationOuverte } from "./hotel/reservation";
 
-/** Le backend ne renvoie déjà que des chambres disponibles (voir
- * PublicService.findChambresDisponibles) — "Disponible" est donc vrai pour
- * chaque ligne affichée ici, pas une donnée à recalculer côté client.
+/** Le serveur renvoie TOUTES les chambres avec leur disponibilité pour la période (voir PublicService.findChambresDisponibles) : les chambres
+ * déjà réservées restent visibles, marquées « Déjà réservée », sans bouton pour les demander. La disponibilité n'est jamais recalculée ici.
  * Les dates peuvent arriver pré-remplies (`?arrivee=&depart=`) depuis la
  * barre de recherche de l'accueil de l'hôtel. */
 export function EcranChambresPubliques({ sousDomaine, info }: { sousDomaine: string; info: InfoHotelPublique }) {
@@ -19,10 +18,10 @@ export function EcranChambresPubliques({ sousDomaine, info }: { sousDomaine: str
   const [params] = useSearchParams();
   const [dateArrivee, setDateArrivee] = useState(params.get("arrivee") ?? "");
   const [dateDepart, setDateDepart] = useState(params.get("depart") ?? "");
-  const [chambres, setChambres] = useState<Chambre[]>([]);
+  const [chambres, setChambres] = useState<ChambrePublique[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
-  const [chambreChoisie, setChambreChoisie] = useState<Chambre | null>(null);
+  const [chambreChoisie, setChambreChoisie] = useState<ChambrePublique | null>(null);
 
   const datesChoisies = Boolean(dateArrivee && dateDepart && dateArrivee < dateDepart);
 
@@ -111,10 +110,13 @@ export function EcranChambresPubliques({ sousDomaine, info }: { sousDomaine: str
                 />
               </Apparition>
             ))}
-            {chambres.length === 0 && <p className="hotel-vide">Aucune chambre disponible pour cette période.</p>}
+            {chambres.length === 0 && <p className="hotel-vide">Aucune chambre à afficher pour le moment.</p>}
+            {chambres.length > 0 && chambres.every((c) => c.disponibilite !== "DISPONIBLE") && (
+              <p className="hotel-vide">Toutes nos chambres sont déjà réservées pour cette période. Essayez d'autres dates.</p>
+            )}
           </div>
         )}
-        {reservation && !datesChoisies && !chargement && chambres.length > 0 && (
+        {reservation && !datesChoisies && !chargement && chambres.some((c) => c.disponibilite === "DISPONIBLE") && (
           <p className="hotel-astuce">Sélectionnez une date d'arrivée et de départ pour pouvoir réserver.</p>
         )}
       </div>

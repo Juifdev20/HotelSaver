@@ -4,13 +4,13 @@ import { Captcha, captchaActif } from "./Captcha";
 import { useNavigate } from "react-router-dom";
 import { Button, useDialogue } from "@hotel-chicago/ui";
 import { ErreurApi, creerDemandeReservationPublique } from "@hotel-chicago/api-client";
-import type { Chambre } from "@hotel-chicago/types";
+import type { Chambre, ChambrePublique } from "@hotel-chicago/types";
 import { configuration } from "./config";
 import { cheminHotel } from "./resoudreSousDomaine";
 
 export interface FormulaireDemandeReservationProps {
   sousDomaine: string;
-  chambre: Chambre;
+  chambre: Chambre | ChambrePublique;
   dateArrivee: string;
   dateDepart: string;
   onFermer: () => void;

@@ -194,6 +194,19 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
       expect(hotel.statutLicence).toBe("ESSAI");
     }
   });
+
+  it("(e) site de l'hôtel : la chambre déjà réservée est marquée « Déjà réservée », sans bouton ; les autres restent réservables", async () => {
+    const r = await p.reservation.findUnique({ where: { id: C.reservationId } });
+    const jour = (d: Date) => d.toISOString().slice(0, 10);
+    const hotel = await p.hotel.findUnique({ where: { id: C.hotelId } });
+    await p.chambre.create({ data: { hotelId: C.hotelId, numero: "250", type: "Libre", prixParNuit: 40, devise: "USD" } });
+    await page.goto(`${siteUrl}/chambres?hotel=${hotel.sousDomaine}&arrivee=${jour(r.dateArrivee)}&depart=${jour(r.dateDepart)}`);
+    await expect_(page.locator('[data-disponibilite="RESERVEE"]')).toBeVisible(30_000);
+    await expect_(page.locator('[data-disponibilite="RESERVEE"]')).toContainText("Déjà réservée");
+    expect(await page.locator('[data-disponibilite="RESERVEE"]').getByRole("button").count()).toBe(0);
+    await expect_(page.locator('[data-disponibilite="DISPONIBLE"]')).toBeVisible();
+    await expect_(page.locator('[data-disponibilite="DISPONIBLE"]').getByRole("button", { name: "Demander cette chambre" })).toBeVisible();
+  });
 });
 
 function expect_(cible: any, delai = 15_000) {

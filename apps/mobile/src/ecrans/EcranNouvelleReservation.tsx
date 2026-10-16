@@ -269,13 +269,13 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
                     disabled={occupee}
                     onPress={() => setChambreChoisie(chambre)}
                     accessibilityRole="radio"
-                    accessibilityLabel={`Chambre ${chambre.numero}, ${chambre.type}, ${formatMontant(chambre.prixParNuit, chambre.devise)} par nuit${occupee ? ", occupée sur ces dates" : ""}`}
+                    accessibilityLabel={`Chambre ${chambre.numero}, ${chambre.type}, ${formatMontant(chambre.prixParNuit, chambre.devise)} par nuit${occupee ? ", déjà réservée sur ces dates" : ""}`}
                     accessibilityState={{ checked: choisie, disabled: occupee }}
                   >
                     <Text style={[styles.chambreNumero, occupee && styles.texteBarre]}>{chambre.numero}</Text>
                     <Text style={styles.chambreInfo} numberOfLines={1}>
                       {chambre.type} · {formatMontant(chambre.prixParNuit, chambre.devise)}
-                      {occupee ? " · occupée" : ""}
+                      {occupee ? " · déjà réservée" : ""}
                     </Text>
                   </Pressable>
                 );

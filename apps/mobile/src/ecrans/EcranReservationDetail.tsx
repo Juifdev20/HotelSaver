@@ -1,3 +1,4 @@
+import { TEXTE_CHAMBRE_DEJA_PRISE, demandesSurChambrePrise } from "@hotel-chicago/regles";
 import { useAcomptesEnLigne } from "../hooks/useAcomptesEnLigne";
 import { BlocPayeEnLigne } from "../composants/PayeEnLigne";
 import * as React from "react";
@@ -90,11 +91,17 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
   const [erreurFeuille, setErreurFeuille] = useState<string | null>(null);
   const [messageWhatsApp, setMessageWhatsApp] = useState("");
 
+  // La chambre de cette demande est-elle DÉJÀ prise par un autre client (acompte payé, réservation confirmée) ? Calculé sur les réservations du téléphone.
+  const [chambrePrise, setChambrePrise] = useState(false);
   const recharger = useCallback(() => {
     client
       .obtenirReservation(reservationId)
       .then(setReservation)
       .catch((e: unknown) => setErreur(messageErreur(e, "La réservation n'a pas pu être chargée. Réessayez.")));
+    client
+      .listerReservations()
+      .then((toutes) => setChambrePrise(demandesSurChambrePrise(toutes).has(reservationId)))
+      .catch(() => undefined);
   }, [reservationId, client]);
 
   useEffect(recharger, [recharger]);
@@ -456,9 +463,14 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
             </Pressable>
           </View>
 
+          {statut === "EN_ATTENTE" && chambrePrise && (
+            <Text style={styles.chambrePrise} accessibilityRole="alert">
+              {TEXTE_CHAMBRE_DEJA_PRISE}
+            </Text>
+          )}
           <View style={styles.actions}>
             {peutOperer(utilisateur) && statut === "EN_ATTENTE" &&
-              bouton("confirmer", "Confirmer la demande", confirmer, true)}
+              bouton("confirmer", "Confirmer la demande", confirmer, !chambrePrise)}
             {peutOperer(utilisateur) && statut === "CONFIRMEE" &&
               bouton("checkin", "Check-in", checkIn, true)}
             {peutOperer(utilisateur) && (statut === "CONFIRMEE" || statut === "EN_COURS") &&
@@ -655,6 +667,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
 }
 
 const styles = StyleSheet.create({
+  chambrePrise: { color: couleurs.danger, backgroundColor: couleurs.dangerClair, fontSize: 13, fontWeight: "600", padding: espacements.s3, borderRadius: rayons.sm },
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
   messageInfo: { color: couleurs.succes, fontSize: 13, paddingHorizontal: espacements.s4 },

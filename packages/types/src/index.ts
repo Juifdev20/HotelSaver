@@ -111,6 +111,22 @@ export interface Chambre {
   syncVersion: number;
 }
 
+/** Disponibilité d'une chambre sur le site public pour la période demandée. RESERVEE = déjà prise (acompte payé ou réservation confirmée). */
+export type DisponibiliteChambrePublique = "DISPONIBLE" | "RESERVEE" | "EN_COURS_DE_PAIEMENT";
+
+/** Une chambre telle que le site public la montre : seulement ce qui est public, plus sa disponibilité. */
+export interface ChambrePublique {
+  id: string;
+  numero: string;
+  type: string;
+  prixParNuit: string;
+  devise: Devise;
+  photos: string[];
+  disponibilite: DisponibiliteChambrePublique;
+  /** Sans dates choisies : premier jour où une chambre prise redevient libre (AAAA-MM-JJ) ; sinon null. */
+  libreLe: string | null;
+}
+
 /** Forme JSON d'un Produit (Decimal → string, voir Chambre). */
 export interface Produit {
   id: string;

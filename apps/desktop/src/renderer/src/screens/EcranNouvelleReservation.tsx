@@ -192,7 +192,7 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
               {chambres.map((c) => (
                 <option key={c.id} value={c.id} disabled={chambresOccupees.has(c.id)}>
                   {c.numero} · {c.type} · {formatMontant(c.prixParNuit, c.devise)}
-                  {chambresOccupees.has(c.id) ? " · occupée sur la période" : ""}
+                  {chambresOccupees.has(c.id) ? " · déjà réservée sur la période" : ""}
                 </option>
               ))}
             </select>

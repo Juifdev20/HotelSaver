@@ -333,6 +333,70 @@ decrire("Acompte payé en ligne sur le compte ScanLinkPay de l'hôtel, puis remb
     });
   });
 
+  describe("chambre déjà réservée : visible « Déjà réservée », jamais réservable par un autre", () => {
+    let chambre: { id: string };
+    const liste = (q: object = {}) => http().get("/public/chambres-disponibles").query({ sousDomaine: "hotel-a", ...q });
+    const dispo = async (q: object) => (await liste(q).expect(200)).body.find((c: any) => c.id === chambre.id)?.disponibilite;
+    const demanderBrut = (du: number, au: number, nom: string) =>
+      http().post("/public/reservations").send({ sousDomaine: "hotel-a", chambreId: chambre.id, client: { nom, telephone: "0828497218" }, dateArrivee: dateIso(du), dateDepart: dateIso(au) });
+
+    it("avant tout paiement la chambre est disponible ; le site liste TOUTES les chambres avec leur statut", async () => {
+      chambre = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "401", type: "Suite", prixParNuit: 80, devise: "USD" } });
+      const l = (await liste({ dateArrivee: dateIso(100), dateDepart: dateIso(103) }).expect(200)).body;
+      expect(l.length).toBeGreaterThanOrEqual(2);
+      expect(l.every((c: any) => c.disponibilite === "DISPONIBLE")).toBe(true);
+      expect(JSON.stringify(l)).not.toContain(A.hotelId);
+    });
+
+    let premier: { id: string; jeton: string };
+    let second: { id: string; jeton: string };
+    it("pendant qu'un client PAIE (en attente de confirmation sur son téléphone), la chambre est retenue : « Réservation en cours » pour les autres", async () => {
+      premier = (await demanderBrut(100, 103, "Premier client").expect(201)).body;
+      premier = { id: premier.id, jeton: (premier as any).jetonSuivi };
+      second = (await demanderBrut(101, 104, "Second client").expect(201)).body; // une demande simple ne bloque pas (arbitrée par la réception)
+      second = { id: second.id, jeton: (second as any).jetonSuivi };
+      const pay = await payer(premier.jeton, {}).expect(201);
+      expect(await dispo({ dateArrivee: dateIso(101), dateDepart: dateIso(102) })).toBe("EN_COURS_DE_PAIEMENT");
+      // L'autre client ne peut ni payer ni refaire une demande sur ces dates, et la page le lui dit AVANT.
+      const s = (await suivi(second.jeton).expect(200)).body;
+      expect(s.acompteEnLigne).toMatchObject({ disponible: false, indisponibleRaison: expect.stringMatching(/en cours de réservation par un autre client/) });
+      await payer(second.jeton, {}).expect(409);
+      expect((await demanderBrut(102, 103, "Troisième").expect(409)).body.message).toMatch(/en cours de réservation/);
+      faux.dernier().statut = "SUCCESS";
+      await lire(premier.jeton, pay.body.id).expect(200);
+    });
+
+    it("dès l'acompte payé : « Déjà réservée » sur le site, demande et paiement refusés pour les mêmes dates", async () => {
+      expect((await reservation(premier.id)).statut).toBe("CONFIRMEE");
+      expect(await dispo({ dateArrivee: dateIso(101), dateDepart: dateIso(102) })).toBe("RESERVEE");
+      expect(await dispo({ dateArrivee: dateIso(100), dateDepart: dateIso(103) })).toBe("RESERVEE");
+      // Un autre client voit la chambre « Déjà réservée » — et la page de sa demande déjà envoyée le lui dit avant qu'il ne paie.
+      const refus = await demanderBrut(102, 105, "Quatrième").expect(409);
+      expect(refus.body.message).toMatch(/déjà réservée/);
+      const s = (await suivi(second.jeton).expect(200)).body;
+      expect(s.acompteEnLigne).toMatchObject({ disponible: false, indisponibleRaison: expect.stringMatching(/vient d'être réservée par un autre client/) });
+      const refusPaiement = await payer(second.jeton, {}).expect(409);
+      expect(refusPaiement.body.message).toMatch(/déjà réservée/);
+      expect(await p.paiementReservation.count({ where: { reservationId: second.id } })).toBe(0);
+    });
+
+    it("les jours libres restent réservables : arrivée le jour du départ de l'autre, ou dates sans rapport ", async () => {
+      expect(await dispo({ dateArrivee: dateIso(103), dateDepart: dateIso(105) })).toBe("DISPONIBLE");
+      expect(await dispo({ dateArrivee: dateIso(120), dateDepart: dateIso(122) })).toBe("DISPONIBLE");
+      await demanderBrut(103, 105, "Départ-arrivée").expect(201);
+    });
+
+    it("sans dates : une chambre occupée aujourd'hui est « Déjà réservée » et dit à partir de quand elle est libre", async () => {
+      const occupee = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "402", type: "Std", prixParNuit: 30, devise: "USD" } });
+      const client = await p.client.findFirst({ where: { hotelId: A.hotelId } });
+      await p.reservation.create({ data: { hotelId: A.hotelId, chambreId: occupee.id, clientId: client.id, dateArrivee: new Date(Date.now() - 1 * JOUR), dateDepart: new Date(Date.now() + 2 * JOUR), statut: "EN_COURS", origine: "RECEPTION", createdBy: client.id } });
+      const l = (await liste().expect(200)).body;
+      const c = l.find((x: any) => x.id === occupee.id);
+      expect(c.disponibilite).toBe("RESERVEE");
+      expect(c.libreLe).toBe(dateIso(2));
+    });
+  });
+
   describe("la formule commande le service", () => {
     it("si la formule ne contient plus l'acompte en ligne, le site ne le propose plus et refuse le paiement", async () => {
       const { jeton } = await demander({ du: 110, au: 111 });

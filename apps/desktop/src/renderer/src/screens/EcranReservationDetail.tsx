@@ -8,6 +8,7 @@ import { Button, formatMontant } from "@hotel-chicago/ui";
 import { Link2, MessageCircle, Pencil } from "lucide-react";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
 import { BlocPayeEnLigne, useAcomptesEnLigne } from "./PayeEnLigne";
+import { TEXTE_CHAMBRE_DEJA_PRISE, demandesSurChambrePrise } from "@hotel-chicago/regles";
 import { StatusBadge } from "@hotel-chicago/ui";
 import { lireMontant } from "@hotel-chicago/miroir-local";
 
@@ -68,11 +69,17 @@ export function EcranReservationDetail({
   const [editionReponse, setEditionReponse] = useState(false);
   const [reponseSaisie, setReponseSaisie] = useState("");
 
+  // La chambre de cette demande est-elle DÉJÀ prise par un autre client (acompte payé, réservation confirmée) ? Calculé sur les réservations de l'appareil.
+  const [chambrePrise, setChambrePrise] = useState(false);
   const charger = useCallback(() => {
     client
       .obtenirReservation(reservationId)
       .then(setReservation)
       .catch((e: Error) => setErreur(e.message));
+    client
+      .listerReservations()
+      .then((toutes) => setChambrePrise(demandesSurChambrePrise(toutes).has(reservationId)))
+      .catch(() => undefined);
   }, [client, reservationId]);
 
   useEffect(charger, [charger]);
@@ -423,10 +430,16 @@ export function EcranReservationDetail({
             </div>
           )}
 
+          {statut === "EN_ATTENTE" && chambrePrise && (
+            <p role="alert" className="abo-message abo-message--erreur hc-text-body" data-testid="chambre-deja-prise">
+              {TEXTE_CHAMBRE_DEJA_PRISE}
+            </p>
+          )}
+
           {!edition && (
             <div style={{ display: "flex", gap: "var(--hc-space-2)", flexWrap: "wrap" }}>
               {peutOperer && statut === "EN_ATTENTE" && (
-                <Button type="button" onClick={() => void action(() => client.confirmerReservation(reservationId))} disabled={enCours}>
+                <Button type="button" onClick={() => void action(() => client.confirmerReservation(reservationId))} disabled={enCours || chambrePrise}>
                   Confirmer la demande
                 </Button>
               )}

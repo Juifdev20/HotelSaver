@@ -9,6 +9,7 @@ import { EcranReservationDetail } from "./EcranReservationDetail";
 import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
 import { EcranPlanning } from "./EcranPlanning";
 import { BadgePayeEnLigne, useAcomptesEnLigne } from "./PayeEnLigne";
+import { demandesSurChambrePrise } from "@hotel-chicago/regles";
 
 export interface EcranReservationsProps {
   client: ClientApi;
@@ -96,6 +97,9 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
           r.chambre.numero.toLowerCase().includes(terme))
     );
   }, [reservations, filtreStatut, recherche]);
+
+  // Demandes en attente dont la chambre est DÉJÀ prise par un autre client : signalées en rouge dans la liste.
+  const demandesBloquees = useMemo(() => demandesSurChambrePrise(reservations ?? []), [reservations]);
 
   if (vue.id === "detail") {
     return (
@@ -259,6 +263,11 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
                   </td>
                   <td>
                     <StatusBadge tone={TONE_STATUT[r.statut]} label={LABEL_STATUT[r.statut]} />
+                    {demandesBloquees.has(r.id) && (
+                      <div data-testid="badge-chambre-deja-prise" style={{ marginTop: 2 }}>
+                        <StatusBadge tone="danger" label="Chambre déjà réservée" />
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
