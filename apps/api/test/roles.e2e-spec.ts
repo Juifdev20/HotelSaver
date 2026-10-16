@@ -94,6 +94,7 @@ describe("Matrice de permissions (RolesGuard / SupabaseAuthGuard)", () => {
     paiementLicence: { count: jest.fn().mockResolvedValue(0) },
     chambre: { findMany: jest.fn().mockResolvedValue([]) },
     reservation: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue(null) },
+    paiementReservation: { findMany: jest.fn().mockResolvedValue([]) },
     client: { findMany: jest.fn().mockResolvedValue([]) },
     produit: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
     mouvementStock: { findMany: jest.fn().mockResolvedValue([]) },

@@ -18,6 +18,7 @@ function creerPrismaMock() {
     paiementLicence: { count: jest.fn().mockResolvedValue(0) },
     paiementReservation: { findMany: jest.fn().mockResolvedValue([]) },
     chambre: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    paiementReservation: { findMany: jest.fn().mockResolvedValue([]) },
     reservation: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     hotelSite: { findUnique: jest.fn().mockResolvedValue({ whatsapp: "+243970000000" }) },
     $transaction: jest.fn().mockResolvedValue([]),
@@ -62,14 +63,19 @@ describe("PublicService", () => {
   });
 
   describe("findChambresDisponibles", () => {
-    it("sans dates, retourne les chambres LIBRE uniquement", async () => {
-      await service.findChambresDisponibles({ sousDomaine: "chicago" } as any);
+    it("sans dates, retourne TOUTES les chambres avec leur disponibilité du jour", async () => {
+      prisma.chambre.findMany.mockResolvedValue([{ id: "c1", numero: "1" }, { id: "c2", numero: "2" }]);
+      const dateDepart = new Date(Date.now() + 2 * 86_400_000);
+      prisma.reservation.findMany.mockResolvedValue([{ chambreId: "c1", dateDepart }]);
+      const l = await service.findChambresDisponibles({ sousDomaine: "chicago" } as any);
+      expect(l).toEqual([
+        expect.objectContaining({ id: "c1", disponibilite: "RESERVEE", libreLe: dateDepart.toISOString().slice(0, 10) }),
+        expect.objectContaining({ id: "c2", disponibilite: "DISPONIBLE", libreLe: null }),
+      ]);
       expect(prisma.hotel.findFirst).toHaveBeenCalledWith({
         where: { OR: [{ domainePersonnalise: "chicago" }, { sousDomaine: "chicago" }] },
       });
-      expect(prisma.chambre.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { hotelId: HOTEL_ID, statut: "LIBRE" } })
-      );
+      expect(prisma.chambre.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { hotelId: HOTEL_ID } }));
     });
 
     it("résout aussi bien un nom d'hôte complet (sous-domaine HotelSaver) qu'un domaine personnalisé", async () => {
@@ -85,16 +91,17 @@ describe("PublicService", () => {
       });
     });
 
-    it("avec des dates, exclut les chambres ayant une réservation active qui chevauche", async () => {
-      prisma.reservation.findMany.mockResolvedValue([{ chambreId: "c1" }]);
-      await service.findChambresDisponibles({
+    it("avec des dates, marque « RESERVEE » les chambres ayant une réservation confirmée qui chevauche (elles restent listées)", async () => {
+      prisma.chambre.findMany.mockResolvedValue([{ id: "c1" }, { id: "c2" }]);
+      prisma.reservation.findMany.mockResolvedValue([{ chambreId: "c1", dateDepart: new Date("2026-10-03") }]);
+      const l = await service.findChambresDisponibles({
         sousDomaine: "chicago",
         dateArrivee: "2026-10-01",
         dateDepart: "2026-10-03",
       } as any);
-      expect(prisma.chambre.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { hotelId: HOTEL_ID, id: { notIn: ["c1"] } } })
-      );
+      expect(l.map((c: any) => [c.id, c.disponibilite])).toEqual([["c1", "RESERVEE"], ["c2", "DISPONIBLE"]]);
+      expect(l.every((c: any) => c.libreLe === null)).toBe(true);
+      expect(prisma.reservation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ statut: { in: ["CONFIRMEE", "EN_COURS"] } }) }));
     });
 
     it("refuse une plage de dates invalide", async () => {
@@ -285,6 +292,14 @@ describe("PublicService", () => {
     it("lève NotFoundException si la chambre n'existe pas", async () => {
       prisma.chambre.findUnique.mockResolvedValue(null);
       await expect(service.creerDemandeReservation(dto as any)).rejects.toThrow(NotFoundException);
+    });
+
+    it("refuse (409) une chambre déjà réservée pour ces dates : aucune fiche client ni réservation n'est créée", async () => {
+      prisma.chambre.findUnique.mockResolvedValue({ id: "c1" });
+      prisma.reservation.findMany.mockResolvedValue([{ chambreId: "c1", dateDepart: new Date("2026-10-03") }]);
+      await expect(service.creerDemandeReservation(dto as any)).rejects.toThrow(ConflictException);
+      expect(prisma.client.create).not.toHaveBeenCalled();
+      expect(prisma.reservation.create).not.toHaveBeenCalled();
     });
 
     it("ne se rattache JAMAIS à une fiche client existante (même téléphone) : une nouvelle fiche est créée", async () => {
