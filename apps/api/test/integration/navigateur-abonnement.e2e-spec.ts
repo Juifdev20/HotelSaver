@@ -330,7 +330,7 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await page.getByTestId("utilisateur-connecte").click();
     await page.getByRole("menuitem", { name: /Paramètres/ }).click();
     const carte = page.getByTestId("paiement-en-ligne");
-    await expect_(carte).toContainText("Paiement en ligne des acomptes");
+    await expect_(carte).toContainText("Vos clients paient l'acompte de leur réservation");
 
     // Numéro inconnu de ScanLinkPay : l'erreur du serveur est affichée telle quelle.
     await page.getByLabel("Numéro ScanLinkPay de votre hôtel").fill("SLP-INCONNU");
