@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Download, MailCheck, Monitor, Smartphone, UserPlus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { CreditCard, Download, MailCheck, Monitor, Smartphone, UserPlus } from "lucide-react";
 import { configuration } from "./config";
 import { MiseEnPageAuth } from "./auth/MiseEnPageAuth";
 import { OuvrirApplication } from "./accueil/OuvrirApplication";
@@ -32,7 +33,7 @@ function BoutonTelechargement({ url, icone: Icone, libelle }: { url: string | nu
  * suite — se connecter, créer les comptes réception et cafétaria — se passe
  * obligatoirement dans l'application. Cet écran propose de l'ouvrir si elle est déjà
  * installée, sinon de la télécharger. */
-export function EcranSucces({ email }: { email: string }) {
+export function EcranSucces({ email, payerMaintenant = false }: { email: string; payerMaintenant?: boolean }) {
   return (
     <MiseEnPageAuth>
       <div className="carte-auth">
@@ -63,6 +64,18 @@ export function EcranSucces({ email }: { email: string }) {
             </span>
           </li>
         </ol>
+
+        {payerMaintenant && (
+          <div className="parcours-payer">
+            <p>
+              <CreditCard size={18} aria-hidden="true" /> Vous avez choisi de payer tout de suite. Une fois votre adresse confirmée, payez votre abonnement ici
+              (Mobile Money) :
+            </p>
+            <Link className="bouton-auth" to={`/payer?email=${encodeURIComponent(email)}`}>
+              Payer mon abonnement
+            </Link>
+          </div>
+        )}
 
         <div className="telechargements">
           <OuvrirApplication email={email} />

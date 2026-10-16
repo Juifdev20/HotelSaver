@@ -8,6 +8,7 @@ import { fonctionManquante, ongletsPourRole, type IdOnglet } from "../navigation
 import type { CodeFonction } from "../fonctions";
 import { enregistrerAppareil } from "./push";
 import { navigationRef } from "./navigationRef";
+import { consommerPayerMaintenant } from "../stockage/payerMaintenant";
 
 const INTERVALLE_MS = 30_000;
 
@@ -253,6 +254,21 @@ export function FournisseurNotifications({
     setDemandePlus({ vue: "abonnement", cle: ++compteurDemandes.current });
     if (navigationRef.isReady()) navigationRef.navigate("plus" as never);
   }, []);
+
+  // Le patron a choisi « payer mon abonnement maintenant » à l'inscription : à sa première ouverture de l'application, on lui montre l'écran Abonnement.
+  useEffect(() => {
+    if (role !== Role.PATRON) return;
+    let actif = true;
+    let minuteur: ReturnType<typeof setTimeout> | undefined;
+    void consommerPayerMaintenant().then((oui) => {
+      // Un court délai laisse la navigation finir de s'installer avant de changer d'onglet.
+      if (actif && oui) minuteur = setTimeout(ouvrirAbonnement, 600);
+    });
+    return () => {
+      actif = false;
+      if (minuteur) clearTimeout(minuteur);
+    };
+  }, [role, ouvrirAbonnement]);
 
   const ouvrirRemboursements = useCallback(() => {
     setDemandePlus({ vue: "remboursements", cle: ++compteurDemandes.current });

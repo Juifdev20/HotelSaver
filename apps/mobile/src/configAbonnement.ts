@@ -1,17 +1,27 @@
 /**
- * Paiement de l'abonnement DANS l'application (Mobile Money via ScanLinkPay).
+ * Où le patron paie son abonnement depuis ce téléphone.
  *
- * `true`  : le patron peut payer depuis ce téléphone (écran « Abonnement » et écran d'abonnement expiré).
- * `false` : les écrans masquent tout le formulaire de paiement et affichent à la place
- *           « Pour renouveler, utilisez l'application Windows (Paramètres → Abonnement) ou contactez le support HotelSaver. »
- *           L'état de l'abonnement, les alertes et l'historique restent visibles.
+ * `PAIEMENT_DANS_APPLICATION`
+ *   `true`  : formulaire Mobile Money DANS l'application (écran « Abonnement » et écran d'abonnement expiré).
+ *   `false` : l'application ne vend rien elle-même (règle de Google Play : les produits numériques achetés dans une application
+ *             publiée sur le Play Store doivent passer par Google Play Billing, un paiement Mobile Money intégré peut être refusé).
+ *             L'état de l'abonnement, les alertes et l'historique restent visibles, et le patron est dirigé vers le SITE HotelSaver
+ *             (page « Payer mon abonnement », ouverte dans le navigateur du téléphone), l'application Windows ou le support WhatsApp.
  *
- * À METTRE À `false` SI GOOGLE PLAY REFUSE l'application : ses règles de facturation des produits numériques peuvent
- * exiger Google Play Billing pour un abonnement logiciel acheté dans l'application, et refuser un paiement Mobile Money
- * intégré. Il suffit de changer cette ligne puis de republier : aucun autre fichier n'est à modifier.
+ * `AFFICHER_LIEN_PAIEMENT_SITE`
+ *   Seulement utile quand `PAIEMENT_DANS_APPLICATION` est `false`. `true` : un bouton « Payer sur le site HotelSaver » ouvre la page de
+ *   paiement du site. `false` : le bouton disparaît (au cas où Google Play refuserait un lien vers un paiement externe) ; il reste le
+ *   texte, l'application Windows et le support WhatsApp. Il suffit de changer ces lignes puis de republier : aucun autre fichier à modifier.
+ *
+ * Application publiée HORS Play Store (APK envoyé directement) : on peut remettre `PAIEMENT_DANS_APPLICATION = true`.
  */
-export const PAIEMENT_DANS_APPLICATION = true;
+export const PAIEMENT_DANS_APPLICATION = false;
 
-/** Texte affiché à la place du formulaire de paiement quand `PAIEMENT_DANS_APPLICATION` est `false`. */
+export const AFFICHER_LIEN_PAIEMENT_SITE = true;
+
+/** Adresse de la page de paiement du site si le serveur ne l'a pas (encore) donnée : `EXPO_PUBLIC_SITE_URL` (https), compilée dans l'application. */
+export const URL_PAIEMENT_SITE_SECOURS: string | null = process.env.EXPO_PUBLIC_SITE_URL ? `${process.env.EXPO_PUBLIC_SITE_URL.replace(/\/+$/, "")}/payer` : null;
+
+/** Texte affiché quand `PAIEMENT_DANS_APPLICATION` est `false`. */
 export const TEXTE_RENOUVELER_AILLEURS =
-  "Pour renouveler, utilisez l'application Windows (Paramètres → Abonnement) ou contactez le support HotelSaver.";
+  "Pour payer ou renouveler votre abonnement : utilisez le site HotelSaver (dans votre navigateur), l'application Windows (Paramètres → Abonnement) ou contactez le support HotelSaver.";

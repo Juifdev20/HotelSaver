@@ -40,8 +40,18 @@ Vous définissez dans le super-admin (onglet **Abonnements**) : le nom, le prix 
 - Changer un **prix** n'affecte pas une période déjà payée ; changer les **fonctions** ou le **plafond** s'applique tout de suite aux hôtels abonnés ; une formule utilisée se **désactive** (n'est plus vendue) au lieu de se supprimer.
 
 ## Comment un inconnu qui télécharge l'application s'abonne
-Un hôtel qui découvre l'application sur le Play Store ou le Microsoft Store n'a **pas** besoin du site : il choisit « Créer mon hôtel » dans l'application (bureau ou mobile), reçoit ses **14 jours d'essai**, puis paie son abonnement **dans l'application** (Paramètres → Abonnement), avec son téléphone. Le site public ne sert qu'à la vitrine (tarifs, sites des hôtels).
-> Réserve : Google Play impose en général sa propre facturation pour les achats numériques dans une application. Si l'examen refuse le paiement Mobile Money dans l'APK, mettre `PAIEMENT_DANS_APPLICATION = false` (`apps/mobile/src/configAbonnement.ts`) : le mobile renvoie vers l'application Windows ou le support, tout le reste fonctionne.
+Un hôtel qui découvre l'application n'a **pas** besoin de passer par le site pour s'inscrire : « Créer mon hôtel » existe dans les trois endroits (Windows, mobile, site). À l'inscription il choisit :
+- **Essai gratuit** (par défaut) : 14 jours, toutes fonctions ouvertes ; il choisit sa formule plus tard (Paramètres → Abonnement).
+- **Payer mon abonnement maintenant** : pour ceux qui veulent « ne plus se déranger ». L'application ouvre directement l'écran de paiement à la première connexion (une seule fois ; après confirmation de l'e-mail si besoin) ; sur le site, l'écran de succès donne le bouton « Payer mon abonnement ». **Les jours d'essai restants sont conservés** (ils s'ajoutent à la période payée).
+
+Où payer, selon l'endroit :
+| Où | Comment |
+|---|---|
+| Application Windows | Dans l'application (Paramètres → Abonnement), Mobile Money. |
+| Site `…/payer` | Connexion du patron puis paiement Mobile Money, dans n'importe quel navigateur (aussi depuis un téléphone). |
+| Application mobile (Play Store) | Bouton « Payer sur le site HotelSaver » (ouvre `…/payer`), ou WhatsApp du support. Réglage : `apps/mobile/src/configAbonnement.ts`. |
+
+> Raison : Google Play impose en général sa propre facturation pour les achats numériques dans une application. L'application mobile ne contient donc plus de formulaire de paiement par défaut (`PAIEMENT_DANS_APPLICATION = false`) ; le paiement, lui, reste disponible partout via le site. Hors Play Store (APK direct) on peut remettre `true`. Voir `docs/ABONNEMENT.md`.
 
 ## Contact support
 **+243 828 497 218** (téléphone et WhatsApp). Réglable dans le super-admin ; affiché dans l'écran Abonnement, l'écran « abonnement expiré », les panneaux « fonction non incluse » et sur le site.

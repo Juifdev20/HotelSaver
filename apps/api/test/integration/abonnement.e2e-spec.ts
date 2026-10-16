@@ -68,6 +68,8 @@ decrire("Abonnement : formules, paiement Mobile Money par ScanLinkPay, expiratio
       const r = await vue(A).expect(200);
       expect(r.body.etat).toMatchObject({ statut: "ESSAI", bloque: false, renouvelable: true });
       expect(r.body.paiementEnLigne).toBe(true);
+      // L'adresse de la page « Payer mon abonnement » du site : c'est le bouton « Payer sur le site » de l'application mobile (Google Play).
+      expect(r.body.urlPaiementSite).toMatch(/^https?:\/\/[^ ]+\/payer$/);
       expect(r.body.formules.map((f: any) => f.code)).toEqual(["ESSENTIEL", "PRO", "PREMIUM"]);
       const pro = r.body.formules.find((f: any) => f.code === "PRO");
       expect(pro.durees.find((d: any) => d.mois === 1)).toMatchObject({ prixUsd: 59, prixCdf: 165_500, moisOfferts: 0 });

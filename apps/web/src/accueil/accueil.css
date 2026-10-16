@@ -1557,3 +1557,16 @@ html {
     animation: none;
   }
 }
+
+.formule__payer {
+  display: block;
+  margin-top: var(--hc-space-2);
+  text-align: center;
+  font-size: 14px;
+  color: var(--hc-blue);
+  text-decoration: underline;
+}
+.formule__payer:focus-visible {
+  outline: 3px solid var(--hc-info);
+  outline-offset: 2px;
+}

@@ -1013,6 +1013,8 @@ export interface VueAbonnement {
   fonctions: string[];
   /** Contact du support HotelSaver (téléphone et WhatsApp). */
   contactSupport: { telephone: string; whatsapp: string };
+  /** Page du site où le patron paie son abonnement depuis n'importe quel navigateur (https). Absente sur un serveur plus ancien. */
+  urlPaiementSite?: string;
   formules: FormuleProposee[];
   /** Paiement en cours (Mobile Money envoyé, en attente de confirmation sur le téléphone), s'il y en a un. */
   paiementEnCours: PaiementAbonnementVue | null;

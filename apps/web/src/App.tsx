@@ -9,6 +9,7 @@ import { resoudreSousDomaine } from "./resoudreSousDomaine";
 import { appliquerPalette } from "./appliquerPalette";
 import { EcranInscription } from "./EcranInscription";
 import { EcranSucces } from "./EcranSucces";
+import { EcranPayerAbonnement } from "./payer/EcranPayerAbonnement";
 import { EcranConnexionWeb, EcranMotDePasseOublie, EcranReinitialisation } from "./auth/EcransMotDePasse";
 import { EcranAccueil } from "./EcranAccueil";
 import { BarreMarketing } from "./accueil/BarreMarketing";
@@ -18,12 +19,14 @@ function EcranInscriptionAvecEtat() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
   const [emailInscrit, setEmailInscrit] = useState<string | null>(null);
+  const [veutPayer, setVeutPayer] = useState(false);
 
-  async function sInscrire(dto: InscriptionHotelPayload) {
+  async function sInscrire(dto: InscriptionHotelPayload, payerMaintenant: boolean) {
     setErreur(null);
     setEnCours(true);
     try {
       await inscrireHotel({ url: configuration.apiUrl }, dto);
+      setVeutPayer(payerMaintenant);
       setEmailInscrit(dto.email);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur lors de l'inscription.");
@@ -32,7 +35,7 @@ function EcranInscriptionAvecEtat() {
     }
   }
 
-  if (emailInscrit) return <EcranSucces email={emailInscrit} />;
+  if (emailInscrit) return <EcranSucces email={emailInscrit} payerMaintenant={veutPayer} />;
   return <EcranInscription erreur={erreur} enCours={enCours} onSoumettre={sInscrire} />;
 }
 
@@ -41,6 +44,7 @@ const TITRE_PAGE_MARKETING: Record<string, string> = {
   "/": "Gestion hôtelière",
   "/inscription": "Créer le compte de mon hôtel",
   "/connexion": "Connexion",
+  "/payer": "Payer mon abonnement",
   "/mot-de-passe-oublie": "Mot de passe oublié",
   "/reinitialiser-mot-de-passe": "Nouveau mot de passe",
 };
@@ -48,7 +52,7 @@ const TITRE_PAGE_MARKETING: Record<string, string> = {
 function SiteMarketing() {
   const { pathname } = useLocation();
   useTitrePage(TITRE_PAGE_MARKETING[pathname] ?? "");
-  const surVitrine = ["/", "/inscription", "/connexion", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe"].includes(pathname);
+  const surVitrine = ["/", "/inscription", "/connexion", "/payer", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe"].includes(pathname);
   return (
     <>
       {surVitrine && <BarreMarketing />}
@@ -56,6 +60,7 @@ function SiteMarketing() {
         <Route path="/" element={<EcranAccueil />} />
         <Route path="/inscription" element={<EcranInscriptionAvecEtat />} />
         <Route path="/connexion" element={<EcranConnexionWeb />} />
+        <Route path="/payer" element={<EcranPayerAbonnement />} />
         <Route path="/mot-de-passe-oublie" element={<EcranMotDePasseOublie />} />
         <Route path="/reinitialiser-mot-de-passe" element={<EcranReinitialisation />} />
         <Route path="*" element={<Navigate to="/" replace />} />

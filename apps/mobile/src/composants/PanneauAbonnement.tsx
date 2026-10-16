@@ -21,7 +21,8 @@ import {
 import { Role } from "@hotel-chicago/types";
 import type { ApercuPaiement, EtatAbonnement, FormuleProposee, OperateurMobileMoney, PaiementAbonnementVue, VueAbonnement } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
-import { PAIEMENT_DANS_APPLICATION, TEXTE_RENOUVELER_AILLEURS } from "../configAbonnement";
+import { AFFICHER_LIEN_PAIEMENT_SITE, PAIEMENT_DANS_APPLICATION, TEXTE_RENOUVELER_AILLEURS, URL_PAIEMENT_SITE_SECOURS } from "../configAbonnement";
+import { ouvrirLienSur } from "../liens";
 import { confirmerAction } from "../confirmer";
 import { messageErreur } from "../messagesErreur";
 import { BlocAide, choisirContactSupport, memoriserContactSupport } from "./AideSupport";
@@ -119,6 +120,7 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
 
   const [vue, setVue] = useState<VueAbonnement | null>(null);
   const [chargement, setChargement] = useState(true);
+  const [erreurSite, setErreurSite] = useState<string | null>(null);
   const [erreurVue, setErreurVue] = useState<{ texte: string; horsLigne: boolean } | null>(null);
 
   const [formule, setFormule] = useState<FormuleProposee["code"] | null>(null);
@@ -394,7 +396,30 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
         </Message>
       )}
 
-      {estPatron && !PAIEMENT_DANS_APPLICATION && <Message>{TEXTE_RENOUVELER_AILLEURS}</Message>}
+      {estPatron && !PAIEMENT_DANS_APPLICATION && !nonRenouvelable && (
+        <View style={styles.carte}>
+          <Text style={styles.encadreTexte}>{TEXTE_RENOUVELER_AILLEURS}</Text>
+          {etat?.statut === "ESSAI" && <Text style={styles.aide}>Si vous payez pendant l'essai, aucun jour d'essai n'est perdu : ils s'ajoutent à votre abonnement.</Text>}
+          {AFFICHER_LIEN_PAIEMENT_SITE && (vue?.urlPaiementSite ?? URL_PAIEMENT_SITE_SECOURS) && (
+            <>
+              <Bouton
+                libelle="Payer sur le site HotelSaver"
+                onPress={() => {
+                  setErreurSite(null);
+                  ouvrirLienSur(vue?.urlPaiementSite ?? URL_PAIEMENT_SITE_SECOURS).catch(() => setErreurSite("Le navigateur ne s'est pas ouvert. Contactez le support HotelSaver."));
+                }}
+              />
+              <Text style={styles.aide}>Le site s'ouvre dans votre navigateur. Connectez-vous avec le compte du patron, puis payez par Mobile Money.</Text>
+              {erreurSite && (
+                <Text style={styles.erreur} accessibilityRole="alert">
+                  {erreurSite}
+                </Text>
+              )}
+            </>
+          )}
+        </View>
+      )}
+      {estPatron && !PAIEMENT_DANS_APPLICATION && nonRenouvelable && <Message>Contactez le support HotelSaver pour rouvrir l'accès de votre hôtel.</Message>}
 
       {peutPayer && nonRenouvelable && <Message>Contactez le support HotelSaver pour rouvrir l'accès de votre hôtel.</Message>}
 

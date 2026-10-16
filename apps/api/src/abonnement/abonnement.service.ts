@@ -98,6 +98,7 @@ export class AbonnementService {
       paiementEnLigne: this.linkpay.estConfigure(),
       fonctions: fonctionsAutorisees(hotel, hotel.paiementsLicence.length > 0, catalogue.formules, catalogue.parametres),
       contactSupport: { telephone: catalogue.parametres.contactTelephone, whatsapp: catalogue.parametres.contactWhatsapp },
+      urlPaiementSite: `${(process.env.SITE_WEB_URL ?? "http://localhost:5175").replace(/\/+$/, "")}/payer`,
       formules: formulesProposees(catalogue),
       paiementEnCours: enCours ? this.versVue(enCours) : null,
       historique: lignes,

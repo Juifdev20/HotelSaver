@@ -29,6 +29,7 @@ import {
 import { EcranSelectionProfil } from "./src/ecrans/EcranSelectionProfil";
 import { EcranConnexion } from "./src/ecrans/EcranConnexion";
 import { EcranInscription } from "./src/ecrans/EcranInscription";
+import { memoriserPayerMaintenant } from "./src/stockage/payerMaintenant";
 import { CoquilleOnglets } from "./src/CoquilleOnglets";
 import { EcranAbonnementBloque } from "./src/ecrans/EcranAbonnementBloque";
 import { FournisseurSession, useSession } from "./src/contexteSession";
@@ -539,12 +540,13 @@ export default function App() {
     }
   }
 
-  async function sInscrire(dto: InscriptionHotelPayload) {
+  async function sInscrire(dto: InscriptionHotelPayload, payerMaintenant: boolean) {
     if (!configuration) return;
     setErreurInscription(null);
     setInscriptionEnCours(true);
     try {
       await inscrireHotel({ url: candidatsApi() }, dto);
+      if (payerMaintenant) await memoriserPayerMaintenant();
       try {
         // Le compte Supabase créé côté serveur a email_confirm: false (choix
         // volontaire, voir DECISIONS.md Phase 4) : la première connexion peut

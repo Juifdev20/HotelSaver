@@ -2112,3 +2112,42 @@ button {
   gap: var(--hc-space-2);
   margin-top: var(--hc-space-2);
 }
+
+/* Inscription : « Essai gratuit » ou « Payer maintenant ». */
+.hc-auth__demarrage {
+  border: 0;
+  padding: 0;
+  margin: 16px 0 0;
+  display: grid;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.hc-auth__demarrage legend {
+  font-weight: 700;
+  margin-bottom: 8px;
+  padding: 0;
+}
+.hc-auth__demarrage-choix {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 2px solid var(--hc-border, #d0d5dd);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.hc-auth__demarrage-choix--actif {
+  border-color: var(--hc-blue, #1769e0);
+  background: var(--hc-blue-very-light, #eef5ff);
+}
+.hc-auth__demarrage-choix:focus-within {
+  outline: 3px solid var(--hc-info, #1769e0);
+  outline-offset: 2px;
+}
+.hc-auth__demarrage-choix span {
+  display: grid;
+  gap: 2px;
+}
+.hc-auth__demarrage-choix small {
+  font-size: 13px;
+}

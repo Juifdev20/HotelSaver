@@ -3355,3 +3355,11 @@ Détail et marche à suivre : `docs/PAIEMENTS-EN-LIGNE.md` (et `docs/ABONNEMENT.
 - Contact support : +243 828 497 218 (téléphone et WhatsApp), réglable.
 
 Limites connues : les routes `recette-du-jour` et `ventes-recentes` du tableau de bord ne sont pas filtrées par fonction côté serveur (les applications masquent l'affichage) ; le paiement par carte renvoie le client sur la page du fournisseur puis sur la page de résultat de ScanLinkPay (il revient ensuite sur sa réservation, qui se met à jour toute seule) ; l'envoi d'argent (remboursement) reste manuel.
+
+## 17/10/2026 — Payer tout de suite (sans essai) et paiement conforme à Google Play
+
+- **Mobile : `PAIEMENT_DANS_APPLICATION = false` par défaut.** L'application du Play Store ne vend rien elle-même ; elle propose « Payer sur le site HotelSaver » (+ Windows + WhatsApp). Un second réglage `AFFICHER_LIEN_PAIEMENT_SITE` retire le bouton si Google refuse aussi le lien. Le formulaire intégré est conservé derrière `true` (APK hors Play Store). Une ligne à changer, puis republier.
+- **Nouvelle page du site `/payer`** : connexion du patron (jeton en mémoire seulement), choix de formule/durée/monnaie, frais ScanLinkPay annoncés avant de payer, Mobile Money, suivi du paiement (même logique `SuiviPaiement` que les applications). Seul le patron peut payer. Mêmes routes serveur, mêmes protections (montant calculé par le serveur, crédit unique, clé d'idempotence).
+- **« Payer mon abonnement maintenant » à l'inscription** (site, Windows, mobile) : l'hôtel est créé comme d'habitude (essai), l'application mémorise le choix et ouvre l'écran de paiement une seule fois à la première connexion du patron ; sur le site un bouton mène à `/payer`. **Les jours d'essai restants sont conservés** (règle existante `nouvelleFinValidite` : on repart de la fin de l'essai si elle est à venir) — décision de ne pas les supprimer, pour que payer tôt ne pénalise jamais.
+- `VueAbonnement.urlPaiementSite` : le serveur donne aux applications l'adresse de la page de paiement (`SITE_WEB_URL` + `/payer`).
+- À faire côté exploitation : ajouter l'adresse du site à `CORS_ORIGIN` de l'API ; vérifier la politique Google Play (un lien vers un paiement externe peut aussi être refusé : mettre `AFFICHER_LIEN_PAIEMENT_SITE = false`).

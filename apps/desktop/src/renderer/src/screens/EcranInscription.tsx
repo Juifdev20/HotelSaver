@@ -10,7 +10,8 @@ import logo from "../../../../../../assets/icons/hotelsaver-icone.png";
 export interface EcranInscriptionProps {
   erreur: string | null;
   enCours: boolean;
-  onSoumettre: (dto: InscriptionHotelPayload) => void;
+  /** `payerMaintenant` : le patron veut payer son abonnement tout de suite ; l'application ouvre alors l'écran de paiement à la première connexion. */
+  onSoumettre: (dto: InscriptionHotelPayload, payerMaintenant: boolean) => void;
   /** Retour à la connexion (« Avez-vous déjà un compte ? Se connecter »). */
   onRetourConnexion: () => void;
 }
@@ -85,6 +86,7 @@ function Champ({ id, libelle, icone: Icone, valeur, onChange, valide, suffixe, t
  * l'application s'inscrit DANS l'application, jamais sur le site. */
 export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexion }: EcranInscriptionProps) {
   const [etape, setEtape] = useState<1 | 2>(1);
+  const [payerMaintenant, setPayerMaintenant] = useState(false);
   useTitrePage("Créer le compte de mon hôtel");
 
   const [nom, setNom] = useState("");
@@ -131,7 +133,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
       nomProprietaire: nomProprietaire.trim(),
       email: email.trim(),
       motDePasse,
-    });
+    }, payerMaintenant);
   }
 
   const erreurAffichee = erreurLocale ?? erreur;
@@ -198,6 +200,24 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
               <Champ id="ins-email" libelle="Adresse e-mail *" icone={Mail} valeur={email} onChange={setEmail} valide={/^\S+@\S+\.\S+$/.test(email)} type="email" placeholder="ex. hotel@monetablissement.com" autoComplete="username" />
               <Champ id="ins-mot-de-passe" libelle="Mot de passe *" icone={Lock} valeur={motDePasse} onChange={setMotDePasse} type="password" placeholder="Minimum 8 caractères" autoComplete="new-password" />
               <Champ id="ins-confirmation" libelle="Confirmer le mot de passe *" icone={Lock} valeur={confirmation} onChange={setConfirmation} type="password" autoComplete="new-password" />
+
+              <fieldset className="hc-auth__demarrage">
+                <legend>Comment voulez-vous commencer ?</legend>
+                <label className={`hc-auth__demarrage-choix${!payerMaintenant ? " hc-auth__demarrage-choix--actif" : ""}`}>
+                  <input type="radio" name="demarrage" checked={!payerMaintenant} onChange={() => setPayerMaintenant(false)} />
+                  <span>
+                    <strong>Essai gratuit</strong>
+                    <small>Testez toutes les fonctions sans payer. Vous choisirez votre formule plus tard.</small>
+                  </span>
+                </label>
+                <label className={`hc-auth__demarrage-choix${payerMaintenant ? " hc-auth__demarrage-choix--actif" : ""}`}>
+                  <input type="radio" name="demarrage" checked={payerMaintenant} onChange={() => setPayerMaintenant(true)} />
+                  <span>
+                    <strong>Payer mon abonnement maintenant</strong>
+                    <small>Pour ne plus y penser. Vos jours d'essai ne sont pas perdus : ils s'ajoutent à votre abonnement.</small>
+                  </span>
+                </label>
+              </fieldset>
 
               {erreurAffichee && (
                 <p className="hc-auth__erreur" role="alert">

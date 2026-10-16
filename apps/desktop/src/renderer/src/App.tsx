@@ -15,6 +15,7 @@ import { surveillerFonctionsRefusees } from "./client-surveille";
 import { Coquille } from "./layout/Coquille";
 import { EcranConnexion } from "./screens/EcranConnexion";
 import { EcranInscription } from "./screens/EcranInscription";
+import { consommerPayerMaintenant, memoriserPayerMaintenant } from "./payerMaintenant";
 import { EcranChambres } from "./screens/EcranChambres";
 import { EcranReservations } from "./screens/EcranReservations";
 import { EcranArriveesDeparts } from "./screens/EcranArriveesDeparts";
@@ -146,6 +147,8 @@ export function App() {
       setUtilisateur(profil);
       setModeHorsLigne(hors);
       setJoursRestants(restants);
+      // Le patron a choisi « payer maintenant » à l'inscription : on lui ouvre directement l'écran de paiement (une seule fois).
+      if (!hors && profil.role === Role.PATRON && consommerPayerMaintenant()) setPage("abonnement");
       setEcran("application");
     },
     []
@@ -409,13 +412,14 @@ export function App() {
 
   /** Inscription d'un hôtel DANS l'application (jamais sur le site web). Même enchaînement
    * que le mobile : création, puis connexion immédiate si le compte est déjà utilisable. */
-  async function sInscrire(dto: InscriptionHotelPayload) {
+  async function sInscrire(dto: InscriptionHotelPayload, payerMaintenant: boolean) {
     const g = gestionnaire.current;
     if (!configuration || !g) return;
     setErreurInscription(null);
     setInscriptionEnCours(true);
     try {
       await inscrireHotel({ url: configuration.apiUrl }, dto);
+      if (payerMaintenant) memoriserPayerMaintenant();
       // Le compte est créé avec email_confirm: false (DECISIONS.md, Phase 4) : la première
       // connexion peut échouer tant que l'adresse n'est pas confirmée. L'hôtel existe bien :
       // on n'affiche donc jamais l'erreur brute de connexion.

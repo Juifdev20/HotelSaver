@@ -41,6 +41,9 @@ export function BarreMarketing() {
               {l.libelle}
             </a>
           ))}
+          <Link to="/payer" className="marketing-nav__connexion" onClick={() => setOuvert(false)}>
+            Payer mon abonnement
+          </Link>
           <Link to="/connexion" className="marketing-nav__connexion" onClick={() => setOuvert(false)}>
             Se connecter
           </Link>

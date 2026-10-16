@@ -9,7 +9,8 @@ import { ChampAuth } from "./auth/ChampAuth";
 export interface EcranInscriptionProps {
   erreur: string | null;
   enCours: boolean;
-  onSoumettre: (dto: InscriptionHotelPayload) => void;
+  /** `payerMaintenant` : le patron veut régler son abonnement tout de suite (sans passer par l'essai) — l'écran de succès l'envoie vers le paiement. */
+  onSoumettre: (dto: InscriptionHotelPayload, payerMaintenant: boolean) => void;
 }
 
 const REGEX_SOUS_DOMAINE = /^[a-z0-9-]+$/;
@@ -40,6 +41,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [confirmationMotDePasse, setConfirmationMotDePasse] = useState("");
+  const [payerMaintenant, setPayerMaintenant] = useState(false);
   const [erreurLocale, setErreurLocale] = useState<string | null>(null);
 
   function changerNom(valeur: string) {
@@ -79,7 +81,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
       nomProprietaire: nomProprietaire.trim(),
       email: email.trim(),
       motDePasse,
-    });
+    }, payerMaintenant);
   }
 
   const erreurAffichee = erreurLocale ?? erreur;
@@ -136,6 +138,24 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
             <ChampAuth id="email" libelle="Adresse e-mail *" icone={Mail} valeur={email} onChange={setEmail} valide={/^\S+@\S+\.\S+$/.test(email)} type="email" placeholder="ex. hotel@monetablissement.com" autoComplete="username" />
             <ChampAuth id="mot-de-passe" libelle="Mot de passe *" icone={Lock} valeur={motDePasse} onChange={setMotDePasse} type="password" placeholder="Minimum 8 caractères" autoComplete="new-password" />
             <ChampAuth id="confirmation" libelle="Confirmer le mot de passe *" icone={Lock} valeur={confirmationMotDePasse} onChange={setConfirmationMotDePasse} type="password" autoComplete="new-password" />
+
+            <fieldset className="demarrage">
+              <legend>Comment voulez-vous commencer ?</legend>
+              <label className={`demarrage__choix${!payerMaintenant ? " demarrage__choix--actif" : ""}`}>
+                <input type="radio" name="demarrage" checked={!payerMaintenant} onChange={() => setPayerMaintenant(false)} />
+                <span>
+                  <strong>Essai gratuit</strong>
+                  <small>Testez toutes les fonctions sans payer. Vous choisirez votre formule plus tard.</small>
+                </span>
+              </label>
+              <label className={`demarrage__choix${payerMaintenant ? " demarrage__choix--actif" : ""}`}>
+                <input type="radio" name="demarrage" checked={payerMaintenant} onChange={() => setPayerMaintenant(true)} />
+                <span>
+                  <strong>Payer mon abonnement maintenant</strong>
+                  <small>Pour ne plus y penser. Vos jours d'essai ne sont pas perdus : ils s'ajoutent à votre abonnement.</small>
+                </span>
+              </label>
+            </fieldset>
 
             {erreurAffichee && (
               <p className="auth-erreur" role="alert">

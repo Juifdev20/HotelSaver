@@ -14,7 +14,8 @@ import { confirmerAction } from "../confirmer";
 export interface EcranInscriptionProps {
   erreur: string | null;
   enCours: boolean;
-  onSoumettre: (dto: InscriptionHotelPayload) => void;
+  /** `payerMaintenant` : le patron veut payer son abonnement tout de suite ; l'application lui ouvre l'écran Abonnement à sa première ouverture. */
+  onSoumettre: (dto: InscriptionHotelPayload, payerMaintenant: boolean) => void;
   onRetourConnexion: () => void;
 }
 
@@ -26,6 +27,7 @@ const REGEX_SOUS_DOMAINE = /^[a-z0-9-]+$/;
  * (voir DECISIONS.md, Phase 6) : l'hôtel démarre avec la palette générique. */
 export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexion }: EcranInscriptionProps) {
   const [etape, setEtape] = useState<1 | 2>(1);
+  const [payerMaintenant, setPayerMaintenant] = useState(false);
 
   const [nom, setNom] = useState("");
   const [sousDomaine, setSousDomaine] = useState("");
@@ -67,7 +69,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
       nomProprietaire: nomProprietaire.trim(),
       email: email.trim(),
       motDePasse,
-    });
+    }, payerMaintenant);
   }
 
   const erreurAffichee = erreurLocale ?? erreur;
@@ -205,6 +207,28 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 onSubmitEditing={soumettre}
               />
 
+              <View accessibilityRole="radiogroup" accessibilityLabel="Comment voulez-vous commencer ?" style={styles.demarrage}>
+                <Text style={styles.demarrageTitre}>Comment voulez-vous commencer ?</Text>
+                {(
+                  [
+                    [false, "Essai gratuit", "Testez toutes les fonctions sans payer. Vous choisirez votre formule plus tard."],
+                    [true, "Payer mon abonnement maintenant", "Pour ne plus y penser. Vos jours d'essai ne sont pas perdus : ils s'ajoutent à votre abonnement."],
+                  ] as const
+                ).map(([valeur, titre, detail]) => (
+                  <Pressable
+                    key={titre}
+                    style={[styles.choix, payerMaintenant === valeur && styles.choixActif]}
+                    onPress={() => setPayerMaintenant(valeur)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: payerMaintenant === valeur }}
+                    accessibilityLabel={`${titre}. ${detail}`}
+                  >
+                    <Text style={styles.choixTitre}>{titre}</Text>
+                    <Text style={styles.choixDetail}>{detail}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
               {erreurAffichee && (
                 <Text style={styles.erreur} accessibilityRole="alert">
                   {erreurAffichee}
@@ -283,4 +307,10 @@ const styles = StyleSheet.create({
   boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", minHeight: 44 },
   boutonRetourTexte: { color: couleurs.encreAttenuee, fontWeight: "600" },
   lien: { color: couleurs.bleu, fontWeight: "700" },
+  demarrage: { gap: espacements.s2, marginTop: espacements.s3, marginBottom: espacements.s2 },
+  demarrageTitre: { fontSize: 15, fontWeight: "700", color: couleurs.navy },
+  choix: { borderWidth: 2, borderColor: couleurs.bordure, borderRadius: rayons.md, padding: espacements.s3, gap: 2, minHeight: 56 },
+  choixActif: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
+  choixTitre: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
+  choixDetail: { fontSize: 13, color: couleurs.encreAttenuee },
 });

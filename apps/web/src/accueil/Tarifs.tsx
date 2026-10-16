@@ -48,6 +48,9 @@ function CarteFormule({ f, parametres }: { f: FormuleProposee; parametres: Formu
       >
         Commencer l'essai
       </Link>
+      <Link to="/payer" className="formule__payer" aria-label={`Payer directement, formule ${f.nom}`}>
+        Je préfère payer directement
+      </Link>
     </article>
   );
 }

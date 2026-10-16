@@ -1,0 +1,244 @@
+/* « Payer mon abonnement » : carte large, mobile d'abord. Réutilise la mise en page d'authentification. */
+.carte-auth.payer {
+  max-width: 640px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+
+.payer__session,
+.payer__aide,
+.payer__aide-support {
+  font-size: 13px;
+  color: var(--hc-text-secondary, #475467);
+  margin: var(--hc-space-2) 0;
+}
+
+.payer__lien {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--hc-blue);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.payer__etat {
+  display: grid;
+  gap: 4px;
+  padding: var(--hc-space-3) var(--hc-space-4);
+  border-radius: var(--hc-radius-md);
+  border: 1px solid var(--hc-border);
+  margin: var(--hc-space-3) 0;
+  font-size: 14px;
+}
+.payer__etat--ok {
+  background: var(--hc-success-light);
+  color: var(--hc-success);
+}
+.payer__etat--attention {
+  background: var(--hc-warning-light);
+  color: var(--hc-warning);
+}
+.payer__etat--danger {
+  background: var(--hc-danger-light);
+  color: var(--hc-danger);
+}
+
+.payer__info {
+  font-size: 14px;
+  background: var(--hc-blue-very-light);
+  border-radius: var(--hc-radius-md);
+  padding: var(--hc-space-3);
+  margin: var(--hc-space-2) 0;
+}
+
+.payer__groupe {
+  border: 0;
+  padding: 0;
+  margin: var(--hc-space-4) 0 0;
+  min-inline-size: 0;
+}
+.payer__groupe legend {
+  font-weight: 700;
+  margin-bottom: var(--hc-space-2);
+  padding: 0;
+}
+
+.payer__liste {
+  display: grid;
+  gap: var(--hc-space-2);
+}
+.payer__liste--ligne {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
+.payer__choix {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: var(--hc-space-3);
+  border: 2px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-surface-200);
+  cursor: pointer;
+}
+.payer__choix input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+.payer__choix:focus-within {
+  outline: 3px solid var(--hc-info);
+  outline-offset: 2px;
+}
+.payer__choix--actif {
+  border-color: var(--hc-blue);
+  background: var(--hc-blue-very-light);
+}
+.payer__choix--inactif {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.payer__choix-titre {
+  font-weight: 700;
+}
+.payer__choix-titre em,
+.payer__choix em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hc-success);
+}
+.payer__choix-prix {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--hc-blue);
+}
+.payer__choix-prix small {
+  font-size: 12px;
+  font-weight: 400;
+}
+.payer__choix-detail {
+  font-size: 13px;
+}
+.payer__choix ul {
+  margin: var(--hc-space-2) 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.payer__etiquette {
+  display: block;
+  margin-top: var(--hc-space-3);
+  font-weight: 600;
+  font-size: 14px;
+}
+.payer__champ {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  font: inherit;
+  background: var(--hc-surface-200);
+  color: inherit;
+}
+.payer__champ:focus-visible {
+  outline: 3px solid var(--hc-info);
+  outline-offset: 2px;
+}
+
+.payer__total {
+  margin-top: var(--hc-space-4);
+  padding: var(--hc-space-3);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-blue-light);
+}
+.payer__total p {
+  margin: 0;
+}
+
+.payer__attente,
+.payer__succes,
+.payer__echec {
+  margin: var(--hc-space-3) 0;
+  padding: var(--hc-space-4);
+  border-radius: var(--hc-radius-md);
+}
+.payer__attente {
+  background: var(--hc-blue-very-light);
+}
+.payer__succes {
+  background: var(--hc-success-light);
+}
+.payer__echec {
+  background: var(--hc-danger-light);
+}
+.payer__attente h2,
+.payer__succes h2,
+.payer__echec h2,
+.payer__historique h2 {
+  font-size: 17px;
+  margin: 0 0 var(--hc-space-2);
+}
+.payer__chrono {
+  font-size: 13px;
+}
+.payer__conseils {
+  font-size: 14px;
+}
+.payer__historique ul {
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+/* Choix « essai gratuit / payer maintenant » à l'inscription. */
+.demarrage {
+  border: 0;
+  padding: 0;
+  margin: var(--hc-space-4) 0 0;
+  display: grid;
+  gap: var(--hc-space-2);
+  min-inline-size: 0;
+}
+.demarrage legend {
+  font-weight: 700;
+  margin-bottom: var(--hc-space-2);
+  padding: 0;
+}
+.demarrage__choix {
+  display: flex;
+  gap: var(--hc-space-3);
+  align-items: flex-start;
+  padding: var(--hc-space-3);
+  border: 2px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  cursor: pointer;
+}
+.demarrage__choix--actif {
+  border-color: var(--hc-blue);
+  background: var(--hc-blue-very-light);
+}
+.demarrage__choix:focus-within {
+  outline: 3px solid var(--hc-info);
+  outline-offset: 2px;
+}
+.demarrage__choix span {
+  display: grid;
+  gap: 2px;
+}
+.demarrage__choix small {
+  font-size: 13px;
+}
+.parcours-payer {
+  margin: var(--hc-space-4) 0;
+  padding: var(--hc-space-3);
+  background: var(--hc-blue-very-light);
+  border-radius: var(--hc-radius-md);
+  font-size: 14px;
+}
+.parcours-payer .bouton-auth {
+  text-decoration: none;
+}

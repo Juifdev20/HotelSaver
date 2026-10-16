@@ -460,6 +460,9 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
       <h2 id="abo-form-titre" className="hc-text-heading" tabIndex={-1} ref={titreEtape}>
         {titre}
       </h2>
+      {mode !== "bloque" && vue.etat.statut === "ESSAI" && (
+        <p className="abo-message hc-text-body">Vous payez avant la fin de l'essai ? Aucun jour d'essai n'est perdu : ils s'ajoutent à votre abonnement.</p>
+      )}
 
       {etat.message && (
         <p role="alert" className="abo-message abo-message--erreur hc-text-body" data-testid="abonnement-erreur-envoi">
