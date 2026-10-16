@@ -1,3 +1,5 @@
+import { useAcomptesEnLigne } from "../hooks/useAcomptesEnLigne";
+import { BlocPayeEnLigne } from "../composants/PayeEnLigne";
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
@@ -72,6 +74,7 @@ function saisieDepuisIso(iso: string): string {
  */
 export function EcranReservationDetail({ reservationId, onRetour, onFacturer, onChange }: EcranReservationDetailProps) {
   const { client, miroir, utilisateur } = useSession();
+  const acomptesEnLigne = useAcomptesEnLigne(client);
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState<string | null>(null);
@@ -375,6 +378,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
               {formatMontant(reservation.chambre.prixParNuit, reservation.chambre.devise)} / nuit · Acompte{" "}
               {formatMontant(reservation.acompte, reservation.chambre.devise)}
             </Text>
+            <BlocPayeEnLigne paiements={acomptesEnLigne.get(reservation.id)} />
             {reservation.origine === "SITE_PUBLIC" && <Text style={styles.ligneSecondaire}>Demande reçue du site public</Text>}
             {reservation.note && <Text style={styles.note}>Note : {reservation.note}</Text>}
             {statut === "ANNULEE" && reservation.motifAnnulation && (

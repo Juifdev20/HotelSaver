@@ -7,6 +7,7 @@ import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { Link2, MessageCircle, Pencil } from "lucide-react";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
+import { BlocPayeEnLigne, useAcomptesEnLigne } from "./PayeEnLigne";
 import { StatusBadge } from "@hotel-chicago/ui";
 import { lireMontant } from "@hotel-chicago/miroir-local";
 
@@ -51,6 +52,7 @@ export function EcranReservationDetail({
   interfaceImprimante,
 }: EcranReservationDetailProps) {
   const [reservation, setReservation] = useState<Reservation | null>(null);
+  const { parReservation: acomptesEnLigne } = useAcomptesEnLigne(client);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
   const [edition, setEdition] = useState(false);
@@ -273,6 +275,7 @@ export function EcranReservationDetail({
               <span className="hc-text-body">Acompte versé</span>
               <span className="hc-text-price">{formatMontant(reservation.acompte, reservation.chambre.devise)}</span>
             </div>
+            <BlocPayeEnLigne paiements={acomptesEnLigne.get(reservation.id)} />
             {reservation.origine === "SITE_PUBLIC" && (
               <div className="parametres-ligne">
                 <span className="hc-text-body">Origine</span>

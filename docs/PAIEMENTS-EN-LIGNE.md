@@ -53,6 +53,14 @@ Où payer, selon l'endroit :
 
 > Raison : Google Play impose en général sa propre facturation pour les achats numériques dans une application. Pour l'instant le formulaire reste dans l'application mobile (`PAIEMENT_DANS_APPLICATION = true`, décision du 17/10) ; on le retirera (`false`) si Google Play refuse ou taxe ; le paiement, lui, reste disponible partout via le site. Hors Play Store (APK direct) on peut remettre `true`. Voir `docs/ABONNEMENT.md`.
 
+## Comment la réception et le patron savent qu'une réservation est déjà payée
+Dès que ScanLinkPay confirme le paiement du client :
+1. **Notification** « Acompte payé en ligne » (réception et patron), qui ouvre la réservation.
+2. La réservation passe **Confirmée** toute seule et son **acompte** augmente du montant reçu (visible même hors ligne, partout).
+3. Un repère vert **« Payé en ligne »** apparaît dans les listes (Réservations, Arrivées du jour sur Windows ; liste des réservations sur mobile). Dans la fiche de la réservation, un bloc dit combien, par quel moyen (M-Pesa, Airtel, carte…), quel jour, avec quelle **référence** (à donner au support en cas de question) et le numéro masqué du client.
+4. Si la réservation est annulée, le repère devient **« à rembourser ? »**, puis **« remboursé »** ou **« conservé »** selon la décision du patron.
+Le repère vient du serveur (`GET /acomptes-en-ligne`, réception et patron, réservations dont le départ date de moins de 45 jours ou à venir) : sans Internet il n'apparaît pas, mais le montant d'acompte reste affiché. Le client, lui, voit son paiement sur sa page « Ma réservation ». L'argent est déjà dans le compte ScanLinkPay de l'hôtel : rien à encaisser à l'arrivée pour cette part.
+
 ## Contact support
 **+243 828 497 218** (téléphone et WhatsApp). Réglable dans le super-admin ; affiché dans l'écran Abonnement, l'écran « abonnement expiré », les panneaux « fonction non incluse » et sur le site.
 

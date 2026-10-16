@@ -170,6 +170,21 @@ decrire("Acompte payé en ligne sur le compte ScanLinkPay de l'hôtel, puis remb
       expect(a.acompteEnLigne).toMatchObject({ disponible: false, dejaPaye: 30, reste: 0, indisponibleRaison: expect.stringMatching(/déjà payé/) });
       await payer(res.jeton, {}).expect(409);
     });
+
+    it("la réception ET le patron voient « payé en ligne » (montant, moyen, référence) ; la cafétaria et l'autre hôtel, rien", async () => {
+      for (const role of ["recep", "patron"] as const) {
+        const l = (await http().get("/acomptes-en-ligne").set("Authorization", as(A, role)).expect(200)).body;
+        const mien = l.find((x: any) => x.reservationId === res.id);
+        expect(mien).toMatchObject({ montant: 30, devise: "USD", moyen: "MOBILE_MONEY", remboursement: null, paiementId: expect.any(String) });
+        expect(mien.confirmeLe).toEqual(expect.any(String));
+        expect(mien.reference).toEqual(expect.any(String));
+        // Jamais le numéro de téléphone en clair.
+        expect(JSON.stringify(mien)).not.toContain("0828497218");
+      }
+      await http().get("/acomptes-en-ligne").set("Authorization", as(A, "caf")).expect(403);
+      const autre = (await http().get("/acomptes-en-ligne").set("Authorization", as(B, "patron")).expect(200)).body;
+      expect(autre.some((x: any) => x.reservationId === res.id)).toBe(false);
+    });
   });
 
   describe("carte bancaire (Visa, Mastercard)", () => {
@@ -259,6 +274,9 @@ decrire("Acompte payé en ligne sur le compte ScanLinkPay de l'hôtel, puis remb
       const liste = await http().get("/remboursements").set("Authorization", as(A, "patron")).expect(200);
       const r = liste.body.find((x: any) => x.reservationId === res.id);
       rembId = r.id;
+      // La réception voit aussitôt que cet acompte payé en ligne attend une décision de remboursement.
+      const vu = (await http().get("/acomptes-en-ligne").set("Authorization", as(A, "recep")).expect(200)).body.find((x: any) => x.reservationId === res.id);
+      expect(vu.remboursement).toBe("A_FAIRE");
       expect(r).toMatchObject({ clientNom: "Esther Ilunga", statut: "A_FAIRE", motif: "ANNULATION_CLIENT", montantPaye: 30, montantARembourser: 30, destinataireScanLinkPay: "SLP-CLIENT7", destinataireTelephone: "0828497218", devise: "USD" });
       expect((await http().get("/remboursements/a-faire").set("Authorization", as(A, "patron")).expect(200)).body.nombre).toBeGreaterThanOrEqual(1);
       expect(await p.notification.count({ where: { hotelId: A.hotelId, type: "REMBOURSEMENT_A_FAIRE" } })).toBeGreaterThanOrEqual(1);

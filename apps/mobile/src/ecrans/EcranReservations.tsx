@@ -10,6 +10,8 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { useAcomptesEnLigne } from "../hooks/useAcomptesEnLigne";
+import { BadgePayeEnLigne } from "../composants/PayeEnLigne";
 import { EcranReservationDetail } from "./EcranReservationDetail";
 import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
 import { EcranFacturation } from "./EcranFacturation";
@@ -102,6 +104,7 @@ const VIDE_PAR_SEGMENT: Record<SegmentId, string> = {
 export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, reservationInitiale }: EcranReservationsProps) {
   const { client, moteurSync, miroir, utilisateur } = useSession();
   const etatSync = useSyncEtat();
+  const acomptes = useAcomptesEnLigne(client);
   const [vue, setVue] = useState<Vue>(reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" });
   const [segment, setSegment] = useState<SegmentId>(segmentInitial);
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
@@ -242,7 +245,7 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
                   style={styles.carte}
                   onPress={() => setVue({ id: "detail", reservationId: item.id })}
                   accessibilityRole="button"
-                  accessibilityLabel={`${item.client.nom}, chambre ${item.chambre.numero}, du ${dateCourte(item.dateArrivee)} au ${dateCourte(item.dateDepart)}, ${LABEL_STATUT[item.statut]}${miroir.estCreationEnAttente(item.id) ? ", en attente de synchronisation" : ""}`}
+                  accessibilityLabel={`${item.client.nom}, chambre ${item.chambre.numero}, du ${dateCourte(item.dateArrivee)} au ${dateCourte(item.dateDepart)}, ${LABEL_STATUT[item.statut]}${acomptes.has(item.id) ? ", acompte payé en ligne" : ""}${miroir.estCreationEnAttente(item.id) ? ", en attente de synchronisation" : ""}`}
                 >
                   <View style={styles.carteEntete}>
                     <Text style={styles.clientNom}>{item.client.nom}</Text>
@@ -258,6 +261,7 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
                     {miroir.estCreationEnAttente(item.id) ? " · en attente de synchro" : ""}
                     {item.origine === "SITE_PUBLIC" ? " · site public" : ""}
                   </Text>
+                  <BadgePayeEnLigne paiements={acomptes.get(item.id)} />
                   {item.note && <Text style={styles.noteTexte}>Note : {item.note}</Text>}
                   {item.preEnregistreLe && (
                     <Text style={styles.preEnregistre}>

@@ -8,6 +8,7 @@ import type { IdPage } from "../navigation";
 import { EcranReservationDetail } from "./EcranReservationDetail";
 import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
 import { EcranPlanning } from "./EcranPlanning";
+import { BadgePayeEnLigne, useAcomptesEnLigne } from "./PayeEnLigne";
 
 export interface EcranReservationsProps {
   client: ClientApi;
@@ -70,6 +71,7 @@ function nombreDeNuits(dateArrivee: string, dateDepart: string): number {
 export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer = true, reservationInitiale = null }: EcranReservationsProps) {
   const [vue, setVue] = useState<Vue>(reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" });
   const [affichage, setAffichage] = useState<Affichage>("liste");
+  const { parReservation: acomptes } = useAcomptesEnLigne(client);
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [filtreStatut, setFiltreStatut] = useState<StatutReservation | null>(null);
@@ -251,7 +253,10 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
                   <td className="texte-discret">{dateCourte(r.dateArrivee)}</td>
                   <td className="texte-discret">{dateCourte(r.dateDepart)}</td>
                   <td className="texte-discret">{nombreDeNuits(r.dateArrivee, r.dateDepart)}</td>
-                  <td className="hc-text-price">{formatMontant(r.acompte, r.chambre.devise)}</td>
+                  <td className="hc-text-price">
+                    {formatMontant(r.acompte, r.chambre.devise)}
+                    <BadgePayeEnLigne paiements={acomptes.get(r.id)} />
+                  </td>
                   <td>
                     <StatusBadge tone={TONE_STATUT[r.statut]} label={LABEL_STATUT[r.statut]} />
                   </td>

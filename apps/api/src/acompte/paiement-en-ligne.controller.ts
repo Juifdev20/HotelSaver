@@ -8,6 +8,7 @@ import { Fonction } from "../common/decorators/fonction.decorator";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { ReglagesPaiementService } from "./reglages-paiement.service";
 import { RemboursementsService } from "./remboursements.service";
+import { PaiementReservationService } from "./paiement-reservation.service";
 import { ModifierReglagesPaiementDto, TraiterRemboursementDto } from "./dto/reglages-paiement.dto";
 
 /** Le compte ScanLinkPay de l'hôtel et la règle d'acompte. PATRON seul (c'est son argent). La lecture reste possible sans la fonction pour afficher « non inclus ». */
@@ -50,5 +51,19 @@ export class RemboursementsController {
   @Patch(":id")
   traiter(@CurrentUser() u: UtilisateurAuthentifie, @Param("id") id: string, @Body() dto: TraiterRemboursementDto) {
     return this.remboursements.traiter(u.hotelId, id, dto, u);
+  }
+}
+
+/** « Payé en ligne » : pour que la réception ET le patron voient d'un coup d'œil quelles réservations ont déjà leur acompte payé, et comment. */
+@Controller("acomptes-en-ligne")
+@UseGuards(SupabaseAuthGuard, RolesGuard)
+@Roles(Role.PATRON, Role.RECEPTIONNISTE)
+@Fonction("RECEPTION")
+export class AcomptesEnLigneController {
+  constructor(private readonly paiements: PaiementReservationService) {}
+
+  @Get()
+  lister(@CurrentUser() u: UtilisateurAuthentifie) {
+    return this.paiements.acomptesPayesEnLigne(u.hotelId);
   }
 }

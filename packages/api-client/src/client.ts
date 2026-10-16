@@ -4,6 +4,7 @@ import {
   EtatAbonnement,
   ModifierReglagesPaiementEnLigne,
   RemboursementVue,
+  AcompteEnLignePersonnel,
   ReglagesPaiementEnLigne,
   TraiterRemboursement,
   PaiementAbonnementVue,
@@ -961,6 +962,11 @@ export class ClientApi {
   /** Acomptes payés en ligne à rembourser ou à conserver. PATRON. */
   async listerRemboursements(statut?: "A_FAIRE" | "EFFECTUE" | "CONSERVE"): Promise<RemboursementVue[]> {
     return this.requete<RemboursementVue[]>(`/remboursements${statut ? `?statut=${statut}` : ""}`);
+  }
+
+  /** Les acomptes déjà payés en ligne (réservations récentes) : repère « Payé en ligne » des listes et du détail. Réception et patron. */
+  async acomptesPayesEnLigne(): Promise<AcompteEnLignePersonnel[]> {
+    return this.requete<AcompteEnLignePersonnel[]>("/acomptes-en-ligne");
   }
 
   async nombreRemboursementsAFaire(): Promise<number> {

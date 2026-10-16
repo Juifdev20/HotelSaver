@@ -1149,6 +1149,23 @@ export interface ModifierReglagesPaiementEnLigne {
   conditionsAnnulation?: string | null;
 }
 
+/** Un acompte PAYÉ EN LIGNE vu du personnel (réception, patron) : repère « Payé en ligne » dans les listes et détail du paiement. */
+export interface AcompteEnLignePersonnel {
+  paiementId: string;
+  reservationId: string;
+  /** L'acompte reçu par l'hôtel, dans la devise de la chambre. */
+  montant: number;
+  devise: "USD" | "CDF";
+  moyen: MoyenPaiementEnLigne;
+  operateur: OperateurMobileMoney | null;
+  telephoneMasque: string | null;
+  /** Référence à donner au support ScanLinkPay en cas de question. */
+  reference: string | null;
+  confirmeLe: string | null;
+  /** Si la réservation a été annulée : où en est le remboursement (A_FAIRE, EFFECTUE, CONSERVE). */
+  remboursement: StatutRemboursement | null;
+}
+
 /** Un remboursement d'acompte à faire (ou fait) — écran « Remboursements » du patron. */
 export interface RemboursementVue {
   id: string;

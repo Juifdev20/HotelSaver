@@ -363,6 +363,10 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(menu()).toBeVisible(30_000);
     await expect_(page.getByTestId("pastille-remboursements")).toContainText("1", 30_000);
 
+    // La réception et le patron voient d'un coup d'œil, dans la liste des réservations, que cet acompte a été payé en ligne (et qu'il attend une décision).
+    await menu().getByRole("button", { name: "Réservations", exact: true }).click();
+    await expect_(page.getByTestId("badge-paye-en-ligne")).toContainText("Payé en ligne · à rembourser ?", 30_000);
+
     // La notification « Acompte à rembourser ? » ouvre l'écran Remboursements.
     await page.getByRole("button", { name: /^Notifications/ }).click();
     await page.getByRole("button", { name: /Acompte à rembourser/ }).click();
@@ -395,6 +399,10 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(page.getByTestId("remboursements-vide")).toBeVisible();
     await expect_(page.getByTestId("pastille-remboursements")).toHaveCount(0);
 
+    // Une fois remboursé, la liste des réservations le dit aussi.
+    await menu().getByRole("button", { name: "Réservations", exact: true }).click();
+    await expect_(page.getByTestId("badge-paye-en-ligne")).toContainText("Payé en ligne · remboursé", 30_000);
+    await menu().getByRole("button", { name: "Remboursements", exact: true }).click();
     await page.getByRole("tab", { name: "Historique" }).click();
     const histo = page.getByTestId("remboursement-historique-carte");
     await expect_(histo).toContainText("Remboursé");

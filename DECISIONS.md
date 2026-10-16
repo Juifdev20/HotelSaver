@@ -3365,3 +3365,5 @@ Limites connues : les routes `recette-du-jour` et `ventes-recentes` du tableau d
 - À faire côté exploitation : ajouter l'adresse du site à `CORS_ORIGIN` de l'API ; vérifier la politique Google Play (un lien vers un paiement externe peut aussi être refusé : mettre `AFFICHER_LIEN_PAIEMENT_SITE = false`).
 
 **Mise à jour 17/10/2026** : décision du patron — le paiement reste **dans l'application mobile** (`PAIEMENT_DANS_APPLICATION = true`) pour l'instant ; on le retirera (`false`, bouton « Payer sur le site » prêt) si Google Play refuse ou prélève une taxe. Le site `/payer` et le choix « payer maintenant » restent disponibles.
+
+**17/10/2026 — Repère « Payé en ligne »** pour la réception et le patron : route `GET /acomptes-en-ligne` (réception + patron, fonction RECEPTION), badge dans les listes et bloc de détail (Windows et mobile), état du remboursement. Lecture serveur seulement (pas de nouvelle colonne ni de changement de synchronisation hors ligne). Détail : `docs/PAIEMENTS-EN-LIGNE.md`.

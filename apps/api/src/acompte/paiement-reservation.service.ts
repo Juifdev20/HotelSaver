@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, Logger, Not
 import { Prisma, type PrismaClient } from "@hotel-chicago/database";
 import { fonctionsAutorisees, masquerNumero, numeroInternational, problemeNumero } from "@hotel-chicago/regles";
 import { Role } from "@hotel-chicago/types";
-import type { AcompteEnLigne, ApercuPaiement, PaiementReservationVue, RemboursementClientVue } from "@hotel-chicago/types";
+import type { AcompteEnLigne, AcompteEnLignePersonnel, ApercuPaiement, PaiementReservationVue, RemboursementClientVue } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import { lireCatalogue } from "../common/abonnement/catalogue";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -369,5 +369,32 @@ export class PaiementReservationService {
       cleDedup: `acompte-en-ligne:${id}`,
       ...messages.acomptePayeEnLigne({ client: reservation.client.nom, chambre: reservation.chambre.numero, montant: fmt(Number(prise.montant), prise.devise), reservationId: reservation.id, confirmee }),
     });
+  }
+
+  /**
+   * Pour la réception et le patron : les acomptes PAYÉS en ligne des réservations récentes (départ il y a moins de 45 jours ou à venir), afin que
+   * les listes affichent « Payé en ligne » et que le détail dise comment, quand, et avec quelle référence. Seuls les paiements confirmés (REUSSI).
+   */
+  async acomptesPayesEnLigne(hotelId: string): Promise<AcompteEnLignePersonnel[]> {
+    const depuis = new Date(Date.now() - 45 * 24 * 60 * MINUTE);
+    const reservations = await this.prisma.reservation.findMany({ where: { hotelId, dateDepart: { gte: depuis } }, select: { id: true } });
+    if (reservations.length === 0) return [];
+    const paiements = await this.prisma.paiementReservation.findMany({
+      where: { hotelId, statut: "REUSSI", reservationId: { in: reservations.map((r) => r.id) } },
+      orderBy: { confirmeLe: "desc" },
+      include: { remboursements: { select: { statut: true } } },
+    });
+    return paiements.map((p) => ({
+      paiementId: p.id,
+      reservationId: p.reservationId,
+      montant: Number(p.montant),
+      devise: p.devise as "USD" | "CDF",
+      moyen: p.moyen,
+      operateur: p.operateur,
+      telephoneMasque: p.telephoneMasque,
+      reference: p.referenceDemande ?? p.referenceFournisseur,
+      confirmeLe: p.confirmeLe ? p.confirmeLe.toISOString() : null,
+      remboursement: (p.remboursements[0]?.statut ?? null) as AcompteEnLignePersonnel["remboursement"],
+    }));
   }
 }

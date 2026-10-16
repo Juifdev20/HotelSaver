@@ -6,6 +6,7 @@ import { Button, StatusBadge, formatMontant } from "@hotel-chicago/ui";
 import { ArrowLeftRight } from "lucide-react";
 import type { IdPage } from "../navigation";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
+import { BadgePayeEnLigne, useAcomptesEnLigne } from "./PayeEnLigne";
 
 export interface EcranArriveesDepartsProps {
   client: ClientApi;
@@ -32,6 +33,7 @@ export function EcranArriveesDeparts({ client, onFacturer, peutOperer = true }: 
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState<string | null>(null);
+  const { parReservation: acomptes } = useAcomptesEnLigne(client);
 
   const charger = useCallback(() => {
     client
@@ -114,6 +116,7 @@ export function EcranArriveesDeparts({ client, onFacturer, peutOperer = true }: 
                           ✓ pré-enregistré{r.heureArriveePrevue ? ` · ${r.heureArriveePrevue}` : ""}
                         </span>
                       )}
+                      <BadgePayeEnLigne paiements={acomptes.get(r.id)} />
                     </td>
                     <td className="texte-discret">{r.chambre.numero}</td>
                     <td className="texte-discret">{dateCourte(r.dateDepart)}</td>
@@ -173,7 +176,10 @@ export function EcranArriveesDeparts({ client, onFacturer, peutOperer = true }: 
                     <td className="hc-text-body-strong">{r.client.nom}</td>
                     <td className="texte-discret">{r.chambre.numero}</td>
                     <td className="texte-discret">{dateCourte(r.dateArrivee)}</td>
-                    <td className="hc-text-price">{formatMontant(r.acompte, r.chambre.devise)}</td>
+                    <td className="hc-text-price">
+                      {formatMontant(r.acompte, r.chambre.devise)}
+                      <BadgePayeEnLigne paiements={acomptes.get(r.id)} />
+                    </td>
                     <td>
                       {peutOperer && (
                         <Button type="button" size="sm" onClick={() => onFacturer(r.id)}>
