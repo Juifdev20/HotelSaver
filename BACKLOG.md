@@ -18,6 +18,7 @@ Plateforme multi-hôtels, **hors ligne partout** (mobile ET bureau), avec synchr
 | 8 | README à jour | **fait** |
 | 10 | Audit sécurité + ergonomie (`docs/PLAN-SECURITE-UX.md`), phases 1 à 5 | **fait** — reste : essais sur téléphone/Windows, actions de configuration listées dans le plan |
 | 11 | Abonnement : paiement Mobile Money dans l'application (ScanLinkPay), essai/grâce/blocage, écrans bureau + mobile + super-admin | **codé et testé côté serveur et navigateur** — reste : variables `LINKPAY_*`, vrai paiement de test, essai sur téléphone, validation des prix (`docs/ABONNEMENT.md`) |
+| 12 | Formules éditables par le super-admin, fonctions verrouillées, acompte en ligne (Mobile Money + carte) sur le compte ScanLinkPay de l'hôtel, remboursements | **codé et testé** (serveur, navigateur) — reste : essais réels (paiement, téléphone, Windows), déployer ScanLinkPay d'abord, validation des prix/formules (`docs/PAIEMENTS-EN-LIGNE.md`) |
 | 9 | Mobile : check-in/out, facturation, encaissement, cuisine, stock hors ligne (base partagée `expo-sqlite`) | **codé** — à essayer sur téléphone (voir « Mobile ») |
 
 ## Mobile : à essayer sur téléphone

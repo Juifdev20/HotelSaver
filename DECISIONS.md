@@ -3341,3 +3341,17 @@ Détail complet et marche à suivre : `docs/ABONNEMENT.md`.
 - Mobile : drapeau `PAIEMENT_DANS_APPLICATION` (`apps/mobile/src/configAbonnement.ts`) pour repasser à « renouveler sur Windows / support » si Google Play refuse le paiement dans l'appli.
 
 **À faire par le patron** : créer l'entreprise marchand HotelSaver dans ScanLinkPay, renseigner `LINKPAY_API_URL` et `LINKPAY_NUMERO_MARCHAND` sur l'API, appliquer la migration `20261011100000_abonnement_en_ligne`, faire un vrai paiement de test, valider les prix, vérifier la politique Google Play.
+
+## 16/10/2026 — Formules définies par le super-admin, acompte payé en ligne, remboursements
+
+Détail et marche à suivre : `docs/PAIEMENTS-EN-LIGNE.md` (et `docs/ABONNEMENT.md`).
+
+- **Formules et prix = base de données, éditables par le super-admin** (tables `FormuleAbonnement`, `ParametresPlateforme`, écran « Abonnements » du super-admin) : prix mensuel USD, plafond de chambres, **fonctions incluses** (RECEPTION, CAFETERIA, SITE_PUBLIC, DOMAINE_PERSONNALISE, ACOMPTE_EN_LIGNE), taux FC/USD, mois offerts pour 12 mois, essai, grâce, contact support. Valeurs de départ = 29 / 59 / 99 $ (migration).
+- **Fonctions verrouillées partout** par la formule de l'hôtel : routes (403 `FONCTION_NON_INCLUSE`), synchronisation hors ligne, site public (404), domaine personnalisé ; les applications masquent les écrans. Essai = tout ouvert (réglable) ; hôtel payé sans formule = jamais restreint par surprise.
+- **Acompte de réservation payé en ligne** (Mobile Money + carte Visa/Mastercard via ScanLinkPay) sur le **compte marchand ScanLinkPay DE L'HÔTEL** ; le patron fixe le pourcentage, la règle des frais et les conditions d'annulation ; montant calculé par le serveur ; crédit unique sur confirmation du bon montant ; confirmation automatique de la réservation (chambre libre vérifiée avant et après).
+- **Commission ScanLinkPay** : jamais calculée par HotelSaver — demandée à ScanLinkPay (`fees-preview`, règles du super admin ScanLinkPay par devise) et montrée AVANT de payer. Abonnement : le patron la paie en plus (réglable). Acompte : le client la paie en plus (réglable par le patron).
+- **Remboursements** : créés automatiquement à l'annulation d'une réservation avec acompte payé en ligne ; **le patron décide** (rembourser tout/partie, ou conserver) et envoie l'argent (idéalement sur le compte ScanLinkPay du client, indiqué au paiement) ; décision unique et tracée. Pas d'automatisation du virement sortant tant qu'une clé d'API marchand limitée n'existe pas dans ScanLinkPay (décision de sécurité à prendre).
+- **ScanLinkPay (ajouts compatibles)** : `quick-pay` accepte `commission_model`, `description`, `expires_in_minutes` ; nouvelle route publique `fees-preview` ; frais/total dans le statut. À déployer AVANT HotelSaver.
+- Contact support : +243 828 497 218 (téléphone et WhatsApp), réglable.
+
+Limites connues : les routes `recette-du-jour` et `ventes-recentes` du tableau de bord ne sont pas filtrées par fonction côté serveur (les applications masquent l'affichage) ; le paiement par carte renvoie le client sur la page du fournisseur puis sur la page de résultat de ScanLinkPay (il revient ensuite sur sa réservation, qui se met à jour toute seule) ; l'envoi d'argent (remboursement) reste manuel.
