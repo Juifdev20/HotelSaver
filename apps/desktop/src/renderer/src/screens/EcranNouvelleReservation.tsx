@@ -70,6 +70,18 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
 
   const depart = jourSuivant(arrivee, nuits);
 
+  // Sans connexion, la disponibilité est celle de la dernière synchronisation : un client a pu payer sa chambre en ligne entre-temps.
+  const [enLigne, setEnLigne] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const maj = () => setEnLigne(navigator.onLine);
+    window.addEventListener("online", maj);
+    window.addEventListener("offline", maj);
+    return () => {
+      window.removeEventListener("online", maj);
+      window.removeEventListener("offline", maj);
+    };
+  }, []);
+
   const chambresOccupees = useMemo(() => {
     const a = new Date(arrivee + "T12:00:00").toISOString();
     const d = new Date(depart + "T12:00:00").toISOString();
@@ -162,6 +174,12 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
         </p>
       )}
       {chargement && <p className="hc-text-body texte-discret">Chargement…</p>}
+      {!enLigne && !chargement && (
+        <p role="note" className="hc-text-body" data-testid="avis-hors-ligne-reservation">
+          Vous êtes sans connexion : les chambres affichées sont celles de la dernière synchronisation. Si un client en a payé une en ligne entre-temps, votre
+          réservation sera refusée à la reconnexion et vous serez prévenu pour proposer une autre chambre.
+        </p>
+      )}
 
       {!chargement && (
         <>

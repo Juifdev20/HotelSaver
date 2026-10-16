@@ -9,6 +9,7 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { SelecteurDate, saisieDepuisIso } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
+import { useSyncEtat } from "../hooks/useSyncEtat";
 import { lireMontant } from "@hotel-chicago/regles";
 import { ajouterJours, dateComplete, midiLubumbashi } from "../dates";
 import { confirmerAction } from "../confirmer";
@@ -60,6 +61,7 @@ function chambresOccupeesSurPeriode(reservations: Reservation[], arrivee: string
  */
 export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, dateArriveeInitiale }: EcranNouvelleReservationProps) {
   const { client } = useSession();
+  const etatSync = useSyncEtat();
 
   const [saisieArrivee, setSaisieArrivee] = useState(() =>
     dateArriveeInitiale ? saisieDepuisIso(dateArriveeInitiale.slice(0, 10)) : aujourdhuiSaisie()
@@ -256,6 +258,12 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
 
         <View style={styles.carte}>
           <Text style={styles.champLabel}>Chambre</Text>
+          {etatSync && !etatSync.enLigne && (
+            <Text style={styles.avisHorsLigne} accessibilityRole="alert">
+              Vous êtes sans connexion : les chambres affichées sont celles de la dernière synchronisation. Si un client en a payé une en ligne entre-temps, votre
+              réservation sera refusée à la reconnexion et vous serez prévenu pour proposer une autre chambre.
+            </Text>
+          )}
           {dateArrivee && dateDepart && (
             // Liste bornée en hauteur et défilante : une centaine de chambres ne doit pas allonger toute la page.
             <ScrollView style={styles.listeChambres} nestedScrollEnabled keyboardShouldPersistTaps="handled" accessibilityRole="radiogroup">
@@ -424,6 +432,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
 }
 
 const styles = StyleSheet.create({
+  avisHorsLigne: { fontSize: 13, color: couleurs.alerte, backgroundColor: couleurs.alerteClair, padding: espacements.s3, borderRadius: rayons.sm },
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
   erreurBas: { color: couleurs.danger, fontSize: 13, fontWeight: "600" },

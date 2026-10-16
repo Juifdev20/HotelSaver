@@ -8,12 +8,10 @@ import { messages } from "../notifications/messages";
 import { CreateReservationDto } from "./dto/create-reservation.dto";
 import { UpdateReservationDto } from "./dto/update-reservation.dto";
 import { sansChevauchement } from "../common/chevauchement";
+import { MESSAGE_CHAMBRE_EN_COURS, chambresPrises, verrouillerChambre } from "../common/disponibilite-chambre";
 import { acompteMaximal, MESSAGE_ACOMPTE_TROP_ELEVE } from "@hotel-chicago/regles";
 import { AnnulerReservationDto } from "./dto/annuler-reservation.dto";
 import { FindReservationsQueryDto } from "./dto/find-reservations.query.dto";
-
-/** Réservations qui bloquent réellement une chambre pour une période donnée. */
-const STATUTS_OCCUPANTS = ["CONFIRMEE", "EN_COURS"] as const;
 
 /** « 120.00 USD » / « 280000 CDF » pour un message de notification. */
 function montantLisible(valeur: number, devise: string): string {
@@ -237,11 +235,17 @@ export class ReservationsService {
       id
     );
 
+    // Sous le même verrou « chambre » que le paiement en ligne : la réception ne peut pas confirmer pendant qu'un AUTRE client est en train de
+    // payer cette chambre (retenue de 10 minutes), et deux décisions sur la même chambre ne se croisent jamais.
     return sansChevauchement(() =>
-      this.prisma.reservation.update({
-        where: { id, hotelId },
-        data: { statut: "CONFIRMEE", syncVersion: { increment: 1 } },
-        include: { chambre: true, client: true },
+      this.prisma.$transaction(async (tx) => {
+        await verrouillerChambre(tx, reservation.chambreId);
+        await this.verifierAbsenceDeConflit(reservation.chambreId, reservation.dateArrivee, reservation.dateDepart, hotelId, id, tx as unknown as PrismaClient);
+        return tx.reservation.update({
+          where: { id, hotelId },
+          data: { statut: "CONFIRMEE", syncVersion: { increment: 1 } },
+          include: { chambre: true, client: true },
+        });
       })
     );
   }
@@ -313,24 +317,16 @@ export class ReservationsService {
     dateArrivee: Date,
     dateDepart: Date,
     hotelId: string,
-    exclureReservationId?: string
+    exclureReservationId?: string,
+    db: PrismaClient = this.prisma
   ) {
-    const conflit = await this.prisma.reservation.findFirst({
-      where: {
-        hotelId,
-        chambreId,
-        id: exclureReservationId ? { not: exclureReservationId } : undefined,
-        statut: { in: [...STATUTS_OCCUPANTS] },
-        dateArrivee: { lt: dateDepart },
-        dateDepart: { gt: dateArrivee },
-      },
-    });
-
-    if (conflit) {
-      throw new ConflictException(
-        "Cette chambre est déjà réservée sur une partie de cette période. " +
-          "Choisissez d'autres dates ou une autre chambre."
-      );
-    }
+    // Déjà réservée (confirmée/en cours) OU retenue par un autre client en train de payer son acompte : même règle que le site public.
+    const prise = (await chambresPrises(db, { hotelId, debut: dateArrivee, fin: dateDepart, chambreId, exclureReservationId })).get(chambreId);
+    if (!prise) return;
+    throw new ConflictException(
+      prise.etat === "RESERVEE"
+        ? "Cette chambre est déjà réservée sur une partie de cette période. Choisissez d'autres dates ou une autre chambre."
+        : MESSAGE_CHAMBRE_EN_COURS
+    );
   }
 }

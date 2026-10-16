@@ -56,7 +56,7 @@ describe("SyncService", () => {
     cafeteriaService = { ouvrirCompte: jest.fn(), ajouterSousCompte: jest.fn(), ajouterLigne: jest.fn() };
     depensesService = { creer: jest.fn(), modifier: jest.fn() };
     facturesService = { create: jest.fn() };
-    service = new SyncService(prisma, chambresService, reservationsService, produitsService, stockService, cafeteriaService, depensesService, facturesService, { update: jest.fn() } as any);
+    service = new SyncService(prisma, chambresService, reservationsService, produitsService, stockService, cafeteriaService, depensesService, facturesService, { update: jest.fn() } as any, { emettre: jest.fn() } as any);
   });
 
   describe("push — CREATE", () => {

@@ -54,3 +54,12 @@ export async function chambresPrises(
   }
   return resultat;
 }
+
+/**
+ * Verrou « par chambre » pour la durée de la transaction en cours : deux opérations qui décident du sort de la MÊME chambre (deux clients qui
+ * paient, un paiement et une confirmation de la réception) passent l'une après l'autre, jamais en même temps. Le verrou saute tout seul à la
+ * fin de la transaction. À appeler en premier dans `prisma.$transaction(async (tx) => …)`.
+ */
+export async function verrouillerChambre(tx: Pick<PrismaClient, "$executeRaw">, chambreId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"chambre:" + chambreId}))`;
+}

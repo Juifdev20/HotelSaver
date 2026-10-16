@@ -103,6 +103,21 @@ decrire("Travail hors ligne : suites d'actions rejouées d'un coup, reçus provi
       expect(await p.facture.count({ where: { hotelId: A.hotelId, reservation: { chambreId: chambre.id } } })).toBe(0);
     });
 
+    it("réservation faite SANS connexion sur une chambre vendue entre-temps : refusée avec une raison claire, rien n'est créé, et la réception et le patron sont prévenus", async () => {
+      const chambre = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "H-PRISE", type: "Std", prixParNuit: 40, devise: "USD" } });
+      const client = await p.client.findFirst({ where: { hotelId: A.hotelId } });
+      // Pendant que l'appareil était hors ligne, un client a payé son acompte en ligne : la chambre est CONFIRMÉE pour ces dates.
+      await p.reservation.create({ data: { hotelId: A.hotelId, chambreId: chambre.id, clientId: client.id, dateArrivee: new Date(Date.now() + 10 * JOUR), dateDepart: new Date(Date.now() + 13 * JOUR), statut: "CONFIRMEE", origine: "SITE_PUBLIC", createdBy: client.id } });
+      const op = { entiteType: "Reservation", localId: uuid(), operation: "CREATE", payload: { chambreId: chambre.id, client: { nom: "Client du comptoir", telephone: "+243810000009" }, dateArrivee: iso(11), dateDepart: iso(12) } };
+      const r = await push(A, "recep", [op]).expect(201);
+      expect(r.body.resultats[0]).toMatchObject({ statut: "ERROR", message: expect.stringMatching(/déjà réservée/) });
+      expect(await p.reservation.count({ where: { chambreId: chambre.id } })).toBe(1);
+      const notif = await p.notification.findMany({ where: { hotelId: A.hotelId, type: "RESERVATION_HORS_LIGNE_REFUSEE" } });
+      expect(notif).toHaveLength(1);
+      expect(notif[0].corps).toContain("H-PRISE");
+      expect(notif[0].corps).toContain("Client du comptoir");
+    });
+
     it("deux postes qui facturent en même temps obtiennent deux numéros de reçu différents", async () => {
       const chambres = await Promise.all(["H-5", "H-6", "H-7", "H-8"].map((n) => p.chambre.create({ data: { hotelId: A.hotelId, numero: n, type: "Std", prixParNuit: 10, devise: "USD" } })));
       const journees = chambres.map((c: any) => journeeReception(c.id));

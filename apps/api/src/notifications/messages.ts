@@ -174,6 +174,16 @@ export const messages = {
     };
   },
 
+  /** Une réservation (ou confirmation) faite hors ligne arrive au serveur alors que la chambre a été prise entre-temps (souvent par un acompte payé en ligne). */
+  reservationHorsLigneRefusee(p: { chambre: string; client?: string; reservationId?: string }): MessageNotification {
+    return {
+      type: "RESERVATION_HORS_LIGNE_REFUSEE",
+      titre: "Réservation faite hors ligne refusée",
+      corps: `${p.client ? `La réservation de ${p.client}` : "Une réservation"} faite sans connexion n'a pas pu être enregistrée : la chambre ${p.chambre} a été réservée par un autre client entre-temps. Proposez-lui une autre chambre ou d'autres dates.`,
+      lien: p.reservationId ? { ecran: "reservations", id: p.reservationId } : { ecran: "reservations" },
+    };
+  },
+
   remboursementAFaire(p: { client: string; montant: string; motif: string; reservationId: string }): MessageNotification {
     return {
       type: "REMBOURSEMENT_A_FAIRE",

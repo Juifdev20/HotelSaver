@@ -10,7 +10,7 @@ import { messages } from "../notifications/messages";
 import { estViolationChevauchement } from "../common/chevauchement";
 import { ErreurLinkPay, LinkPayClient, type FraisPaiement, type ModeleCommission } from "../abonnement/linkpay.client";
 import { depuisCentimes, nombreDeNuits, objectifAcompte, resteAPayer, versCentimes } from "./calcul-acompte";
-import { MESSAGE_CHAMBRE_EN_COURS, MESSAGE_CHAMBRE_RESERVEE, chambresPrises } from "../common/disponibilite-chambre";
+import { MESSAGE_CHAMBRE_EN_COURS, MESSAGE_CHAMBRE_RESERVEE, chambresPrises, verrouillerChambre } from "../common/disponibilite-chambre";
 import { RemboursementsService } from "./remboursements.service";
 import { urlScanLinkPay } from "./reglages-paiement.service";
 import type { PayerAcompteDto } from "./dto/paiement-reservation.dto";
@@ -188,31 +188,35 @@ export class PaiementReservationService {
       telephone = numeroInternational(dto.telephone)!;
     }
 
-    // La chambre doit être libre pour ces dates AU MOMENT de payer : on n'encaisse jamais un acompte pour une chambre déjà prise, ni pendant
-    // qu'un AUTRE client est en train de payer la même (retenue de 10 minutes) — le premier qui confirme garde la chambre.
-    const prise = (await chambresPrises(this.prisma, { hotelId: hotel.id, debut: reservation.dateArrivee, fin: reservation.dateDepart, chambreId: reservation.chambreId, exclureReservationId: reservation.id })).get(reservation.chambreId);
-    if (prise) throw new ConflictException(prise.etat === "RESERVEE" ? MESSAGE_CHAMBRE_RESERVEE : MESSAGE_CHAMBRE_EN_COURS);
-
-    const recent = await this.prisma.paiementReservation.findFirst({ where: { reservationId: reservation.id, statut: "EN_ATTENTE", createdAt: { gt: new Date(Date.now() - DELAI_NOUVEL_ESSAI_MS) } } });
-    if (recent) throw new ConflictException("Un paiement est déjà en attente de confirmation. Validez-le sur votre téléphone, ou patientez quelques minutes avant de réessayer.");
-
     const modele = this.modele(hotel);
     let ligne;
     try {
-      ligne = await this.prisma.paiementReservation.create({
-        data: {
-          hotelId: hotel.id,
-          reservationId: reservation.id,
-          montant,
-          devise,
-          pourcentage: hotel.pourcentageAcompte,
-          moyen: dto.moyen,
-          operateur: dto.moyen === "MOBILE_MONEY" ? dto.operateur : null,
-          telephoneMasque: telephone ? masquerNumero(telephone) : null,
-          modeleCommission: modele,
-          cleIdempotence: dto.cleIdempotence,
-          numeroScanLinkPayClient: dto.numeroScanLinkPay?.trim() || null,
-        },
+      // Sous verrou « chambre » : la vérification (déjà prise ? retenue par un autre client ?) et l'enregistrement du paiement se font dans le même
+      // bloc indivisible. Deux clients qui paient à la même seconde passent l'un après l'autre : le second voit la retenue du premier et est refusé
+      // AVANT d'être débité. Plus aucune course possible entre deux paiements.
+      ligne = await this.prisma.$transaction(async (tx) => {
+        await verrouillerChambre(tx, reservation.chambreId);
+        const prise = (await chambresPrises(tx as unknown as PrismaClient, { hotelId: hotel.id, debut: reservation.dateArrivee, fin: reservation.dateDepart, chambreId: reservation.chambreId, exclureReservationId: reservation.id })).get(reservation.chambreId);
+        if (prise) throw new ConflictException(prise.etat === "RESERVEE" ? MESSAGE_CHAMBRE_RESERVEE : MESSAGE_CHAMBRE_EN_COURS);
+
+        const recent = await tx.paiementReservation.findFirst({ where: { reservationId: reservation.id, statut: "EN_ATTENTE", createdAt: { gt: new Date(Date.now() - DELAI_NOUVEL_ESSAI_MS) } } });
+        if (recent) throw new ConflictException("Un paiement est déjà en attente de confirmation. Validez-le sur votre téléphone, ou patientez quelques minutes avant de réessayer.");
+
+        return tx.paiementReservation.create({
+          data: {
+            hotelId: hotel.id,
+            reservationId: reservation.id,
+            montant,
+            devise,
+            pourcentage: hotel.pourcentageAcompte,
+            moyen: dto.moyen,
+            operateur: dto.moyen === "MOBILE_MONEY" ? dto.operateur : null,
+            telephoneMasque: telephone ? masquerNumero(telephone) : null,
+            modeleCommission: modele,
+            cleIdempotence: dto.cleIdempotence,
+            numeroScanLinkPayClient: dto.numeroScanLinkPay?.trim() || null,
+          },
+        });
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {

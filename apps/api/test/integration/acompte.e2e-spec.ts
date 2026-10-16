@@ -246,7 +246,12 @@ decrire("Acompte payé en ligne sur le compte ScanLinkPay de l'hôtel, puis remb
       const premier = await demander({ chambreId: chambre.id, du: 70, au: 72, nom: "Premier" });
       const second = await demander({ chambreId: chambre.id, du: 71, au: 73, nom: "Second" });
       const paiement = await payer(second.jeton, {}).expect(201); // la chambre est encore libre
-      // la réception confirme l'autre demande entre-temps
+      // Pendant que le second client paie, la chambre lui est retenue : la réception ne peut PAS confirmer l'autre demande tout de suite.
+      const refus = await http().post(`/reservations/${premier.id}/confirmer`).set("Authorization", as(A, "recep")).expect(409);
+      expect(refus.body.message).toMatch(/en cours de réservation par un autre client/);
+      expect((await reservation(premier.id)).statut).toBe("EN_ATTENTE");
+      // Le client ne confirme jamais sur son téléphone : au-delà de 10 minutes la retenue tombe, et la réception peut confirmer l'autre demande.
+      await p.paiementReservation.update({ where: { id: paiement.body.id }, data: { createdAt: new Date(Date.now() - 11 * 60_000) } });
       await http().post(`/reservations/${premier.id}/confirmer`).set("Authorization", as(A, "recep")).expect(201);
       // désormais impossible de payer pour la seconde
       await payer(second.jeton, { cleIdempotence: uuid() }).expect(409);
@@ -258,6 +263,33 @@ decrire("Acompte payé en ligne sur le compte ScanLinkPay de l'hôtel, puis remb
       const remb = await p.remboursement.findFirst({ where: { reservationId: second.id } });
       expect(remb).toMatchObject({ motif: "CHAMBRE_INDISPONIBLE", statut: "A_FAIRE", clientNom: "Second" });
       expect(Number(remb.montantPaye)).toBe(24); // 40 × 2 nuits × 30 %
+    });
+  });
+
+  describe("deux clients qui paient à la même seconde : un seul gagne la chambre", () => {
+    it("sous verrou, un seul paiement est créé et débité ; l'autre est refusé AVANT tout débit, sans rien envoyer à ScanLinkPay", async () => {
+      const chambre = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "302", type: "Std", prixParNuit: 40, devise: "USD" } });
+      const clients = await Promise.all([1, 2, 3, 4].map((i) => demander({ chambreId: chambre.id, du: 90, au: 92, nom: `Course ${i}` })));
+      const avant = faux.paiements.size;
+      const reponses = await Promise.all(clients.map((c) => payer(c.jeton, {})));
+      const statuts = reponses.map((r) => r.status).sort();
+      expect(statuts).toEqual([201, 409, 409, 409]);
+      expect(await p.paiementReservation.count({ where: { reservationId: { in: clients.map((c) => c.id) } } })).toBe(1);
+      expect(faux.paiements.size - avant).toBe(1);
+      for (const r of reponses.filter((x) => x.status === 409)) expect(r.body.message).toMatch(/en cours de réservation par un autre client/);
+    });
+
+    it("la réception qui confirme et un client qui paie en même temps : l'un des deux seulement, jamais les deux", async () => {
+      const chambre = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "303", type: "Std", prixParNuit: 40, devise: "USD" } });
+      const payeur = await demander({ chambreId: chambre.id, du: 95, au: 97, nom: "Payeur" });
+      const autre = await demander({ chambreId: chambre.id, du: 95, au: 97, nom: "Autre" });
+      const [paiement, confirmation] = await Promise.all([
+        payer(payeur.jeton, {}),
+        http().post(`/reservations/${autre.id}/confirmer`).set("Authorization", as(A, "recep")),
+      ]);
+      expect([paiement.status, confirmation.status].filter((s) => s === 201).length).toBe(1);
+      if (confirmation.status === 201) expect(await p.paiementReservation.count({ where: { reservationId: payeur.id } })).toBe(0);
+      else expect((await reservation(autre.id)).statut).toBe("EN_ATTENTE");
     });
   });
 

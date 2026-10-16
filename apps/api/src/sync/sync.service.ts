@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, Inject, Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, ConflictException, HttpException, Inject, Injectable, Logger } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { Prisma, PrismaClient } from "@hotel-chicago/database";
@@ -7,6 +7,8 @@ import { MESSAGE_PATRON_NON_OPERANT } from "../common/guards/roles.guard";
 import { PRISMA } from "../prisma/prisma.module";
 import { ChambresService } from "../chambres/chambres.service";
 import { ReservationsService } from "../reservations/reservations.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import { messages } from "../notifications/messages";
 import { ProduitsService } from "../produits/produits.service";
 import { StockService } from "../stock/stock.service";
 import { CafeteriaService } from "../cafeteria/cafeteria.service";
@@ -153,7 +155,8 @@ export class SyncService {
     private readonly cafeteriaService: CafeteriaService,
     private readonly depensesService: DepensesService,
     private readonly facturesService: FacturesService,
-    private readonly clientsService: ClientsService
+    private readonly clientsService: ClientsService,
+    private readonly notifications: NotificationsService
   ) {
     // Chaque entité délègue à son service métier existant plutôt qu'à un
     // passthrough Prisma générique : ça réutilise gratuitement toute la
@@ -175,7 +178,8 @@ export class SyncService {
         rolesUpdate: [Role.RECEPTIONNISTE, Role.PATRON],
         create: async (payload, currentUser) => {
           // Même validation que POST /reservations (dates, identifiants) : le payload de /sync/push ne passe pas par le ValidationPipe.
-          const cree = await this.reservationsService.create(await this.valider(CreateReservationDto, payload), currentUser);
+          const dto = await this.valider(CreateReservationDto, payload);
+          const cree = await this.reservationsService.create(dto, currentUser).catch((e: unknown) => this.signalerChambrePrise(e, currentUser.hotelId, dto.chambreId, dto.client?.nom));
           // Un client inline (payload.client, nouveau client) est créé
           // implicitement côté serveur — même mécanisme que le premier
           // sous-compte cafétaria : si l'appareil a envoyé l'id local de sa
@@ -305,7 +309,12 @@ export class SyncService {
             throw new BadRequestException(`action doit être l'une de : ${ACTIONS_RESERVATION.join(", ")}.`);
           }
           const { hotelId } = currentUser;
-          if (action === "CONFIRMER") await this.reservationsService.confirmer(reservationId, hotelId);
+          if (action === "CONFIRMER") {
+            await this.reservationsService.confirmer(reservationId, hotelId).catch(async (e: unknown) => {
+              const r = await this.prisma.reservation.findUnique({ where: { id: reservationId, hotelId }, select: { chambreId: true, client: { select: { nom: true } } } });
+              return this.signalerChambrePrise(e, hotelId, r?.chambreId, r?.client?.nom, reservationId);
+            });
+          }
           else if (action === "CHECK_IN") await this.reservationsService.checkIn(reservationId, hotelId);
           else if (action === "CHECK_OUT") await this.reservationsService.checkOut(reservationId, hotelId);
           else {
@@ -528,6 +537,27 @@ export class SyncService {
 
   /** Valide un payload avec les mêmes règles que la route HTTP équivalente (le payload de /sync/push n'est pas passé au
    * ValidationPipe) ; les champs inconnus (hotelId, id…) sont retirés. */
+  /**
+   * Une réservation faite SANS CONNEXION arrive au serveur alors que la chambre a été prise entre-temps (typiquement un acompte payé en ligne) :
+   * le serveur la refuse (elle apparaît dans « Actions échouées » de l'appareil), et la réception et le patron sont prévenus pour proposer une autre
+   * chambre ou d'autres dates au client. Relance toujours l'erreur d'origine.
+   */
+  private async signalerChambrePrise(erreur: unknown, hotelId: string, chambreId: string | undefined, client?: string, reservationId?: string): Promise<never> {
+    if (erreur instanceof ConflictException && /déjà réservée|en cours de réservation/.test(String(erreur.message)) && chambreId) {
+      try {
+        const chambre = await this.prisma.chambre.findFirst({ where: { id: chambreId, hotelId }, select: { numero: true } });
+        void this.notifications.emettre({
+          hotelId,
+          roles: [Role.RECEPTIONNISTE, Role.PATRON],
+          ...messages.reservationHorsLigneRefusee({ chambre: chambre?.numero ?? "?", client, reservationId }),
+        });
+      } catch {
+        // Le signalement ne doit jamais masquer le refus lui-même.
+      }
+    }
+    throw erreur;
+  }
+
   private async valider<T extends object>(Classe: new () => T, payload: Record<string, unknown>): Promise<T> {
     const instance = plainToInstance(Classe, payload);
     const erreurs = await validate(instance, { whitelist: true });

@@ -19,7 +19,9 @@ function creerPrismaMock() {
       findUnique: jest.fn(),
       create: jest.fn(),
     },
-    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+    paiementReservation: { findMany: jest.fn().mockResolvedValue([]) },
+    $executeRaw: jest.fn().mockResolvedValue(0),
+    $transaction: jest.fn(),
   } as any;
 }
 
@@ -34,7 +36,9 @@ describe("ReservationsService", () => {
     prisma = creerPrismaMock();
     service = new ReservationsService(prisma, { emettre: jest.fn() } as any);
     prisma.chambre.findUnique.mockResolvedValue({ id: "c1", devise: "USD", prixParNuit: 45 });
-    prisma.reservation.findFirst.mockResolvedValue(null); // pas de conflit par défaut
+    prisma.reservation.findFirst.mockResolvedValue(null);
+    prisma.reservation.findMany.mockResolvedValue([]); // pas de chambre prise par défaut
+    prisma.$transaction.mockImplementation((arg: unknown) => (typeof arg === "function" ? (arg as (tx: unknown) => unknown)(prisma) : Promise.all(arg as Promise<unknown>[])));
   });
 
   describe("create", () => {
@@ -72,7 +76,7 @@ describe("ReservationsService", () => {
 
     it("refuse si la chambre est déjà réservée sur une période chevauchante", async () => {
       prisma.client.findUnique.mockResolvedValue({ id: "cl1" });
-      prisma.reservation.findFirst.mockResolvedValue({ id: "existante" });
+      prisma.reservation.findMany.mockResolvedValue([{ chambreId: "c1", dateDepart: new Date("2026-10-05") }]);
       await expect(service.create({ ...base, clientId: "cl1" } as any, currentUser)).rejects.toThrow(
         ConflictException
       );
@@ -240,7 +244,7 @@ describe("ReservationsService", () => {
         dateArrivee: new Date("2026-10-01"),
         dateDepart: new Date("2026-10-03"),
       });
-      prisma.reservation.findFirst.mockResolvedValue({ id: "autre" });
+      prisma.reservation.findMany.mockResolvedValue([{ chambreId: "c1", dateDepart: new Date("2026-10-05") }]);
       await expect(service.confirmer("r1", HOTEL_ID)).rejects.toThrow(ConflictException);
     });
 

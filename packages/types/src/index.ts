@@ -711,6 +711,7 @@ export const TYPES_NOTIFICATION = [
   "ABONNEMENT_RENOUVELE",
   "ACOMPTE_PAYE_EN_LIGNE",
   "REMBOURSEMENT_A_FAIRE",
+  "RESERVATION_HORS_LIGNE_REFUSEE",
 ] as const;
 export type TypeNotification = (typeof TYPES_NOTIFICATION)[number];
 
@@ -719,6 +720,7 @@ export type CategorieNotification = "reservations" | "stock" | "quotidien" | "se
 
 export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification> = {
   DEMANDE_RESERVATION: "reservations",
+  RESERVATION_HORS_LIGNE_REFUSEE: "reservations",
   CHAMBRE_A_PREPARER: "reservations",
   DEPART_DEPASSE: "reservations",
   STOCK_BAS: "stock",
