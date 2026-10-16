@@ -1,31 +1,40 @@
 import * as React from "react";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { Lock, Mail, MailCheck } from "lucide-react-native";
+import { ArrowRight, Hotel, Lock, Mail, MailCheck, ShieldCheck } from "lucide-react-native";
+import { formaterSaisieRdc } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
-import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
-import { EnteteAuth } from "../composants/EnteteAuth";
+import { PageAuth } from "../composants/PageAuth";
 import { ChampAuth } from "../composants/ChampAuth";
+import { ChampTelephone, telephoneDepuisSaisie } from "../composants/ChampTelephone";
 import { messageErreur } from "../messagesErreur";
 import { useRetourAndroid } from "../hooks/useRetourAndroid";
 
 export interface EcranConnexionProps {
-  emailInitial?: string;
+  /** Numéro (« +243… ») ou e-mail d'un ancien compte, pour pré-remplir. */
+  identifiantInitial?: string;
   message?: string | null;
   erreur: string | null;
   enCours: boolean;
-  onConnexion: (email: string, motDePasse: string) => void;
+  /** `identifiant` : numéro normalisé « +243XXXXXXXXX », ou e-mail (ancien compte). */
+  onConnexion: (identifiant: string, motDePasse: string) => void;
   onRetour?: () => void;
   onCreerCompte?: () => void;
-  /** Envoie l'e-mail « mot de passe oublié » ; rejette avec un message lisible en cas d'échec. */
-  onMotDePasseOublie?: (email: string) => Promise<void>;
+  /** « Mot de passe oublié » ; rejette avec un message lisible en cas d'échec. */
+  onMotDePasseOublie?: (identifiant: string) => Promise<void>;
 }
 
-/** Bandeau navy + feuille blanche arrondie (maquette). Pas de « mot de passe
- * oublié » ni de « se souvenir de moi » : aucun des deux n'existe côté API, et
- * la session est déjà mémorisée par profil (voir DECISIONS.md, Phase 16). */
+/** Saisie du champ téléphone à partir d'un numéro normalisé « +243970000000 ». */
+function saisieDepuis(identifiant?: string): string {
+  return identifiant && !identifiant.includes("@") ? formaterSaisieRdc(identifiant.replace(/^\+243/, "")) : "";
+}
+
+/** Maquette du 15/10/2026 (seconde version) : connexion par **numéro de
+ * téléphone** + mot de passe, pour tous les rôles. Un ancien compte sans
+ * numéro peut encore passer par son e-mail (« Ancien compte ? … ») tant que
+ * le patron ne lui a pas ajouté de numéro (voir DECISIONS.md). */
 export function EcranConnexion({
-  emailInitial,
+  identifiantInitial,
   message,
   erreur,
   enCours,
@@ -34,23 +43,44 @@ export function EcranConnexion({
   onCreerCompte,
   onMotDePasseOublie,
 }: EcranConnexionProps) {
-  const [email, setEmail] = useState(emailInitial ?? "");
+  const [parEmail, setParEmail] = useState(!!identifiantInitial?.includes("@"));
+  const [telephone, setTelephone] = useState(saisieDepuis(identifiantInitial));
+  const [email, setEmail] = useState(identifiantInitial?.includes("@") ? identifiantInitial : "");
   const [motDePasse, setMotDePasse] = useState("");
   const [mode, setMode] = useState<"connexion" | "oubli">("connexion");
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [envoye, setEnvoye] = useState(false);
-  const [erreurOubli, setErreurOubli] = useState<string | null>(null);
+  const [erreurLocale, setErreurLocale] = useState<string | null>(null);
+
+  /** Identifiant saisi (numéro normalisé ou e-mail), ou un message d'erreur. */
+  function identifiant(): { valeur: string } | { erreur: string } {
+    if (parEmail) {
+      return /^\S+@\S+\.\S+$/.test(email.trim()) ? { valeur: email.trim() } : { erreur: "Saisissez une adresse e-mail valide." };
+    }
+    const numero = telephoneDepuisSaisie(telephone);
+    return numero
+      ? { valeur: numero }
+      : { erreur: "Numéro invalide : 9 chiffres commençant par 8 ou 9 (ex. 970 000 000)." };
+  }
+
+  function seConnecter() {
+    const id = identifiant();
+    if ("erreur" in id) return setErreurLocale(id.erreur);
+    setErreurLocale(null);
+    onConnexion(id.valeur, motDePasse);
+  }
 
   async function envoyerLien() {
     if (!onMotDePasseOublie) return;
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErreurOubli("Saisissez une adresse e-mail valide.");
-    setErreurOubli(null);
+    const id = identifiant();
+    if ("erreur" in id) return setErreurLocale(id.erreur);
+    setErreurLocale(null);
     setEnvoiEnCours(true);
     try {
-      await onMotDePasseOublie(email.trim());
+      await onMotDePasseOublie(id.valeur);
       setEnvoye(true);
     } catch (e) {
-      setErreurOubli(messageErreur(e, "Envoi impossible. Réessayez."));
+      setErreurLocale(messageErreur(e, "Envoi impossible. Réessayez."));
     } finally {
       setEnvoiEnCours(false);
     }
@@ -59,7 +89,7 @@ export function EcranConnexion({
   function retourConnexion() {
     setMode("connexion");
     setEnvoye(false);
-    setErreurOubli(null);
+    setErreurLocale(null);
   }
 
   // Bouton Retour d'Android : « mot de passe oublié » → connexion ; connexion → choix du profil quand il existe.
@@ -75,179 +105,217 @@ export function EcranConnexion({
     return false;
   });
 
+  const champIdentifiant = parEmail ? (
+    <ChampAuth
+      libelle="Adresse e-mail *"
+      icone={Mail}
+      value={email}
+      onChangeText={setEmail}
+      autoCapitalize="none"
+      keyboardType="email-address"
+      textContentType="emailAddress"
+      placeholder="nom@hotel.com"
+    />
+  ) : (
+    <ChampTelephone libelle="Numéro de téléphone *" value={telephone} onChangeText={setTelephone} />
+  );
+
+  const basculeEmail = (
+    <Pressable
+      style={styles.lienDiscret}
+      onPress={() => {
+        setParEmail((v) => !v);
+        setErreurLocale(null);
+      }}
+      hitSlop={6}
+      accessibilityRole="button"
+    >
+      <Text style={styles.lienDiscretTexte}>
+        {parEmail ? "Se connecter avec un numéro de téléphone" : "Ancien compte ? Se connecter avec un e-mail"}
+      </Text>
+    </Pressable>
+  );
+
+  const erreurAffichee = erreurLocale ?? erreur;
+
   if (mode === "oubli") {
     return (
-      <View style={styles.page}>
-        <EnteteAuth />
-        <View style={styles.feuille}>
-          <ConteneurFormulaire styleContenu={styles.contenu}>
-            {envoye ? (
-              <>
-                <View style={styles.iconeSucces}>
-                  <MailCheck size={30} color={couleurs.bleu} />
-                </View>
-                <Text style={[styles.titre, styles.centre]}>Consultez votre boîte mail</Text>
-                <Text style={[styles.sousTitre, styles.centre]}>
-                  Si un compte existe pour {email.trim()}, un e-mail vient d'être envoyé avec le lien de réinitialisation.
-                  Pensez à vérifier les courriers indésirables.
-                </Text>
-                <Pressable style={styles.bouton} onPress={retourConnexion} accessibilityRole="button">
-                  <Text style={styles.boutonTexte}>Retour à la connexion</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Text style={styles.titre}>Mot de passe oublié ?</Text>
-                <Text style={styles.sousTitre}>
-                  Saisissez l'adresse e-mail de votre compte : nous vous envoyons un lien pour choisir un nouveau mot de passe.
-                </Text>
-                <ChampAuth
-                  libelle="Adresse e-mail"
-                  icone={Mail}
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  textContentType="emailAddress"
-                  autoComplete="email"
-                  returnKeyType="send"
-                  onSubmitEditing={envoyerLien}
-                  placeholder="ex. hotel@monetablissement.com"
-                />
-                {erreurOubli && (
-                  <Text style={styles.erreur} accessibilityRole="alert">
-                    {erreurOubli}
-                  </Text>
-                )}
-                <Pressable
-                  style={[styles.bouton, envoiEnCours && styles.boutonDesactive]}
-                  onPress={envoyerLien}
-                  disabled={envoiEnCours}
-                  accessibilityRole="button"
-                  accessibilityLabel={envoiEnCours ? "Envoi du lien en cours" : "Envoyer le lien"}
-                  accessibilityState={{ disabled: envoiEnCours, busy: envoiEnCours }}
-                >
-                  {envoiEnCours ? <ActivityIndicator color="#fff" /> : <Text style={styles.boutonTexte}>Envoyer le lien</Text>}
-                </Pressable>
-                <Pressable style={styles.boutonRetour} onPress={retourConnexion} accessibilityRole="button">
-                  <Text style={styles.boutonRetourTexte}>Retour à la connexion</Text>
-                </Pressable>
-              </>
+      <PageAuth>
+        {envoye ? (
+          <>
+            <View style={styles.iconeSucces}>
+              <MailCheck size={30} color={couleurs.bleu} />
+            </View>
+            <Text style={styles.titre}>Demande envoyée</Text>
+            <Text style={styles.sousTitre}>
+              Si une adresse e-mail est associée à ce compte, un lien pour choisir un nouveau mot de passe vient d'y être
+              envoyé (pensez aux courriers indésirables).
+            </Text>
+            <View style={styles.carteInfo}>
+              <View style={styles.carteInfoIcone}>
+                <ShieldCheck size={24} color="#FFFFFF" fill={couleurs.bleu} strokeWidth={2} />
+              </View>
+              <Text style={styles.carteInfoTexte}>
+                Pas d'e-mail sur votre compte ? Employé : demandez à votre patron de changer votre mot de passe. Patron :
+                contactez le support HotelSaver.
+              </Text>
+            </View>
+            <Pressable style={styles.bouton} onPress={retourConnexion} accessibilityRole="button">
+              <Text style={styles.boutonTexte}>Retour à la connexion</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Text style={styles.titre}>Mot de passe oublié ?</Text>
+            <Text style={styles.sousTitre}>Saisissez le numéro de votre compte.</Text>
+            {champIdentifiant}
+            {basculeEmail}
+            {erreurAffichee && (
+              <Text style={styles.erreur} accessibilityRole="alert">
+                {erreurAffichee}
+              </Text>
             )}
-          </ConteneurFormulaire>
-        </View>
-      </View>
+            <Pressable
+              style={[styles.bouton, envoiEnCours && styles.boutonDesactive]}
+              onPress={envoyerLien}
+              disabled={envoiEnCours}
+              accessibilityRole="button"
+              accessibilityLabel={envoiEnCours ? "Envoi en cours" : "Continuer"}
+              accessibilityState={{ disabled: envoiEnCours, busy: envoiEnCours }}
+            >
+              {envoiEnCours ? <ActivityIndicator color="#fff" /> : <Text style={styles.boutonTexte}>Continuer</Text>}
+            </Pressable>
+            <Pressable style={styles.boutonRetour} onPress={retourConnexion} accessibilityRole="button">
+              <Text style={styles.boutonRetourTexte}>Retour à la connexion</Text>
+            </Pressable>
+          </>
+        )}
+      </PageAuth>
     );
   }
 
   return (
-    <View style={styles.page}>
-      <EnteteAuth />
-      <View style={styles.feuille}>
-        <ConteneurFormulaire styleContenu={styles.contenu}>
-          <Text style={styles.titre}>Bon retour</Text>
-          <Text style={styles.sousTitre}>Connectez-vous à votre espace hôtelier.</Text>
+    <PageAuth>
+      <Text style={styles.titre}>Ravi de vous revoir !</Text>
+      <Text style={styles.sousTitre}>Connectez-vous à votre espace hôtelier.</Text>
 
-          {message && (
-            <Text style={styles.message} accessibilityLiveRegion="polite">
-              {message}
-            </Text>
-          )}
+      {/* Carte d'information seulement pour un message ponctuel (ex. après
+       * l'inscription) : la carte par défaut a été retirée pour remonter le
+       * formulaire et éviter de défiler (retour du patron, 15/10/2026). */}
+      {message && (
+        <View style={styles.carteInfo} accessibilityLiveRegion="polite">
+          <View style={styles.carteInfoIcone}>
+            <ShieldCheck size={24} color="#FFFFFF" fill={couleurs.bleu} strokeWidth={2} />
+          </View>
+          <Text style={styles.carteInfoTexte}>{message}</Text>
+        </View>
+      )}
 
-          <ChampAuth
-            libelle="Adresse e-mail"
-            icone={Mail}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            autoComplete="email"
-            returnKeyType="next"
-            placeholder="ex. hotel@monetablissement.com"
-          />
-          <ChampAuth
-            libelle="Mot de passe"
-            icone={Lock}
-            value={motDePasse}
-            onChangeText={setMotDePasse}
-            secureTextEntry
-            textContentType="password"
-            autoComplete="current-password"
-            returnKeyType="go"
-            onSubmitEditing={() => onConnexion(email.trim(), motDePasse)}
-            placeholder="Votre mot de passe"
-          />
+      {champIdentifiant}
+      <ChampAuth
+        libelle="Mot de passe *"
+        icone={Lock}
+        value={motDePasse}
+        onChangeText={setMotDePasse}
+        secureTextEntry
+        textContentType="password"
+        autoComplete="current-password"
+        returnKeyType="go"
+        onSubmitEditing={seConnecter}
+        placeholder="Votre mot de passe"
+      />
 
-          {onMotDePasseOublie && (
-            <Pressable style={styles.lienOubli} onPress={() => setMode("oubli")} hitSlop={8} accessibilityRole="button">
-              <Text style={styles.lienOubliTexte}>Mot de passe oublié ?</Text>
-            </Pressable>
-          )}
+      {onMotDePasseOublie && (
+        <Pressable
+          style={styles.lienOubli}
+          onPress={() => {
+            setMode("oubli");
+            setErreurLocale(null);
+          }}
+          hitSlop={8}
+          accessibilityRole="button"
+        >
+          <Text style={styles.lienOubliTexte}>Mot de passe oublié ?</Text>
+        </Pressable>
+      )}
 
-          {erreur && (
-            <Text style={styles.erreur} accessibilityRole="alert">
-              {erreur}
-            </Text>
-          )}
+      {erreurAffichee && (
+        <Text style={styles.erreur} accessibilityRole="alert">
+          {erreurAffichee}
+        </Text>
+      )}
 
-          <Pressable
-            style={[styles.bouton, enCours && styles.boutonDesactive]}
-            onPress={() => onConnexion(email.trim(), motDePasse)}
-            disabled={enCours}
-            accessibilityRole="button"
-            accessibilityLabel={enCours ? "Connexion en cours" : "Se connecter"}
-            accessibilityState={{ disabled: enCours, busy: enCours }}
-          >
-            {enCours ? <ActivityIndicator color="#fff" /> : <Text style={styles.boutonTexte}>Se connecter</Text>}
+      <Pressable
+        style={[styles.bouton, enCours && styles.boutonDesactive]}
+        onPress={seConnecter}
+        disabled={enCours}
+        accessibilityRole="button"
+        accessibilityLabel={enCours ? "Connexion en cours" : "Se connecter"}
+        accessibilityState={{ disabled: enCours, busy: enCours }}
+      >
+        {enCours ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <>
+            <Text style={styles.boutonTexte}>Se connecter</Text>
+            <ArrowRight size={18} color="#fff" />
+          </>
+        )}
+      </Pressable>
+
+      {onCreerCompte && (
+        <>
+          <View style={styles.separateur}>
+            <View style={styles.trait} />
+            <Text style={styles.separateurTexte}>ou</Text>
+            <View style={styles.trait} />
+          </View>
+          <Pressable style={styles.boutonContour} onPress={onCreerCompte} accessibilityRole="button">
+            <Hotel size={20} color={couleurs.bleu} />
+            <Text style={styles.boutonContourTexte}>Créer votre hôtel</Text>
           </Pressable>
+          <Pressable style={styles.lienBas} onPress={onCreerCompte} hitSlop={6} accessibilityRole="button">
+            <Text style={styles.lienBasTexte}>
+              Vous débutez avec HotelSaver ?{"  "}
+              <Text style={styles.lien}>Créez votre hôtel</Text>
+            </Text>
+          </Pressable>
+        </>
+      )}
 
-          {onCreerCompte && (
-            <>
-              <View style={styles.separateur}>
-                <View style={styles.trait} />
-                <Text style={styles.separateurTexte}>Ou</Text>
-                <View style={styles.trait} />
-              </View>
-              <Pressable style={styles.boutonContour} onPress={onCreerCompte} accessibilityRole="button">
-                <Text style={styles.boutonContourTexte}>Créer un compte</Text>
-              </Pressable>
-            </>
-          )}
+      {basculeEmail}
 
-          {onRetour && (
-            <Pressable style={styles.boutonRetour} onPress={onRetour} accessibilityRole="button">
-              <Text style={styles.boutonRetourTexte}>Retour</Text>
-            </Pressable>
-          )}
-        </ConteneurFormulaire>
-      </View>
-    </View>
+      {onRetour && (
+        <Pressable style={styles.boutonRetour} onPress={onRetour} accessibilityRole="button">
+          <Text style={styles.boutonRetourTexte}>Retour</Text>
+        </Pressable>
+      )}
+    </PageAuth>
   );
 }
 
 const styles = StyleSheet.create({
-  // Fond navy : il se prolonge derrière les coins arrondis de la feuille.
-  page: { flex: 1, backgroundColor: couleurs.navy },
-  feuille: {
-    flex: 1,
-    marginTop: -espacements.s5,
-    backgroundColor: couleurs.surface200,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden",
+  titre: { fontSize: 28, fontWeight: "800", color: couleurs.navy, letterSpacing: -0.3, textAlign: "center" },
+  sousTitre: { fontSize: 15, color: "#5B6B8C", marginTop: 4, marginBottom: 16, textAlign: "center" },
+  carteInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#EEF4FE",
+    borderRadius: 14,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    marginBottom: 16,
   },
-  contenu: { padding: espacements.s5, paddingTop: espacements.s5 + espacements.s2 },
-  titre: { fontSize: 26, fontWeight: "700", color: couleurs.navy },
-  sousTitre: { fontSize: 14, color: couleurs.encreAttenuee, marginTop: 4, marginBottom: espacements.s5 },
-  message: {
-    fontSize: 13,
-    color: couleurs.info,
-    backgroundColor: couleurs.infoClair,
-    padding: espacements.s3,
-    borderRadius: rayons.sm,
-    marginBottom: espacements.s3,
+  carteInfoIcone: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
+  carteInfoTexte: { flex: 1, fontSize: 13, lineHeight: 19, color: "#1A4FB5" },
   erreur: {
     color: "#B42318",
     backgroundColor: couleurs.dangerClair,
@@ -258,27 +326,33 @@ const styles = StyleSheet.create({
   },
   bouton: {
     marginTop: espacements.s2,
-    minHeight: 52,
-    borderRadius: rayons.md,
+    minHeight: 48,
+    borderRadius: 12,
     backgroundColor: couleurs.bleu,
+    flexDirection: "row",
+    gap: 8,
     alignItems: "center",
     justifyContent: "center",
   },
   boutonDesactive: { opacity: 0.6 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  separateur: { flexDirection: "row", alignItems: "center", gap: espacements.s3, marginVertical: espacements.s4 },
-  trait: { flex: 1, height: 1, backgroundColor: couleurs.bordure },
-  separateurTexte: { color: couleurs.encreFaible, fontSize: 13 },
+  separateur: { flexDirection: "row", alignItems: "center", gap: espacements.s4, marginVertical: 10 },
+  trait: { flex: 1, height: 1, backgroundColor: "#DCE4F0" },
+  separateurTexte: { color: "#5B6B8C", fontSize: 14 },
   boutonContour: {
-    minHeight: 52,
-    borderRadius: rayons.md,
+    minHeight: 48,
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: couleurs.bleu,
+    flexDirection: "row",
+    gap: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   boutonContourTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 16 },
-  centre: { textAlign: "center" },
+  lienBas: { alignItems: "center", marginTop: 14 },
+  lienBasTexte: { fontSize: 13.5, color: "#3B4A63" },
+  lien: { color: couleurs.bleu, fontWeight: "700" },
   iconeSucces: {
     width: 64,
     height: 64,
@@ -289,8 +363,10 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: espacements.s3,
   },
-  lienOubli: { alignSelf: "flex-end", minHeight: 44, justifyContent: "center", marginBottom: espacements.s1 },
+  lienOubli: { alignSelf: "flex-end", minHeight: 30, justifyContent: "center", marginTop: -6, marginBottom: espacements.s2 },
   lienOubliTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 13 },
-  boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", minHeight: 44 },
+  lienDiscret: { alignItems: "center", marginTop: 10, minHeight: 28, justifyContent: "center" },
+  lienDiscretTexte: { color: "#5B6B8C", fontSize: 12.5, textDecorationLine: "underline" },
+  boutonRetour: { marginTop: espacements.s1, alignItems: "center", justifyContent: "center", height: 36 },
   boutonRetourTexte: { color: couleurs.encreAttenuee, fontWeight: "600" },
 });

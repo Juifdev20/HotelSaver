@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import {
   Devise,
@@ -11,14 +12,32 @@ import {
   ProfilConnecte,
   VentesRecentes,
 } from "@hotel-chicago/types";
-import { Banknote, BedDouble, Calendar, ChevronRight, Clock, Coffee, CreditCard, HandCoins, Package, ReceiptText, Wallet } from "lucide-react-native";
+import {
+  Banknote,
+  BedDouble,
+  Building2,
+  Calendar,
+  ChevronRight,
+  Clock,
+  Coffee,
+  ConciergeBell,
+  CreditCard,
+  Crown,
+  HandCoins,
+  Package,
+  ReceiptText,
+  UtensilsCrossed,
+  Wallet,
+} from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { Donut } from "../composants/Donut";
 import { EnteteMobile } from "../composants/EnteteMobile";
+import { AvatarUtilisateur } from "../composants/AvatarUtilisateur";
+import { LIBELLE_ROLE } from "../navigation";
+import { useNotifications } from "../notifications/ContexteNotifications";
 import { useDonnee } from "../hooks/useDonnee";
 import { useRemboursementsAFaire } from "../hooks/useRemboursementsAFaire";
-import { useNotifications } from "../notifications/ContexteNotifications";
 import { fonctionOuverte } from "../fonctions";
 import { formaterLubumbashi, heureCourte } from "../dates";
 
@@ -51,20 +70,54 @@ function useHorlogeVivante(): Date {
   return maintenant;
 }
 
-function Carte({ icone, tone, toneClaire, libelle, valeur, precision }: {
+function Carte({ icone, toneClaire, libelle, valeur, precision, pleineLargeur = false }: {
   icone: React.ReactNode;
   tone: string;
   toneClaire: string;
   libelle: string;
   valeur: string;
   precision?: string;
+  /** « Dont chambres / cafétaria » : sur toute la largeur, comme la maquette. */
+  pleineLargeur?: boolean;
 }) {
   return (
-    <View style={styles.carte}>
+    <View style={[styles.carte, pleineLargeur && styles.cartePleine]}>
       <View style={[styles.carteIcone, { backgroundColor: toneClaire }]}>{icone}</View>
       <Text style={styles.carteLibelle}>{libelle}</Text>
       <Text style={styles.carteValeur}>{valeur}</Text>
       {precision && <Text style={styles.cartePrecision}>{precision}</Text>}
+    </View>
+  );
+}
+
+const ICONE_ROLE: Record<Role, typeof Crown> = {
+  [Role.PATRON]: Crown,
+  [Role.RECEPTIONNISTE]: ConciergeBell,
+  [Role.CAFETARIA]: UtensilsCrossed,
+};
+
+/** « Bonjour, {nom} » + puce du rôle + nom de l'hôtel connecté — jamais en
+ * dur : tout vient du profil (`GET /auth/me`), pour chaque rôle et chaque hôtel. */
+function CarteAccueil({ utilisateur }: { utilisateur: ProfilConnecte }) {
+  const IconeRole = ICONE_ROLE[utilisateur.role];
+  return (
+    <View style={styles.carteAccueil}>
+      <AvatarUtilisateur taille={44} />
+      <View style={styles.accueilTextes}>
+        <Text style={styles.bonjour} numberOfLines={1}>
+          Bonjour, {utilisateur.nom}
+        </Text>
+        <View style={styles.puceRole}>
+          <IconeRole size={13} color={couleurs.bleu} />
+          <Text style={styles.puceRoleTexte}>{LIBELLE_ROLE[utilisateur.role]}</Text>
+        </View>
+      </View>
+      <View style={styles.pastilleHotel}>
+        <Building2 size={16} color={couleurs.encreAttenuee} />
+        <Text style={styles.pastilleHotelTexte} numberOfLines={1}>
+          {utilisateur.hotelNom}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -76,7 +129,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
   const voitChambres = utilisateur.role !== Role.CAFETARIA && receptionOuverte;
   const voitStock = utilisateur.role !== Role.RECEPTIONNISTE && cafeteriaOuverte;
   const voitRemboursements = utilisateur.role === Role.PATRON && receptionOuverte;
-  const { ouvrirRemboursements } = useNotifications();
+  const { ouvrirEcran, ouvrirRemboursements } = useNotifications();
   const remboursements = useRemboursementsAFaire(client, voitRemboursements);
   const sourcesRecette = receptionOuverte && cafeteriaOuverte ? "Chambres et cafétaria" : receptionOuverte ? "Chambres" : cafeteriaOuverte ? "Cafétaria" : undefined;
 
@@ -106,7 +159,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
 
   return (
     <View style={styles.page}>
-      <EnteteMobile afficherAccueil />
+      <EnteteMobile />
       <ScrollView
         contentContainerStyle={styles.contenu}
         refreshControl={
@@ -122,6 +175,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
           />
         }
       >
+        <CarteAccueil utilisateur={utilisateur} />
         <ImageBackgroundHero utilisateur={utilisateur} />
 
         {recette.erreur && <Text style={styles.erreur} accessibilityRole="alert">{recette.erreur}</Text>}
@@ -164,6 +218,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
               libelle="Dont chambres"
               valeur={formatMontant(r.chambres.montantUSD, Devise.USD)}
               precision={formatMontant(r.chambres.montantCDF, Devise.CDF)}
+              pleineLargeur
             />
           )}
           {cafeteriaOuverte && r?.cafeteria && (
@@ -174,6 +229,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
               libelle="Dont cafétaria"
               valeur={formatMontant(r.cafeteria.montantUSD, Devise.USD)}
               precision={formatMontant(r.cafeteria.montantCDF, Devise.CDF)}
+              pleineLargeur
             />
           )}
         </View>
@@ -217,7 +273,22 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
 
         {voitStock && (
           <View style={styles.bloc}>
-            <Text style={styles.blocTitre}>Stock bas</Text>
+            <View style={styles.blocEntete}>
+              <View style={styles.blocEnteteTitre}>
+                <Package size={20} color={couleurs.navy} />
+                <Text style={styles.blocTitre}>Stock bas</Text>
+              </View>
+              <Pressable
+                style={styles.voirTout}
+                onPress={() => ouvrirEcran({ ecran: "stock" })}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Voir tout le stock"
+              >
+                <Text style={styles.voirToutTexte}>Voir tout</Text>
+                <ChevronRight size={16} color={couleurs.bleu} />
+              </Pressable>
+            </View>
             {stockBas.erreur && <Text style={styles.erreur} accessibilityRole="alert">{stockBas.erreur}</Text>}
             {stockBas.donnee?.length === 0 && (
               <View style={styles.videConteneur}>
@@ -286,7 +357,20 @@ function ImageBackgroundHero({ utilisateur }: { utilisateur: ProfilConnecte }) {
         style={[styles.heroImage, styles.heroRadius]}
         resizeMode="cover"
       />
-      <View style={[styles.heroSurcouche, styles.heroRadius]} />
+      {/* Dégradé bleu nuit de gauche à droite (demande du 15/10/2026) : opaque
+       * sous le texte, il s'efface vers les deux tiers pour laisser la photo
+       * nette à droite. Les coins sont arrondis par `rx` (pas d'overflow:hidden,
+       * voir plus haut). */}
+      <Svg style={styles.heroSurcouche} width="100%" height="100%">
+        <Defs>
+          <LinearGradient id="degradeHero" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor="#0B1A38" stopOpacity="0.96" />
+            <Stop offset="0.4" stopColor="#0B1A38" stopOpacity="0.8" />
+            <Stop offset="0.72" stopColor="#0B1A38" stopOpacity="0" />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" rx={rayons.lg} ry={rayons.lg} fill="url(#degradeHero)" />
+      </Svg>
       {/* Le padding vit ici plutôt que sur `hero` : pour un enfant en
        * position absolute, width/height "100%" se calcule par rapport à la
        * boîte de padding du parent, pas à ses bords réels — avec le padding
@@ -294,7 +378,7 @@ function ImageBackgroundHero({ utilisateur }: { utilisateur: ProfilConnecte }) {
        * `espacements.s4` de chaque côté au lieu de couvrir toute la carte. */}
       <View style={styles.heroTexteZone}>
         <View style={styles.heroContenu}>
-          <Text style={styles.heroSalutation}>Bienvenue 👋</Text>
+          <Text style={styles.heroSalutation}>Bienvenue</Text>
           <Text style={styles.heroTitre} numberOfLines={1} adjustsFontSizeToFit>
             {utilisateur.hotelNom}
           </Text>
@@ -338,7 +422,7 @@ const styles = StyleSheet.create({
   // 150 comme le minimum du hero desktop : à 130, l'horloge agrandie
   // n'avait plus la place et débordait de la carte.
   hero: {
-    height: 150,
+    height: 165,
     borderRadius: rayons.lg,
   },
   heroImage: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
@@ -352,14 +436,11 @@ const styles = StyleSheet.create({
     gap: espacements.s2,
     padding: espacements.s4,
   },
-  // 0.72 rendait la photo quasi invisible (juste un aplat marine) — même
-  // esprit que le dégradé desktop (assombrir pour la lisibilité du texte
-  // blanc) mais assez léger pour que la photo reste visible en dessous.
-  heroSurcouche: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(15,39,66,0.45)" },
+  heroSurcouche: { ...StyleSheet.absoluteFill },
   heroContenu: { gap: 2 },
-  heroSalutation: { color: "#fff", fontSize: 13 },
-  heroTitre: { color: "#fff", fontSize: 22, fontWeight: "700" },
-  heroSousTitre: { color: "rgba(255,255,255,0.8)", fontSize: 12 },
+  heroSalutation: { color: "#fff", fontSize: 14 },
+  heroTitre: { color: "#fff", fontSize: 26, fontWeight: "800" },
+  heroSousTitre: { color: "rgba(255,255,255,0.9)", fontSize: 13 },
   heroHorloge: { alignSelf: "flex-start", gap: 2 },
   heroHorlogeLigne: { flexDirection: "row", alignItems: "center", gap: 4 },
   heroHorlogeTexte: { color: "rgba(255,255,255,0.85)", fontSize: 11 },
@@ -380,10 +461,52 @@ const styles = StyleSheet.create({
     padding: espacements.s3,
     gap: 2,
   },
-  carteIcone: { width: 30, height: 30, borderRadius: rayons.sm, alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  carteLibelle: { fontSize: 10, fontWeight: "700", color: couleurs.encreAttenuee, textTransform: "uppercase" },
-  carteValeur: { fontSize: 16, fontWeight: "700", color: couleurs.encre },
-  cartePrecision: { fontSize: 11, color: couleurs.encreAttenuee },
+  cartePleine: { flexBasis: "100%" },
+  carteIcone: { width: 36, height: 36, borderRadius: rayons.md, alignItems: "center", justifyContent: "center", marginBottom: 6 },
+  carteLibelle: { fontSize: 11, fontWeight: "700", color: couleurs.encreAttenuee, textTransform: "uppercase", letterSpacing: 0.3 },
+  carteValeur: { fontSize: 22, fontWeight: "800", color: couleurs.navy },
+  cartePrecision: { fontSize: 12, color: couleurs.encreAttenuee },
+
+  carteAccueil: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacements.s3,
+    backgroundColor: couleurs.surface200,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    padding: espacements.s3,
+  },
+  accueilTextes: { flex: 1, gap: 4 },
+  bonjour: { fontSize: 16, fontWeight: "800", color: couleurs.navy },
+  puceRole: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    paddingHorizontal: espacements.s2,
+    paddingVertical: 3,
+    borderRadius: rayons.pill,
+    backgroundColor: couleurs.bleuClair,
+  },
+  puceRoleTexte: { fontSize: 12, fontWeight: "600", color: couleurs.bleu },
+  pastilleHotel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "45%",
+    paddingHorizontal: espacements.s3,
+    paddingVertical: espacements.s2,
+    borderRadius: rayons.md,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  pastilleHotelTexte: { fontSize: 13, fontWeight: "600", color: couleurs.navy, flexShrink: 1 },
+
+  blocEntete: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  blocEnteteTitre: { flexDirection: "row", alignItems: "center", gap: espacements.s2 },
+  voirTout: { flexDirection: "row", alignItems: "center", gap: 2 },
+  voirToutTexte: { fontSize: 13, fontWeight: "600", color: couleurs.bleu },
 
   bloc: {
     backgroundColor: couleurs.surface200,
@@ -393,7 +516,7 @@ const styles = StyleSheet.create({
     padding: espacements.s4,
     gap: espacements.s3,
   },
-  blocTitre: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
+  blocTitre: { fontSize: 16, fontWeight: "800", color: couleurs.navy },
   ligneOccupation: { flexDirection: "row", alignItems: "center", gap: espacements.s4 },
   donutTexte: { fontWeight: "700", fontSize: 16, color: couleurs.encre },
   legende: { flex: 1, gap: espacements.s1 },

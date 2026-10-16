@@ -11,7 +11,7 @@ function monde() {
   const jeton = (): JetonSession => ({ accessToken: `at-${++compteur}`, refreshToken: `rt-${compteur}`, expiresAt: etat.maintenant.getTime() / 1000 + 3600 });
   const reseau = () => { if (!etat.reseau) throw new ErreurApi(0, "Impossible de joindre le serveur de connexion."); };
   const deps: DepsSession = {
-    authentifier: async (email, mdp) => { reseau(); if (mdp !== etat.mdpValide) throw new Error("Email ou mot de passe incorrect."); return jeton(); },
+    authentifier: async (email, mdp) => { reseau(); if (mdp !== etat.mdpValide) throw new Error("Numéro (ou e-mail) ou mot de passe incorrect."); return jeton(); },
     rafraichir: async () => { reseau(); if (!etat.refreshValide) throw new Error("Votre session a expiré. Reconnectez-vous."); return jeton(); },
     chargerProfil: async () => { reseau(); if (etat.licence === "SUSPENDU") throw new ErreurApi(401, "Cet hôtel n'a plus accès à la plateforme."); return profil({ statutLicence: etat.licence }); },
     lire: async () => structuredClone(etat.memo),
@@ -35,7 +35,7 @@ describe("connexion", () => {
 
   it("en ligne : un mauvais mot de passe est refusé tel quel (pas de bascule hors ligne)", async () => {
     const m = monde();
-    expect(await m.session().connecter("marie@hotel.cd", "faux")).toEqual({ etat: "erreur", message: "Email ou mot de passe incorrect." });
+    expect(await m.session().connecter("marie@hotel.cd", "faux")).toEqual({ etat: "erreur", message: "Numéro (ou e-mail) ou mot de passe incorrect." });
   });
 
   it("hors ligne, première connexion sur l'appareil : refusée avec une explication", async () => {
@@ -51,7 +51,7 @@ describe("connexion", () => {
     m.etat.reseau = false;
     m.etat.maintenant = new Date(m.etat.maintenant.getTime() + 3 * JOUR);
     const s = m.session();
-    expect(await s.connecter("marie@hotel.cd", "faux")).toMatchObject({ etat: "erreur", message: "Email ou mot de passe incorrect." });
+    expect(await s.connecter("marie@hotel.cd", "faux")).toMatchObject({ etat: "erreur", message: "Numéro (ou e-mail) ou mot de passe incorrect." });
     const r = await s.connecter("MARIE@hotel.cd", "secret-123");
     expect(r).toMatchObject({ etat: "connecte", mode: "hors-ligne" });
     expect((r as any).acces.joursRestants).toBe(11);

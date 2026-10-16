@@ -16,3 +16,5 @@ export type { DonutProps, DonutSegment } from "./Donut";
 // Feuilles CSS à importer une fois au niveau de l'app (voir apps/desktop) :
 //   import "@hotel-chicago/ui/dist/tokens.css";
 //   import "@hotel-chicago/ui/dist/typography.css";
+export { ChampTelephone, DrapeauRdc, telephoneDepuisSaisie, saisieDepuisTelephone } from "./ChampTelephone";
+export type { ChampTelephoneProps } from "./ChampTelephone";

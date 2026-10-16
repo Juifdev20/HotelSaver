@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Devise, Facture, Role, VenteCafeteria } from "@hotel-chicago/types";
 import { construireRecuFacture, construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { ReceiptText } from "lucide-react-native";
@@ -117,6 +117,10 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
   const [motifAnnulation, setMotifAnnulation] = useState("");
   const [enAction, setEnAction] = useState(false);
   const [message, setMessage] = useState<{ texte: string; reussi: boolean } | null>(null);
+  // Annulation d'un reçu cafétaria : remettre ses articles en stock (case
+  // cochée par défaut — décocher si consommés ou cassés, 15/10/2026).
+  const [remettreEnStock, setRemettreEnStock] = useState(true);
+  const [infoListe, setInfoListe] = useState<string | null>(null);
 
   const charger = useCallback(() => {
     if (!segments.includes(segment)) return; // fonction fermée par la formule : rien à demander au serveur
@@ -195,8 +199,21 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
     setEnAction(true);
     setMessage(null);
     try {
-      if (detailFacture) await client.annulerFacture(detailFacture.id, motifAnnulation.trim());
-      else if (detailVente) await client.annulerVenteCafeteria(detailVente.id, motifAnnulation.trim());
+      if (detailFacture) {
+        await client.annulerFacture(detailFacture.id, motifAnnulation.trim());
+        setInfoListe(`Reçu ${detailFacture.numeroRecu} annulé.`);
+      } else if (detailVente) {
+        const resultat = await client.annulerVenteCafeteria(detailVente.id, motifAnnulation.trim(), remettreEnStock);
+        const remis = resultat.articlesRemisEnStock ?? [];
+        const total = remis.reduce((n, a) => n + a.quantite, 0);
+        setInfoListe(
+          remis.length > 0
+            ? `Reçu ${detailVente.numeroRecu} annulé — ${total} article${total > 1 ? "s" : ""} remis en stock (${remis
+                .map((a) => `${a.nom} ×${a.quantite}`)
+                .join(", ")}).`
+            : `Reçu ${detailVente.numeroRecu} annulé. ${resultat.infoStock ?? ""}`.trim()
+        );
+      }
       setDetailFacture(null);
       setDetailVente(null);
       setMotifAnnulation("");
@@ -210,6 +227,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
 
   function ouvrirDetail(piece: Facture | VenteCafeteria) {
     setMotifAnnulation("");
+    setRemettreEnStock(true);
     setMessage(null);
     if (segment === "sejours") setDetailFacture(piece as Facture);
     else setDetailVente(piece as VenteCafeteria);
@@ -253,6 +271,11 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
         <Text style={styles.erreur} accessibilityRole="alert">
           {erreur}
         </Text>
+      )}
+      {infoListe && (
+        <Pressable style={styles.infoListe} onPress={() => setInfoListe(null)} accessibilityRole="button" accessibilityLabel="Fermer le message">
+          <Text style={styles.infoListeTexte}>{infoListe}</Text>
+        </Pressable>
       )}
 
       {liste.length === 0 && !erreur && (
@@ -336,6 +359,15 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
                   placeholderTextColor={couleurs.encreFaible}
                   accessibilityLabel="Motif d'annulation (obligatoire)"
                 />
+                {detailVente && (
+                  <View style={styles.ligneStock}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.ligneStockTitre}>Remettre les articles en stock</Text>
+                      <Text style={styles.ligneStockAide}>Décochez si les articles ont été consommés ou cassés.</Text>
+                    </View>
+                    <Switch value={remettreEnStock} onValueChange={setRemettreEnStock} accessibilityLabel="Remettre les articles en stock" />
+                  </View>
+                )}
                 <Pressable
                   style={styles.boutonDanger}
                   onPress={demanderAnnulation}
@@ -396,6 +428,17 @@ const styles = StyleSheet.create({
   annule: { fontSize: 13, fontWeight: "600", color: couleurs.danger, marginTop: espacements.s1 },
   message: { fontSize: 13, color: couleurs.encreAttenuee, marginTop: espacements.s3 },
   messageErreur: { color: couleurs.danger },
+  infoListe: {
+    marginHorizontal: espacements.s4,
+    marginTop: espacements.s2,
+    padding: espacements.s3,
+    borderRadius: rayons.sm,
+    backgroundColor: couleurs.succesClair,
+  },
+  infoListeTexte: { fontSize: 13, color: couleurs.encre, fontWeight: "600" },
+  ligneStock: { flexDirection: "row", alignItems: "center", gap: espacements.s3, marginTop: espacements.s3 },
+  ligneStockTitre: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
+  ligneStockAide: { fontSize: 12, color: couleurs.encreAttenuee },
   boutonSecondaire: {
     minHeight: 44,
     borderRadius: rayons.sm,

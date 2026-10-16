@@ -1,9 +1,10 @@
 import * as React from "react";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Building2, Check, Eye, EyeOff, Globe, Lock, Mail, MapPin, Phone, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, Check, Eye, EyeOff, Globe, Lock, MapPin, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTitrePage } from "@hotel-chicago/ui";
 import type { InscriptionHotelPayload } from "@hotel-chicago/types";
+import { ChampTelephone, telephoneDepuisSaisie } from "@hotel-chicago/ui";
 import { MiseEnPageAuth } from "../components/MiseEnPageAuth";
 import logo from "../../../../../../assets/icons/hotelsaver-icone.png";
 
@@ -92,11 +93,10 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
   const [nom, setNom] = useState("");
   const [sousDomaine, setSousDomaine] = useState("");
   const [sousDomaineModifie, setSousDomaineModifie] = useState(false);
-  const [telephoneContact, setTelephoneContact] = useState("");
   const [adresse, setAdresse] = useState("");
 
   const [nomProprietaire, setNomProprietaire] = useState("");
-  const [email, setEmail] = useState("");
+  const [telephoneProprietaire, setTelephoneProprietaire] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [erreurLocale, setErreurLocale] = useState<string | null>(null);
@@ -121,17 +121,17 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
   function soumettre(e: React.FormEvent) {
     e.preventDefault();
     if (!nomProprietaire.trim()) return setErreurLocale("Votre nom est obligatoire.");
-    if (!email.trim()) return setErreurLocale("L'email est obligatoire.");
+    const telephone = telephoneDepuisSaisie(telephoneProprietaire);
+    if (!telephone) return setErreurLocale("Numéro invalide : 9 chiffres commençant par 8 ou 9 (ex. 970 000 000).");
     if (motDePasse.length < 8) return setErreurLocale("Le mot de passe doit contenir au moins 8 caractères.");
     if (motDePasse !== confirmation) return setErreurLocale("Les deux mots de passe ne correspondent pas.");
     setErreurLocale(null);
     onSoumettre({
       nom: nom.trim(),
       sousDomaine,
-      telephoneContact: telephoneContact.trim() || undefined,
       adresse: adresse.trim() || undefined,
       nomProprietaire: nomProprietaire.trim(),
-      email: email.trim(),
+      telephoneProprietaire: telephone,
       motDePasse,
     }, payerMaintenant);
   }
@@ -161,7 +161,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
           <p className="hc-auth__sous-titre">
             {etape === 1
               ? "Quelques informations suffisent pour commencer."
-              : "Dernière étape : le compte du patron, qui gérera les accès de l'équipe."}
+              : "Dernière étape : votre compte. Ce numéro servira à vous connecter et à joindre votre hôtel (modifiable ensuite dans Site de l'hôtel)."}
           </p>
 
           {etape === 1 && (
@@ -180,7 +180,6 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 suffixe=".hotelsaver.com"
                 placeholder="hotel-mon-etablissement"
               />
-              <Champ id="ins-telephone" libelle="Téléphone (optionnel)" icone={Phone} valeur={telephoneContact} onChange={setTelephoneContact} type="tel" placeholder="Ex. +243 970 000 000" autoComplete="tel" />
               <Champ id="ins-adresse" libelle="Adresse (optionnelle)" icone={MapPin} valeur={adresse} onChange={setAdresse} placeholder="Ex. Avenue de la Paix, Goma" autoComplete="street-address" />
 
               {erreurAffichee && (
@@ -197,7 +196,10 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
           {etape === 2 && (
             <form onSubmit={soumettre} noValidate>
               <Champ id="ins-proprietaire" libelle="Votre nom *" icone={User} valeur={nomProprietaire} onChange={setNomProprietaire} valide={nomProprietaire.trim().length > 1} placeholder="Ex. Jean Mukendi" autoComplete="name" />
-              <Champ id="ins-email" libelle="Adresse e-mail *" icone={Mail} valeur={email} onChange={setEmail} valide={/^\S+@\S+\.\S+$/.test(email)} type="email" placeholder="ex. hotel@monetablissement.com" autoComplete="username" />
+              <label className="hc-auth__label" htmlFor="ins-telephone">
+                Numéro de téléphone * (pour vous connecter)
+              </label>
+              <ChampTelephone id="ins-telephone" value={telephoneProprietaire} onChange={setTelephoneProprietaire} required />
               <Champ id="ins-mot-de-passe" libelle="Mot de passe *" icone={Lock} valeur={motDePasse} onChange={setMotDePasse} type="password" placeholder="Minimum 8 caractères" autoComplete="new-password" />
               <Champ id="ins-confirmation" libelle="Confirmer le mot de passe *" icone={Lock} valeur={confirmation} onChange={setConfirmation} type="password" autoComplete="new-password" />
 

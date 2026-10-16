@@ -5,7 +5,7 @@ import type { ProfilConnecte, Role } from "@hotel-chicago/types";
 /**
  * Section 5 : "sélection de profil au démarrage" — un même téléphone est
  * partagé par plusieurs membres du personnel. On garde donc en local la
- * liste des comptes déjà connectés sur cet appareil (nom/rôle/email, pas
+ * liste des comptes déjà connectés sur cet appareil (nom/rôle/numéro, pas
  * sensible → AsyncStorage), et séparément le jeton de rafraîchissement de
  * chacun (sensible → expo-secure-store, chiffré par l'OS). Jamais le mot de
  * passe lui-même, jamais stocké nulle part côté client.
@@ -14,7 +14,15 @@ export interface ProfilEnregistre {
   utilisateurId: string;
   nom: string;
   role: Role;
-  email: string;
+  /** Numéro de connexion « +243… » (depuis le 15/10/2026). */
+  telephone?: string;
+  /** Profils enregistrés avant la connexion par numéro (e-mail de connexion). */
+  email?: string;
+}
+
+/** Identifiant à pré-remplir à l'écran de connexion : le numéro, sinon l'e-mail d'un ancien profil. */
+export function identifiantProfil(profil: ProfilEnregistre): string | undefined {
+  return profil.telephone ?? profil.email;
 }
 
 const CLE_PROFILS = "hotel-chicago:profils";

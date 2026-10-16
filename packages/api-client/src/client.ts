@@ -85,6 +85,13 @@ export interface FiltresProduits {
 }
 
 /** Champs de apps/api/src/produits/dto/create-produit.dto.ts. */
+/** Réponse de POST /cafeteria/ventes/:id/annuler (15/10/2026). */
+export interface VenteAnnulee extends VenteCafeteria {
+  articlesRemisEnStock: { nom: string; quantite: number }[];
+  /** Pourquoi rien n'a été remis en stock (case décochée, reçu ancien, partage pas fini). */
+  infoStock: string | null;
+}
+
 export interface DonneesProduit {
   nom: string;
   categorie: string;
@@ -278,6 +285,8 @@ export interface Utilisateur {
   id: string;
   nom: string;
   email: string | null;
+  /** Numéro de connexion « +243XXXXXXXXX » (null : compte antérieur au 15/10/2026). */
+  telephone: string | null;
   role: Role;
   actif: boolean;
   createdAt: string;
@@ -286,14 +295,20 @@ export interface Utilisateur {
 /** Champs de apps/api/src/utilisateurs/dto/create-utilisateur.dto.ts. */
 export interface DonneesCreationUtilisateur {
   nom: string;
-  email: string;
+  /** Identifiant de connexion (obligatoire depuis le 15/10/2026). */
+  telephone: string;
+  /** Optionnel : sert seulement à « mot de passe oublié ». */
+  email?: string;
   motDePasse: string;
   role: Role;
 }
 
 /** Champs de apps/api/src/utilisateurs/dto/update-utilisateur.dto.ts —
- * tous optionnels (nom/email/motDePasse/actif), au moins un requis. */
-export type DonneesModificationUtilisateur = Partial<Pick<DonneesCreationUtilisateur, "nom" | "email" | "motDePasse">> & {
+ * tous optionnels (nom/telephone/email/motDePasse/actif), au moins un requis.
+ * `email: ""` retire l'e-mail. */
+export type DonneesModificationUtilisateur = Partial<
+  Pick<DonneesCreationUtilisateur, "nom" | "telephone" | "email" | "motDePasse">
+> & {
   actif?: boolean;
 };
 
@@ -665,10 +680,12 @@ export class ClientApi {
   }
 
   /** PATRON uniquement côté API — pas encore d'écran mobile qui l'appelle. */
-  async annulerVenteCafeteria(id: string, motif: string): Promise<VenteCafeteria> {
-    return this.requete<VenteCafeteria>(`/cafeteria/ventes/${id}/annuler`, {
+  /** `remettreEnStock` (défaut : oui) : les articles du reçu reviennent en stock.
+   * La réponse dit lesquels, ou pourquoi rien n'a été remis (reçu ancien, partage). */
+  async annulerVenteCafeteria(id: string, motif: string, remettreEnStock = true): Promise<VenteAnnulee> {
+    return this.requete<VenteAnnulee>(`/cafeteria/ventes/${id}/annuler`, {
       method: "POST",
-      body: JSON.stringify({ motif }),
+      body: JSON.stringify({ motif, remettreEnStock }),
     });
   }
 

@@ -82,6 +82,9 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     });
     await new Promise<void>((ok) => supabase.listen(0, "127.0.0.1", ok));
     supabaseUrl = `http://127.0.0.1:${(supabase.address() as AddressInfo).port}`;
+    // Depuis le 15/10/2026 la connexion passe par le relais de l'API (POST /auth/connexion), qui appelle Supabase : on lui montre le faux.
+    process.env.SUPABASE_URL = supabaseUrl;
+    process.env.SUPABASE_ANON_KEY = "anon";
 
     statique = createServer((req, res) => {
       const chemin = join(RENDERER, decodeURIComponent((req.url ?? "/").split("?")[0]));
@@ -118,13 +121,13 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
 
   it("connexion en ligne, puis l'indicateur dit « À jour » seulement quand tout est synchronisé", async () => {
     await page.goto(siteUrl);
-    await page.getByLabel("Email").fill(`${A.auth.recep}@exemple.test`);
+    await saisirEmail(page, `${A.auth.recep}@exemple.test`);
     await page.getByLabel("Mot de passe").fill("mauvais");
-    await page.getByRole("button", { name: "Se connecter" }).click();
-    await expect_(page.getByTestId("erreur-connexion")).toHaveText("Email ou mot de passe incorrect.");
+    await page.getByRole("button", { name: "Se connecter", exact: true }).click();
+    await expect_(page.getByTestId("erreur-connexion")).toHaveText("Numéro (ou e-mail) ou mot de passe incorrect.");
 
     await page.getByLabel("Mot de passe").fill(MOT_DE_PASSE);
-    await page.getByRole("button", { name: "Se connecter" }).click();
+    await page.getByRole("button", { name: "Se connecter", exact: true }).click();
     await expect_(page.getByTestId("utilisateur-connecte")).toContainText("Réceptionniste");
     await expect_(indicateur()).toContainText("À jour", 20_000);
   });
@@ -216,12 +219,12 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await page.getByRole("menuitem", { name: /Déconnexion/ }).click();
     await expect_(page.getByLabel("Mot de passe")).toBeVisible();
     reseauCoupe = true;
-    await page.getByLabel("Email").fill(`${A.auth.recep}@exemple.test`);
+    await saisirEmail(page, `${A.auth.recep}@exemple.test`);
     await page.getByLabel("Mot de passe").fill("faux-mot-de-passe");
-    await page.getByRole("button", { name: "Se connecter" }).click();
-    await expect_(page.getByTestId("erreur-connexion")).toHaveText("Email ou mot de passe incorrect.");
+    await page.getByRole("button", { name: "Se connecter", exact: true }).click();
+    await expect_(page.getByTestId("erreur-connexion")).toHaveText("Numéro (ou e-mail) ou mot de passe incorrect.");
     await page.getByLabel("Mot de passe").fill(MOT_DE_PASSE);
-    await page.getByRole("button", { name: "Se connecter" }).click();
+    await page.getByRole("button", { name: "Se connecter", exact: true }).click();
     await expect_(page.getByTestId("bandeau-hors-ligne")).toBeVisible();
     await page.getByRole("complementary", { name: "Navigation principale" }).getByRole("button", { name: "Chambres" }).click();
     await expect_(page.locator("tr", { hasText: "101" }).first()).toContainText("Nettoyage");
@@ -253,4 +256,13 @@ function expect_(cible: any, delai = 15_000) {
     toHaveCount: (n: number) => attendre(async () => { const c = await cible.count(); if (c !== n) throw new Error(`Éléments : ${c}, attendu ${n}`); }),
     _texte: texteDe,
   };
+}
+
+/** Saisit l'e-mail d'un ancien compte : la connexion se fait d'abord par numéro, la bascule « Ancien compte ? » ouvre le champ e-mail. */
+async function saisirEmail(page: Page, email: string) {
+  const champ = page.getByLabel("Adresse e-mail");
+  if (!(await champ.isVisible().catch(() => false))) {
+    await page.getByRole("button", { name: /Ancien compte \? Se connecter avec un e-mail/ }).click();
+  }
+  await champ.fill(email);
 }

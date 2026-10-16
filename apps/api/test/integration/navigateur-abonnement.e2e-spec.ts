@@ -142,6 +142,9 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     });
     await new Promise<void>((ok) => supabase.listen(0, "127.0.0.1", ok));
     supabaseUrl = `http://127.0.0.1:${(supabase.address() as AddressInfo).port}`;
+    // Depuis le 15/10/2026 la connexion passe par le relais de l'API (POST /auth/connexion), qui appelle Supabase : on lui montre le faux.
+    process.env.SUPABASE_URL = supabaseUrl;
+    process.env.SUPABASE_ANON_KEY = "anon";
 
     statique = createServer((req, res) => {
       const chemin = join(RENDERER, decodeURIComponent((req.url ?? "/").split("?")[0]));
@@ -171,9 +174,9 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
 
   async function seConnecter(authId: string) {
     await page.goto(siteUrl);
-    await page.getByLabel("Email").fill(email(authId));
+    await saisirEmail(page, email(authId));
     await page.getByLabel("Mot de passe").fill(MOT_DE_PASSE);
-    await page.getByRole("button", { name: "Se connecter" }).click();
+    await page.getByRole("button", { name: "Se connecter", exact: true }).click();
   }
 
   async function seDeconnecterDeLApplication() {
@@ -470,4 +473,13 @@ function expect_(cible: any, delai = 15_000) {
         if (c !== n) throw new Error(`Éléments : ${c}, attendu ${n}`);
       }, d),
   };
+}
+
+/** Saisit l'e-mail d'un ancien compte : la connexion se fait d'abord par numéro, la bascule « Ancien compte ? » ouvre le champ e-mail. */
+async function saisirEmail(page: Page, email: string) {
+  const champ = page.getByLabel("Adresse e-mail");
+  if (!(await champ.isVisible().catch(() => false))) {
+    await page.getByRole("button", { name: /Ancien compte \? Se connecter avec un e-mail/ }).click();
+  }
+  await champ.fill(email);
 }

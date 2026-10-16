@@ -452,6 +452,10 @@ export interface Reservation {
   heureArriveePrevue: string | null;
   demandeClient: string | null;
   preEnregistreLe: string | null;
+  /** Heures RÉELLES de check-in / check-out (null = pas encore fait, ou
+   * séjour enregistré avant le 15/10/2026). */
+  arriveeLe?: string | null;
+  departLe?: string | null;
   /** Message de la réception visible par le client sur sa page de suivi. */
   reponseReception: string | null;
   annuleLe: string | null;
@@ -466,7 +470,10 @@ export interface InscriptionHotelPayload {
   nom: string;
   sousDomaine: string;
   nomProprietaire: string;
-  email: string;
+  /** Numéro du patron, identifiant de connexion (15/10/2026) — normalisé « +243XXXXXXXXX ». */
+  telephoneProprietaire: string;
+  /** Optionnel depuis le 15/10/2026 : sert seulement à « mot de passe oublié ». */
+  email?: string;
   motDePasse: string;
   telephoneContact?: string;
   adresse?: string;
@@ -685,6 +692,8 @@ export interface HotelAvecValidite extends HotelCree {
   suspensionManuelle?: boolean;
   /** Nombre de chambres de l'hôtel (à comparer au plafond de sa formule). */
   nombreChambres?: number;
+  /** Patron de l'hôtel et son numéro de connexion (null : compte antérieur au 15/10/2026). */
+  patron: { nom: string; telephone: string | null } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1269,4 +1278,40 @@ export interface FormulesPubliques {
   formules: FormuleProposee[];
   parametres: { tauxCdf: number; moisOffertsAnnuel: number; joursEssai: number; joursGrace: number };
   contact: { telephone: string; whatsapp: string };
+}
+
+// ---------------------------------------------------------------------------
+// Numéros de téléphone (connexion par numéro, 15/10/2026)
+// ---------------------------------------------------------------------------
+
+/** Indicatif de la RDC, seul pays proposé pour l'instant. */
+export const INDICATIF_RDC = "+243";
+
+/**
+ * Normalise une saisie de numéro congolais vers « +243XXXXXXXXX ».
+ * Accepte « 0970000000 », « 970 000 000 », « +243 970 000 000 », « 243-970… ».
+ * Un numéro RDC compte 9 chiffres après l'indicatif et commence par 8 ou 9
+ * (Vodacom 81-83, Orange 84/85/89, Africell 90/91, Airtel 97-99…).
+ * Renvoie `null` si la saisie n'est pas un numéro RDC valide.
+ */
+export function normaliserTelephoneRdc(saisie: string | null | undefined): string | null {
+  if (!saisie) return null;
+  let chiffres = saisie.replace(/\D/g, "");
+  if (chiffres.startsWith("00243")) chiffres = chiffres.slice(5);
+  else if (chiffres.startsWith("243") && chiffres.length === 12) chiffres = chiffres.slice(3);
+  else if (chiffres.startsWith("0") && chiffres.length === 10) chiffres = chiffres.slice(1);
+  return /^[89]\d{8}$/.test(chiffres) ? `${INDICATIF_RDC}${chiffres}` : null;
+}
+
+/** « 970 000 000 » à partir de chiffres partiels (formatage pendant la saisie, 9 chiffres max). */
+export function formaterSaisieRdc(saisie: string): string {
+  const chiffres = saisie.replace(/\D/g, "").replace(/^0/, "").slice(0, 9);
+  return [chiffres.slice(0, 3), chiffres.slice(3, 6), chiffres.slice(6, 9)].filter(Boolean).join(" ");
+}
+
+/** « +243 970 000 000 » pour l'affichage d'un numéro normalisé (ou la saisie brute si invalide). */
+export function formaterTelephoneRdc(telephone: string | null | undefined): string {
+  const normalise = normaliserTelephoneRdc(telephone);
+  if (!normalise) return telephone ?? "";
+  return `${INDICATIF_RDC} ${formaterSaisieRdc(normalise.slice(INDICATIF_RDC.length))}`;
 }

@@ -172,13 +172,13 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
   });
 
   it("(d) inscription : « Payer mon abonnement maintenant » mène vers la page de paiement (essai gratuit : pas de lien)", async () => {
-    for (const [choix, sousDomaine, attendLien] of [["Payer mon abonnement maintenant", "hotel-paye", true], ["Essai gratuit", "hotel-essai", false]] as const) {
+    for (const [choix, sousDomaine, attendLien, telephone] of [["Payer mon abonnement maintenant", "hotel-paye", true, "970000111"], ["Essai gratuit", "hotel-essai", false, "970000222"]] as const) {
       await page.goto(`${siteUrl}/inscription`);
       await page.getByLabel("Nom de l'hôtel *").fill(`Hôtel ${sousDomaine}`);
       await page.getByLabel("Sous-domaine *").fill(sousDomaine);
       await page.getByRole("button", { name: /Continuer/ }).click();
       await page.getByLabel("Votre nom *").fill("Patron Test");
-      await page.getByLabel("Adresse e-mail *").fill(`${sousDomaine}@exemple.test`);
+      await page.locator("#telephone-proprietaire").fill(telephone);
       await page.getByLabel("Mot de passe *", { exact: true }).fill("motdepasse-long");
       await page.getByLabel("Confirmer le mot de passe *").fill("motdepasse-long");
       await expect_(page.getByText("Comment voulez-vous commencer ?")).toBeVisible();
@@ -187,7 +187,7 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
       await expect_(page.getByRole("heading", { name: /Votre hôtel est créé/ })).toBeVisible(30_000);
       const liens = page.locator(".parcours-payer").getByRole("link", { name: "Payer mon abonnement" });
       await expect_(liens).toHaveCount(attendLien ? 1 : 0);
-      if (attendLien) expect(await liens.first().getAttribute("href")).toBe(`/payer?email=${encodeURIComponent(`${sousDomaine}@exemple.test`)}`);
+      if (attendLien) expect(await liens.first().getAttribute("href")).toBe(`/payer?telephone=${encodeURIComponent(`+243${telephone}`)}`);
       const hotel = await p.hotel.findFirst({ where: { sousDomaine } });
       expect(hotel).toBeTruthy();
       // Dans les deux cas l'essai gratuit existe : payer d'avance ne le supprime jamais.

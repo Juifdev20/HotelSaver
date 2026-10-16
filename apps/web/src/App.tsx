@@ -18,7 +18,8 @@ import { SiteHotel } from "./hotel/SiteHotel";
 function EcranInscriptionAvecEtat() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
-  const [emailInscrit, setEmailInscrit] = useState<string | null>(null);
+  /** Numéro du patron qui vient de s'inscrire (identifiant de connexion, 15/10/2026). */
+  const [telephoneInscrit, setTelephoneInscrit] = useState<string | null>(null);
   const [veutPayer, setVeutPayer] = useState(false);
 
   async function sInscrire(dto: InscriptionHotelPayload, payerMaintenant: boolean) {
@@ -27,7 +28,7 @@ function EcranInscriptionAvecEtat() {
     try {
       await inscrireHotel({ url: configuration.apiUrl }, dto);
       setVeutPayer(payerMaintenant);
-      setEmailInscrit(dto.email);
+      setTelephoneInscrit(dto.telephoneProprietaire);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur lors de l'inscription.");
     } finally {
@@ -35,7 +36,7 @@ function EcranInscriptionAvecEtat() {
     }
   }
 
-  if (emailInscrit) return <EcranSucces email={emailInscrit} payerMaintenant={veutPayer} />;
+  if (telephoneInscrit) return <EcranSucces telephone={telephoneInscrit} payerMaintenant={veutPayer} />;
   return <EcranInscription erreur={erreur} enCours={enCours} onSoumettre={sInscrire} />;
 }
 

@@ -42,13 +42,13 @@ Vous définissez dans le super-admin (onglet **Abonnements**) : le nom, le prix 
 ## Comment un inconnu qui télécharge l'application s'abonne
 Un hôtel qui découvre l'application n'a **pas** besoin de passer par le site pour s'inscrire : « Créer mon hôtel » existe dans les trois endroits (Windows, mobile, site). À l'inscription il choisit :
 - **Essai gratuit** (par défaut) : 14 jours, toutes fonctions ouvertes ; il choisit sa formule plus tard (Paramètres → Abonnement).
-- **Payer mon abonnement maintenant** : pour ceux qui veulent « ne plus se déranger ». L'application ouvre directement l'écran de paiement à la première connexion (une seule fois ; après confirmation de l'e-mail si besoin) ; sur le site, l'écran de succès donne le bouton « Payer mon abonnement ». **Les jours d'essai restants sont conservés** (ils s'ajoutent à la période payée).
+- **Payer mon abonnement maintenant** : pour ceux qui veulent « ne plus se déranger ». L'application ouvre directement l'écran de paiement à la première connexion (une seule fois) ; sur le site, l'écran de succès donne le bouton « Payer mon abonnement ». **Les jours d'essai restants sont conservés** (ils s'ajoutent à la période payée).
 
 Où payer, selon l'endroit :
 | Où | Comment |
 |---|---|
 | Application Windows | Dans l'application (Paramètres → Abonnement), Mobile Money. |
-| Site `…/payer` | Connexion du patron puis paiement Mobile Money, dans n'importe quel navigateur (aussi depuis un téléphone). |
+| Site `…/payer` | Connexion du patron (numéro + mot de passe) puis paiement Mobile Money, dans n'importe quel navigateur (aussi depuis un téléphone). |
 | Application mobile (Play Store) | Bouton « Payer sur le site HotelSaver » (ouvre `…/payer`), ou WhatsApp du support. Réglage : `apps/mobile/src/configAbonnement.ts`. |
 
 > Raison : Google Play impose en général sa propre facturation pour les achats numériques dans une application. Pour l'instant le formulaire reste dans l'application mobile (`PAIEMENT_DANS_APPLICATION = true`, décision du 17/10) ; on le retirera (`false`) si Google Play refuse ou taxe ; le paiement, lui, reste disponible partout via le site. Hors Play Store (APK direct) on peut remettre `true`. Voir `docs/ABONNEMENT.md`.

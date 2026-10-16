@@ -2,13 +2,19 @@ import { BadGatewayException, HttpException } from "@nestjs/common";
 import { AuthProxyController } from "./auth-proxy.controller";
 
 describe("AuthProxyController", () => {
-  const controleur = new AuthProxyController();
+  const prisma = {
+    utilisateur: { findUnique: jest.fn() },
+    superAdmin: { findUnique: jest.fn() },
+  };
+  const controleur = new AuthProxyController(prisma as never);
   let fetchOriginal: typeof fetch;
 
   beforeEach(() => {
     process.env.SUPABASE_URL = "https://supabase.test";
     process.env.SUPABASE_ANON_KEY = "cle-anon";
     fetchOriginal = globalThis.fetch;
+    prisma.utilisateur.findUnique.mockReset().mockResolvedValue(null);
+    prisma.superAdmin.findUnique.mockReset().mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -32,6 +38,45 @@ describe("AuthProxyController", () => {
     expect(JSON.parse(init.body as string)).toEqual({ email: "a@b.cd", password: "secret" });
     expect((init.headers as Record<string, string>).apikey).toBe("cle-anon");
     expect(corps).toEqual({ access_token: "t", refresh_token: "r", expires_in: 3600 });
+  });
+
+  it("numéro sans e-mail réel : relaie avec l'identifiant interne dérivé du numéro", async () => {
+    simulerSupabase(200, { access_token: "t" });
+    prisma.utilisateur.findUnique.mockResolvedValue({ email: null });
+    await controleur.connexion({ telephone: "0970 000 000", motDePasse: "secret" });
+    expect(prisma.utilisateur.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { telephone: "+243970000000" } }));
+    const init = (globalThis.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(init.body as string)).toEqual({ email: "243970000000@tel.hotelsaver.app", password: "secret" });
+  });
+
+  it("numéro d'un compte avec e-mail réel : relaie avec cet e-mail", async () => {
+    simulerSupabase(200, { access_token: "t" });
+    prisma.utilisateur.findUnique.mockResolvedValue({ email: "patron@hotel.cd" });
+    await controleur.connexion({ identifiant: "+243 812 345 678", motDePasse: "secret" });
+    const init = (globalThis.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(init.body as string)).toEqual({ email: "patron@hotel.cd", password: "secret" });
+  });
+
+  it("numéro d'un super-admin : cherche aussi dans SuperAdmin", async () => {
+    simulerSupabase(200, { access_token: "t" });
+    prisma.superAdmin.findUnique.mockResolvedValue({ email: null });
+    await controleur.connexion({ telephone: "+243990000001", motDePasse: "secret" });
+    const init = (globalThis.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(init.body as string).email).toBe("243990000001@tel.hotelsaver.app");
+  });
+
+  it("numéro inconnu ou invalide : 400 invalid_credentials sans appeler Supabase", async () => {
+    globalThis.fetch = jest.fn() as never;
+    for (const telephone of ["+243970000000", "12345"]) {
+      try {
+        await controleur.connexion({ telephone, motDePasse: "x" });
+        fail("doit jeter");
+      } catch (e) {
+        expect((e as HttpException).getStatus()).toBe(400);
+        expect((e as HttpException).getResponse()).toMatchObject({ error_code: "invalid_credentials" });
+      }
+    }
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("rafraichir utilise grant_type=refresh_token avec le jeton", async () => {

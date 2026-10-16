@@ -347,25 +347,55 @@ export class CafeteriaService {
         }
       }
 
+      // Chaque ligne réglée est rattachée au reçu qui la couvre (15/10/2026) :
+      // c'est ce qui permet de remettre les articles en stock si le reçu est
+      // annulé. PARTAGE_EGAL : toutes les lignes vont au premier reçu du lot.
+      let ventes: Awaited<ReturnType<typeof this.creerVenteGroupe>>[];
+      const rattachements: { venteId: string; lignes: { id: string }[] }[] = [];
       switch (dto.mode) {
         case "GROUPE":
-          return [await this.creerVenteGroupe(tx, compte, toutesLesLignes, dto, hotelId, userId, undefined, options.numerosProvisoires?.[0])];
+          ventes = [await this.creerVenteGroupe(tx, compte, toutesLesLignes, dto, hotelId, userId, undefined, options.numerosProvisoires?.[0])];
+          rattachements.push({ venteId: ventes[0].id, lignes: toutesLesLignes });
+          break;
         case "UNE_PERSONNE":
-          return [await this.creerVenteGroupe(tx, compte, personne!.lignes, dto, hotelId, userId, personne!.id, options.numerosProvisoires?.[0])];
-        case "PAR_SOUS_COMPTE":
-          return this.creerVentesParSousCompte(tx, compte, dto, hotelId, userId, options.numerosProvisoires);
+          ventes = [await this.creerVenteGroupe(tx, compte, personne!.lignes, dto, hotelId, userId, personne!.id, options.numerosProvisoires?.[0])];
+          rattachements.push({ venteId: ventes[0].id, lignes: personne!.lignes });
+          break;
+        case "PAR_SOUS_COMPTE": {
+          ventes = await this.creerVentesParSousCompte(tx, compte, dto, hotelId, userId, options.numerosProvisoires);
+          // Même filtre et même ordre que creerVentesParSousCompte : un reçu par personne.
+          const personnes = compte.sousComptes.filter((sc) => sc.lignes.length > 0);
+          personnes.forEach((sc, i) => ventes[i] && rattachements.push({ venteId: ventes[i].id, lignes: sc.lignes }));
+          break;
+        }
         case "PARTAGE_EGAL":
           if (!dto.nombrePersonnes) {
             throw new BadRequestException("nombrePersonnes est obligatoire pour un encaissement PARTAGE_EGAL.");
           }
-          return this.creerVentesPartageEgal(tx, compte, toutesLesLignes, dto, dto.nombrePersonnes, hotelId, userId, options.numerosProvisoires);
+          ventes = await this.creerVentesPartageEgal(tx, compte, toutesLesLignes, dto, dto.nombrePersonnes, hotelId, userId, options.numerosProvisoires);
+          rattachements.push({ venteId: ventes[0].id, lignes: toutesLesLignes });
+          break;
         default:
           throw new BadRequestException(`Mode d'encaissement inconnu : ${dto.mode}.`);
       }
+      for (const { venteId, lignes } of rattachements) {
+        if (lignes.length === 0) continue;
+        await tx.ligneCommande.updateMany({
+          where: { id: { in: lignes.map((l) => l.id) }, hotelId },
+          data: { venteId },
+        });
+      }
+      return ventes;
     });
   }
 
-  async annulerVente(id: string, motif: string, hotelId: string, par?: UtilisateurAuthentifie) {
+  /**
+   * Annule un reçu. `remettreEnStock` (vrai par défaut, case cochée dans
+   * l'écran — 15/10/2026) : les articles rattachés au reçu reviennent en
+   * stock (mouvement RETOUR_VENTE) et les plats retrouvent leurs portions.
+   * Le patron décoche quand les articles ont été consommés ou cassés.
+   */
+  async annulerVente(id: string, motif: string, hotelId: string, par?: UtilisateurAuthentifie, remettreEnStock = true) {
     const vente = await this.prisma.venteCafeteria.findUnique({ where: { id, hotelId } });
     if (!vente) {
       throw new NotFoundException(`Aucune vente trouvée avec l'identifiant ${id}.`);
@@ -373,10 +403,18 @@ export class CafeteriaService {
     if (vente.annuleLe) {
       throw new ConflictException("Cette vente est déjà annulée.");
     }
-    const annulee = await this.prisma.venteCafeteria.update({
-      where: { id, hotelId },
+    // Compare-and-swap : deux annulations simultanées ne remettent pas deux fois le stock.
+    const { count } = await this.prisma.venteCafeteria.updateMany({
+      where: { id, hotelId, annuleLe: null },
       data: { annuleLe: new Date(), motifAnnulation: motif, syncVersion: { increment: 1 } },
     });
+    if (count === 0) {
+      throw new ConflictException("Cette vente est déjà annulée.");
+    }
+    const annulee = await this.prisma.venteCafeteria.findUniqueOrThrow({ where: { id, hotelId } });
+    const retour = remettreEnStock
+      ? await this.remettreArticlesEnStock(vente, hotelId, par?.userId ?? vente.createdBy)
+      : { articlesRemisEnStock: [], infoStock: "Articles laissés hors stock (case décochée)." };
     // Seul le patron peut annuler une vente encaissée (matrice 9.3) : il est alors l'auteur, et n'a rien à apprendre de sa propre action.
     if (par?.role !== Role.PATRON) {
       void this.notifications.emettre({
@@ -385,7 +423,80 @@ export class CafeteriaService {
         ...messages.recuAnnule({ numeroRecu: vente.numeroRecu, motif, par: par?.nom }),
       });
     }
-    return annulee;
+    return { ...annulee, ...retour };
+  }
+
+  /** Articles du reçu annulé → stock (ARTICLE) ou portions (PLAT). PARTAGE_EGAL :
+   * seulement à l'annulation de la dernière part du lot. Reçu d'avant le
+   * 15/10/2026 (aucune ligne rattachée) : rien à remettre automatiquement. */
+  private async remettreArticlesEnStock(
+    vente: { id: string; numeroRecu: string; lotEncaissement: string | null },
+    hotelId: string,
+    auteur: string
+  ): Promise<{ articlesRemisEnStock: { nom: string; quantite: number }[]; infoStock: string | null }> {
+    let venteDesLignes = vente.id;
+    if (vente.lotEncaissement) {
+      const partsRestantes = await this.prisma.venteCafeteria.count({
+        where: { hotelId, lotEncaissement: vente.lotEncaissement, annuleLe: null },
+      });
+      if (partsRestantes > 0) {
+        return {
+          articlesRemisEnStock: [],
+          infoStock: `Partage en ${partsRestantes + 1} parts : les articles reviendront en stock à l'annulation de la dernière part (${partsRestantes} restante${partsRestantes > 1 ? "s" : ""}).`,
+        };
+      }
+      const premiere = await this.prisma.venteCafeteria.findFirst({
+        where: { hotelId, lotEncaissement: vente.lotEncaissement },
+        orderBy: { numeroRecu: "asc" },
+        select: { id: true },
+      });
+      if (premiere) venteDesLignes = premiere.id;
+    }
+
+    const lignes = await this.prisma.ligneCommande.findMany({
+      where: { hotelId, venteId: venteDesLignes },
+      include: { produit: true },
+    });
+    if (lignes.length === 0) {
+      return {
+        articlesRemisEnStock: [],
+        infoStock: "Articles non rattachés à ce reçu (vente antérieure au 15/10/2026) : remettez-les en stock depuis l'écran Stock.",
+      };
+    }
+
+    const parProduit = new Map<string, { nom: string; quantite: number; type: string; portions: number | null }>();
+    for (const ligne of lignes) {
+      const courant = parProduit.get(ligne.produitId) ?? {
+        nom: ligne.produit.nom,
+        quantite: 0,
+        type: ligne.produit.typeProduit,
+        portions: ligne.produit.portionsDisponibles,
+      };
+      courant.quantite += Number(ligne.quantite);
+      parProduit.set(ligne.produitId, courant);
+    }
+
+    const remis: { nom: string; quantite: number }[] = [];
+    for (const [produitId, p] of parProduit) {
+      if (p.type === TypeProduit.PLAT) {
+        // Plat « cuisiné à la commande » (portions illimitées) : rien à remettre.
+        if (p.portions == null) continue;
+        await this.prisma.produit.updateMany({
+          where: { id: produitId, hotelId },
+          data: { portionsDisponibles: { increment: p.quantite }, syncVersion: { increment: 1 } },
+        });
+      } else {
+        await this.stockService.remettreEnStock(this.prisma, {
+          hotelId,
+          produitId,
+          quantite: p.quantite,
+          motif: `Annulation reçu ${vente.numeroRecu}`,
+          createdBy: auteur,
+        });
+      }
+      remis.push({ nom: p.nom, quantite: p.quantite });
+    }
+    return { articlesRemisEnStock: remis, infoStock: null };
   }
 
   findAllVentes(hotelId: string, reservationLieeId?: string) {
@@ -538,6 +649,9 @@ export class CafeteriaService {
     const { usd, cdf } = this.sommerParDevise(lignes);
     const partsUSD = repartirEnParts(usd, 2, n);
     const partsCDF = repartirEnParts(cdf, 0, n);
+    // Toutes les parts d'un même partage : le stock ne revient qu'à
+    // l'annulation de la dernière (voir annulerVente).
+    const lotEncaissement = crypto.randomUUID();
 
     const ventes = [];
     for (let i = 0; i < n; i++) {
@@ -550,6 +664,7 @@ export class CafeteriaService {
             montantTotalCDF: partsCDF[i],
             modePaiement: dto.modePaiement,
             reservationLieeId: dto.reservationLieeId,
+            lotEncaissement,
             createdBy,
             numeroRecu: await this.genererNumeroRecu(tx, hotelId),
             numeroProvisoire: numerosProvisoires?.[i],

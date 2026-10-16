@@ -1,5 +1,5 @@
 import { PrismaClient } from "@hotel-chicago/database";
-import { BornesMois } from "./bornes";
+import { BornesMois, DECALAGE_HEURES } from "./bornes";
 import {
   AgregatParMode,
   AgregatReception,
@@ -25,13 +25,26 @@ function jourLubumbashi(d: Date): string {
   }).format(d);
 }
 
-/** Nuitées d'un séjour recouvrant [debut, fin[ — dates prévues de la
- * réservation : aucun horodatage réel de check-in/check-out n'existe dans
- * le modèle (limite signalée en pied de rapport). */
-function nuiteesDansMois(arrivee: Date, depart: Date, bornes: BornesMois): number {
-  const d = Math.max(arrivee.getTime(), bornes.debut.getTime());
-  const f = Math.min(depart.getTime(), bornes.fin.getTime());
-  return Math.max(0, Math.round((f - d) / JOUR_MS));
+/** Jour calendaire à Lubumbashi (UTC+2 fixe) d'un instant. */
+function jourCalendaire(instant: number): number {
+  return Math.floor((instant + DECALAGE_HEURES * 3600_000) / JOUR_MS);
+}
+
+/** Nuitées d'un séjour recouvrant [debut, fin[ du mois, comptées en jours
+ * calendaires à Lubumbashi (une arrivée à 22:00 et un départ le lendemain à
+ * 10:00 = 1 nuit). Les heures RÉELLES de check-in/check-out (15/10/2026) sont
+ * préférées aux dates prévues ; un séjour sans heure réelle (enregistré avant,
+ * ou encore en cours) retombe sur la date prévue. */
+function nuiteesDansMois(
+  sejour: { dateArrivee: Date; dateDepart: Date; arriveeLe?: Date | null; departLe?: Date | null },
+  bornes: BornesMois
+): number {
+  const arrivee = (sejour.arriveeLe ?? sejour.dateArrivee).getTime();
+  const depart = (sejour.departLe ?? sejour.dateDepart).getTime();
+  const d = Math.max(arrivee, bornes.debut.getTime());
+  const f = Math.min(depart, bornes.fin.getTime());
+  if (f <= d) return 0;
+  return Math.max(0, jourCalendaire(f) - jourCalendaire(d));
 }
 
 /**
@@ -138,7 +151,7 @@ export async function agregatReception(
   const chambreParId = new Map(chambres.map((c) => [c.id, c]));
 
   for (const r of reservationsActives) {
-    const n = nuiteesDansMois(r.dateArrivee, r.dateDepart, bornes);
+    const n = nuiteesDansMois(r, bornes);
     if (n === 0) continue;
     const c = r.chambre;
     const revenu = n * Number(c.prixParNuit);

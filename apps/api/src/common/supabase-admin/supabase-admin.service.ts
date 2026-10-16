@@ -1,4 +1,5 @@
 import { ConflictException, HttpException, HttpStatus, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { emailDuCompte } from "../telephone/identifiant-connexion";
 
 export interface CompteSupabaseAuth {
   id: string;
@@ -33,8 +34,7 @@ export class SupabaseAdminService {
       // (re-soumission du formulaire), qui doit remonter en 409 propre, pas
       // en 500 générique (constaté en testant un rejeu avec le même email).
       if (reponse.status === 422) {
-        // Message fixe : on ne répète pas celui de Supabase (il confirme à un inconnu qu'un compte existe pour cette adresse).
-        throw new ConflictException("Impossible de créer un compte avec ces informations. Si vous avez déjà un compte, connectez-vous ou réinitialisez votre mot de passe.");
+        throw new ConflictException("Ce numéro de téléphone ou cette adresse e-mail est déjà utilisé par un autre compte.");
       }
       throw new InternalServerErrorException(
         `Supabase Auth a refusé (${reponse.status}) : ${json.msg || json.message || JSON.stringify(json)}`
@@ -43,16 +43,23 @@ export class SupabaseAdminService {
     return json;
   }
 
-  /** `emailConfirme = false` par défaut : contrairement aux comptes créés par
-   * un script CLI interne (déjà vérifiés par un humain de confiance), un
-   * inscrit en libre-service est un inconnu — Supabase envoie son e-mail de
-   * confirmation par défaut. */
-  creerCompte(params: { email: string; motDePasse: string; emailConfirme?: boolean }): Promise<CompteSupabaseAuth> {
+  /** Connexion par numéro (15/10/2026) : le compte porte l'e-mail réel s'il
+   * existe, sinon l'identifiant interne dérivé du numéro (emailDuCompte).
+   * Toujours confirmé : la connexion se fait par numéro, il n'y a plus
+   * d'e-mail de confirmation à attendre (un identifiant interne ne peut de
+   * toute façon pas en recevoir). */
+  creerCompte(params: { telephone?: string | null; email?: string | null; motDePasse: string }): Promise<CompteSupabaseAuth> {
     return this.appel("POST", "/users", {
-      email: params.email,
+      email: emailDuCompte(params.telephone, params.email),
       password: params.motDePasse,
-      email_confirm: params.emailConfirme ?? false,
+      email_confirm: true,
     });
+  }
+
+  /** E-mail actuellement porté par un compte Supabase (null si introuvable). */
+  async lireEmailCompte(id: string): Promise<string | null> {
+    const compte = await this.appel("GET", `/users/${id}`).catch(() => null);
+    return compte?.email ?? null;
   }
 
   /** Jamais laisser un compte Supabase orphelin si l'écriture Prisma qui

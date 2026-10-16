@@ -25,6 +25,14 @@ import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
 /** Motif d'annulation rapide ; le texte EXACT est reconnu par le serveur pour proposer le remboursement de l'acompte (non-présentation). */
 const MOTIF_NON_PRESENTATION = "Client non présenté";
 
+/** « 15/10 à 14:32 » — heure réelle de check-in / check-out. */
+function jourEtHeure(iso: string): string {
+  const d = new Date(iso);
+  const jour = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+  const heure = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return `${jour} à ${heure}`;
+}
+
 export interface EcranReservationDetailProps {
   /** Id de la réservation (local ou serveur — le miroir résout les deux). */
   reservationId: string;
@@ -387,6 +395,8 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
             </Text>
             <BlocPayeEnLigne paiements={acomptesEnLigne.get(reservation.id)} />
             {reservation.origine === "SITE_PUBLIC" && <Text style={styles.ligneSecondaire}>Demande reçue du site public</Text>}
+            {reservation.arriveeLe && <Text style={styles.ligneSecondaire}>Arrivé le {jourEtHeure(reservation.arriveeLe)}</Text>}
+            {reservation.departLe && <Text style={styles.ligneSecondaire}>Parti le {jourEtHeure(reservation.departLe)}</Text>}
             {reservation.note && <Text style={styles.note}>Note : {reservation.note}</Text>}
             {statut === "ANNULEE" && reservation.motifAnnulation && (
               <Text style={styles.ligneSecondaire}>Motif d'annulation : {reservation.motifAnnulation}</Text>

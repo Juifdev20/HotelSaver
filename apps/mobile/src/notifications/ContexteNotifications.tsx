@@ -46,6 +46,9 @@ interface ValeurNotifications {
   toutMarquerLu: () => Promise<void>;
   /** Clic dans la liste : marque lue puis ouvre l'écran concerné. */
   ouvrirNotification: (notification: NotificationApp) => void;
+  /** Ouvre un écran de l'app comme le ferait le lien d'une notification
+   * (ex. « Voir tout » du stock bas de l'accueil → Plus › Stock). */
+  ouvrirEcran: (lien: LienNotification) => void;
   demandePlus: DemandePlus | null;
   consommerDemandePlus: () => void;
   demandeCompte: DemandeCompte | null;
@@ -289,6 +292,7 @@ export function FournisseurNotifications({
         if (!notification.lue) void marquerLue(notification.id).catch(() => undefined);
         naviguer(notification.lien, notification.type);
       },
+      ouvrirEcran: naviguer,
       demandePlus,
       consommerDemandePlus: () => setDemandePlus(null),
       demandeCompte,

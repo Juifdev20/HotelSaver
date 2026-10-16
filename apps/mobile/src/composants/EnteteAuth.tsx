@@ -1,34 +1,32 @@
 import * as React from "react";
-import { Image, Platform, StatusBar as StatusBarNative, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { couleurs, espacements } from "../tokens";
+import { couleurs } from "../tokens";
 
-/** Bandeau navy du haut des écrans de connexion/inscription (maquette : logo +
- * nom sur fond navy, feuille blanche arrondie dessous). Il remonte jusqu'en
- * haut de l'écran — edge-to-edge : l'horloge, le réseau et la batterie sont
- * dessinés par-dessus, donc icônes claires et même navy que l'app.
- * Ces écrans sont montés hors SafeAreaProvider : la hauteur de la barre
- * d'état vient de `StatusBar.currentHeight`. */
+/** Bleu vif de « Saver » dans le nom de marque (maquette du 15/10/2026). */
+const BLEU_SAVER = "#1A73E8";
+
+/** En-tête de marque des écrans de connexion et d'inscription (maquette du
+ * 15/10/2026, seconde version) : logo centré, « Hotel » navy + « Saver »
+ * bleu, slogan dessous. Même composant, mêmes marges sur les deux pages : le
+ * bloc logo + slogan ne bouge pas de l'une à l'autre. */
 export function EnteteAuth() {
-  const hauteurBarre = Platform.OS === "android" ? StatusBarNative.currentHeight ?? 24 : 48;
   return (
-    <View style={[styles.bandeau, { paddingTop: hauteurBarre + espacements.s3 }]}>
-      <StatusBar style="light" />
-      <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
-      <Text style={styles.nom}>HotelSaver</Text>
+    <View style={styles.entete}>
+      <StatusBar style="dark" />
+      <Image source={require("../../assets/hotelsaver-logo-carre.png")} style={styles.logo} resizeMode="contain" />
+      <Text style={styles.nom}>
+        Hotel<Text style={styles.saver}>Saver</Text>
+      </Text>
+      <Text style={styles.slogan}>La gestion hôtelière, en toute simplicité.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bandeau: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: espacements.s2,
-    paddingHorizontal: espacements.s4,
-    paddingBottom: espacements.s5 + espacements.s3,
-    backgroundColor: couleurs.navy,
-  },
-  logo: { width: 30, height: 30, borderRadius: 8 },
-  nom: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  entete: { alignItems: "center" },
+  logo: { width: 82, height: 82 },
+  nom: { fontSize: 30, fontWeight: "800", color: couleurs.navy, letterSpacing: -0.3, marginTop: 8, lineHeight: 36 },
+  saver: { color: BLEU_SAVER },
+  slogan: { fontSize: 14, color: "#5B6B8C", marginTop: 2 },
 });

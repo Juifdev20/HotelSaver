@@ -188,6 +188,7 @@ export class Ecritures {
       id: uuid(), chambreId, clientId: client.id, dateArrivee: iso(arrivee), dateDepart: iso(depart), acompte: String(d.acompte ?? 0), note: d.note ?? null,
       statut: installer ? "EN_COURS" : "CONFIRMEE", origine: "RECEPTION",
       // Le lien de suivi n'existe qu'une fois la réservation enregistrée par le serveur (c'est lui qui crée le secret) : vide d'ici là.
+      arriveeLe: installer ? this.ctx.maintenant().toISOString() : null, departLe: null,
       jetonSuivi: "", heureArriveePrevue: null, demandeClient: null, preEnregistreLe: null, reponseReception: null, annuleLe: null, motifAnnulation: null, createdBy: u.userId,
     });
     ecritures.push(this.ecrire("Reservation", reservation));
@@ -251,11 +252,11 @@ export class Ecritures {
       maj = this.touche("Reservation", { ...r, statut: "ANNULEE", annuleLe: maintenant, motifAnnulation: texte(motif) });
     } else if (action === "CHECK_IN") {
       if (r.statut !== "CONFIRMEE") throw erreur(409, `Cette réservation ne peut pas être enregistrée en arrivée (statut actuel : ${r.statut}). Seule une réservation CONFIRMEE peut faire l'objet d'un check-in.`);
-      maj = this.touche("Reservation", { ...r, statut: "EN_COURS" });
+      maj = this.touche("Reservation", { ...r, statut: "EN_COURS", arriveeLe: maintenant });
       chambreMaj = chambre && this.touche("Chambre", { ...chambre, statut: "OCCUPEE" });
     } else {
       if (r.statut !== "EN_COURS") throw erreur(409, `Cette réservation ne peut pas être enregistrée en départ (statut actuel : ${r.statut}). Seule une réservation EN_COURS (client déjà arrivé) peut faire l'objet d'un check-out.`);
-      maj = this.touche("Reservation", { ...r, statut: "TERMINEE" });
+      maj = this.touche("Reservation", { ...r, statut: "TERMINEE", departLe: maintenant });
       chambreMaj = chambre && this.touche("Chambre", { ...chambre, statut: "NETTOYAGE" });
     }
     ecritures.push(this.ecrire("Reservation", maj));

@@ -30,6 +30,7 @@ export type {
   ReponsePush,
   ReponsePull,
   ReservationAnnulee,
+  VenteAnnulee,
   ResultatCheckInOut,
   ResultatOperation,
   TauxChange,

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { CreditCard, Download, MailCheck, Monitor, Smartphone, UserPlus } from "lucide-react";
+import { CreditCard, Download, Monitor, Phone, Smartphone, UserPlus } from "lucide-react";
+import { formaterTelephoneRdc } from "@hotel-chicago/types";
 import { configuration } from "./config";
 import { MiseEnPageAuth } from "./auth/MiseEnPageAuth";
 import { OuvrirApplication } from "./accueil/OuvrirApplication";
@@ -33,7 +34,7 @@ function BoutonTelechargement({ url, icone: Icone, libelle }: { url: string | nu
  * suite — se connecter, créer les comptes réception et cafétaria — se passe
  * obligatoirement dans l'application. Cet écran propose de l'ouvrir si elle est déjà
  * installée, sinon de la télécharger. */
-export function EcranSucces({ email, payerMaintenant = false }: { email: string; payerMaintenant?: boolean }) {
+export function EcranSucces({ telephone, payerMaintenant = false }: { telephone: string; payerMaintenant?: boolean }) {
   return (
     <MiseEnPageAuth>
       <div className="carte-auth">
@@ -43,10 +44,12 @@ export function EcranSucces({ email, payerMaintenant = false }: { email: string;
 
         <ol className="parcours">
           <li>
-            <MailCheck size={20} aria-hidden="true" />
+            <Phone size={20} aria-hidden="true" />
             <span>
-              <strong>Confirmez votre adresse</strong>
-              <small>Un e-mail vous a été envoyé à {email}.</small>
+              <strong>Connectez-vous avec votre numéro</strong>
+              <small>
+                Votre identifiant : {formaterTelephoneRdc(telephone)}, avec le mot de passe que vous venez de choisir.
+              </small>
             </span>
           </li>
           <li>
@@ -68,17 +71,17 @@ export function EcranSucces({ email, payerMaintenant = false }: { email: string;
         {payerMaintenant && (
           <div className="parcours-payer">
             <p>
-              <CreditCard size={18} aria-hidden="true" /> Vous avez choisi de payer tout de suite. Une fois votre adresse confirmée, payez votre abonnement ici
-              (Mobile Money) :
+              <CreditCard size={18} aria-hidden="true" /> Vous avez choisi de payer tout de suite. Payez votre abonnement ici (Mobile Money), avec le numéro et le mot de passe
+              que vous venez de créer :
             </p>
-            <Link className="bouton-auth" to={`/payer?email=${encodeURIComponent(email)}`}>
+            <Link className="bouton-auth" to={`/payer?telephone=${encodeURIComponent(telephone)}`}>
               Payer mon abonnement
             </Link>
           </div>
         )}
 
         <div className="telechargements">
-          <OuvrirApplication email={email} />
+          <OuvrirApplication telephone={telephone} />
           <BoutonTelechargement url={configuration.urlWindows} icone={Monitor} libelle="Application Windows (ordinateur)" />
         </div>
       </div>

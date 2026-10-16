@@ -1,14 +1,22 @@
-// Complète withSurfaceTranslucide.js après `expo prebuild` : supprime la
-// Starting Window système sur Android (icône affichée à une taille fixe
-// ~288 dp, plus grande que notre voile/écran JS à 171 dp — le « fantôme »
-// pendant le fondu de démarrage). L'attribut qui la supprime,
-// `android:windowDisablePreview`, doit être posé sur `Theme.App.SplashScreen`,
-// mais ce style est régénéré par expo-splash-screen à une étape fixe de
-// `expo prebuild`, plus tardive que n'importe quel mod de plugin de config —
-// testé : un item poussé depuis un plugin (`withAndroidStyles` ou
-// `withDangerousMod`, quelle que soit sa position dans `app.json`) est
-// systématiquement écrasé. On patche donc le fichier généré directement,
+// Complète withSurfaceTranslucide.js après `expo prebuild`, en patchant
+// directement `Theme.App.SplashScreen` : ce style est régénéré par
+// expo-splash-screen à une étape fixe de `expo prebuild`, plus tardive que
+// n'importe quel mod de plugin de config — testé : un item poussé depuis un
+// plugin (`withAndroidStyles` ou `withDangerousMod`, quelle que soit sa
+// position dans `app.json`) est systématiquement écrasé. D'où ce script, lancé
 // une fois `expo prebuild` terminé (voir le script "prebuild" du package.json).
+//
+// 1. Splash système = même logo, même taille, même place (15/10/2026) : sur
+//    Android 12+, ce splash est imposé à chaque lancement et couvre tout le
+//    démarrage à froid du processus (plusieurs secondes en APK de debug).
+//    Avec l'icône d'expo il faisait un « gros logo » distinct ; sans icône, un
+//    bleu vide. Il affiche donc `splash_demarrage` : canevas 288 dp (taille
+//    imposée par l'OS, seul le cercle central de 192 dp est visible) avec le
+//    logo de 128 dp au centre — exactement le logo du voile (MainActivity) et
+//    de « Veuillez patienter » (App.tsx). Les PNG par densité vivent dans
+//    assets/splash-demarrage/ (générés une fois) et sont recopiés ici.
+// 2. `android:windowDisablePreview` : supprime la Starting Window des Android
+//    antérieurs à 12 (icône ~288 dp, le « fantôme » pendant le fondu).
 const fs = require("fs");
 const path = require("path");
 
@@ -29,11 +37,17 @@ if (!fs.existsSync(stylesPath)) {
   process.exit(0);
 }
 
-let contents = fs.readFileSync(stylesPath, "utf8");
-
-if (contents.includes("android:windowDisablePreview")) {
-  process.exit(0);
+const res = path.dirname(path.dirname(stylesPath));
+for (const densite of ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"]) {
+  const dossier = path.join(res, `drawable-${densite}`);
+  fs.mkdirSync(dossier, { recursive: true });
+  fs.copyFileSync(
+    path.join(__dirname, "..", "assets", "splash-demarrage", `splash_demarrage-${densite}.png`),
+    path.join(dossier, "splash_demarrage.png")
+  );
 }
+
+let contents = fs.readFileSync(stylesPath, "utf8");
 
 const cible = /(<style name="Theme\.App\.SplashScreen"[^>]*>)/;
 if (!cible.test(contents)) {
@@ -42,10 +56,19 @@ if (!cible.test(contents)) {
   );
 }
 
-contents = contents.replace(
-  cible,
-  `$1\n    <item name="android:windowDisablePreview">true</item>`
-);
+contents = contents
+  .replace(
+    /(<item name="windowSplashScreenAnimatedIcon">)[^<]*(<\/item>)/,
+    "$1@drawable/splash_demarrage$2"
+  )
+  .replace(/\s*<item name="android:windowSplashScreenBehavior">[^<]*<\/item>/, "");
+
+if (!contents.includes("android:windowDisablePreview")) {
+  contents = contents.replace(
+    cible,
+    `$1\n    <item name="android:windowDisablePreview">true</item>`
+  );
+}
 
 fs.writeFileSync(stylesPath, contents, "utf8");
-console.log("patch-native-splash : android:windowDisablePreview ajouté à Theme.App.SplashScreen");
+console.log("patch-native-splash : splash système sur splash_demarrage + windowDisablePreview sur Theme.App.SplashScreen");

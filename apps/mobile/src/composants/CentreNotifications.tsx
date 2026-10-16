@@ -48,7 +48,7 @@ export function CentreNotifications() {
       <View style={styles.ecran}>
         <View style={[styles.entete, { paddingTop: insets.top + espacements.s2 }]}>
           <Pressable onPress={fermerCentre} hitSlop={10} accessibilityRole="button" accessibilityLabel="Retour" style={styles.retour}>
-            <ArrowLeft size={22} color="#fff" />
+            <ArrowLeft size={22} color={couleurs.navy} />
           </Pressable>
           <Text style={styles.titre} accessibilityRole="header">Notifications</Text>
           {nonLues > 0 ? (
@@ -108,14 +108,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: couleurs.navy,
+    backgroundColor: couleurs.surface200,
+    borderBottomWidth: 1,
+    borderBottomColor: couleurs.bordure,
     paddingHorizontal: espacements.s3,
     paddingBottom: espacements.s3,
   },
   retour: { width: 100, minHeight: 44, justifyContent: "center" },
   cote: { width: 100, minHeight: 44, justifyContent: "center", alignItems: "flex-end" },
-  titre: { color: "#fff", fontSize: 17, fontWeight: "700" },
-  toutLire: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  titre: { color: couleurs.navy, fontSize: 17, fontWeight: "700" },
+  toutLire: { color: couleurs.bleu, fontWeight: "600", fontSize: 12 },
   jour: {
     fontSize: 12,
     fontWeight: "700",

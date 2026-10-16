@@ -2151,3 +2151,9 @@ button {
 .hc-auth__demarrage-choix small {
   font-size: 13px;
 }
+
+/* Champ téléphone (@hotel-chicago/ui) aligné sur les autres champs des écrans d'authentification. */
+.hc-auth__carte .hc-champ-telephone {
+  height: 48px;
+  border-radius: var(--hc-radius-md);
+}

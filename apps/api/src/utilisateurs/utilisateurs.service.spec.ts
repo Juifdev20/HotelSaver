@@ -22,6 +22,7 @@ function creerPrismaMock() {
       update: jest.fn(),
     },
     sessionUtilisateur: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
+    superAdmin: { findUnique: jest.fn().mockResolvedValue(null) },
   } as any;
 }
 
@@ -30,6 +31,7 @@ function creerSupabaseAdminMock() {
     creerCompte: jest.fn().mockResolvedValue({ id: "auth-nouveau", email: "employe@exemple.com" }),
     supprimerCompte: jest.fn().mockResolvedValue(undefined),
     mettreAJourCompte: jest.fn().mockResolvedValue(undefined),
+    lireEmailCompte: jest.fn().mockResolvedValue(null),
   } as any;
 }
 
@@ -65,7 +67,13 @@ describe("UtilisateursService", () => {
   });
 
   describe("create", () => {
-    const dto = { nom: "Employé Café", email: "employe@exemple.com", motDePasse: "motdepasse123", role: Role.CAFETARIA };
+    const dto = {
+      nom: "Employé Café",
+      telephone: "0970 000 000",
+      email: "employe@exemple.com",
+      motDePasse: "motdepasse123",
+      role: Role.CAFETARIA,
+    };
 
     it("refuse un deuxième compte pour un rôle déjà pris — avant tout appel Supabase", async () => {
       prisma.utilisateur.count.mockResolvedValue(1);
@@ -80,15 +88,35 @@ describe("UtilisateursService", () => {
       prisma.utilisateur.create.mockResolvedValue({ id: "u-1", ...dto, actif: true });
       await service.create(dto as any, HOTEL_ID);
       expect(supabaseAdmin.creerCompte).toHaveBeenCalledWith({
+        telephone: "+243970000000",
         email: dto.email,
         motDePasse: dto.motDePasse,
-        emailConfirme: true,
       });
       expect(prisma.utilisateur.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ nom: dto.nom, email: dto.email, role: dto.role, hotelId: HOTEL_ID, supabaseAuthId: "auth-nouveau" }),
+          data: expect.objectContaining({
+            nom: dto.nom,
+            telephone: "+243970000000",
+            email: dto.email,
+            role: dto.role,
+            hotelId: HOTEL_ID,
+            supabaseAuthId: "auth-nouveau",
+          }),
         })
       );
+    });
+
+    it("e-mail optionnel : un numéro seul suffit", async () => {
+      prisma.utilisateur.create.mockResolvedValue({ id: "u-1" });
+      await service.create({ ...dto, email: "" } as any, HOTEL_ID);
+      expect(supabaseAdmin.creerCompte).toHaveBeenCalledWith({ telephone: "+243970000000", email: null, motDePasse: dto.motDePasse });
+    });
+
+    it("refuse un numéro invalide (400) et un numéro déjà pris (409) — avant tout appel Supabase", async () => {
+      await expect(service.create({ ...dto, telephone: "12345" } as any, HOTEL_ID)).rejects.toThrow(BadRequestException);
+      prisma.utilisateur.findUnique.mockResolvedValue({ id: "autre" });
+      await expect(service.create(dto as any, HOTEL_ID)).rejects.toThrow(/numéro de téléphone est déjà utilisé/);
+      expect(supabaseAdmin.creerCompte).not.toHaveBeenCalled();
     });
 
     it("supprime le compte Supabase si l'écriture Prisma échoue (email déjà utilisé)", async () => {
@@ -154,6 +182,29 @@ describe("UtilisateursService", () => {
       expect(prisma.utilisateur.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ email: "nouveau@exemple.com" }) })
       );
+    });
+
+    it("ajouter un numéro à un ancien compte sans e-mail en base : garde son e-mail réel lu chez Supabase", async () => {
+      prisma.utilisateur.findUnique.mockImplementation(({ where }: any) =>
+        where.id ? Promise.resolve({ ...EXISTANT, email: null, telephone: null }) : Promise.resolve(null)
+      );
+      supabaseAdmin.lireEmailCompte.mockResolvedValue("ancien@exemple.com");
+      prisma.utilisateur.update.mockResolvedValue({ id: "u-2" });
+      await service.update("u-2", { telephone: "+243 812 345 678" }, PATRON);
+      expect(supabaseAdmin.mettreAJourCompte).toHaveBeenCalledWith("auth-u2", { email: "ancien@exemple.com", motDePasse: undefined });
+      expect(prisma.utilisateur.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ telephone: "+243812345678", email: "ancien@exemple.com" }) })
+      );
+    });
+
+    it("retirer l'e-mail d'un compte à numéro : le compte Supabase passe à l'identifiant interne", async () => {
+      prisma.utilisateur.findUnique.mockResolvedValue({ ...EXISTANT, telephone: "+243970000000" });
+      prisma.utilisateur.update.mockResolvedValue({ id: "u-2" });
+      await service.update("u-2", { email: "" }, PATRON);
+      expect(supabaseAdmin.mettreAJourCompte).toHaveBeenCalledWith("auth-u2", {
+        email: "243970000000@tel.hotelsaver.app",
+        motDePasse: undefined,
+      });
     });
 
     it("renvoie 409 et tente de remettre l'ancien email si Prisma refuse (P2002)", async () => {

@@ -10,16 +10,24 @@ function creerPrismaMock() {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     sousCompte: { create: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-    ligneCommande: { create: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
+    ligneCommande: {
+      create: jest.fn(),
+      groupBy: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     mouvementStock: { create: jest.fn().mockResolvedValue({}) },
     venteCafeteria: {
       create: jest.fn(),
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ id: "v1" }),
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      count: jest.fn().mockResolvedValue(0),
     },
-    produit: { findUnique: jest.fn() },
+    produit: { findUnique: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     reservation: { findUnique: jest.fn() },
     tauxChange: { findFirst: jest.fn().mockResolvedValue(null) },
     $transaction: jest.fn((fn: any) => fn(prisma)),
@@ -32,12 +40,16 @@ const currentUser = { userId: "u1", supabaseAuthId: "a1", role: "CAFETARIA", nom
 
 describe("CafeteriaService", () => {
   let prisma: ReturnType<typeof creerPrismaMock>;
-  let stockService: { enregistrerMouvement: jest.Mock; decrementerStock: jest.Mock };
+  let stockService: { enregistrerMouvement: jest.Mock; decrementerStock: jest.Mock; remettreEnStock: jest.Mock };
   let service: CafeteriaService;
 
   beforeEach(() => {
     prisma = creerPrismaMock();
-    stockService = { enregistrerMouvement: jest.fn().mockResolvedValue({}), decrementerStock: jest.fn().mockResolvedValue(undefined) };
+    stockService = {
+      enregistrerMouvement: jest.fn().mockResolvedValue({}),
+      decrementerStock: jest.fn().mockResolvedValue(undefined),
+      remettreEnStock: jest.fn().mockResolvedValue(undefined),
+    };
     service = new CafeteriaService(prisma, stockService as any, { emettre: jest.fn() } as any);
   });
 
@@ -251,6 +263,38 @@ describe("CafeteriaService", () => {
       });
     });
 
+    it("rattache chaque ligne réglée à son reçu (retour en stock possible à l'annulation)", async () => {
+      prisma.compteCafeteria.findUnique.mockResolvedValue({
+        id: "c1",
+        statut: "OUVERT",
+        tableOuNom: "Table 4",
+        sousComptes: [
+          { id: "sc0", nom: "A", payeLe: null, lignes: [{ id: "l1", devise: "USD", prixUnitaire: 3, quantite: 1 }] },
+          { id: "sc1", nom: "B", payeLe: null, lignes: [{ id: "l2", devise: "USD", prixUnitaire: 4, quantite: 1 }] },
+        ],
+      });
+      let n = 0;
+      prisma.venteCafeteria.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "v" + ++n, ...data }));
+
+      await service.encaisser("c1", { mode: "PAR_SOUS_COMPTE", modePaiement: "CASH" } as any, currentUser);
+      expect(prisma.ligneCommande.updateMany).toHaveBeenCalledWith({ where: { id: { in: ["l1"] }, hotelId: HOTEL_ID }, data: { venteId: "v1" } });
+      expect(prisma.ligneCommande.updateMany).toHaveBeenCalledWith({ where: { id: { in: ["l2"] }, hotelId: HOTEL_ID }, data: { venteId: "v2" } });
+    });
+
+    it("PARTAGE_EGAL : toutes les parts partagent un lot, les lignes vont au premier reçu", async () => {
+      prisma.compteCafeteria.findUnique.mockResolvedValue(
+        compteAvecLignes([[{ devise: "USD", prixUnitaire: 10, quantite: 1 }]])
+      );
+      let n = 0;
+      prisma.venteCafeteria.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "v" + ++n, ...data }));
+      const ventes = await service.encaisser("c1", { mode: "PARTAGE_EGAL", modePaiement: "CASH", nombrePersonnes: 3 } as any, currentUser);
+      const lots = new Set(ventes.map((v: any) => v.lotEncaissement));
+      expect(lots.size).toBe(1);
+      expect([...lots][0]).toEqual(expect.any(String));
+      expect(prisma.ligneCommande.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.ligneCommande.updateMany.mock.calls[0][0].data).toEqual({ venteId: "v1" });
+    });
+
     it("refuse l'encaissement si le compte a déjà été fermé entre-temps (compare-and-swap)", async () => {
       prisma.compteCafeteria.findUnique.mockResolvedValue(
         compteAvecLignes([[{ devise: "USD", prixUnitaire: 3, quantite: 1 }]])
@@ -370,9 +414,102 @@ describe("CafeteriaService", () => {
   });
 
   describe("annulerVente", () => {
+    const vente = (over: Record<string, unknown> = {}) => ({
+      id: "v1",
+      numeroRecu: "CAF-20261015-0001",
+      annuleLe: null,
+      lotEncaissement: null,
+      createdBy: "u-caisse",
+      ...over,
+    });
+    const ligne = (produit: Record<string, unknown>, quantite: number) => ({
+      produitId: produit.id,
+      quantite,
+      produit: { typeProduit: "ARTICLE", portionsDisponibles: null, ...produit },
+    });
+
     it("refuse d'annuler une vente déjà annulée", async () => {
       prisma.venteCafeteria.findUnique.mockResolvedValue({ id: "v1", annuleLe: new Date() });
       await expect(service.annulerVente("v1", "erreur", HOTEL_ID)).rejects.toThrow(ConflictException);
+    });
+
+    it("refuse une annulation concurrente (compare-and-swap) sans toucher au stock", async () => {
+      prisma.venteCafeteria.findUnique.mockResolvedValue(vente());
+      prisma.venteCafeteria.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.annulerVente("v1", "erreur", HOTEL_ID)).rejects.toThrow(ConflictException);
+      expect(stockService.remettreEnStock).not.toHaveBeenCalled();
+    });
+
+    it("remet en stock les articles du reçu (quantités regroupées par produit)", async () => {
+      prisma.venteCafeteria.findUnique.mockResolvedValue(vente());
+      prisma.ligneCommande.findMany.mockResolvedValue([
+        ligne({ id: "fanta", nom: "Fanta" }, 1),
+        ligne({ id: "fanta", nom: "Fanta" }, 1),
+        ligne({ id: "sucre", nom: "Sucre" }, 1),
+      ]);
+      const r = await service.annulerVente("v1", "erreur de caisse", HOTEL_ID);
+      expect(prisma.ligneCommande.findMany.mock.calls[0][0].where).toEqual({ hotelId: HOTEL_ID, venteId: "v1" });
+      expect(stockService.remettreEnStock).toHaveBeenCalledWith(prisma, {
+        hotelId: HOTEL_ID,
+        produitId: "fanta",
+        quantite: 2,
+        motif: "Annulation reçu CAF-20261015-0001",
+        createdBy: "u-caisse",
+      });
+      expect(r.articlesRemisEnStock).toEqual([
+        { nom: "Fanta", quantite: 2 },
+        { nom: "Sucre", quantite: 1 },
+      ]);
+      expect(r.infoStock).toBeNull();
+    });
+
+    it("case décochée : le reçu est annulé mais le stock ne bouge pas", async () => {
+      prisma.venteCafeteria.findUnique.mockResolvedValue(vente());
+      const r = await service.annulerVente("v1", "consommé", HOTEL_ID, undefined, false);
+      expect(prisma.venteCafeteria.updateMany).toHaveBeenCalled();
+      expect(prisma.ligneCommande.findMany).not.toHaveBeenCalled();
+      expect(stockService.remettreEnStock).not.toHaveBeenCalled();
+      expect(r.articlesRemisEnStock).toEqual([]);
+    });
+
+    it("un plat à portions retrouve ses portions ; un plat illimité ne change rien", async () => {
+      prisma.venteCafeteria.findUnique.mockResolvedValue(vente());
+      prisma.ligneCommande.findMany.mockResolvedValue([
+        ligne({ id: "riz", nom: "Riz", typeProduit: "PLAT", portionsDisponibles: 3 }, 2),
+        ligne({ id: "soupe", nom: "Soupe", typeProduit: "PLAT", portionsDisponibles: null }, 1),
+      ]);
+      const r = await service.annulerVente("v1", "erreur", HOTEL_ID);
+      expect(prisma.produit.updateMany).toHaveBeenCalledWith({
+        where: { id: "riz", hotelId: HOTEL_ID },
+        data: { portionsDisponibles: { increment: 2 }, syncVersion: { increment: 1 } },
+      });
+      expect(prisma.produit.updateMany).toHaveBeenCalledTimes(1);
+      expect(stockService.remettreEnStock).not.toHaveBeenCalled();
+      expect(r.articlesRemisEnStock).toEqual([{ nom: "Riz", quantite: 2 }]);
+    });
+
+    it("reçu d'avant la mise à jour (aucune ligne rattachée) : message pour le faire à la main", async () => {
+      prisma.venteCafeteria.findUnique.mockResolvedValue(vente());
+      prisma.ligneCommande.findMany.mockResolvedValue([]);
+      const r = await service.annulerVente("v1", "erreur", HOTEL_ID);
+      expect(r.infoStock).toMatch(/non rattachés/);
+      expect(stockService.remettreEnStock).not.toHaveBeenCalled();
+    });
+
+    it("partage égal : rien tant qu'il reste des parts, tout à la dernière part (lignes du premier reçu)", async () => {
+      prisma.venteCafeteria.findUnique.mockResolvedValue(vente({ id: "v2", lotEncaissement: "lot-1" }));
+      prisma.venteCafeteria.count.mockResolvedValueOnce(1);
+      const avant = await service.annulerVente("v2", "erreur", HOTEL_ID);
+      expect(avant.infoStock).toMatch(/dernière part/);
+      expect(prisma.ligneCommande.findMany).not.toHaveBeenCalled();
+
+      prisma.venteCafeteria.findUnique.mockResolvedValue(vente({ id: "v3", lotEncaissement: "lot-1" }));
+      prisma.venteCafeteria.count.mockResolvedValueOnce(0);
+      prisma.venteCafeteria.findFirst.mockResolvedValueOnce({ id: "v1" });
+      prisma.ligneCommande.findMany.mockResolvedValue([ligne({ id: "fanta", nom: "Fanta" }, 3)]);
+      const apres = await service.annulerVente("v3", "erreur", HOTEL_ID);
+      expect(prisma.ligneCommande.findMany.mock.calls[0][0].where).toEqual({ hotelId: HOTEL_ID, venteId: "v1" });
+      expect(apres.articlesRemisEnStock).toEqual([{ nom: "Fanta", quantite: 3 }]);
     });
   });
 

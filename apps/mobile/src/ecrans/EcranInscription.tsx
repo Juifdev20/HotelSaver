@@ -1,15 +1,13 @@
 import * as React from "react";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { ArrowRight, Building2, Globe, Lock, Mail, MapPin, Phone, User } from "lucide-react-native";
-import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
+import { ArrowRight, Building2, Globe, Lock, MapPin, User } from "lucide-react-native";
 import type { InscriptionHotelPayload } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
-import { EnteteAuth } from "../composants/EnteteAuth";
+import { PageAuth } from "../composants/PageAuth";
 import { ChampAuth } from "../composants/ChampAuth";
 import { EtapesAuth } from "../composants/EtapesAuth";
-import { useRetourAndroid } from "../hooks/useRetourAndroid";
-import { confirmerAction } from "../confirmer";
+import { ChampTelephone, telephoneDepuisSaisie } from "../composants/ChampTelephone";
 
 export interface EcranInscriptionProps {
   erreur: string | null;
@@ -24,18 +22,19 @@ const REGEX_SOUS_DOMAINE = /^[a-z0-9-]+$/;
 /** Écran purement présentationnel (comme EcranConnexion) : 2 étapes gérées
  * par un état local, pas par un routeur — apps/mobile n'a aucun routeur au
  * niveau racine (voir App.tsx, aiguillage par état). Pas d'étape logo
- * (voir DECISIONS.md, Phase 6) : l'hôtel démarre avec la palette générique. */
+ * (voir DECISIONS.md, Phase 6) : l'hôtel démarre avec la palette générique.
+ * Depuis le 15/10/2026, le **numéro du patron** (étape 2) est son identifiant
+ * de connexion ; l'e-mail est optionnel. */
 export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexion }: EcranInscriptionProps) {
   const [etape, setEtape] = useState<1 | 2>(1);
   const [payerMaintenant, setPayerMaintenant] = useState(false);
 
   const [nom, setNom] = useState("");
   const [sousDomaine, setSousDomaine] = useState("");
-  const [telephoneContact, setTelephoneContact] = useState("");
   const [adresse, setAdresse] = useState("");
 
   const [nomProprietaire, setNomProprietaire] = useState("");
-  const [email, setEmail] = useState("");
+  const [telephoneProprietaire, setTelephoneProprietaire] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [confirmationMotDePasse, setConfirmationMotDePasse] = useState("");
   const [erreurLocale, setErreurLocale] = useState<string | null>(null);
@@ -56,7 +55,8 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
 
   function soumettre() {
     if (!nomProprietaire.trim()) return setErreurLocale("Votre nom est obligatoire.");
-    if (!email.trim()) return setErreurLocale("L'email est obligatoire.");
+    const telephone = telephoneDepuisSaisie(telephoneProprietaire);
+    if (!telephone) return setErreurLocale("Numéro invalide : 9 chiffres commençant par 8 ou 9 (ex. 970 000 000).");
     if (motDePasse.length < 8) return setErreurLocale("Le mot de passe doit contenir au moins 8 caractères.");
     if (motDePasse !== confirmationMotDePasse) return setErreurLocale("Les deux mots de passe ne correspondent pas.");
 
@@ -64,51 +64,36 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
     onSoumettre({
       nom: nom.trim(),
       sousDomaine,
-      telephoneContact: telephoneContact.trim() || undefined,
       adresse: adresse.trim() || undefined,
       nomProprietaire: nomProprietaire.trim(),
-      email: email.trim(),
+      telephoneProprietaire: telephone,
       motDePasse,
     }, payerMaintenant);
   }
 
   const erreurAffichee = erreurLocale ?? erreur;
 
-  /** Bouton Retour d'Android : étape 2 → étape 1 (la saisie est gardée) ; étape 1 → connexion, avec confirmation si on a déjà écrit. */
-  useRetourAndroid(() => {
-    if (enCours) return true;
-    if (etape === 2) {
-      setErreurLocale(null);
-      setEtape(1);
-      return true;
-    }
-    if (nom.trim() || sousDomaine || telephoneContact.trim() || adresse.trim()) {
-      confirmerAction({
-        titre: "Abandonner l'inscription ?",
-        message: "Les informations saisies seront perdues.",
-        libelleConfirmer: "Abandonner",
-        libelleRefuser: "Continuer l'inscription",
-        destructif: true,
-        onConfirmer: onRetourConnexion,
-      });
-    } else {
-      onRetourConnexion();
-    }
-    return true;
-  });
-
   return (
-    <View style={styles.page}>
-      <EnteteAuth />
-      <View style={styles.feuille}>
-        <ConteneurFormulaire styleContenu={styles.contenu}>
+    <PageAuth
+      onRetour={
+        etape === 2
+          ? () => {
+              setErreurLocale(null);
+              setEtape(1);
+            }
+          : undefined
+      }
+    >
           <EtapesAuth etape={etape} />
-          <Text style={styles.titre}>Créez votre hôtel</Text>
-          <Text style={styles.sousTitre}>
-            {etape === 1
-              ? "Quelques informations suffisent pour commencer."
-              : "Dernière étape : le compte du patron, qui gérera les accès de l'équipe."}
-          </Text>
+          <Text style={[styles.titre, etape === 2 && { marginBottom: 14 }]}>Créez votre hôtel</Text>
+          {/* Étape 2 sans sous-titre ni e-mail (retour du patron, 15/10/2026) :
+           * tout tient à l'écran sans défiler. L'e-mail, optionnel, s'ajoute
+           * après l'inscription (Utilisateurs → Modifier, son propre compte). */}
+          {etape === 1 && (
+            <Text style={styles.sousTitre} numberOfLines={1} adjustsFontSizeToFit>
+              Quelques informations suffisent pour commencer.
+            </Text>
+          )}
 
           {etape === 1 && (
             <>
@@ -118,7 +103,6 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 value={nom}
                 onChangeText={setNom}
                 valide={nom.trim().length > 1}
-                autoComplete="organization"
                 placeholder="Ex. Hôtel Le Grand Bleu"
               />
               <ChampAuth
@@ -130,16 +114,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 suffixe=".hotelsaver.com"
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholder="hotel-mon-etablissement"
-              />
-              <ChampAuth
-                libelle="Téléphone (optionnel)"
-                icone={Phone}
-                value={telephoneContact}
-                onChangeText={setTelephoneContact}
-                keyboardType="phone-pad"
-                autoComplete="tel"
-                placeholder="Ex. +243 970 000 000"
+                placeholder="mon-etablissement"
               />
               <ChampAuth
                 libelle="Adresse (optionnelle)"
@@ -155,7 +130,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 </Text>
               )}
 
-              <Pressable style={styles.bouton} onPress={passerEtape2} accessibilityRole="button" accessibilityLabel="Continuer vers l'étape 2">
+              <Pressable style={styles.bouton} onPress={passerEtape2}>
                 <Text style={styles.boutonTexte}>Continuer</Text>
                 <ArrowRight size={18} color="#fff" />
               </Pressable>
@@ -170,20 +145,12 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 value={nomProprietaire}
                 onChangeText={setNomProprietaire}
                 valide={nomProprietaire.trim().length > 1}
-                autoComplete="name"
                 placeholder="Ex. Jean Mukendi"
               />
-              <ChampAuth
-                libelle="Adresse e-mail *"
-                icone={Mail}
-                value={email}
-                onChangeText={setEmail}
-                valide={/^\S+@\S+\.\S+$/.test(email)}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                textContentType="emailAddress"
-                autoComplete="email"
-                placeholder="ex. hotel@monetablissement.com"
+              <ChampTelephone
+                libelle="Numéro de téléphone *"
+                value={telephoneProprietaire}
+                onChangeText={setTelephoneProprietaire}
               />
               <ChampAuth
                 libelle="Mot de passe *"
@@ -192,7 +159,6 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 onChangeText={setMotDePasse}
                 secureTextEntry
                 textContentType="newPassword"
-                autoComplete="new-password"
                 placeholder="Minimum 8 caractères"
               />
               <ChampAuth
@@ -245,45 +211,28 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
               >
                 {enCours ? <ActivityIndicator color="#fff" /> : <Text style={styles.boutonTexte}>Créer mon compte</Text>}
               </Pressable>
-
-              <Pressable
-                style={styles.boutonRetour}
-                onPress={() => {
-                  setErreurLocale(null);
-                  setEtape(1);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Retour à l'étape 1"
-              >
-                <Text style={styles.boutonRetourTexte}>Retour</Text>
-              </Pressable>
             </>
           )}
 
-          <Pressable style={styles.boutonRetour} onPress={onRetourConnexion} accessibilityRole="button" accessibilityLabel="Vous avez déjà un compte ? Se connecter">
+          <Pressable style={styles.lienConnexion} onPress={onRetourConnexion} accessibilityRole="button" accessibilityLabel="Vous avez déjà un compte ? Se connecter">
             <Text style={styles.boutonRetourTexte}>
-              Vous avez déjà un compte ? <Text style={styles.lien}>Se connecter</Text>
+              Vous avez déjà un compte ?{"  "}<Text style={styles.lien}>Se connecter</Text>
             </Text>
           </Pressable>
-        </ConteneurFormulaire>
-      </View>
-    </View>
+    </PageAuth>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: couleurs.navy },
-  feuille: {
-    flex: 1,
-    marginTop: -espacements.s5,
-    backgroundColor: couleurs.surface200,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden",
-  },
-  contenu: { padding: espacements.s5, paddingTop: espacements.s5 + espacements.s2 },
-  titre: { fontSize: 26, fontWeight: "700", color: couleurs.navy, textAlign: "center" },
-  sousTitre: { fontSize: 14, color: couleurs.encreAttenuee, textAlign: "center", marginTop: 4, marginBottom: espacements.s5 },
+  demarrage: { gap: espacements.s2, marginTop: espacements.s3, marginBottom: espacements.s2 },
+  demarrageTitre: { fontSize: 15, fontWeight: "700", color: couleurs.navy },
+  choix: { borderWidth: 2, borderColor: couleurs.bordure, borderRadius: rayons.md, padding: espacements.s3, gap: 2, minHeight: 56 },
+  choixActif: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
+  choixTitre: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
+  choixDetail: { fontSize: 13, color: "#5B6B8C" },
+  // Maquette du 15/10/2026 (seconde version) : titre et sous-titre centrés.
+  titre: { fontSize: 28, fontWeight: "800", color: couleurs.navy, letterSpacing: -0.3, textAlign: "center" },
+  sousTitre: { fontSize: 14, color: "#5B6B8C", marginTop: 2, marginBottom: 14, textAlign: "center" },
   erreur: {
     color: "#B42318",
     backgroundColor: couleurs.dangerClair,
@@ -294,8 +243,8 @@ const styles = StyleSheet.create({
   },
   bouton: {
     marginTop: espacements.s2,
-    minHeight: 52,
-    borderRadius: rayons.md,
+    height: 48,
+    borderRadius: 12,
     backgroundColor: couleurs.bleu,
     flexDirection: "row",
     gap: 8,
@@ -304,13 +253,8 @@ const styles = StyleSheet.create({
   },
   boutonDesactive: { opacity: 0.6 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  boutonRetour: { marginTop: espacements.s3, alignItems: "center", justifyContent: "center", minHeight: 44 },
-  boutonRetourTexte: { color: couleurs.encreAttenuee, fontWeight: "600" },
+  // Collé sous le bouton principal : tout tient à l'écran sans défiler.
+  lienConnexion: { marginTop: 6, alignItems: "center", justifyContent: "center", height: 30 },
+  boutonRetourTexte: { color: "#3B4A63", fontSize: 14 },
   lien: { color: couleurs.bleu, fontWeight: "700" },
-  demarrage: { gap: espacements.s2, marginTop: espacements.s3, marginBottom: espacements.s2 },
-  demarrageTitre: { fontSize: 15, fontWeight: "700", color: couleurs.navy },
-  choix: { borderWidth: 2, borderColor: couleurs.bordure, borderRadius: rayons.md, padding: espacements.s3, gap: 2, minHeight: 56 },
-  choixActif: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
-  choixTitre: { fontSize: 15, fontWeight: "700", color: couleurs.encre },
-  choixDetail: { fontSize: 13, color: couleurs.encreAttenuee },
 });

@@ -11,7 +11,6 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
 import com.facebook.react.bridge.ReactMarker
 import com.facebook.react.bridge.ReactMarkerConstants`;
@@ -43,45 +42,39 @@ const METHODES = `
   private fun ajouterVoileDemarrage() {
     val decor = window.decorView as? ViewGroup ?: return
     val debutVoile = System.currentTimeMillis()
-    val taille = (220 * resources.displayMetrics.density).toInt()
+    // Même image, même taille et même centre que l'icône du splash système
+    // (\`splash_demarrage\` : canevas 288 dp, logo de 128 dp au centre) et que
+    // le logo de « Veuillez patienter » (App.tsx) : d'un écran à l'autre, le
+    // logo ne bouge pas, seuls les textes changent (demande du 15/10/2026).
+    val dp = resources.displayMetrics.density
     val voile = FrameLayout(this).apply {
       setBackgroundColor(Color.parseColor("#053483"))
     }
-    val contenu = LinearLayout(this).apply {
-      orientation = LinearLayout.VERTICAL
-      gravity = Gravity.CENTER_HORIZONTAL
-    }
-    contenu.addView(
+    voile.addView(
       ImageView(this).apply {
-        setImageResource(R.drawable.splashscreen_logo)
+        setImageResource(R.drawable.splash_demarrage)
         scaleType = ImageView.ScaleType.FIT_CENTER
       },
-      LinearLayout.LayoutParams(taille, taille)
+      FrameLayout.LayoutParams((288 * dp).toInt(), (288 * dp).toInt(), Gravity.CENTER)
     )
-    contenu.addView(
+    // Slogan sous le logo (demi-logo 64 dp + 32 dp), sans décaler le logo.
+    voile.addView(
       TextView(this).apply {
         text = "La gestion complète de votre hôtel, simplifiée."
         setTextColor(Color.WHITE)
         textSize = 16f
         gravity = Gravity.CENTER
         typeface = Typeface.DEFAULT_BOLD
+        translationY = 96 * dp
       },
-      LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.WRAP_CONTENT,
-        LinearLayout.LayoutParams.WRAP_CONTENT
-      ).apply {
-        topMargin = (24 * resources.displayMetrics.density).toInt()
-        marginStart = (32 * resources.displayMetrics.density).toInt()
-        marginEnd = (32 * resources.displayMetrics.density).toInt()
-      }
-    )
-    voile.addView(
-      contenu,
       FrameLayout.LayoutParams(
         FrameLayout.LayoutParams.WRAP_CONTENT,
         FrameLayout.LayoutParams.WRAP_CONTENT,
-        Gravity.CENTER
-      )
+        Gravity.CENTER_HORIZONTAL or Gravity.CENTER_VERTICAL
+      ).apply {
+        marginStart = (32 * dp).toInt()
+        marginEnd = (32 * dp).toInt()
+      }
     )
     decor.addView(
       voile,

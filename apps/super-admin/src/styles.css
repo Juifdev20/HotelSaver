@@ -638,3 +638,16 @@ body {
     flex-wrap: wrap;
   }
 }
+
+/* Bascule « Ancien compte ? Se connecter avec un e-mail » (connexion par numéro, 15/10/2026). */
+.lien-discret {
+  display: block;
+  margin: 12px auto 0;
+  border: none;
+  background: none;
+  color: var(--hc-ink-muted, #667085);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}

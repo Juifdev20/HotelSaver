@@ -1,18 +1,23 @@
 import * as React from "react";
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { Trash2, UserPlus } from "lucide-react-native";
-import { couleurs, espacements, rayons } from "../tokens";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { BriefcaseBusiness, Trash2, UserPlus } from "lucide-react-native";
+import { couleurs } from "../tokens";
 import type { ProfilEnregistre } from "../stockage/profils";
 import { LIBELLE_ROLE } from "../navigation";
+import { AvatarUtilisateur } from "../composants/AvatarUtilisateur";
+import { PageAuth } from "../composants/PageAuth";
 import { confirmerAction } from "../confirmer";
 
-function initiales(nom: string): string {
-  return nom
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((mot) => mot[0]!.toUpperCase())
-    .join("");
+/** Retirer un profil efface ses accès rapides de cet appareil : on le nomme avant (retour U3, U8). */
+function demanderRetrait(profil: ProfilEnregistre, onOublierProfil: (profil: ProfilEnregistre) => void) {
+  confirmerAction({
+    titre: `Retirer le profil de ${profil.nom} ?`,
+    message: `${LIBELLE_ROLE[profil.role]}.\nCette personne devra se reconnecter avec son numéro de téléphone et son mot de passe pour réutiliser ce téléphone. Son compte n'est pas supprimé.`,
+    libelleConfirmer: "Retirer le profil",
+    libelleRefuser: "Garder",
+    destructif: true,
+    onConfirmer: () => onOublierProfil(profil),
+  });
 }
 
 export interface EcranSelectionProfilProps {
@@ -23,119 +28,95 @@ export interface EcranSelectionProfilProps {
   onOublierProfil: (profil: ProfilEnregistre) => void;
 }
 
-/** Retirer un profil efface ses accès rapides de cet appareil : on le nomme avant (retour U3, U8). */
-function demanderRetrait(profil: ProfilEnregistre, onOublierProfil: (profil: ProfilEnregistre) => void) {
-  confirmerAction({
-    titre: `Retirer le profil de ${profil.nom} ?`,
-    message: `${LIBELLE_ROLE[profil.role]}.\nCette personne devra se reconnecter avec son email et son mot de passe pour réutiliser ce téléphone. Son compte n'est pas supprimé.`,
-    libelleConfirmer: "Retirer le profil",
-    libelleRefuser: "Garder",
-    destructif: true,
-    onConfirmer: () => onOublierProfil(profil),
-  });
-}
-
 /** Section 5 : "sélection de profil au démarrage" — plusieurs membres du
- * personnel partagent le même téléphone. */
+ * personnel partagent le même téléphone. Maquette du 15/10/2026 : même gabarit
+ * que Connexion / Inscription (PageAuth — coins et vagues bleu pâle, en-tête
+ * centré au même endroit), cartes avec rôle et chevron, « Ajouter un compte »
+ * en bouton plein. Liste en simple map : quelques profils au plus par appareil. */
 export function EcranSelectionProfil({ profils, onChoisir, onAjouterCompte, onOublierProfil }: EcranSelectionProfilProps) {
   return (
-    <View style={styles.page}>
-      <Image source={require("../../assets/hotelsaver-logo.png")} style={styles.logo} resizeMode="contain" />
-      <Text style={styles.titre}>HotelSaver</Text>
-      <Text style={styles.sousTitre}>Qui utilise l'appareil ?</Text>
+    <PageAuth>
+      <Text style={styles.titre}>Qui utilise HotelSaver sur cet appareil ?</Text>
+      <Text style={styles.sousTitre}>Choisissez un profil pour continuer.</Text>
       {profils.length > 0 && <Text style={styles.astuce}>Touchez la corbeille (ou appuyez longuement sur un profil) pour le retirer de cet appareil.</Text>}
 
-      <FlatList
-        data={profils}
-        keyExtractor={(p) => p.utilisateurId}
-        contentContainerStyle={styles.liste}
-        renderItem={({ item }) => (
-          <View style={styles.carte}>
+      {profils.length > 0 && <Text style={styles.section}>COMPTES ENREGISTRÉS</Text>}
+      <View style={styles.liste}>
+        {profils.map((profil) => (
+          <View key={profil.utilisateurId} style={styles.carte}>
             <Pressable
-              style={styles.zoneProfil}
-              onPress={() => onChoisir(item)}
-              onLongPress={() => demanderRetrait(item, onOublierProfil)}
+              style={({ pressed }) => [styles.zoneProfil, pressed && styles.cartePressee]}
+              onPress={() => onChoisir(profil)}
+              onLongPress={() => demanderRetrait(profil, onOublierProfil)}
               delayLongPress={500}
               accessibilityRole="button"
-              accessibilityLabel={`${item.nom}, ${LIBELLE_ROLE[item.role]}`}
+              accessibilityLabel={`${profil.nom}, ${LIBELLE_ROLE[profil.role]}`}
               accessibilityHint="Ouvre ce profil. Appui long pour le retirer de l'appareil."
             >
-              <View style={styles.avatar}>
-                <Text style={styles.avatarTexte}>{initiales(item.nom)}</Text>
-              </View>
+              <AvatarUtilisateur taille={48} />
               <View style={styles.identite}>
-                <Text style={styles.nom}>{item.nom}</Text>
-                <Text style={styles.role}>{LIBELLE_ROLE[item.role]}</Text>
+                <Text style={styles.nom} numberOfLines={1}>
+                  {profil.nom}
+                </Text>
+                <View style={styles.ligneRole}>
+                  <BriefcaseBusiness size={15} color="#5B6B8C" />
+                  <Text style={styles.role}>{LIBELLE_ROLE[profil.role]}</Text>
+                </View>
               </View>
             </Pressable>
             <Pressable
               style={styles.boutonRetirer}
-              onPress={() => demanderRetrait(item, onOublierProfil)}
+              onPress={() => demanderRetrait(profil, onOublierProfil)}
               accessibilityRole="button"
-              accessibilityLabel={`Retirer le profil de ${item.nom} de cet appareil`}
+              accessibilityLabel={`Retirer le profil de ${profil.nom} de cet appareil`}
             >
               <Trash2 size={18} color={couleurs.danger} />
             </Pressable>
           </View>
-        )}
-      />
+        ))}
+      </View>
 
       <Pressable style={styles.boutonAjouter} onPress={onAjouterCompte} accessibilityRole="button" accessibilityLabel="Ajouter un compte">
-        <UserPlus size={18} color={couleurs.bleu} />
+        <UserPlus size={20} color="#fff" />
         <Text style={styles.boutonAjouterTexte}>Ajouter un compte</Text>
       </Pressable>
-    </View>
+    </PageAuth>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: couleurs.surface100,
-    padding: espacements.s5,
-    paddingTop: espacements.s7,
-  },
-  logo: { width: 72, height: 72, marginBottom: espacements.s3 },
-  titre: { fontSize: 28, fontWeight: "700", color: couleurs.navy },
-  sousTitre: { fontSize: 15, color: couleurs.encreAttenuee, marginTop: espacements.s1 },
-  astuce: { fontSize: 12, color: couleurs.encreFaible, marginTop: espacements.s1, marginBottom: espacements.s5 },
-  liste: { gap: espacements.s3 },
+  titre: { fontSize: 24, fontWeight: "800", color: couleurs.navy, letterSpacing: -0.3, textAlign: "center" },
+  sousTitre: { fontSize: 15, color: "#5B6B8C", marginTop: 6, textAlign: "center" },
+  astuce: { fontSize: 12.5, color: "#7A879C", marginTop: 10, textAlign: "center" },
+  section: { fontSize: 12.5, fontWeight: "700", color: "#7A879C", letterSpacing: 0.8, marginTop: 22, marginBottom: 10 },
+  liste: { gap: 12 },
   carte: {
     flexDirection: "row",
     alignItems: "center",
-    gap: espacements.s2,
-    paddingLeft: espacements.s4,
-    paddingRight: espacements.s2,
-    backgroundColor: couleurs.surface200,
-    borderRadius: rayons.lg,
+    gap: 14,
+    paddingLeft: 14,
+    paddingRight: 4,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: couleurs.bordure,
+    borderColor: "#DCE4F0",
   },
-  zoneProfil: { flex: 1, flexDirection: "row", alignItems: "center", gap: espacements.s3, minHeight: 44, paddingVertical: espacements.s4 },
+  zoneProfil: { flex: 1, flexDirection: "row", alignItems: "center", gap: 14, minHeight: 44, paddingVertical: 14 },
   boutonRetirer: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: rayons.pill,
-    backgroundColor: couleurs.bleuClair,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 15 },
-  identite: { flex: 1 },
-  nom: { fontSize: 16, fontWeight: "600", color: couleurs.encre },
-  role: { fontSize: 13, color: couleurs.encreAttenuee, marginTop: 2 },
+  cartePressee: { opacity: 0.7 },
+  identite: { flex: 1, gap: 4 },
+  nom: { fontSize: 16, fontWeight: "700", color: couleurs.navy },
+  ligneRole: { flexDirection: "row", alignItems: "center", gap: 6 },
+  role: { fontSize: 14, color: "#5B6B8C" },
   boutonAjouter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: espacements.s2,
-    marginTop: espacements.s4,
-    paddingVertical: espacements.s3,
-    minHeight: 48,
-    borderRadius: rayons.sm,
-    borderWidth: 1,
-    borderColor: couleurs.bleu,
+    gap: 10,
+    marginTop: 28,
+    minHeight: 50,
+    borderRadius: 12,
+    backgroundColor: couleurs.bleu,
   },
-  boutonAjouterTexte: { color: couleurs.bleu, fontWeight: "600", fontSize: 15 },
+  boutonAjouterTexte: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });

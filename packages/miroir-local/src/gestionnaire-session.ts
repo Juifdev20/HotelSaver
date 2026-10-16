@@ -157,7 +157,7 @@ export class GestionnaireSession {
       const echecs = { nombre: serie ? 0 : nombre, blocages, blocageJusquau: serie ? new Date(maintenant + attente).toISOString() : (compte.echecs?.blocageJusquau ?? null) };
       this.echecsHorsLigne = echecs.nombre;
       await this.deps.ecrire({ comptes: { ...memo.comptes, [cle]: { ...compte, echecs } }, compteActif: memo.compteActif });
-      return { etat: "erreur", message: "Email ou mot de passe incorrect." };
+      return { etat: "erreur", message: "Numéro (ou e-mail) ou mot de passe incorrect." };
     }
     this.echecsHorsLigne = 0;
     const decision = evaluerAcces(compte, this.deps.maintenant());

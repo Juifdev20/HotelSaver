@@ -19,6 +19,7 @@ import {
   type ReservationAnnulee,
   type ResultatCheckInOut,
   type TauxChange,
+  type VenteAnnulee,
 } from "@hotel-chicago/api-client";
 import type {
   Chambre,
@@ -187,10 +188,12 @@ export class ClientHorsLigne extends ClientApi {
     return facture;
   }
 
-  override async annulerVenteCafeteria(id: string, motif: string): Promise<VenteCafeteria> {
-    const vente = await super.annulerVenteCafeteria(this.exigerEnregistre(id, "Ce reçu"), motif);
-    await this.s.appliquerLignesServeur("VenteCafeteria", [vente]);
-    return vente;
+  override async annulerVenteCafeteria(id: string, motif: string, remettreEnStock = true): Promise<VenteAnnulee> {
+    const reponse = await super.annulerVenteCafeteria(this.exigerEnregistre(id, "Ce reçu"), motif, remettreEnStock);
+    // Le stock remis à jour par le serveur arrive par la prochaine réception ; ici on ne garde que le reçu lui-même.
+    const { articlesRemisEnStock: _a, infoStock: _i, ...vente } = reponse as VenteAnnulee & { articlesRemisEnStock?: unknown; infoStock?: unknown };
+    await this.s.appliquerLignesServeur("VenteCafeteria", [vente as VenteCafeteria]);
+    return reponse;
   }
 
   override async creerTauxChange(cdfParUsd: number): Promise<TauxChange> {

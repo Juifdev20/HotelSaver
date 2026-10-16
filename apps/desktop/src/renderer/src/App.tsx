@@ -5,7 +5,7 @@ import type { ClientApi } from "@hotel-chicago/api-client";
 import { ouvrirMiroir, supprimerBaseIndexedDb, type GestionnaireSession, type Miroir } from "@hotel-chicago/miroir-local";
 import type { EtatSync } from "@hotel-chicago/sync-engine";
 import { Role, peutOperer } from "@hotel-chicago/types";
-import type { InscriptionHotelPayload, NotificationApp, ProfilConnecte } from "@hotel-chicago/types";
+import type { InscriptionHotelPayload, LienNotification, NotificationApp, ProfilConnecte } from "@hotel-chicago/types";
 import type { ConfigurationApp } from "../../main/config-store";
 import { IdPage, libellePage, sectionsPourRole } from "./navigation";
 import { lienDeNotification, useNotifications } from "./useNotifications";
@@ -107,7 +107,8 @@ export function App() {
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
   // Pré-remplissage / message de la connexion (après une inscription, ou un lien « Ouvrir l'application »).
-  const [emailPreRempli, setEmailPreRempli] = useState<string | undefined>(undefined);
+  /** Numéro (ou e-mail d'un ancien compte) à pré-remplir à l'écran de connexion. */
+  const [identifiantPreRempli, setIdentifiantPreRempli] = useState<string | undefined>(undefined);
   const [messageConnexion, setMessageConnexion] = useState<string | null>(null);
   const [erreurInscription, setErreurInscription] = useState<string | null>(null);
   const [inscriptionEnCours, setInscriptionEnCours] = useState(false);
@@ -169,7 +170,7 @@ export function App() {
           await ouvrirApplication(config, resultat.profil, resultat.mode === "hors-ligne", resultat.mode === "hors-ligne" ? resultat.acces.joursRestants : null);
           return;
         }
-        if (resultat.email) setEmailPreRempli(resultat.email);
+        if (resultat.email) setIdentifiantPreRempli(resultat.email);
         if (resultat.message) setMessageConnexion(resultat.message);
         else if (resultat.verrou) setMessageConnexion("Pour protéger vos données, retapez votre mot de passe.");
       } catch {
@@ -201,7 +202,8 @@ export function App() {
     lienEnAttente.current = null;
     const m = /^hotelsaver:\/\/connexion(?:\?(.*))?$/i.exec(url);
     if (!m || ecran === "application") return;
-    setEmailPreRempli(new URLSearchParams(m[1] ?? "").get("email") ?? undefined);
+    const parametres = new URLSearchParams(m[1] ?? "");
+    setIdentifiantPreRempli(parametres.get("telephone") ?? parametres.get("email") ?? undefined);
     setMessageConnexion("Connectez-vous avec le compte que vous venez de créer.");
     setErreurConnexion(null);
     setEcran("connexion");
@@ -391,13 +393,15 @@ export function App() {
     void miroir.moteur.forcerSynchronisation().catch(() => undefined);
   }, [miroir, profilDebloque, syncCroitBloque]);
 
-  async function seConnecter(email: string, motDePasse: string) {
+  /** Connexion par numéro (ou e-mail d'un ancien compte) : le gestionnaire de session passe par le relais de l'API (15/10/2026), qui traduit
+   * le numéro en compte Supabase. L'identifiant sert aussi de clé du compte pour la reprise hors ligne. */
+  async function seConnecter(identifiant: string, motDePasse: string) {
     const g = gestionnaire.current;
     if (!configuration || !g) return;
     setErreurConnexion(null);
     setConnexionEnCours(true);
     try {
-      const resultat = await g.connecter(email, motDePasse);
+      const resultat = await g.connecter(identifiant, motDePasse);
       if (resultat.etat === "erreur") {
         setErreurConnexion(resultat.message);
         return;
@@ -420,15 +424,14 @@ export function App() {
     try {
       await inscrireHotel({ url: configuration.apiUrl }, dto);
       if (payerMaintenant) memoriserPayerMaintenant();
-      // Le compte est créé avec email_confirm: false (DECISIONS.md, Phase 4) : la première
-      // connexion peut échouer tant que l'adresse n'est pas confirmée. L'hôtel existe bien :
-      // on n'affiche donc jamais l'erreur brute de connexion.
-      const resultat = await g.connecter(dto.email, dto.motDePasse);
+      // Compte confirmé d'office depuis le 15/10/2026 : connexion immédiate avec le numéro. L'hôtel existe bien :
+      // on n'affiche jamais l'erreur brute de connexion ici.
+      const resultat = await g.connecter(dto.telephoneProprietaire, dto.motDePasse);
       if (resultat.etat === "connecte") {
         await ouvrirApplication(configuration, resultat.profil, resultat.mode === "hors-ligne", null);
       } else {
-        setEmailPreRempli(dto.email);
-        setMessageConnexion("Compte créé ! Vérifiez votre boîte mail pour confirmer votre adresse avant de vous connecter.");
+        setIdentifiantPreRempli(dto.telephoneProprietaire);
+        setMessageConnexion("Compte créé ! Connectez-vous avec votre numéro et votre mot de passe.");
         setEcran("connexion");
       }
     } catch (erreur) {
@@ -467,7 +470,7 @@ export function App() {
     setJoursRestants(null);
     setUtilisateur(null);
     setPage("tableau-de-bord");
-    if (email) setEmailPreRempli(email);
+    if (email) setIdentifiantPreRempli(email);
     setMessageConnexion(message);
     setEcran("connexion");
   }
@@ -774,10 +777,10 @@ export function App() {
 
   return (
     <EcranConnexion
-      key={emailPreRempli ?? "connexion"}
+      key={identifiantPreRempli ?? "connexion"}
       onConnexion={seConnecter}
-      onMotDePasseOublie={async (email) => {
-        await demanderReinitialisationMotDePasse({ url: configuration.apiUrl }, email);
+      onMotDePasseOublie={async (identifiant) => {
+        await demanderReinitialisationMotDePasse({ url: configuration.apiUrl }, identifiant);
       }}
       onCreerCompte={() => {
         setErreurConnexion(null);
@@ -785,7 +788,7 @@ export function App() {
         setErreurInscription(null);
         setEcran("inscription");
       }}
-      emailInitial={emailPreRempli}
+      identifiantInitial={identifiantPreRempli}
       message={messageConnexion}
       erreur={erreurConnexion}
       enCours={connexionEnCours}

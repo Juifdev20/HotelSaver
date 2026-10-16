@@ -10,6 +10,8 @@ const HOTEL_ID = "hotel-1";
 
 function creerPrismaMock() {
   return {
+    superAdmin: { findUnique: jest.fn().mockResolvedValue(null) },
+    utilisateur: { findUnique: jest.fn().mockResolvedValue(null) },
     hotel: {
       findFirst: jest.fn().mockResolvedValue({ id: HOTEL_ID, statutLicence: "ACTIF" }),
       findMany: jest.fn().mockResolvedValue([]),
@@ -23,7 +25,6 @@ function creerPrismaMock() {
     $transaction: jest.fn().mockResolvedValue([]),
     produit: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     client: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
-    utilisateur: { findUnique: jest.fn().mockResolvedValue(null) },
     sessionUtilisateur: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
     compteCafeteria: { create: jest.fn(), delete: jest.fn() },
     sousCompte: { deleteMany: jest.fn() },
@@ -531,6 +532,24 @@ describe("PublicService", () => {
       expect(reponse).toEqual({ ok: true });
     });
 
+    it("par numéro : envoie le lien à l'e-mail réel du compte", async () => {
+      prisma.utilisateur.findUnique.mockResolvedValue({ email: "patron@exemple.com" });
+      const reponse = await service.demanderReinitialisation({ telephone: "0970 000 000" });
+      expect(prisma.utilisateur.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { telephone: "+243970000000" } })
+      );
+      expect(supabaseAdmin.envoyerRecuperation).toHaveBeenCalledWith("patron@exemple.com", expect.any(String));
+      expect(reponse).toEqual({ ok: true });
+    });
+
+    it("par numéro sans e-mail réel (ou numéro inconnu) : rien n'est envoyé, même réponse", async () => {
+      prisma.utilisateur.findUnique.mockResolvedValue({ email: null });
+      expect(await service.demanderReinitialisation({ telephone: "+243970000000" })).toEqual({ ok: true });
+      prisma.utilisateur.findUnique.mockResolvedValue(null);
+      expect(await service.demanderReinitialisation({ telephone: "+243812345678" })).toEqual({ ok: true });
+      expect(supabaseAdmin.envoyerRecuperation).not.toHaveBeenCalled();
+    });
+
     it("change le mot de passe du détenteur du jeton de récupération", async () => {
       await service.reinitialiserMotDePasse({ jeton: "jeton-valide", motDePasse: "nouveau-mdp-123" });
       expect(supabaseAdmin.idDepuisJeton).toHaveBeenCalledWith("jeton-valide");
@@ -551,6 +570,7 @@ describe("PublicService", () => {
       nom: "Hôtel Test",
       sousDomaine: "hotel-test",
       nomProprietaire: "Jean Proprio",
+      telephoneProprietaire: "0970000000",
       email: "proprietaire@exemple.com",
       motDePasse: "motdepasse123",
     };
@@ -560,7 +580,11 @@ describe("PublicService", () => {
 
       await service.inscrireHotel(dto as any);
 
-      expect(supabaseAdmin.creerCompte).toHaveBeenCalledWith({ email: dto.email, motDePasse: dto.motDePasse });
+      expect(supabaseAdmin.creerCompte).toHaveBeenCalledWith({
+        telephone: "+243970000000",
+        email: dto.email,
+        motDePasse: dto.motDePasse,
+      });
       expect(prisma.hotel.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -569,12 +593,31 @@ describe("PublicService", () => {
             statutLicence: "ESSAI",
             branding: { create: { palette: PALETTE_DEFAUT } },
             utilisateurs: {
-              create: [{ nom: "Jean Proprio", role: "PATRON", actif: true, supabaseAuthId: "auth-nouveau" }],
+              create: [
+                {
+                  nom: "Jean Proprio",
+                  role: "PATRON",
+                  actif: true,
+                  supabaseAuthId: "auth-nouveau",
+                  telephone: "+243970000000",
+                  email: dto.email,
+                },
+              ],
             },
           }),
         })
       );
       expect(supabaseAdmin.supprimerCompte).not.toHaveBeenCalled();
+    });
+
+    it("sans téléphone d'hôtel fourni, le numéro du patron sert de contact de l'hôtel", async () => {
+      prisma.hotel.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "h2", ...data }));
+      await service.inscrireHotel(dto as any);
+      expect(prisma.hotel.create.mock.calls[0][0].data.telephoneContact).toBe("+243970000000");
+
+      prisma.hotel.create.mockClear();
+      await service.inscrireHotel({ ...dto, telephoneContact: "+243 810 000 000" } as any);
+      expect(prisma.hotel.create.mock.calls[0][0].data.telephoneContact).toBe("+243 810 000 000");
     });
 
     it("supprime le compte Supabase et renvoie 409 si le sous-domaine est déjà pris", async () => {

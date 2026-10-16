@@ -10,16 +10,31 @@ import { join } from "path";
  * Prérequis (sinon le test est ignoré plutôt que de faire semblant de passer) :
  *   - `pnpm --filter desktop build` a été exécuté ;
  *   - l'API tourne et est joignable à E2E_API_URL ;
- *   - E2E_EMAIL / E2E_MOT_DE_PASSE désignent un vrai compte Supabase Auth
+ *   - E2E_TELEPHONE (connexion par numéro, 15/10/2026 — ou, pour un ancien
+ *     compte, E2E_EMAIL) / E2E_MOT_DE_PASSE désignent un vrai compte Supabase Auth
  *     lié à une ligne Utilisateur, et E2E_CHAMBRES_ATTENDUES liste (séparés
  *     par des virgules) des numéros de chambres présents en base.
  * Le mot de passe n'est jamais écrit dans le dépôt.
  */
 const API_URL = process.env.E2E_API_URL;
+const TELEPHONE = process.env.E2E_TELEPHONE;
 const EMAIL = process.env.E2E_EMAIL;
 const MOT_DE_PASSE = process.env.E2E_MOT_DE_PASSE;
 
-test.skip(!API_URL || !EMAIL || !MOT_DE_PASSE, "Variables E2E_API_URL / E2E_EMAIL / E2E_MOT_DE_PASSE non définies.");
+test.skip(
+  !API_URL || !(TELEPHONE || EMAIL) || !MOT_DE_PASSE,
+  "Variables E2E_API_URL / E2E_TELEPHONE (ou E2E_EMAIL) / E2E_MOT_DE_PASSE non définies."
+);
+
+/** Saisit l'identifiant : le numéro (cas normal), sinon l'e-mail d'un ancien compte. */
+async function saisirIdentifiant(fenetre: import("@playwright/test").Page) {
+  if (TELEPHONE) {
+    await fenetre.getByLabel("Numéro de téléphone").fill(TELEPHONE);
+  } else {
+    await fenetre.getByRole("button", { name: "Ancien compte ? Se connecter avec un e-mail" }).click();
+    await fenetre.getByLabel("Adresse e-mail").fill(EMAIL!);
+  }
+}
 
 let dossierDonnees: string;
 
@@ -75,12 +90,12 @@ test("un mauvais mot de passe affiche une erreur claire, sans quitter l'écran d
   const app = await lancerApp();
   const fenetre = await app.firstWindow();
 
-  await fenetre.getByLabel("Email").fill(EMAIL!);
+  await saisirIdentifiant(fenetre);
   await fenetre.getByLabel("Mot de passe").fill("mauvais-mot-de-passe");
   await fenetre.getByRole("button", { name: "Se connecter" }).click();
 
   // Message français concret (section 17), jamais le texte anglais brut de Supabase.
-  await expect(fenetre.getByTestId("erreur-connexion")).toHaveText("Email ou mot de passe incorrect.");
+  await expect(fenetre.getByTestId("erreur-connexion")).toHaveText("Numéro (ou e-mail) ou mot de passe incorrect.");
   await expect(fenetre.getByRole("button", { name: "Se connecter" })).toBeVisible();
 
   await app.close();
@@ -90,7 +105,7 @@ test("connexion réelle → tableau de bord puis Chambres avec les vraies donné
   let app = await lancerApp();
   let fenetre = await app.firstWindow();
 
-  await fenetre.getByLabel("Email").fill(EMAIL!);
+  await saisirIdentifiant(fenetre);
   await fenetre.getByLabel("Mot de passe").fill(MOT_DE_PASSE!);
   await fenetre.getByRole("button", { name: "Se connecter" }).click();
 

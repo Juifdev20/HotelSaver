@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from "react-native";
 import { Check, Eye, EyeOff } from "lucide-react-native";
 import type { LucideIcon } from "lucide-react-native";
-import { couleurs, espacements, rayons } from "../tokens";
+import { couleurs } from "../tokens";
 
 export interface ChampAuthProps extends Omit<TextInputProps, "style"> {
   libelle: string;
@@ -24,7 +24,7 @@ export function ChampAuth({ libelle, icone: Icone, valide, suffixe, secureTextEn
     <View style={styles.groupe}>
       <Text style={styles.libelle}>{libelle}</Text>
       <View style={[styles.boite, focus && styles.boiteFocus]}>
-        <Icone size={18} color={couleurs.encreFaible} style={styles.icone} />
+        <Icone size={20} color={couleurs.navy} strokeWidth={1.8} style={styles.icone} />
         <TextInput
           // Valeurs par défaut utiles (suggestion de l'email / du mot de passe, touche « Suivant »), l'appelant peut les remplacer.
           accessibilityLabel={suffixe ? `${libelle}, suivi de ${suffixe}` : libelle}
@@ -33,7 +33,7 @@ export function ChampAuth({ libelle, icone: Icone, valide, suffixe, secureTextEn
           {...reste}
           style={styles.saisie}
           secureTextEntry={secureTextEntry && !visible}
-          placeholderTextColor={couleurs.encreFaible}
+          placeholderTextColor="#8A97AD"
           onFocus={() => setFocus(true)}
           onBlur={() => setFocus(false)}
         />
@@ -56,7 +56,7 @@ export function ChampAuth({ libelle, icone: Icone, valide, suffixe, secureTextEn
             accessibilityLabel={visible ? `Masquer ${libelle.toLowerCase()}` : `Afficher ${libelle.toLowerCase()}`}
             accessibilityState={{ checked: visible }}
           >
-            {visible ? <EyeOff size={18} color={couleurs.encreAttenuee} /> : <Eye size={18} color={couleurs.encreAttenuee} />}
+            {visible ? <EyeOff size={20} color={couleurs.navy} strokeWidth={1.8} /> : <Eye size={20} color={couleurs.navy} strokeWidth={1.8} />}
           </Pressable>
         )}
       </View>
@@ -65,30 +65,32 @@ export function ChampAuth({ libelle, icone: Icone, valide, suffixe, secureTextEn
 }
 
 const styles = StyleSheet.create({
-  groupe: { marginBottom: espacements.s3 },
-  libelle: { fontSize: 13, fontWeight: "600", color: couleurs.navy, marginBottom: 6 },
+  // Maquette connexion/inscription du 15/10/2026 : libellé navy gras, champ
+  // blanc à bordure bleu-gris, icône navy au trait fin.
+  groupe: { marginBottom: 10 },
+  libelle: { fontSize: 13.5, fontWeight: "700", color: couleurs.navy, marginBottom: 5 },
   boite: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 50,
+    minHeight: 46,
     borderWidth: 1,
-    borderColor: couleurs.bordure,
-    borderRadius: rayons.md,
+    borderColor: "#D8E1EE",
+    borderRadius: 12,
     backgroundColor: couleurs.surface200,
     overflow: "hidden",
   },
   boiteFocus: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
-  icone: { marginLeft: 14 },
-  saisie: { flex: 1, height: "100%", paddingHorizontal: 12, fontSize: 15, color: couleurs.encre },
+  icone: { marginLeft: 16 },
+  saisie: { flex: 1, height: "100%", paddingHorizontal: 14, fontSize: 14.5, color: couleurs.encre },
   suffixe: {
     height: "100%",
     justifyContent: "center",
-    paddingHorizontal: 10,
-    backgroundColor: couleurs.surface100,
+    paddingHorizontal: 14,
+    backgroundColor: "#F3F6FB",
     borderLeftWidth: 1,
-    borderLeftColor: couleurs.bordure,
+    borderLeftColor: "#D8E1EE",
   },
-  suffixeTexte: { fontSize: 12, color: couleurs.encreAttenuee },
+  suffixeTexte: { fontSize: 13, color: "#3B4A63" },
   coche: {
     width: 20,
     height: 20,

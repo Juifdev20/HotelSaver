@@ -28,8 +28,8 @@ export interface SessionSupabase {
  * test réel, un mauvais mot de passe renvoyait "Invalid login credentials".
  */
 const MESSAGES_PAR_CODE: Record<string, string> = {
-  invalid_credentials: "Email ou mot de passe incorrect.",
-  invalid_grant: "Email ou mot de passe incorrect.",
+  invalid_credentials: "Numéro (ou e-mail) ou mot de passe incorrect.",
+  invalid_grant: "Numéro (ou e-mail) ou mot de passe incorrect.",
   email_not_confirmed: "Ce compte n'est pas encore activé. Contactez le patron.",
   user_banned: "Ce compte a été désactivé. Contactez le patron.",
   over_request_rate_limit: "Trop de tentatives. Patientez quelques minutes avant de réessayer.",
@@ -43,7 +43,7 @@ function messageErreurAuth(status: number, corps: { error_code?: string; error?:
     return MESSAGES_PAR_CODE[code];
   }
   if (status === 400 || status === 401) {
-    return "Email ou mot de passe incorrect.";
+    return "Numéro (ou e-mail) ou mot de passe incorrect.";
   }
   if (status === 429) {
     return MESSAGES_PAR_CODE.over_request_rate_limit;
@@ -143,10 +143,13 @@ async function traiterReponseJetonApi(reponse: Response): Promise<SessionSupabas
 }
 
 /** Connexion via POST /auth/connexion du relais (urls = candidatsApi()).
+ * `identifiant` : numéro de téléphone (cas normal depuis le 15/10/2026 — le
+ * serveur le traduit en compte Supabase) ou e-mail (comptes antérieurs).
  * ErreurApi 404 = la route n'existe pas (vieille API) → appeler la version
- * Supabase directe en secours. */
-export async function connecterViaApi(urls: string[], email: string, motDePasse: string): Promise<SessionSupabase> {
-  const reponse = await envoyerViaApi(urls, "/auth/connexion", { email, motDePasse });
+ * Supabase directe en secours (e-mail seulement). */
+export async function connecterViaApi(urls: string[], identifiant: string, motDePasse: string): Promise<SessionSupabase> {
+  const corps = identifiant.includes("@") ? { email: identifiant, motDePasse } : { telephone: identifiant, motDePasse };
+  const reponse = await envoyerViaApi(urls, "/auth/connexion", corps);
   return traiterReponseJetonApi(reponse);
 }
 

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useEffect, useState } from "react";
-import { ClientSuperAdmin, ErreurApi, connecterAvecMotDePasse, rafraichirSession } from "@hotel-chicago/api-client";
-import type { DonneesFormule, FormuleAdminVue, ParametresPlateformeVue, StatutLicence } from "@hotel-chicago/types";
+import { ClientSuperAdmin, ErreurApi, connecterViaApi, rafraichirSession } from "@hotel-chicago/api-client";
+import type { DonneesFormule, FormuleAdminVue, HotelAvecValidite, ParametresPlateformeVue, StatutLicence } from "@hotel-chicago/types";
 import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement, PaiementAbonnementSupport } from "@hotel-chicago/api-client";
 import { configuration } from "./config";
 import { ecrireJetonRafraichissement, lireJetonRafraichissement, oublierJetonRafraichissement } from "./stockage";
@@ -31,6 +31,8 @@ export default function App() {
   const [erreurCreation, setErreurCreation] = useState<string | null>(null);
   const [paiementEnCours, setPaiementEnCours] = useState(false);
   const [erreurPaiement, setErreurPaiement] = useState<string | null>(null);
+  const [patronEnCours, setPatronEnCours] = useState(false);
+  const [erreurPatron, setErreurPatron] = useState<string | null>(null);
   const [domaineEnCours, setDomaineEnCours] = useState(false);
   const [erreurDomaine, setErreurDomaine] = useState<string | null>(null);
 
@@ -169,15 +171,13 @@ export default function App() {
     return resultat.statut === "REUSSI" ? "credite" : "toujours";
   }
 
-  async function seConnecter(email: string, motDePasse: string) {
+  /** Connexion par numéro (ou e-mail d'un ancien compte) via le relais de
+   * l'API (15/10/2026) : le serveur traduit le numéro en compte Supabase. */
+  async function seConnecter(identifiant: string, motDePasse: string) {
     setErreurConnexion(null);
     setConnexionEnCours(true);
     try {
-      const session = await connecterAvecMotDePasse(
-        { url: configuration.supabaseUrl, anonKey: configuration.supabaseAnonKey },
-        email,
-        motDePasse
-      );
+      const session = await connecterViaApi([configuration.apiUrl], identifiant, motDePasse);
       ecrireJetonRafraichissement(session.refreshToken);
       setAccessToken(session.accessToken);
       setEcran("application");
@@ -229,6 +229,22 @@ export default function App() {
 
   /** Retourne `true` en cas de succès — EcranHotels ferme le formulaire
    * uniquement dans ce cas (voir FormulairePaiement, Phase 12). */
+  async function modifierPatron(hotelId: string, dto: { telephone?: string; motDePasse?: string }): Promise<boolean> {
+    if (!client) return false;
+    setErreurPatron(null);
+    setPatronEnCours(true);
+    try {
+      await client.modifierPatron(hotelId, dto);
+      await chargerHotels(client);
+      return true;
+    } catch (erreur) {
+      setErreurPatron(erreur instanceof Error ? erreur.message : "Modification impossible.");
+      return false;
+    } finally {
+      setPatronEnCours(false);
+    }
+  }
+
   async function enregistrerPaiement(hotelId: string, dto: DonneesEnregistrementPaiement): Promise<boolean> {
     if (!client) return false;
     setErreurPaiement(null);
@@ -362,6 +378,9 @@ export default function App() {
       onRetirerDomaine={retirerDomaine}
       domaineEnCours={domaineEnCours}
       erreurDomaine={erreurDomaine}
+      onModifierPatron={modifierPatron}
+      patronEnCours={patronEnCours}
+      erreurPatron={erreurPatron}
       onDeconnexion={seDeconnecter}
     />
   );

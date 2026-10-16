@@ -14,7 +14,8 @@ import {
   problemeNumero,
   resumerAbonnement,
 } from "@hotel-chicago/regles";
-import { Role } from "@hotel-chicago/types";
+import { Role, formaterSaisieRdc } from "@hotel-chicago/types";
+import { ChampTelephone, telephoneDepuisSaisie } from "@hotel-chicago/ui";
 import type { ApercuPaiement, DemandePaiementAbonnement, EtatAbonnement, FormuleProposee, OperateurMobileMoney, PaiementAbonnementVue, VueAbonnement } from "@hotel-chicago/types";
 import { configuration } from "../config";
 import { MiseEnPageAuth } from "../auth/MiseEnPageAuth";
@@ -50,6 +51,8 @@ function messageConnexion(e: unknown): string {
 export function EcranPayerAbonnement() {
   const [params] = useSearchParams();
   const [session, setSession] = useState<Session | null>(null);
+  // Le numéro est l'identifiant de connexion (15/10/2026) ; `?email=` reste lu pour un ancien compte.
+  const telephoneInitial = params.get("telephone") ?? "";
   const emailInitial = params.get("email") ?? "";
 
   return (
@@ -57,13 +60,15 @@ export function EcranPayerAbonnement() {
       {session ? (
         <PaiementAbonnement session={session} onDeconnexion={() => setSession(null)} />
       ) : (
-        <Connexion emailInitial={emailInitial} onConnecte={setSession} />
+        <Connexion telephoneInitial={telephoneInitial} emailInitial={emailInitial} onConnecte={setSession} />
       )}
     </MiseEnPageAuth>
   );
 }
 
-function Connexion({ emailInitial, onConnecte }: { emailInitial: string; onConnecte: (s: Session) => void }) {
+function Connexion({ telephoneInitial, emailInitial, onConnecte }: { telephoneInitial: string; emailInitial: string; onConnecte: (s: Session) => void }) {
+  const [parEmail, setParEmail] = useState(Boolean(emailInitial) && !telephoneInitial);
+  const [telephone, setTelephone] = useState(() => formaterSaisieRdc(telephoneInitial.replace(/^\+?243/, "")));
   const [email, setEmail] = useState(emailInitial);
   const [motDePasse, setMotDePasse] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -71,16 +76,24 @@ function Connexion({ emailInitial, onConnecte }: { emailInitial: string; onConne
 
   async function envoyer(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErreur("Saisissez une adresse e-mail valide.");
+    let identifiant: string;
+    if (parEmail) {
+      if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setErreur("Saisissez une adresse e-mail valide.");
+      identifiant = email.trim();
+    } else {
+      const numero = telephoneDepuisSaisie(telephone);
+      if (!numero) return setErreur("Numéro invalide : 9 chiffres commençant par 8 ou 9 (ex. 970 000 000).");
+      identifiant = numero;
+    }
     if (!motDePasse) return setErreur("Saisissez votre mot de passe.");
     setErreur(null);
     setEnCours(true);
     try {
-      const jeton = await connecterViaApi([configuration.apiUrl], email.trim(), motDePasse);
+      const jeton = await connecterViaApi([configuration.apiUrl], identifiant, motDePasse);
       const client = new ClientApi(configuration.apiUrl, () => jeton.accessToken);
       const profil = await client.moi();
       if (profil.role !== Role.PATRON) {
-        setErreur("Seul le patron de l'hôtel peut payer l'abonnement. Connectez-vous avec le compte du patron.");
+        setErreur("Seul le patron de l'hôtel peut payer l'abonnement. Connectez-vous avec le numéro du patron.");
         return;
       }
       onConnecte({ client, nom: profil.nom, hotelNom: profil.hotelNom });
@@ -100,7 +113,17 @@ function Connexion({ emailInitial, onConnecte }: { emailInitial: string; onConne
         Connectez-vous avec le compte du patron pour choisir votre formule et payer par Mobile Money (M-Pesa, Airtel Money, Orange Money, Africell).
       </p>
       <form onSubmit={envoyer} noValidate>
-        <ChampAuth id="payer-email" libelle="Adresse e-mail" icone={Mail} type="email" autoComplete="email" valeur={email} onChange={setEmail} />
+        {parEmail ? (
+          <ChampAuth id="payer-email" libelle="Adresse e-mail" icone={Mail} type="email" autoComplete="email" valeur={email} onChange={setEmail} />
+        ) : (
+          <div className="champ-auth">
+            <label htmlFor="payer-telephone">Numéro de téléphone</label>
+            <ChampTelephone id="payer-telephone" value={telephone} onChange={setTelephone} required />
+          </div>
+        )}
+        <button type="button" className="lien-auth lien-auth--sans-marge" onClick={() => setParEmail((v) => !v)}>
+          {parEmail ? "Utiliser mon numéro de téléphone" : "Ancien compte ? Utiliser mon e-mail"}
+        </button>
         <ChampAuth
           id="payer-mdp"
           libelle="Mot de passe"
