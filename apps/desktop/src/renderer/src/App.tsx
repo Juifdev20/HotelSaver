@@ -1,14 +1,17 @@
 import * as React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErreurApi, demanderReinitialisationMotDePasse, inscrireHotel } from "@hotel-chicago/api-client";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { ouvrirMiroir, supprimerBaseIndexedDb, type GestionnaireSession, type Miroir } from "@hotel-chicago/miroir-local";
 import type { EtatSync } from "@hotel-chicago/sync-engine";
-import { peutOperer } from "@hotel-chicago/types";
-import type { InscriptionHotelPayload, LienNotification, NotificationApp, ProfilConnecte } from "@hotel-chicago/types";
+import { Role, peutOperer } from "@hotel-chicago/types";
+import type { InscriptionHotelPayload, NotificationApp, ProfilConnecte } from "@hotel-chicago/types";
 import type { ConfigurationApp } from "../../main/config-store";
 import { IdPage, libellePage, sectionsPourRole } from "./navigation";
-import { useNotifications } from "./useNotifications";
+import { lienDeNotification, useNotifications } from "./useNotifications";
+import type { LienApp } from "./useNotifications";
+import { FONCTION_PAR_PAGE, fonctionOuverte, pageOuverte } from "./fonctions";
+import { surveillerFonctionsRefusees } from "./client-surveille";
 import { Coquille } from "./layout/Coquille";
 import { EcranConnexion } from "./screens/EcranConnexion";
 import { EcranInscription } from "./screens/EcranInscription";
@@ -37,6 +40,8 @@ import { EcranBientot } from "./screens/EcranBientot";
 import { EcranSynchronisation } from "./screens/EcranSynchronisation";
 import { EcranAbonnement } from "./screens/EcranAbonnement";
 import { EcranAbonnementBloque } from "./screens/EcranAbonnementBloque";
+import { EcranRemboursements } from "./screens/EcranRemboursements";
+import { FonctionNonIncluse } from "./components/FonctionNonIncluse";
 import { BandeauAbonnement } from "./components/BandeauAbonnement";
 import { IndicateurSynchro } from "./hors-ligne/IndicateurSynchro";
 import { creerGestionnaireSession } from "./hors-ligne/session";
@@ -90,6 +95,14 @@ export function App() {
   // Séjour à ouvrir directement dans l'écran Facturation (deep-link depuis
   // Réservations ou Arrivées et départs) — remis à zéro par naviguer().
   const [reservationAFacturer, setReservationAFacturer] = useState<string | null>(null);
+  // Réservation à ouvrir directement dans Réservations (clic sur une notification) — remise à zéro par naviguer().
+  const [reservationAOuvrir, setReservationAOuvrir] = useState<string | null>(null);
+  // Écran dont le serveur vient de refuser une route (403 FONCTION_NON_INCLUSE) : le panneau « fonction non incluse » le remplace.
+  const [pageRefusee, setPageRefusee] = useState<IdPage | null>(null);
+  const pageRef = useRef<IdPage>("tableau-de-bord");
+  pageRef.current = page;
+  // Nombre de remboursements d'acompte à décider (pastille de la navigation, patron seulement).
+  const [nbRemboursements, setNbRemboursements] = useState(0);
   const [erreurConnexion, setErreurConnexion] = useState<string | null>(null);
   const [connexionEnCours, setConnexionEnCours] = useState(false);
   // Pré-remplissage / message de la connexion (après une inscription, ou un lien « Ouvrir l'application »).
@@ -193,7 +206,22 @@ export function App() {
 
   // L'application ne parle au serveur que par la base locale (lectures instantanées, écritures mises en file) : le « client » des écrans est
   // celui du miroir. Le jeton, lui, est lu à chaque requête auprès du gestionnaire de session (renouvelé sans recréer le client).
-  const client: ClientApi | null = miroir ? miroir.client : null;
+  // Il est enveloppé pour repérer un refus « fonction non incluse » du serveur (voir client-surveille.ts) et réagir tout de suite.
+  const rafraichirProfilRef = useRef<() => void>(() => undefined);
+  const client: ClientApi | null = useMemo(
+    () =>
+      miroir
+        ? surveillerFonctionsRefusees(
+            miroir.client,
+            () => pageRef.current,
+            (pageDeLAppel) => {
+              if (pageDeLAppel in FONCTION_PAR_PAGE) setPageRefusee(pageDeLAppel);
+              rafraichirProfilRef.current();
+            }
+          )
+        : null,
+    [miroir]
+  );
 
   // Application laissée ouverte toute la journée : on renouvelle le jeton avant son expiration, on retrouve le serveur après une
   // coupure (session ouverte hors ligne), on avance l'horloge de référence et on surveille la durée de grâce.
@@ -247,10 +275,14 @@ export function App() {
   }, [etatSync?.derniereSyncReussieLe, etatSync?.decalageHorlogeMs]);
 
   /** Clic sur une notification (cloche ou notification Windows) → l'écran concerné, si mon rôle y a droit. */
-  const ouvrirLien = (lien: LienNotification) => {
+  const ouvrirLien = (lien: LienApp) => {
     if (!utilisateur) return;
+    // Les droits du RÔLE décident si le lien est suivi ; une fonction non incluse dans la formule, elle, mène au panneau « non incluse »
+    // (on n'envoie pas l'utilisateur ailleurs sans explication).
     const autorisees = sectionsPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true).flatMap((section) => section.entrees.map((entree) => entree.id as string));
     setReservationAFacturer(null);
+    setPageRefusee(null);
+    setReservationAOuvrir(lien.ecran === "reservations" && lien.id && autorisees.includes("reservations") ? lien.id : null);
     // Un lien « comptes-ouverts » porte l'id du compte : on ouvre le détail
     // directement (notification commande web) plutôt que la liste.
     if (lien.ecran === "comptes-ouverts" && lien.id && autorisees.includes("comptes-ouverts")) {
@@ -270,8 +302,38 @@ export function App() {
   const centre = useNotifications(ecran === "application" && !abonnementBloque ? client : null, (lien) => lienRef.current(lien));
   const ouvrirNotification = (notification: NotificationApp) => {
     void centre.marquerLue(notification.id);
-    ouvrirLien(notification.lien);
+    ouvrirLien(lienDeNotification(notification));
   };
+
+  // Remboursements à décider : lus à l'ouverture, au retour de focus, toutes les minutes et dès qu'une notification « à rembourser » arrive.
+  const voitRemboursements = ecran === "application" && !abonnementBloque && !modeHorsLigne && utilisateur?.role === Role.PATRON && fonctionOuverte(utilisateur, "RECEPTION");
+  const rafraichirRemboursements = useCallback(() => {
+    if (!client || !voitRemboursements) return;
+    client
+      .nombreRemboursementsAFaire()
+      .then(setNbRemboursements)
+      .catch(() => undefined);
+  }, [client, voitRemboursements]);
+  const marqueRemboursements = centre.notifications
+    .filter((n) => n.type === "REMBOURSEMENT_A_FAIRE")
+    .map((n) => n.id)
+    .join(",");
+  useEffect(() => {
+    if (!voitRemboursements) {
+      setNbRemboursements(0);
+      return;
+    }
+    rafraichirRemboursements();
+    const minuteur = setInterval(rafraichirRemboursements, 60_000);
+    window.addEventListener("focus", rafraichirRemboursements);
+    return () => {
+      clearInterval(minuteur);
+      window.removeEventListener("focus", rafraichirRemboursements);
+    };
+  }, [voitRemboursements, rafraichirRemboursements]);
+  useEffect(() => {
+    if (marqueRemboursements) rafraichirRemboursements();
+  }, [marqueRemboursements, rafraichirRemboursements]);
 
   // Recharge le profil toutes les 30 s et au retour de focus : un réglage hôtel
   // changé par le patron sur un autre appareil (ex. suivi cuisine) se propage
@@ -290,10 +352,12 @@ export function App() {
           void gestionnaire.current?.memoriserProfil(frais);
         })
         .catch(() => undefined);
+    rafraichirProfilRef.current = () => void rafraichir();
     const minuteur = setInterval(rafraichir, 30_000);
     window.addEventListener("focus", rafraichir);
     return () => {
       annule = true;
+      rafraichirProfilRef.current = () => undefined;
       clearInterval(minuteur);
       window.removeEventListener("focus", rafraichir);
     };
@@ -462,6 +526,8 @@ export function App() {
   function naviguer(nouvellePage: IdPage) {
     setCompteCafeteriaOuvert(null);
     setReservationAFacturer(null);
+    setReservationAOuvrir(null);
+    setPageRefusee(null);
     setPage(nouvellePage);
   }
 
@@ -470,6 +536,7 @@ export function App() {
   function naviguerVersFacturation(reservationId: string) {
     setCompteCafeteriaOuvert(null);
     setReservationAFacturer(reservationId);
+    setPageRefusee(null);
     setPage("facturation");
   }
 
@@ -495,12 +562,47 @@ export function App() {
 
   if (ecran === "application" && client && utilisateur) {
     let contenu: React.ReactNode;
-    if (page === "tableau-de-bord") {
+    const fonctionManquante = FONCTION_PAR_PAGE[page];
+    if (fonctionManquante && (!pageOuverte(utilisateur, page) || pageRefusee === page)) {
+      // La formule de l'hôtel n'ouvre pas cet écran (lien profond, notification, ou refus du serveur) : on explique au lieu d'un écran en erreur.
+      contenu = (
+        <FonctionNonIncluse
+          client={client}
+          utilisateur={utilisateur}
+          fonction={fonctionManquante}
+          ecran={libellePage(page)}
+          horsLigne={modeHorsLigne}
+          onVoirFormules={() => naviguer("abonnement")}
+        />
+      );
+    } else if (page === "tableau-de-bord") {
       contenu = <EcranTableauDeBord client={client} utilisateur={utilisateur} onNaviguer={naviguer} />;
     } else if (page === "chambres") {
       contenu = <EcranChambres client={client} utilisateur={utilisateur} rechercheInitiale={rechercheChambres} onNaviguer={naviguer} />;
     } else if (page === "reservations") {
-      contenu = <EcranReservations client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} peutOperer={peutOperer(utilisateur)} />;
+      contenu = (
+        <EcranReservations
+          key={reservationAOuvrir ?? "liste"}
+          client={client}
+          onNaviguer={naviguer}
+          onFacturer={naviguerVersFacturation}
+          peutOperer={peutOperer(utilisateur)}
+          reservationInitiale={reservationAOuvrir}
+        />
+      );
+    } else if (page === "remboursements" && utilisateur.role === Role.PATRON) {
+      contenu = (
+        <EcranRemboursements
+          client={client}
+          horsLigne={modeHorsLigne}
+          onChangement={rafraichirRemboursements}
+          onOuvrirReservation={(id) => {
+            setReservationAOuvrir(id);
+            setPageRefusee(null);
+            setPage("reservations");
+          }}
+        />
+      );
     } else if (page === "arrivees-departs") {
       contenu = <EcranArriveesDeparts client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} peutOperer={peutOperer(utilisateur)} />;
     } else if (page === "journal-journee") {
@@ -632,6 +734,7 @@ export function App() {
         nonLues={centre.nonLues}
         onOuvrirNotification={ouvrirNotification}
         onToutMarquerLu={() => void centre.toutMarquerLu()}
+        pastilles={{ remboursements: nbRemboursements }}
         indicateurSynchro={<IndicateurSynchro etat={etatSync} joursRestants={modeHorsLigne ? joursRestants : null} onOuvrir={() => naviguer("synchronisation")} />}
         bandeau={
           <>

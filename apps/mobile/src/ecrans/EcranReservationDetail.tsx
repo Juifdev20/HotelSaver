@@ -13,10 +13,14 @@ import { Link2, MessageCircle, Pencil } from "lucide-react-native";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { SelecteurDate } from "../composants/SelecteurDate";
 import { useSession } from "../contexteSession";
+import { fonctionOuverte } from "../fonctions";
 import { imprimerLignes } from "../impression/imprimante";
 import { estRecuProvisoire, lireMontant } from "@hotel-chicago/regles";
 import { dateComplete, midiLubumbashi } from "../dates";
 import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
+
+/** Motif d'annulation rapide ; le texte EXACT est reconnu par le serveur pour proposer le remboursement de l'acompte (non-présentation). */
+const MOTIF_NON_PRESENTATION = "Client non présenté";
 
 export interface EcranReservationDetailProps {
   /** Id de la réservation (local ou serveur — le miroir résout les deux). */
@@ -205,7 +209,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
       }
       const [reservationComplete, ventes] = await Promise.all([
         client.obtenirReservation(idServeur),
-        client.listerVentesCafeteria(idServeur),
+        fonctionOuverte(utilisateur.fonctions, "CAFETERIA") ? client.listerVentesCafeteria(idServeur) : Promise.resolve([]),
       ]);
       await imprimerLignes(construireRecuFacture(facture, reservationComplete, utilisateur.nom, ventes, enteteHotel(utilisateur), { duplicata: true }));
       setMessageImpression({ texte: messageImpressionEnvoyee(`Reçu ${facture.numeroRecu}`), reussie: true, provisoire: estRecuProvisoire(facture.numeroRecu) });
@@ -500,6 +504,20 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
         enCours={enCours !== null}
       >
         <Text style={styles.champLabel}>Motif d'annulation (obligatoire)</Text>
+        <View accessibilityRole="radiogroup" style={styles.motifsRapides}>
+          <Pressable
+            style={[styles.motifRapide, motif.trim() === MOTIF_NON_PRESENTATION && styles.motifRapideActif]}
+            onPress={() => {
+              setMotif(MOTIF_NON_PRESENTATION);
+              setErreurFeuille(null);
+            }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: motif.trim() === MOTIF_NON_PRESENTATION }}
+            accessibilityLabel={`Motif rapide : ${MOTIF_NON_PRESENTATION}`}
+          >
+            <Text style={[styles.motifRapideTexte, motif.trim() === MOTIF_NON_PRESENTATION && styles.motifRapideTexteActif]}>{MOTIF_NON_PRESENTATION}</Text>
+          </Pressable>
+        </View>
         <TextInput
           style={styles.champ}
           value={motif}
@@ -512,6 +530,11 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
           placeholderTextColor={couleurs.encreFaible}
           multiline
         />
+        {reservation && Number(reservation.acompte) > 0 && (
+          <Text style={styles.avertissementAcompte}>
+            Si cet acompte a été payé en ligne, il apparaîtra dans Remboursements pour que vous décidiez de le rendre ou de le garder.
+          </Text>
+        )}
         {erreurFeuille && feuille === "annuler" && (
           <Text style={styles.erreur} accessibilityRole="alert">
             {erreurFeuille}
@@ -675,6 +698,21 @@ const styles = StyleSheet.create({
   badgeProvisoire: { alignSelf: "flex-start", marginLeft: espacements.s4, backgroundColor: couleurs.alerteClair, borderWidth: 1, borderColor: couleurs.alerte, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
   badgeProvisoireTexte: { fontSize: 11, fontWeight: "700", color: couleurs.alerte },
   champLabel: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },
+  motifsRapides: { flexDirection: "row", flexWrap: "wrap", gap: espacements.s2 },
+  motifRapide: {
+    minHeight: 44,
+    paddingHorizontal: espacements.s4,
+    borderRadius: rayons.pill,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    backgroundColor: couleurs.surface100,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  motifRapideActif: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
+  motifRapideTexte: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
+  motifRapideTexteActif: { color: "#fff" },
+  avertissementAcompte: { fontSize: 13, color: couleurs.alerte, fontWeight: "600", lineHeight: 18, backgroundColor: couleurs.alerteClair, borderRadius: rayons.md, padding: espacements.s3 },
   champ: {
     borderWidth: 1,
     borderColor: couleurs.bordure,

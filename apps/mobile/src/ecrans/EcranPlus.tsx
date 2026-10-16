@@ -22,16 +22,20 @@ import {
   Ticket,
   UserCog,
   Globe,
+  HandCoins,
   Users,
   UtensilsCrossed,
 } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
-import { LIBELLE_ROLE, sectionsPlusPourRole } from "../navigation";
-import { peutOperer } from "@hotel-chicago/types";
+import { LIBELLE_ROLE, fonctionManquante, sectionsPlusPourRole } from "../navigation";
+import { Role, peutOperer } from "@hotel-chicago/types";
+import type { CodeFonction } from "@hotel-chicago/types";
 import { bandeauAbonnement } from "@hotel-chicago/regles";
 import { useSession } from "../contexteSession";
 import { useNotifications } from "../notifications/ContexteNotifications";
 import { useSyncEtat } from "../hooks/useSyncEtat";
+import { useRemboursementsAFaire } from "../hooks/useRemboursementsAFaire";
+import { FonctionNonIncluse } from "../composants/FonctionNonIncluse";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EcranParametresMobile } from "./EcranParametresMobile";
 import { EcranMenu } from "./EcranMenu";
@@ -54,6 +58,8 @@ import { EcranInventaire } from "./EcranInventaire";
 import { EcranCuisine } from "./EcranCuisine";
 import { EcranRetraitCommande } from "./EcranRetraitCommande";
 import { EcranAbonnement } from "./EcranAbonnement";
+import { EcranRemboursements } from "./EcranRemboursements";
+import { EcranPaiementEnLigne } from "./EcranPaiementEnLigne";
 
 function initiales(nom: string): string {
   return nom
@@ -69,6 +75,10 @@ type VuePlus =
   | { id: "parametres" }
   | { id: "synchronisation" }
   | { id: "abonnement" }
+  | { id: "paiement-en-ligne" }
+  | { id: "remboursements" }
+  /** Écran fermé par la formule de l'hôtel (notification, lien) : explique et mène aux formules. */
+  | { id: "fonction-non-incluse"; fonction: CodeFonction }
   | { id: "imprimante" }
   | { id: "menu" }
   | { id: "stock" }
@@ -113,6 +123,7 @@ const ICONES_MENU: Record<string, LucideIcon> = {
   rapports: FileText,
   depenses: Wallet,
   abonnement: CreditCard,
+  remboursements: HandCoins,
 };
 
 /** Ligne de menu standardisée : icône, libellé, chevron (ou badge « Bientôt »). */
@@ -158,11 +169,14 @@ function LigneMenu({
  * principe que le swap d'écrans déjà utilisé au niveau de App.tsx. */
 export function EcranPlus() {
   const { client, utilisateur, changerDeProfil, seDeconnecter, rechargerProfil } = useSession();
-  const sections = sectionsPlusPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true);
   const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
   const etatSync = useSyncEtat();
   const { demandePlus, consommerDemandePlus } = useNotifications();
   const alerteAbonnement = bandeauAbonnement(utilisateur.abonnement);
+  const sections = sectionsPlusPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true, utilisateur.fonctions);
+  // Pastille « Remboursements » : seulement pour le patron, et seulement si la réception (donc les acomptes) est ouverte par la formule.
+  const voitRemboursements = utilisateur.role === Role.PATRON && fonctionManquante("remboursements", utilisateur.role, utilisateur.fonctions) === null;
+  const remboursements = useRemboursementsAFaire(client, voitRemboursements, vue.id === "liste");
 
   // Tap sur une notification (stock, arrivées, commande web…) : ouvre
   // directement la vue concernée — le détail du compte si le lien porte un id.
@@ -170,11 +184,23 @@ export function EcranPlus() {
     if (!demandePlus) return;
     if (demandePlus.vue === "compte") {
       if (demandePlus.compteId) setVue({ id: "compte", compteId: demandePlus.compteId });
+    } else if (demandePlus.vue === "fonction-non-incluse") {
+      if (demandePlus.fonction) setVue({ id: "fonction-non-incluse", fonction: demandePlus.fonction });
     } else {
       setVue({ id: demandePlus.vue });
     }
     consommerDemandePlus();
   }, [demandePlus, consommerDemandePlus]);
+
+  // Un écran dont la fonction n'est plus ouverte par la formule (profil relu entre-temps, lien ancien) ne s'affiche jamais : on explique à la place.
+  const ecranDemande = vue.id === "compte" ? "comptes-ouverts" : vue.id;
+  const fonctionFermee = vue.id === "liste" || vue.id === "fonction-non-incluse" ? null : fonctionManquante(ecranDemande, utilisateur.role, utilisateur.fonctions);
+  if (vue.id === "fonction-non-incluse") {
+    return <FonctionNonIncluse fonction={vue.fonction} onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (fonctionFermee) {
+    return <FonctionNonIncluse fonction={fonctionFermee} onRetour={() => setVue(VUE_LISTE)} />;
+  }
 
   if (vue.id === "parametres") {
     return (
@@ -184,6 +210,7 @@ export function EcranPlus() {
         onChangerProfil={changerDeProfil}
         onProfilModifie={() => void rechargerProfil()}
         onOuvrirAbonnement={() => setVue({ id: "abonnement" })}
+        onOuvrirPaiementEnLigne={() => setVue({ id: "paiement-en-ligne" })}
         onSeDeconnecter={seDeconnecter}
         onRetour={() => setVue(VUE_LISTE)}
       />
@@ -191,6 +218,12 @@ export function EcranPlus() {
   }
   if (vue.id === "abonnement") {
     return <EcranAbonnement onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "paiement-en-ligne") {
+    return <EcranPaiementEnLigne client={client} onRetour={() => setVue({ id: "parametres" })} />;
+  }
+  if (vue.id === "remboursements") {
+    return <EcranRemboursements client={client} onRetour={() => setVue(VUE_LISTE)} onCompteur={remboursements.definir} />;
   }
   if (vue.id === "synchronisation") {
     return <EcranSynchronisation onRetour={() => setVue(VUE_LISTE)} />;
@@ -307,7 +340,13 @@ export function EcranPlus() {
                 icone={ICONES_MENU[entree.id] ?? Settings}
                 libelle={entree.libelle}
                 desactive={!entree.disponible}
-                libelleAccessible={entree.id === "abonnement" && alerteAbonnement ? `Abonnement, ${alerteAbonnement.texte}` : undefined}
+                libelleAccessible={
+                  entree.id === "abonnement" && alerteAbonnement
+                    ? `Abonnement, ${alerteAbonnement.texte}`
+                    : entree.id === "remboursements" && remboursements.nombre > 0
+                      ? `Remboursements, ${remboursements.nombre} à faire`
+                      : undefined
+                }
                 badge={
                   !entree.disponible ? (
                     <View style={styles.badgeBientot}>
@@ -316,6 +355,10 @@ export function EcranPlus() {
                   ) : entree.id === "abonnement" && alerteAbonnement ? (
                     <View style={[styles.badgeCompteur, alerteAbonnement.niveau === "danger" && styles.badgeDanger]}>
                       <Text style={styles.badgeCompteurTexte}>À renouveler</Text>
+                    </View>
+                  ) : entree.id === "remboursements" && remboursements.nombre > 0 ? (
+                    <View style={[styles.badgeCompteur, styles.badgeDanger]}>
+                      <Text style={styles.badgeCompteurTexte}>{remboursements.nombre > 99 ? "99+" : remboursements.nombre}</Text>
                     </View>
                   ) : undefined
                 }
@@ -331,6 +374,7 @@ export function EcranPlus() {
                       | "inventaire"
                       | "utilisateurs"
                       | "abonnement"
+                      | "remboursements"
                       | "site-hotel"
                       | "arrivees-departs"
                       | "planning"

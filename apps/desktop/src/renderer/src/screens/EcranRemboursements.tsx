@@ -6,6 +6,7 @@ import { formaterTelephone, lienWhatsApp, lireMontant, montantAbonnement, numero
 import type { ModeRemboursement, MotifRemboursement, RemboursementVue } from "@hotel-chicago/types";
 import { Button, StatusBadge, useTitrePage } from "@hotel-chicago/ui";
 import { Check, Copy, HandCoins, MessageCircle } from "lucide-react";
+import "./abonnement.css";
 import "./paiement-en-ligne.css";
 
 export interface EcranRemboursementsProps {

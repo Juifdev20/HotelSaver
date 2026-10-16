@@ -27,6 +27,7 @@ import {
   Wallet,
 } from "lucide-react";
 import type { IdPage } from "../navigation";
+import { fonctionOuverte } from "../fonctions";
 // Photo temporaire (libre de droits, Unsplash) en attendant une vraie photo de
 // l'hôtel fournie par le client — voir DECISIONS.md. À remplacer telle quelle
 // (même chemin) une fois la photo réelle disponible.
@@ -86,9 +87,9 @@ type EvenementActivite = {
   cle: number;
 };
 
-function fusionnerActivite(donnees: VentesRecentes | null, limite: number): EvenementActivite[] {
+function fusionnerActivite(donnees: VentesRecentes | null, limite: number, avecChambres = true, avecCafeteria = true): EvenementActivite[] {
   if (!donnees) return [];
-  const factures: EvenementActivite[] = donnees.factures.map((f) => ({
+  const factures: EvenementActivite[] = (avecChambres ? donnees.factures : []).map((f) => ({
     id: f.id,
     titre: "Paiement enregistré",
     description: `Chambre ${f.reservation.chambre.numero} · ${f.reservation.client.nom} · Reçu ${f.numeroRecu}`,
@@ -96,7 +97,7 @@ function fusionnerActivite(donnees: VentesRecentes | null, limite: number): Even
     annule: f.annuleLe !== null,
     cle: new Date(f.createdAt).getTime(),
   }));
-  const ventes: EvenementActivite[] = donnees.ventesCafeteria.map((v) => ({
+  const ventes: EvenementActivite[] = (avecCafeteria ? donnees.ventesCafeteria : []).map((v) => ({
     id: v.id,
     titre: "Vente cafétaria",
     description: `Reçu ${v.numeroRecu}`,
@@ -114,8 +115,11 @@ const REPARTITION_LIMITE_INITIALE = 6;
 const REPARTITION_LIMITE_ETENDUE = 20;
 
 export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTableauDeBordProps) {
-  const voitChambres = utilisateur.role !== Role.CAFETARIA;
-  const voitStock = utilisateur.role !== Role.RECEPTIONNISTE;
+  // Ce que la formule de l'hôtel n'ouvre pas n'est ni montré ni demandé au serveur (sinon : erreurs inutiles).
+  const receptionOuverte = fonctionOuverte(utilisateur, "RECEPTION");
+  const cafeteriaOuverte = fonctionOuverte(utilisateur, "CAFETERIA");
+  const voitChambres = utilisateur.role !== Role.CAFETARIA && receptionOuverte;
+  const voitStock = utilisateur.role !== Role.RECEPTIONNISTE && cafeteriaOuverte;
   const [limiteActivite, setLimiteActivite] = useState(REPARTITION_LIMITE_INITIALE);
 
   const recette = useDonnee<RecetteDuJour>(() => client.recetteDuJour(), [client]);
@@ -125,7 +129,7 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
 
   const r = recette.donnee;
   const o = occupation.donnee;
-  const evenements = fusionnerActivite(activite.donnee, limiteActivite);
+  const evenements = fusionnerActivite(activite.donnee, limiteActivite, receptionOuverte, cafeteriaOuverte);
 
   return (
     <div className="page">
@@ -199,7 +203,7 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
           valeur={r ? formatMontant(r.total.montantCDF, Devise.CDF) : "…"}
           precision={utilisateur.role === Role.PATRON ? "Chambres et cafétaria" : "Vos encaissements"}
         />
-        {r?.chambres && (
+        {r?.chambres && receptionOuverte && (
           <DashboardStat
             icone={<BedDouble size={20} aria-hidden="true" />}
             tone="info"
@@ -208,7 +212,7 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
             precision={formatMontant(r.chambres.montantCDF, Devise.CDF)}
           />
         )}
-        {r?.cafeteria && (
+        {r?.cafeteria && cafeteriaOuverte && (
           <DashboardStat
             icone={<Coffee size={20} aria-hidden="true" />}
             tone="purple"
@@ -219,6 +223,7 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
         )}
       </div>
 
+      {(voitChambres || voitStock) && (
       <div className="grille-trois-colonnes">
         {voitChambres && (
           <div className="carte-simple carte-simple--occupation">
@@ -343,6 +348,7 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
           </div>
         )}
       </div>
+      )}
 
       <section className="carte-simple" aria-labelledby="titre-activite">
         <div className="carte-simple__entete">

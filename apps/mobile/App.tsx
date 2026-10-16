@@ -38,6 +38,7 @@ import { CentreNotifications } from "./src/composants/CentreNotifications";
 import { navigationRef } from "./src/notifications/navigationRef";
 import { retirerAppareil } from "./src/notifications/push";
 import { useVerrouInactivite } from "./src/hooks/useVerrouInactivite";
+import { ecouterFonctionNonIncluse } from "./src/fonctions";
 
 type Ecran = "chargement" | "selection-profil" | "connexion" | "inscription" | "application";
 
@@ -118,6 +119,9 @@ function RafraichisseurProfil() {
     void ecrireContactServeur(utilisateur.userId, new Date(Date.now() + (etatSync.decalageHorlogeMs ?? 0)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etatSync.derniereSyncReussieLe]);
+  // Le serveur a refusé une fonction (403 FONCTION_NON_INCLUSE) alors que l'écran se croyait autorisé : le profil est périmé (formule changée
+  // ailleurs, profil mémorisé ancien). On le relit pour que les onglets et menus des fonctions fermées disparaissent.
+  useEffect(() => ecouterFonctionNonIncluse(() => void rechargerProfil().catch(() => {})), [rechargerProfil]);
   const dernierTraite = useRef<string | null>(null);
   useEffect(() => {
     const horodatage = etatSync.dernierePousseeLe;
@@ -711,7 +715,7 @@ export default function App() {
               // rien n'est perdu). Il disparaît tout seul dès que le serveur confirme l'abonnement.
               <EcranAbonnementBloque onContinuer={apresRenouvellement} />
             ) : (
-              <FournisseurNotifications client={client} role={utilisateur.role}>
+              <FournisseurNotifications client={client} role={utilisateur.role} fonctions={utilisateur.fonctions}>
                 <NavigationContainer ref={navigationRef}>
                   <CoquilleOnglets />
                 </NavigationContainer>

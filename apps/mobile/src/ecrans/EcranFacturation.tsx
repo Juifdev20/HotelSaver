@@ -11,6 +11,7 @@ import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { useSession } from "../contexteSession";
+import { fonctionOuverte } from "../fonctions";
 import { imprimerLignes } from "../impression/imprimante";
 import { lireMontant } from "@hotel-chicago/regles";
 import { confirmerAction } from "../confirmer";
@@ -59,6 +60,7 @@ function calculerApercu(reservation: Reservation, ventesLiees: VenteCafeteria[])
  */
 export function EcranFacturation({ reservationId, onRetour }: EcranFacturationProps) {
   const { client, utilisateur } = useSession();
+  const cafeteriaOuverte = fonctionOuverte(utilisateur.fonctions, "CAFETERIA");
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [ventesLiees, setVentesLiees] = useState<VenteCafeteria[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
   const [deviseRendu, setDeviseRendu] = useState<Devise>(Devise.USD);
 
   useEffect(() => {
-    Promise.all([client.obtenirReservation(reservationId), client.listerVentesCafeteria(reservationId), client.tauxActuel()])
+    Promise.all([client.obtenirReservation(reservationId), cafeteriaOuverte ? client.listerVentesCafeteria(reservationId) : Promise.resolve([]), client.tauxActuel()])
       .then(([r, ventes, t]) => {
         setReservation(r);
         setVentesLiees(ventes.filter((v) => !v.annuleLe));

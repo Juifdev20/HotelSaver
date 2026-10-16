@@ -21,6 +21,11 @@ function contactValide(c: unknown): c is ContactSupport {
   return !!x && typeof x.telephone === "string" && typeof x.whatsapp === "string" && x.whatsapp.replace(/\D/g, "").length >= 8;
 }
 
+/** Le contact à afficher : celui reçu du serveur s'il est complet, sinon le dernier connu, sinon la valeur de secours. Ne lève jamais. */
+export function choisirContactSupport(recu?: unknown): ContactSupport {
+  return contactValide(recu) ? recu : (contactMemorise ?? CONTACT_SUPPORT_PAR_DEFAUT);
+}
+
 /** Mémorise le contact reçu du serveur (`VueAbonnement.contactSupport`) ; une valeur incomplète est ignorée. */
 export function memoriserContactSupport(contact: unknown): void {
   if (!contactValide(contact)) return;

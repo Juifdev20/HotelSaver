@@ -10,6 +10,7 @@ import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 import { lireTauxChange } from "@hotel-chicago/miroir-local";
 import { BlocSecurite, type PreferencesSecurite } from "./BlocSecurite";
+import { BlocPaiementEnLigne } from "./BlocPaiementEnLigne";
 
 export interface EcranParametresProps {
   /** Présent seulement une fois connecté. */
@@ -238,6 +239,9 @@ export function EcranParametres({
           </div>
         </div>
       )}
+
+      {/* Compte ScanLinkPay de l'hôtel et acompte demandé en ligne : l'argent du patron, lui seul y touche. */}
+      {client && utilisateur?.role === Role.PATRON && <BlocPaiementEnLigne client={client} onNaviguer={onNaviguer} />}
 
       {onNaviguer && (
         <div className="carte-formulaire">

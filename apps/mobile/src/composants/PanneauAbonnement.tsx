@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Check, CircleAlert, CircleCheck, Info } from "lucide-react-native";
+import { Check, CircleAlert, CircleCheck, Info, Lock } from "lucide-react-native";
 import { ErreurApi } from "@hotel-chicago/api-client";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { SuiviPaiementAbonnement, type EtatSuiviPaiement } from "@hotel-chicago/miroir-local";
@@ -19,13 +19,14 @@ import {
   type NiveauAbonnement,
 } from "@hotel-chicago/regles";
 import { Role } from "@hotel-chicago/types";
-import type { EtatAbonnement, FormuleProposee, OperateurMobileMoney, PaiementAbonnementVue, VueAbonnement } from "@hotel-chicago/types";
+import type { ApercuPaiement, EtatAbonnement, FormuleProposee, OperateurMobileMoney, PaiementAbonnementVue, VueAbonnement } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { PAIEMENT_DANS_APPLICATION, TEXTE_RENOUVELER_AILLEURS } from "../configAbonnement";
 import { confirmerAction } from "../confirmer";
 import { messageErreur } from "../messagesErreur";
+import { BlocAide, choisirContactSupport, memoriserContactSupport } from "./AideSupport";
 
-type ClientAbonnement = Pick<ClientApi, "abonnement" | "payerAbonnement" | "paiementAbonnement">;
+type ClientAbonnement = Pick<ClientApi, "abonnement" | "payerAbonnement" | "paiementAbonnement" | "apercuAbonnement">;
 type Devise = "USD" | "CDF";
 
 export interface PanneauAbonnementProps {
@@ -60,6 +61,11 @@ const CONSEILS_ATTENTE = [
   "Entrez bien votre code secret (PIN) quand il est demandé.",
   "Vérifiez que le numéro saisi est le bon.",
 ];
+
+/** Arrondi au centime : évite « 0,1 + 0,2 = 0,30000000000000004 » dans un total affiché. */
+function arrondiCentimes(valeur: number): number {
+  return Math.round(valeur * 100) / 100;
+}
 
 function nomFormule(code: string | null | undefined, formules: FormuleProposee[] | undefined): string {
   if (!code) return "";
@@ -121,6 +127,10 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
   const [operateur, setOperateur] = useState<OperateurMobileMoney | null>(null);
   const [telephone, setTelephone] = useState("");
 
+  // Aperçu du coût réel (prix + frais ScanLinkPay) : rangé AVEC la clé « formule|durée|devise » qu'il décrit, pour ne jamais afficher le total d'une
+  // autre combinaison quand le patron change vite de choix.
+  const [apercu, setApercu] = useState<{ cle: string; resultat: ApercuPaiement | "echec" } | null>(null);
+
   const [continuerEnCours, setContinuerEnCours] = useState(false);
   const [erreurContinuer, setErreurContinuer] = useState<string | null>(null);
 
@@ -155,6 +165,7 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
     try {
       const v = await client.abonnement();
       if (!monte.current) return;
+      memoriserContactSupport(v.contactSupport);
       setVue(v);
       setErreurVue(null);
       choisirParDefaut(v);
@@ -216,9 +227,10 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
     if (!formuleChoisie || !duree || !operateur || montant === null) return;
     const numero = numeroInternational(telephone);
     if (!numero) return;
+    if (calculFraisEnCours) return; // le total n'est pas encore connu : on n'invente pas un montant
     confirmerAction({
-      titre: `Payer ${texteMontant} ?`,
-      message: `Formule ${formuleChoisie.nom}, ${duree.mois} mois. Une demande de confirmation va arriver sur le ${numeroLisible(telephone)}. Entrez ensuite votre code secret ${OPERATEURS_MOBILE_MONEY[operateur].libelle}.`,
+      titre: `Payer ${texteTotal} ?`,
+      message: `Formule ${formuleChoisie.nom}, ${duree.mois} mois.${fraisPayeur > 0 ? ` Prix ${texteMontant} + frais ScanLinkPay ${texteFrais}.` : ""} Une demande de confirmation va arriver sur le ${numeroLisible(telephone)}. Entrez ensuite votre code secret ${OPERATEURS_MOBILE_MONEY[operateur].libelle}.`,
       libelleConfirmer: "Payer",
       onConfirmer: () => suivi.payer({ formule: formuleChoisie.code, mois: duree.mois, devise, operateur, telephone: numero }),
     });
@@ -237,6 +249,39 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
   }
 
   const etat: EtatAbonnement | null = vue?.etat ?? (profilAbonnement ? actualiserEtatAbonnement(profilAbonnement) : null);
+
+  // Le formulaire de paiement est-il affiché ? (patron, paiement dans l'application autorisé, accès renouvelable, serveur relié à ScanLinkPay)
+  const formulaireAffiche =
+    estPatron && PAIEMENT_DANS_APPLICATION && etat?.renouvelable !== false && !!vue && vue.paiementEnLigne && !(mode === "bloque" && !vue.etat.bloque);
+  const codeFormuleChoisie = formuleChoisie?.code ?? null;
+  const moisChoisi = duree?.mois ?? null;
+  const cleApercu = formulaireAffiche && codeFormuleChoisie !== null && moisChoisi !== null && montant !== null ? `${codeFormuleChoisie}|${moisChoisi}|${devise}` : null;
+
+  // Aperçu des frais à chaque changement de formule, de durée ou de devise ; une réponse arrivée après un autre choix est ignorée.
+  useEffect(() => {
+    if (cleApercu === null || codeFormuleChoisie === null || moisChoisi === null) return;
+    let perime = false;
+    client
+      .apercuAbonnement(codeFormuleChoisie, moisChoisi, devise)
+      .then((resultat) => {
+        if (!perime && monte.current) setApercu({ cle: cleApercu, resultat });
+      })
+      .catch(() => {
+        if (!perime && monte.current) setApercu({ cle: cleApercu, resultat: "echec" });
+      });
+    return () => {
+      perime = true;
+    };
+  }, [cleApercu, codeFormuleChoisie, moisChoisi, devise, client]);
+
+  const apercuCourant = cleApercu !== null && apercu?.cle === cleApercu ? apercu.resultat : null;
+  const calculFraisEnCours = cleApercu !== null && apercuCourant === null;
+  // Frais à la charge du payeur : seulement si ScanLinkPay a répondu et que le total dépasse le prix (commission payée en plus, ou à moitié).
+  const fraisPayeur =
+    apercuCourant && apercuCourant !== "echec" && apercuCourant.disponible && montant !== null && Number.isFinite(apercuCourant.total) ? arrondiCentimes(apercuCourant.total - montant) : 0;
+  const totalAPayer = montant !== null && apercuCourant && apercuCourant !== "echec" && fraisPayeur > 0 ? apercuCourant.total : montant;
+  const texteFrais = fraisPayeur > 0 ? montantAbonnement(fraisPayeur, devise) : "";
+  const texteTotal = totalAPayer !== null ? montantAbonnement(totalAPayer, devise) : "";
 
   // ------------------------------------------------------------------------------------------------ phases du paiement
 
@@ -310,6 +355,7 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
           <Text style={styles.petit}>Vous n'avez rien payé si l'argent n'a pas quitté votre compte Mobile Money.</Text>
         </View>
         <Bouton libelle="Réessayer" onPress={() => suivi.reinitialiser()} />
+        <BlocAide contact={choisirContactSupport(vue?.contactSupport)} />
       </View>
     );
   }
@@ -522,8 +568,17 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
           {formuleChoisie && duree && montant !== null && (
             <View style={styles.recap} accessibilityRole="summary">
               <Text style={styles.recapTitre}>
-                Vous allez payer {texteMontant} pour {duree.mois} mois de la formule {formuleChoisie.nom}.
+                Vous allez payer {texteTotal} pour {duree.mois} mois de la formule {formuleChoisie.nom}.
               </Text>
+              {calculFraisEnCours ? (
+                <Text style={styles.recapDetail} accessibilityLiveRegion="polite">Calcul du total…</Text>
+              ) : fraisPayeur > 0 ? (
+                <Text style={styles.recapDetail} accessibilityLiveRegion="polite">
+                  Prix {texteMontant} + frais ScanLinkPay {texteFrais} = {texteTotal} à payer
+                </Text>
+              ) : (
+                <Text style={styles.recapDetail}>Prix {texteMontant}</Text>
+              )}
               <Text style={styles.recapTexte}>
                 Une demande de confirmation va arriver sur {numeroLisible(telephone) ? `le ${numeroLisible(telephone)}` : "le numéro saisi"}. Entrez votre code secret Mobile Money pour confirmer.
               </Text>
@@ -532,14 +587,24 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
 
           {suiviEtat.message && <Text style={styles.erreur} accessibilityRole="alert">{messageErreur(suiviEtat.message, "Le paiement n'a pas pu être lancé. Réessayez.")}</Text>}
 
-          <Bouton libelle={texteMontant ? `Payer ${texteMontant}` : "Payer"} onPress={demanderPaiement} desactive={!formulaireValide} />
+          <Bouton
+            libelle={calculFraisEnCours ? "Calcul du total…" : texteTotal ? `Payer ${texteTotal}` : "Payer"}
+            onPress={demanderPaiement}
+            desactive={!formulaireValide || calculFraisEnCours}
+          />
           {!formulaireValide && <Text style={styles.aide}>{!operateur ? "Choisissez votre réseau Mobile Money pour continuer." : "Saisissez un numéro Mobile Money valide pour continuer."}</Text>}
+          <View style={styles.securise} accessible accessibilityLabel="Paiement sécurisé par ScanLinkPay">
+            <Lock size={12} color={couleurs.encreAttenuee} />
+            <Text style={styles.securiseTexte}>Paiement sécurisé par ScanLinkPay</Text>
+          </View>
         </>
       )}
 
       {mode === "bloque" && !dejaActif && (
         <Bouton libelle="Vérifier mon abonnement" variante="secondaire" onPress={() => void charger()} occupe={chargement} />
       )}
+
+      <BlocAide contact={choisirContactSupport(vue?.contactSupport)} />
 
       {vue && estPatron && (
         <Section titre="Paiements précédents">
@@ -597,10 +662,15 @@ function LignePaiement({ paiement: p }: { paiement: PaiementAbonnementVue }) {
       ? "Enregistré par le support"
       : `${p.operateur ? (LIBELLE_OPERATEUR[p.operateur] ?? p.operateur) : "Mobile Money"}${p.telephoneMasque ? ` · ${p.telephoneMasque}` : ""}`;
   const montant = montantAbonnement(p.montant, p.devise);
+  // Frais ScanLinkPay payés en plus du prix, quand ils sont connus (paiement en ligne réussi).
+  const frais = typeof p.commission === "number" && typeof p.total === "number" && p.commission > 0 ? montantAbonnement(p.commission, p.devise) : null;
+  const total = frais !== null && typeof p.total === "number" ? montantAbonnement(p.total, p.devise) : null;
+  const detailFrais = frais !== null && total !== null ? `Prix ${montant} + frais ScanLinkPay ${frais} = ${total}` : null;
   return (
-    <View style={styles.ligne} accessible accessibilityLabel={`${dateAbonnement(p.createdAt)}, ${montant}, ${p.mois} mois, ${moyen}, ${statut.libelle}`}>
+    <View style={styles.ligne} accessible accessibilityLabel={`${dateAbonnement(p.createdAt)}, ${detailFrais ?? montant}, ${p.mois} mois, ${moyen}, ${statut.libelle}`}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.ligneMontant}>{montant}</Text>
+        <Text style={styles.ligneMontant}>{total ?? montant}</Text>
+        {detailFrais && <Text style={styles.ligneDetail}>{detailFrais}</Text>}
         <Text style={styles.ligneDetail}>
           {dateAbonnement(p.createdAt)} · {p.mois} mois
         </Text>
@@ -705,6 +775,9 @@ const styles = StyleSheet.create({
   recap: { backgroundColor: couleurs.bleuClair, borderRadius: rayons.md, padding: espacements.s3, gap: espacements.s1 },
   recapTitre: { fontSize: 15, fontWeight: "700", color: couleurs.navy },
   recapTexte: { fontSize: 14, color: couleurs.encre, lineHeight: 20 },
+  recapDetail: { fontSize: 14, fontWeight: "600", color: couleurs.encre, lineHeight: 20 },
+  securise: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: espacements.s1 },
+  securiseTexte: { fontSize: 12, color: couleurs.encreAttenuee },
   bouton: {
     minHeight: 52,
     borderRadius: rayons.md,

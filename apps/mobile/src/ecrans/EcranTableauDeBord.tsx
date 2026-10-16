@@ -11,12 +11,15 @@ import {
   ProfilConnecte,
   VentesRecentes,
 } from "@hotel-chicago/types";
-import { Banknote, BedDouble, Calendar, Clock, Coffee, CreditCard, Package, ReceiptText, Wallet } from "lucide-react-native";
+import { Banknote, BedDouble, Calendar, ChevronRight, Clock, Coffee, CreditCard, HandCoins, Package, ReceiptText, Wallet } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { Donut } from "../composants/Donut";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { useDonnee } from "../hooks/useDonnee";
+import { useRemboursementsAFaire } from "../hooks/useRemboursementsAFaire";
+import { useNotifications } from "../notifications/ContexteNotifications";
+import { fonctionOuverte } from "../fonctions";
 import { formaterLubumbashi, heureCourte } from "../dates";
 
 export interface EcranTableauDeBordProps {
@@ -67,8 +70,15 @@ function Carte({ icone, tone, toneClaire, libelle, valeur, precision }: {
 }
 
 export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: EcranTableauDeBordProps) {
-  const voitChambres = utilisateur.role !== Role.CAFETARIA;
-  const voitStock = utilisateur.role !== Role.RECEPTIONNISTE;
+  // Ce que la formule de l'hôtel n'ouvre pas n'est ni affiché ni demandé au serveur (il répondrait 403 FONCTION_NON_INCLUSE).
+  const receptionOuverte = fonctionOuverte(utilisateur.fonctions, "RECEPTION");
+  const cafeteriaOuverte = fonctionOuverte(utilisateur.fonctions, "CAFETERIA");
+  const voitChambres = utilisateur.role !== Role.CAFETARIA && receptionOuverte;
+  const voitStock = utilisateur.role !== Role.RECEPTIONNISTE && cafeteriaOuverte;
+  const voitRemboursements = utilisateur.role === Role.PATRON && receptionOuverte;
+  const { ouvrirRemboursements } = useNotifications();
+  const remboursements = useRemboursementsAFaire(client, voitRemboursements);
+  const sourcesRecette = receptionOuverte && cafeteriaOuverte ? "Chambres et cafétaria" : receptionOuverte ? "Chambres" : cafeteriaOuverte ? "Cafétaria" : undefined;
 
   const recette = useDonnee<RecetteDuJour>(() => client.recetteDuJour(), "recette");
   const occupation = useDonnee<Occupation>(voitChambres ? () => client.occupation() : null, "occupation");
@@ -104,6 +114,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
             refreshing={recette.enCours}
             onRefresh={() => {
               recette.recharger();
+              remboursements.rafraichir();
               occupation.recharger();
               stockBas.recharger();
               activite.recharger();
@@ -114,6 +125,20 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
         <ImageBackgroundHero utilisateur={utilisateur} />
 
         {recette.erreur && <Text style={styles.erreur} accessibilityRole="alert">{recette.erreur}</Text>}
+        {voitRemboursements && remboursements.nombre > 0 && (
+          <Pressable
+            style={styles.alerteRemboursements}
+            onPress={ouvrirRemboursements}
+            accessibilityRole="button"
+            accessibilityLabel={`${remboursements.nombre} acompte${remboursements.nombre > 1 ? "s" : ""} payé${remboursements.nombre > 1 ? "s" : ""} en ligne à rembourser ou à conserver. Ouvrir les remboursements.`}
+          >
+            <HandCoins size={20} color={couleurs.alerte} />
+            <Text style={styles.alerteRemboursementsTexte}>
+              {remboursements.nombre === 1 ? "1 acompte en ligne à rembourser ou à garder" : `${remboursements.nombre} acomptes en ligne à rembourser ou à garder`}
+            </Text>
+            <ChevronRight size={18} color={couleurs.alerte} />
+          </Pressable>
+        )}
         <View style={styles.grilleKpi}>
           <Carte
             icone={<Wallet size={18} color={couleurs.bleu} />}
@@ -121,7 +146,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
             toneClaire={couleurs.bleuClair}
             libelle="En dollars"
             valeur={r ? formatMontant(r.total.montantUSD, Devise.USD) : "…"}
-            precision="Chambres et cafétaria"
+            precision={sourcesRecette}
           />
           <Carte
             icone={<Banknote size={18} color={couleurs.succes} />}
@@ -129,9 +154,9 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
             toneClaire={couleurs.succesClair}
             libelle="En francs"
             valeur={r ? formatMontant(r.total.montantCDF, Devise.CDF) : "…"}
-            precision="Chambres et cafétaria"
+            precision={sourcesRecette}
           />
-          {r?.chambres && (
+          {receptionOuverte && r?.chambres && (
             <Carte
               icone={<BedDouble size={18} color={couleurs.bleu} />}
               tone={couleurs.bleu}
@@ -141,7 +166,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
               precision={formatMontant(r.chambres.montantCDF, Devise.CDF)}
             />
           )}
-          {r?.cafeteria && (
+          {cafeteriaOuverte && r?.cafeteria && (
             <Carte
               icone={<Coffee size={18} color={couleurs.violet} />}
               tone={couleurs.violet}
@@ -296,6 +321,19 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   contenu: { padding: espacements.s4, gap: espacements.s4 },
   erreur: { color: couleurs.danger, fontSize: 13 },
+  alerteRemboursements: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacements.s3,
+    minHeight: 52,
+    backgroundColor: couleurs.alerteClair,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.alerte,
+    paddingHorizontal: espacements.s4,
+    paddingVertical: espacements.s3,
+  },
+  alerteRemboursementsTexte: { flex: 1, fontSize: 14, fontWeight: "700", color: couleurs.alerte, lineHeight: 20 },
 
   // 150 comme le minimum du hero desktop : à 130, l'horloge agrandie
   // n'avait plus la place et débordait de la carte.

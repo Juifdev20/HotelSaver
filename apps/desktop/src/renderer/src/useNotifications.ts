@@ -2,6 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import type { LienNotification, NotificationApp } from "@hotel-chicago/types";
 
+/** Lien d'une notification côté bureau : comme celui du serveur, plus l'écran « Remboursements » (le serveur ne le connaît pas encore). */
+export type LienApp = Omit<LienNotification, "ecran"> & { ecran: LienNotification["ecran"] | "remboursements" };
+
+/** Où mène une notification. « Acompte à rembourser ? » ouvre l'écran Remboursements ; les autres suivent le lien envoyé par le serveur. */
+export function lienDeNotification(n: Pick<NotificationApp, "type" | "lien">): LienApp {
+  return n.type === "REMBOURSEMENT_A_FAIRE" ? { ecran: "remboursements", id: n.lien.id } : n.lien;
+}
+
 const INTERVALLE_MS = 15_000;
 /** Au-delà, une rafale (ex. retour après une longue absence) devient un seul résumé. */
 const MAX_TOASTS_PAR_RELEVE = 3;
@@ -11,7 +19,7 @@ const MAX_TOASTS_PAR_RELEVE = 3;
  * flux persistant). Chaque nouvelle notification de MON hôtel et MON rôle (filtrage côté serveur)
  * déclenche une notification Windows, visible même fenêtre masquée dans la zone de notification.
  */
-export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: LienNotification) => void) {
+export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: LienApp) => void) {
   const [notifications, setNotifications] = useState<NotificationApp[]>([]);
   const [nonLues, setNonLues] = useState(0);
   const liste = useRef<NotificationApp[]>([]);
@@ -21,7 +29,7 @@ export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: 
   surLien.current = onOuvrirLien;
 
   // Clic sur la notification Windows → l'écran concerné.
-  useEffect(() => window.hotelChicago.surNotificationOuverte((lien) => surLien.current(lien)), []);
+  useEffect(() => window.hotelChicago.surNotificationOuverte((lien) => surLien.current(lien as LienApp)), []);
 
   useEffect(() => {
     if (!client) return;
@@ -65,7 +73,7 @@ export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: 
         if (nouvelles.length > MAX_TOASTS_PAR_RELEVE) {
           void window.hotelChicago.notifier("HotelSaver", `${nouvelles.length} nouvelles notifications`, { ecran: "tableau-de-bord" });
         } else {
-          for (const n of [...nouvelles].reverse()) void window.hotelChicago.notifier(n.titre, n.corps, n.lien);
+          for (const n of [...nouvelles].reverse()) void window.hotelChicago.notifier(n.titre, n.corps, lienDeNotification(n) as LienNotification);
         }
       } catch {
         // Hors ligne ou jeton en cours de renouvellement : on réessaie au prochain passage.

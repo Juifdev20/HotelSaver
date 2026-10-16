@@ -13,6 +13,7 @@ import { useSession } from "../contexteSession";
 import { imprimerLignes } from "../impression/imprimante";
 import { estRecuProvisoire } from "@hotel-chicago/regles";
 import { confirmerAction } from "../confirmer";
+import { fonctionOuverte } from "../fonctions";
 import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
 import { dateComplete, heureCourte } from "../dates";
 
@@ -94,10 +95,17 @@ function DetailPaiement({ recu }: { recu: Facture | VenteCafeteria }) {
 export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
   const { client, utilisateur } = useSession();
   const estPatron = utilisateur.role === Role.PATRON;
-  const segments: Segment[] =
+  // Les reçus d'un service dont la formule de l'hôtel n'ouvre pas la fonction ne sont ni listés ni demandés au serveur (403 FONCTION_NON_INCLUSE).
+  const segmentsDuRole: Segment[] =
     utilisateur.role === Role.PATRON ? ["sejours", "cafeteria"] : utilisateur.role === Role.CAFETARIA ? ["cafeteria"] : ["sejours"];
+  const segments: Segment[] = segmentsDuRole.filter((sg) => fonctionOuverte(utilisateur.fonctions, sg === "sejours" ? "RECEPTION" : "CAFETERIA"));
 
-  const [segment, setSegment] = useState<Segment>(segments[0]);
+  const [segment, setSegment] = useState<Segment>(segments[0] ?? "sejours");
+  // La formule a changé pendant que l'écran était ouvert : on quitte le segment devenu inaccessible.
+  useEffect(() => {
+    if (segments.length > 0 && !segments.includes(segment)) setSegment(segments[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segments.join(",")]);
   const [factures, setFactures] = useState<Facture[] | null>(null);
   const [ventes, setVentes] = useState<VenteCafeteria[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -111,6 +119,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
   const [message, setMessage] = useState<{ texte: string; reussi: boolean } | null>(null);
 
   const charger = useCallback(() => {
+    if (!segments.includes(segment)) return; // fonction fermée par la formule : rien à demander au serveur
     const requete = segment === "sejours" ? client.listerFactures() : client.listerVentesCafeteria();
     requete
       .then((liste) => {
@@ -136,7 +145,7 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
     try {
       const [reservation, ventesLiees] = await Promise.all([
         client.obtenirReservation(facture.reservationId),
-        client.listerVentesCafeteria(facture.reservationId),
+        fonctionOuverte(utilisateur.fonctions, "CAFETERIA") ? client.listerVentesCafeteria(facture.reservationId) : Promise.resolve([]),
       ]);
       await imprimerLignes(construireRecuFacture(facture, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur), { duplicata: true }));
       // Atteint seulement si l'envoi a réussi.

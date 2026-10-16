@@ -129,7 +129,9 @@ const ICONES: Record<IdOnglet, typeof LayoutDashboard> = {
  * la maquette mobile (Accueil/Chambres/Réservations/Plus). */
 export function CoquilleOnglets() {
   const { utilisateur } = useSession();
-  const onglets = ongletsPourRole(utilisateur.role);
+  // Les onglets des fonctions que la formule de l'hôtel n'ouvre pas disparaissent ; « Accueil » et « Plus » restent toujours (barre jamais vide,
+  // et si l'onglet affiché disparaît, la navigation retombe sur le premier : l'Accueil).
+  const onglets = ongletsPourRole(utilisateur.role, utilisateur.fonctions);
 
   return (
     <Tab.Navigator

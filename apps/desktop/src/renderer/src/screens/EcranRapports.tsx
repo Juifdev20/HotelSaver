@@ -2,6 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { DepartementRapport, peutOperer, ProfilConnecte, RapportMensuel, Role } from "@hotel-chicago/types";
+import { fonctionOuverte } from "../fonctions";
 import { Button } from "@hotel-chicago/ui";
 import { CircleCheck, Coffee, BedDouble, FileWarning, FileText, RefreshCw } from "lucide-react";
 
@@ -29,10 +30,12 @@ function moisParDefaut(): string {
 }
 
 /** Départements visibles par rôle : le patron voit tout, le personnel le sien. */
-function departementsDu(role: Role): DepartementRapport[] {
+function departementsDu(role: Role, fonctions?: string[]): DepartementRapport[] {
   if (role === Role.RECEPTIONNISTE) return ["RECEPTION"];
   if (role === Role.CAFETARIA) return ["CAFETERIA"];
-  return ["CAFETERIA", "RECEPTION"];
+  // Le patron ne voit que les départements que sa formule ouvre (s'il n'en reste aucun, on garde les deux plutôt qu'une page vide).
+  const ouverts = (["CAFETERIA", "RECEPTION"] as DepartementRapport[]).filter((d) => fonctionOuverte({ fonctions }, d));
+  return ouverts.length > 0 ? ouverts : ["CAFETERIA", "RECEPTION"];
 }
 
 /** Qui peut GÉNÉRER : le personnel de son département ; le patron seulement
@@ -103,7 +106,7 @@ export function EcranRapports({ client, utilisateur }: EcranRapportsProps) {
     }
   }
 
-  const departements = departementsDu(utilisateur.role);
+  const departements = departementsDu(utilisateur.role, utilisateur.fonctions);
   const libelleMoisChoisi = mois.find((m) => m.valeur === moisChoisi)?.libelle ?? moisChoisi;
 
   return (

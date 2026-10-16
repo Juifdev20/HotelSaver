@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
-import { CreditCard, LogOut, UserRound } from "lucide-react-native";
+import { CreditCard, HandCoins, LogOut, UserRound } from "lucide-react-native";
 import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE } from "../navigation";
@@ -26,6 +26,8 @@ export interface EcranParametresMobileProps {
   onProfilModifie?: () => void;
   /** Ouvre l'écran « Abonnement » (visible par tous les rôles ; seul le patron y paie). */
   onOuvrirAbonnement?: () => void;
+  /** Ouvre « Paiement en ligne des acomptes » (PATRON) : compte ScanLinkPay de l'hôtel et pourcentage d'acompte. */
+  onOuvrirPaiementEnLigne?: () => void;
 }
 
 /**
@@ -36,7 +38,7 @@ export interface EcranParametresMobileProps {
  * thème (pas de mode sombre mobile), pas de bloc Administration (Utilisateurs et
  * Taux de change vivent dans « Plus »).
  */
-export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie, onOuvrirAbonnement }: EcranParametresMobileProps) {
+export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie, onOuvrirAbonnement, onOuvrirPaiementEnLigne }: EcranParametresMobileProps) {
   const [enregistrement, setEnregistrement] = useState(false);
   const { miroir, effacerDonneesAppareil, utilisateur: profil } = useSession();
   const resumeAbonnement = profil.abonnement ? resumerAbonnement(actualiserEtatAbonnement(profil.abonnement)) : null;
@@ -110,6 +112,24 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
               </View>
               <Pressable style={styles.boutonSecondaire} onPress={onOuvrirAbonnement} accessibilityRole="button" accessibilityLabel={utilisateur?.role === Role.PATRON ? "Gérer l'abonnement" : "Voir l'abonnement"}>
                 <Text style={styles.boutonSecondaireTexte}>{utilisateur?.role === Role.PATRON ? "Gérer l'abonnement" : "Voir l'abonnement"}</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Paiement en ligne des acomptes : réservé au patron (c'est son compte ScanLinkPay, son argent). L'écran explique lui-même si la formule ne l'inclut pas. */}
+          {onOuvrirPaiementEnLigne && utilisateur?.role === Role.PATRON && (
+            <View style={[styles.carte, styles.carteAbonnement]}>
+              <View style={styles.compteLigne}>
+                <View style={styles.compteAvatar}>
+                  <HandCoins size={18} color={couleurs.bleu} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compteNom} accessibilityRole="header">Paiement en ligne des acomptes</Text>
+                  <Text style={styles.compteRole}>Vos clients paient un acompte sur le site de l'hôtel. L'argent arrive sur votre compte ScanLinkPay.</Text>
+                </View>
+              </View>
+              <Pressable style={styles.boutonSecondaire} onPress={onOuvrirPaiementEnLigne} accessibilityRole="button" accessibilityLabel="Régler le paiement en ligne des acomptes">
+                <Text style={styles.boutonSecondaireTexte}>Régler le paiement en ligne</Text>
               </Pressable>
             </View>
           )}

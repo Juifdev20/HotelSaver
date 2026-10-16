@@ -16,7 +16,7 @@ import { AppModule } from "../../src/app.module";
 import { VERIFICATEUR_JWT, VerificateurJwtHs256 } from "../../src/common/auth/verificateur-jwt";
 import { SupabaseAdminService } from "../../src/common/supabase-admin/supabase-admin.service";
 import { decrire, verifierBaseJetable } from "./base";
-import { JeuHotel, creerHotel, viderBase } from "./donnees";
+import { JeuHotel, creerHotel, uuid, viderBase } from "./donnees";
 import { FauxLinkPay } from "./faux-linkpay";
 
 const SECRET = "secret-de-test-integration";
@@ -28,7 +28,7 @@ const MOT_DE_PASSE = "motdepasse-test";
 
 const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".jpg": "image/jpeg", ".woff2": "font/woff2", ".woff": "font/woff", ".svg": "image/svg+xml" };
 
-(ACTIF ? decrire : describe.skip)("Bureau dans un vrai navigateur : abonnement (blocage, paiement Mobile Money, bandeau)", () => {
+(ACTIF ? decrire : describe.skip)("Bureau dans un vrai navigateur : abonnement (blocage, paiement Mobile Money, frais ScanLinkPay, bandeau), fonctions de la formule, acompte en ligne et remboursements", () => {
   jest.setTimeout(180_000);
   let app: INestApplication;
   let apiUrl: string;
@@ -43,6 +43,9 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
   let A: JeuHotel;
   let B: JeuHotel;
   let C: JeuHotel;
+  /** D : formule Essentiel payée (réception seulement, ni cafétaria ni site ni acompte en ligne). E : formule Pro payée (tout sauf domaine), avec un acompte payé en ligne puis annulé. */
+  let D: JeuHotel;
+  let E: JeuHotel;
   const faux = new FauxLinkPay();
   let jetonsEmis = 0;
 
@@ -54,6 +57,7 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await faux.demarrer();
     process.env.LINKPAY_API_URL = faux.url;
     process.env.LINKPAY_NUMERO_MARCHAND = "SLP-TEST01";
+    faux.numerosConnus.set("SLP-HOTELA", "Hôtel A SARL");
     process.env.ABONNEMENT_TAUX_CDF = "2800";
     await viderBase(prisma);
     await p.syncCorrespondance.deleteMany();
@@ -61,11 +65,39 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     A = await creerHotel(prisma, "A");
     B = await creerHotel(prisma, "B");
     C = await creerHotel(prisma, "C");
+    D = await creerHotel(prisma, "D");
+    E = await creerHotel(prisma, "E");
     // Essai de 14 jours + 3 jours de grâce : créé il y a 19 jours = accès coupé ; créé il y a 11 jours = il reste 3 jours.
     for (const j of [A, B]) {
       await p.hotel.update({ where: { id: j.hotelId }, data: { createdAt: new Date(Date.now() - 19 * JOUR), statutLicence: "SUSPENDU", suspensionManuelle: false } });
     }
     await p.hotel.update({ where: { id: C.hotelId }, data: { createdAt: new Date(Date.now() - 11 * JOUR), statutLicence: "ACTIF", suspensionManuelle: false } });
+    // D et E ont payé : leurs fonctions sont celles de leur formule (Essentiel : réception seule ; Pro : tout sauf le domaine personnalisé).
+    for (const [j, formule] of [[D, "ESSENTIEL"], [E, "PRO"]] as const) {
+      await p.paiementLicence.create({ data: { hotelId: j.hotelId, montant: 59, devise: "USD", methode: "ESPECES", periodeCouverteJusquau: new Date(Date.now() + 60 * JOUR) } });
+      await p.hotel.update({ where: { id: j.hotelId }, data: { formule, statutLicence: "ACTIF", suspensionManuelle: false } });
+    }
+    // E : un client a payé 30 $ d'acompte en ligne (compte ScanLinkPay SLP-CLIENT1), puis la réservation 101 a été annulée → un remboursement à décider.
+    await p.reservation.update({ where: { id: E.reservationId }, data: { statut: "ANNULEE", annuleLe: new Date(), motifAnnulation: "Annulation par le client", acompte: 30 } });
+    const paiement = await p.paiementReservation.create({
+      data: {
+        hotelId: E.hotelId, reservationId: E.reservationId, montant: 30, devise: "USD", pourcentage: 30, moyen: "MOBILE_MONEY", operateur: "VODACOM", statut: "REUSSI",
+        modeleCommission: "CUSTOMER_PAID", commissionCentimes: 60, totalCentimes: 3060, cleIdempotence: uuid(), numeroScanLinkPayClient: "SLP-CLIENT1", confirmeLe: new Date(),
+      },
+    });
+    await p.remboursement.create({
+      data: {
+        hotelId: E.hotelId, reservationId: E.reservationId, paiementReservationId: paiement.id, devise: "USD", montantPaye: 30, montantARembourser: 30, motif: "ANNULATION_CLIENT",
+        destinataireScanLinkPay: "SLP-CLIENT1", destinataireTelephone: "+243869000000", clientNom: "Client-E",
+      },
+    });
+    // E : l'autre réservation (chambre 102, en cours) porte un acompte de 20 $ ; D : une commande web pointe vers un écran de cafétaria.
+    await p.reservation.update({ where: { id: E.reservationTermineeId }, data: { acompte: 20 } });
+    const notif = (j: JeuHotel, cle: string, type: string, titre: string, lien: object) =>
+      p.notification.create({ data: { hotelId: j.hotelId, type, titre, corps: "Test navigateur.", roles: ["PATRON"], lien, cleDedup: cle } });
+    await notif(E, "k-E-remb", "REMBOURSEMENT_A_FAIRE", "Acompte à rembourser ?", { ecran: "reservations", id: E.reservationId });
+    await notif(E, "k-E-acompte", "ACOMPTE_PAYE_EN_LIGNE", "Acompte payé en ligne", { ecran: "reservations", id: E.reservationTermineeId });
+    await notif(D, "k-D-web", "COMMANDE_WEB", "Commande web test", { ecran: "comptes-ouverts", id: uuid() });
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(VERIFICATEUR_JWT)
@@ -79,7 +111,7 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     apiUrl = `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}`;
 
     // Faux Supabase Auth : mêmes routes que le vrai (/auth/v1/token), jetons signés avec le secret de test, un compte par rôle et par hôtel.
-    const comptes = new Set([A.auth.patron, A.auth.recep, B.auth.patron, B.auth.recep, C.auth.patron, C.auth.recep].map(email));
+    const comptes = new Set([A.auth.patron, A.auth.recep, B.auth.patron, B.auth.recep, C.auth.patron, C.auth.recep, D.auth.patron, D.auth.recep, E.auth.patron, E.auth.recep].map(email));
     supabase = createServer((req, res) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Headers", "*");
@@ -153,6 +185,13 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(menu()).toHaveCount(0);
     await expect_(page.getByTestId("abonnement-formulaire")).toBeVisible();
     await expect_(page.getByRole("button", { name: "Se déconnecter" })).toBeVisible();
+    // « Besoin d'aide ? » : le WhatsApp du support, en lien externe sûr (https, nouvelle fenêtre).
+    await expect_(page.getByTestId("bloc-aide")).toContainText("Besoin d'aide ?");
+    await expect_(page.getByTestId("aide-whatsapp")).toContainText("WhatsApp +243 828 497 218");
+    const lien = page.getByTestId("aide-whatsapp");
+    expect(await lien.getAttribute("href")).toMatch(/^https:\/\/wa\.me\/243828497218/);
+    expect(await lien.getAttribute("target")).toBe("_blank");
+    expect(await lien.getAttribute("rel")).toContain("noopener");
   });
 
   it("(b) le patron choisit Pro 1 mois, M-Pesa, paie : attente, puis succès, puis l'application normale revient SANS redémarrer", async () => {
@@ -175,8 +214,18 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
 
     await page.getByLabel("Numéro de téléphone Mobile Money").fill("0828497218");
     await expect_(page.getByTestId("abonnement-erreur-numero")).toHaveCount(0);
-    await expect_(page.getByTestId("abonnement-recap")).toContainText("Vous allez payer 59 $ pour 1 mois de la formule Pro.");
-    await page.getByRole("button", { name: "Payer 59 $" }).click();
+    // (d) Aperçu des frais ScanLinkPay AVANT de payer : prix 59 $ + frais 1,18 $ (2 %) = 60,18 $ ; le bouton dit le total.
+    await expect_(page.getByTestId("abonnement-detail-prix")).toContainText("Prix 59 $ + frais ScanLinkPay 1,18 $ = 60,18 $ à payer");
+    await expect_(page.getByTestId("abonnement-recap")).toContainText("Vous allez payer 60,18 $ pour 1 mois de la formule Pro.");
+    await expect_(page.getByTestId("abonnement-securise")).toContainText("Paiement sécurisé par ScanLinkPay");
+    // Changer de durée refait l'aperçu : 3 mois = 177 $ + 3,54 $ = 180,54 $ ; revenir à 1 mois redonne 60,18 $ (une réponse périmée ne s'affiche jamais).
+    await page.getByRole("radio", { name: /^3 mois/ }).check();
+    await expect_(page.getByTestId("abonnement-detail-prix")).toContainText("= 180,54 $ à payer");
+    await page.getByRole("radio", { name: /^1 mois/ }).check();
+    await expect_(page.getByTestId("abonnement-detail-prix")).toContainText("= 60,18 $ à payer");
+    await expect_(page.getByRole("button", { name: "Payer 60,18 $" })).toBeVisible();
+    expect(faux.appels.some((a) => a.startsWith("GET /payment-requests/fees-preview"))).toBe(true);
+    await page.getByRole("button", { name: "Payer 60,18 $" }).click();
 
     await expect_(page.getByRole("heading", { name: /Confirmez le paiement sur votre téléphone/ })).toBeVisible();
     await expect_(page.getByTestId("abonnement-annonce")).toContainText("Confirmez le paiement sur votre téléphone");
@@ -205,6 +254,10 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(page.getByTestId("abonnement-etat")).toContainText("Abonnement actif");
     await expect_(page.getByTestId("abonnement-historique")).toContainText("Payé");
     await expect_(page.getByTestId("abonnement-historique")).toContainText("M-Pesa (Vodacom)");
+    // La formule actuelle est signalée, et le détail des frais est gardé dans l'historique.
+    await expect_(page.getByTestId("abonnement-formule-actuelle")).toContainText("Votre formule");
+    await expect_(page.getByTestId("abonnement-historique-frais")).toContainText("frais ScanLinkPay 1,18 $ = 60,18 $");
+    await expect_(page.getByTestId("bloc-aide")).toContainText("WhatsApp +243 828 497 218");
     await seDeconnecterDeLApplication();
   });
 
@@ -236,6 +289,134 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(page.getByTestId("abonnement-formulaire")).toContainText("Choisir une formule");
     // Sur la page Abonnement elle-même, le bandeau ne répète pas l'information.
     await expect_(page.getByTestId("bandeau-abonnement")).toHaveCount(0);
+    await seDeconnecterDeLApplication();
+  });
+
+  it("(e) formule Essentiel : ni cafétaria, ni stock, ni menu, ni site dans la navigation ; un lien profond mène au panneau « non incluse » avec l'aide WhatsApp", async () => {
+    await seConnecter(D.auth.patron);
+    await expect_(menu()).toBeVisible(30_000);
+    await expect_(menu().getByRole("button", { name: "Chambres", exact: true })).toBeVisible();
+    await expect_(menu().getByRole("button", { name: "Réservations", exact: true })).toBeVisible();
+    for (const nom of ["Caisse", "Comptes ouverts", "Retrait commande", "Cuisine", "Menu", "Stock", "Inventaire", "Site de l'hôtel"]) {
+      await expect_(menu().getByRole("button", { name: nom, exact: true })).toHaveCount(0);
+    }
+    await expect_(menu().getByText("Cafétaria", { exact: true })).toHaveCount(0);
+    await expect_(menu().getByText("Mon hôtel", { exact: true })).toHaveCount(0);
+    await expect_(page.getByText("Stock bas")).toHaveCount(0);
+    await expect_(page.getByText("Dont cafétaria")).toHaveCount(0);
+    await expect_(page.getByRole("alert")).toHaveCount(0);
+
+    // Une notification pointe vers un écran de cafétaria : on explique au lieu d'afficher une erreur.
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    await page.getByRole("button", { name: /Commande web test/ }).click();
+    await expect_(page.getByTestId("fonction-non-incluse")).toContainText("Cette fonction n'est pas incluse dans votre formule");
+    await expect_(page.getByRole("button", { name: "Voir les formules" })).toBeVisible();
+    await expect_(page.getByTestId("bloc-aide")).toContainText("WhatsApp +243 828 497 218");
+
+    // Paramètres : le paiement en ligne des acomptes est verrouillé (non inclus), avec un chemin vers les formules.
+    await page.getByTestId("utilisateur-connecte").click();
+    await page.getByRole("menuitem", { name: /Paramètres/ }).click();
+    await expect_(page.getByTestId("paiement-en-ligne-verrouille")).toContainText("Votre formule actuelle ne l'inclut pas");
+    await page.getByTestId("paiement-en-ligne").getByRole("button", { name: "Voir les formules" }).click();
+    await expect_(page.getByRole("heading", { name: "Abonnement", level: 1 })).toBeVisible();
+    await seDeconnecterDeLApplication();
+  });
+
+  it("(f) formule Pro : le patron relie son compte ScanLinkPay (nom vérifié), fixe 30 % et les conditions dans Paramètres", async () => {
+    await seConnecter(E.auth.patron);
+    await expect_(menu()).toBeVisible(30_000);
+    await expect_(menu().getByRole("button", { name: "Stock", exact: true })).toBeVisible();
+    await expect_(menu().getByRole("button", { name: "Site de l'hôtel", exact: true })).toBeVisible();
+    await page.getByTestId("utilisateur-connecte").click();
+    await page.getByRole("menuitem", { name: /Paramètres/ }).click();
+    const carte = page.getByTestId("paiement-en-ligne");
+    await expect_(carte).toContainText("Paiement en ligne des acomptes");
+
+    // Numéro inconnu de ScanLinkPay : l'erreur du serveur est affichée telle quelle.
+    await page.getByLabel("Numéro ScanLinkPay de votre hôtel").fill("SLP-INCONNU");
+    await page.getByRole("button", { name: "Vérifier et enregistrer" }).click();
+    await expect_(page.getByTestId("scanlinkpay-erreur")).toContainText("introuvable");
+
+    await page.getByLabel("Numéro ScanLinkPay de votre hôtel").fill("SLP-HOTELA");
+    await page.getByRole("button", { name: "Vérifier et enregistrer" }).click();
+    await expect_(page.getByTestId("scanlinkpay-compte-trouve")).toContainText("Compte trouvé : Hôtel A SARL");
+
+    await page.getByLabel("Pourcentage demandé à la réservation").fill("30");
+    await expect_(page.getByTestId("acompte-exemple")).toContainText("Chambre 20 $ × 4 nuits = 80 $ → acompte 30 % = 24 $");
+    await page.getByRole("switch", { name: /frais ScanLinkPay/ }).uncheck();
+    await page.getByLabel("Conditions d'annulation et de remboursement").fill("Annulation gratuite jusqu'à 48 h avant l'arrivée.");
+    await page.getByRole("button", { name: "Enregistrer les réglages" }).click();
+    await expect_(page.getByTestId("paiement-en-ligne-enregistre")).toContainText("Réglages enregistrés.");
+    const hotel = await p.hotel.findUnique({ where: { id: E.hotelId } });
+    expect(hotel).toMatchObject({
+      numeroScanLinkPay: "SLP-HOTELA",
+      nomScanLinkPay: "Hôtel A SARL",
+      pourcentageAcompte: 30,
+      acompteFraisPayesParClient: false,
+      conditionsAnnulation: "Annulation gratuite jusqu'à 48 h avant l'arrivée.",
+    });
+    await seDeconnecterDeLApplication();
+  });
+
+  it("(g) acompte payé en ligne puis réservation annulée : pastille « 1 », écran Remboursements, « J'ai remboursé » par ScanLinkPay → historique", async () => {
+    await seConnecter(E.auth.patron);
+    await expect_(menu()).toBeVisible(30_000);
+    await expect_(page.getByTestId("pastille-remboursements")).toContainText("1", 30_000);
+
+    // La notification « Acompte à rembourser ? » ouvre l'écran Remboursements.
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    await page.getByRole("button", { name: /Acompte à rembourser/ }).click();
+    await expect_(page.getByRole("heading", { name: "Remboursements", level: 1 })).toBeVisible();
+    await expect_(page.getByRole("tab", { name: "À faire (1)" })).toBeVisible();
+    const carte = page.getByTestId("remboursement-carte");
+    await expect_(carte).toContainText("Client-E");
+    await expect_(carte).toContainText("Chambre 101");
+    await expect_(page.getByTestId("remboursement-paye")).toContainText("30 $");
+    await expect_(page.getByTestId("remboursement-numero")).toContainText("SLP-CLIENT1");
+    await expect_(carte).toContainText("Envoyer → numéro du client");
+    await expect_(carte).toContainText("Le client a annulé");
+
+    // Plus que payé : refusé avant tout envoi.
+    await page.getByLabel(/^Montant à rendre/).fill("50");
+    await page.getByRole("button", { name: "J'ai remboursé" }).click();
+    await expect_(page.getByRole("alert")).toContainText("plus que ce que le client a payé");
+    expect(await p.remboursement.count({ where: { hotelId: E.hotelId, statut: "A_FAIRE" } })).toBe(1);
+
+    // Remboursement partiel de 15 $ par ScanLinkPay, avec référence et confirmation.
+    await page.getByLabel(/^Montant à rendre/).fill("15");
+    await page.getByRole("button", { name: "J'ai remboursé" }).click();
+    expect(await page.getByRole("radio", { name: "Par ScanLinkPay" }).isChecked()).toBe(true);
+    await page.getByLabel("Référence de l'envoi (facultatif)").fill("TRX-9");
+    await page.getByRole("button", { name: "Confirmer le remboursement" }).click();
+    await expect_(page.getByRole("alert")).toContainText("Cochez la case");
+    await page.getByRole("checkbox", { name: /Je confirme avoir rendu 15 \$/ }).check();
+    await page.getByRole("button", { name: "Confirmer le remboursement" }).click();
+    await expect_(page.getByTestId("remboursements-message")).toContainText("Remboursement enregistré : 15 $ rendus à Client-E.");
+    await expect_(page.getByTestId("remboursements-vide")).toBeVisible();
+    await expect_(page.getByTestId("pastille-remboursements")).toHaveCount(0);
+
+    await page.getByRole("tab", { name: "Historique" }).click();
+    const histo = page.getByTestId("remboursement-historique-carte");
+    await expect_(histo).toContainText("Remboursé");
+    await expect_(histo).toContainText("Rendu : 15 $ par ScanLinkPay");
+    await expect_(histo).toContainText("TRX-9");
+    const ligne = await p.remboursement.findFirst({ where: { hotelId: E.hotelId } });
+    expect(ligne).toMatchObject({ statut: "EFFECTUE", mode: "SCANLINKPAY", reference: "TRX-9" });
+    expect(Number(ligne.montantARembourser)).toBe(15);
+    await seDeconnecterDeLApplication();
+  });
+
+  it("(h) annulation d'une réservation avec acompte : motif rapide « Client non présenté » et avertissement sur le remboursement (ouverte depuis la notification)", async () => {
+    await seConnecter(E.auth.patron);
+    await expect_(menu()).toBeVisible(30_000);
+    await page.getByRole("button", { name: /^Notifications/ }).click();
+    await page.getByRole("button", { name: /Acompte payé en ligne/ }).click();
+    await expect_(page.getByRole("button", { name: "Annuler", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Annuler", exact: true }).click();
+    await page.getByRole("button", { name: "Client non présenté", exact: true }).click();
+    expect(await page.inputValue("#motif-annulation")).toBe("Client non présenté");
+    await expect_(page.getByTestId("annulation-avis-acompte")).toContainText("il apparaîtra dans Remboursements pour que vous décidiez de le rendre ou de le garder.");
+    expect(await p.reservation.count({ where: { id: E.reservationTermineeId, statut: "ANNULEE" } })).toBe(0);
     await seDeconnecterDeLApplication();
   });
 });

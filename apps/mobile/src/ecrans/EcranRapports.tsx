@@ -10,6 +10,7 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { useSession } from "../contexteSession";
 import { dateComplete, heureCourte } from "../dates";
+import { fonctionOuverte } from "../fonctions";
 import { messageErreur } from "../messagesErreur";
 
 export interface EcranRapportsProps {
@@ -96,12 +97,10 @@ export function EcranRapports({ onRetour }: EcranRapportsProps) {
 
   if (!utilisateur) return null;
 
-  const departements: DepartementRapport[] =
-    utilisateur.role === Role.RECEPTIONNISTE
-      ? ["RECEPTION"]
-      : utilisateur.role === Role.CAFETARIA
-        ? ["CAFETERIA"]
-        : ["CAFETERIA", "RECEPTION"];
+  // Le rapport d'un service que la formule de l'hôtel n'ouvre pas n'est pas proposé (le serveur le refuserait).
+  const departementsDuRole: DepartementRapport[] =
+    utilisateur.role === Role.RECEPTIONNISTE ? ["RECEPTION"] : utilisateur.role === Role.CAFETARIA ? ["CAFETERIA"] : ["CAFETERIA", "RECEPTION"];
+  const departements = departementsDuRole.filter((d) => fonctionOuverte(utilisateur.fonctions, d));
 
   const peutGenerer = (departement: DepartementRapport) =>
     utilisateur.role === Role.RECEPTIONNISTE

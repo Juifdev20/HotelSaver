@@ -1,0 +1,334 @@
+/* Paiement en ligne des acomptes (Réglages) et écran Remboursements. Que des jetons de la charte : le mode sombre suit tout seul. */
+
+/* ---------- Réglages ---------- */
+
+.pel {
+  max-width: 640px;
+}
+.pel-groupe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+  padding-top: var(--hc-space-4);
+  border-top: 1px solid var(--hc-border);
+}
+.pel-champ {
+  width: 100%;
+  min-height: 42px;
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  border: 1px solid var(--hc-border);
+  background-color: var(--hc-surface-100);
+  color: var(--hc-ink);
+  font-family: var(--hc-font-body);
+  font-size: 14px;
+}
+textarea.pel-champ {
+  resize: vertical;
+}
+.pel-champ--court {
+  width: 110px;
+}
+.pel-champ:focus,
+.remb-volet input[type="text"]:focus,
+.remb-volet textarea:focus,
+.remb-montant-champ:focus {
+  outline: none;
+  border-color: var(--hc-blue);
+  box-shadow: 0 0 0 3px var(--hc-blue-light);
+}
+.pel-champ[aria-invalid="true"],
+.remb-montant-champ[aria-invalid="true"] {
+  border-color: var(--hc-danger);
+}
+.pel-pourcentage {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+}
+.pel-exemple {
+  padding: var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  background-color: var(--hc-blue-very-light);
+  border: 1px solid var(--hc-border);
+  color: var(--hc-ink);
+}
+.pel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2);
+}
+.pel-succes {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  color: var(--hc-success);
+  font-weight: 600;
+}
+.pel-securise {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-1);
+}
+
+/* Interrupteur : une vraie case à cocher (clavier : Espace) dessinée comme un interrupteur. */
+.pel-interrupteur {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  cursor: pointer;
+}
+.pel-interrupteur input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 24px;
+  margin: 0;
+  border-radius: 12px;
+  border: 2px solid var(--hc-ink-muted);
+  background-color: var(--hc-surface-300);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.pel-interrupteur input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--hc-ink-muted);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.pel-interrupteur input[type="checkbox"]:checked {
+  background-color: var(--hc-blue);
+  border-color: var(--hc-blue);
+}
+.pel-interrupteur input[type="checkbox"]:checked::after {
+  transform: translateX(20px);
+  background-color: var(--hc-on-accent);
+}
+.pel-interrupteur input[type="checkbox"]:focus-visible {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pel-interrupteur input[type="checkbox"],
+  .pel-interrupteur input[type="checkbox"]::after {
+    transition: none;
+  }
+}
+
+/* ---------- Écran Remboursements ---------- */
+
+.remb-onglets {
+  display: flex;
+  gap: var(--hc-space-2);
+  border-bottom: 1px solid var(--hc-border);
+}
+.remb-onglet {
+  min-height: 44px;
+  padding: 0 var(--hc-space-4);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--hc-ink-muted);
+  font-family: var(--hc-font-body);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.remb-onglet:hover {
+  color: var(--hc-ink);
+}
+.remb-onglet--actif {
+  color: var(--hc-blue);
+  border-bottom-color: var(--hc-blue);
+}
+.remb-onglet:focus-visible {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: -3px;
+}
+.remb-panneau {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-4);
+}
+.remb-liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-4);
+  max-width: 760px;
+}
+.remb-succes {
+  padding: var(--hc-space-3) var(--hc-space-4);
+  border-radius: var(--hc-radius-sm);
+  background-color: var(--hc-success-light);
+  border: 1px solid var(--hc-success);
+  color: var(--hc-ink);
+  max-width: 760px;
+}
+.remb-carte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-5);
+  border: 1px solid var(--hc-border);
+  border-left: 6px solid var(--hc-warning);
+  border-radius: var(--hc-radius-lg);
+  background-color: var(--hc-surface-200);
+  color: var(--hc-ink);
+  box-shadow: var(--hc-shadow-card);
+}
+.remb-carte--fait {
+  border-left-color: var(--hc-border);
+}
+.remb-carte__entete {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--hc-space-3);
+  flex-wrap: wrap;
+}
+.remb-montants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-3) var(--hc-space-6);
+  margin: 0;
+}
+.remb-montants > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-1);
+}
+.remb-montants dt {
+  font-size: 12px;
+  color: var(--hc-ink-muted);
+}
+.remb-montants dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.remb-montant-champ {
+  width: 150px;
+  min-height: 42px;
+  padding: 0 var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  border: 1px solid var(--hc-border);
+  background-color: var(--hc-surface-100);
+  color: var(--hc-ink);
+  font-family: var(--hc-font-body);
+  font-size: 18px;
+  font-weight: 700;
+}
+.remb-destination {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-1);
+  padding: var(--hc-space-4);
+  border-radius: var(--hc-radius-md);
+  border: 2px solid var(--hc-blue);
+  background-color: var(--hc-blue-very-light);
+}
+.remb-destination__ligne {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--hc-space-3);
+}
+.remb-destination__valeur {
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+}
+.remb-lien {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  align-self: flex-start;
+  min-height: 36px;
+  color: var(--hc-blue);
+  font-weight: 600;
+}
+.remb-lien:focus-visible {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+.remb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2);
+}
+.remb-volet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+  padding: var(--hc-space-4);
+  border-radius: var(--hc-radius-md);
+  border: 1px solid var(--hc-border);
+  background-color: var(--hc-surface-300);
+}
+.remb-volet h4:focus {
+  outline: none;
+}
+.remb-volet input[type="text"],
+.remb-volet textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  border: 1px solid var(--hc-border);
+  background-color: var(--hc-surface-100);
+  color: var(--hc-ink);
+  font-family: var(--hc-font-body);
+  font-size: 14px;
+}
+.remb-modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--hc-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.remb-modes legend {
+  padding: 0;
+  margin-bottom: var(--hc-space-2);
+}
+.remb-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  min-height: 44px;
+  padding: 0 var(--hc-space-3);
+  border: 2px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background-color: var(--hc-surface-200);
+  cursor: pointer;
+}
+.remb-mode--actif {
+  border-color: var(--hc-blue);
+  background-color: var(--hc-blue-light);
+}
+.remb-mode:focus-within {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+.remb-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--hc-space-2);
+  margin-top: var(--hc-space-2);
+  cursor: pointer;
+}
+.remb-confirmation input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
