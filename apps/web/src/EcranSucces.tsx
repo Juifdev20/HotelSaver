@@ -1,34 +1,11 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { CreditCard, Download, Monitor, Phone, Smartphone, UserPlus } from "lucide-react";
+import { CreditCard, Monitor, Phone, Smartphone, UserPlus } from "lucide-react";
 import { formaterTelephoneRdc } from "@hotel-chicago/types";
 import { configuration } from "./config";
 import { MiseEnPageAuth } from "./auth/MiseEnPageAuth";
 import { OuvrirApplication } from "./accueil/OuvrirApplication";
-
-function BoutonTelechargement({ url, icone: Icone, libelle }: { url: string | null; icone: typeof Smartphone; libelle: string }) {
-  if (!url) {
-    return (
-      <span className="telechargement telechargement--bientot" aria-disabled="true">
-        <Icone size={20} aria-hidden="true" />
-        <span>
-          {libelle}
-          <small>Lien bientôt disponible</small>
-        </span>
-      </span>
-    );
-  }
-  return (
-    <a className="telechargement" href={url} rel="noopener">
-      <Icone size={20} aria-hidden="true" />
-      <span>
-        {libelle}
-        <small>Télécharger</small>
-      </span>
-      <Download size={18} aria-hidden="true" className="telechargement__fleche" />
-    </a>
-  );
-}
+import { BoutonTelechargement } from "./accueil/BoutonTelechargement";
 
 /** Le site n'a pas de session (DECISIONS.md, Phase 8) : après l'inscription, la
  * suite — se connecter, créer les comptes réception et cafétaria — se passe
@@ -82,6 +59,7 @@ export function EcranSucces({ telephone, payerMaintenant = false }: { telephone:
 
         <div className="telechargements">
           <OuvrirApplication telephone={telephone} />
+          <BoutonTelechargement url={configuration.urlAndroidApk} icone={Smartphone} libelle="Application Android (téléphone)" detail="Télécharger l'APK" />
           <BoutonTelechargement url={configuration.urlWindows} icone={Monitor} libelle="Application Windows (ordinateur)" />
         </div>
       </div>

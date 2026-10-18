@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_URL_PLAY_STORE?: string;
   readonly VITE_URL_APP_STORE?: string;
   readonly VITE_URL_WINDOWS?: string;
+  readonly VITE_URL_ANDROID_APK?: string;
   /** Page de création d'un compte ScanLinkPay (https), facultative. */
   readonly VITE_URL_SCANLINKPAY?: string;
 }

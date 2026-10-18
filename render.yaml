@@ -102,8 +102,11 @@ services:
         sync: false
       - key: VITE_URL_APP_STORE
         sync: false
+      # Téléchargements directs (GitHub Releases, version 1.0.0) — à mettre à jour à chaque nouvelle version.
       - key: VITE_URL_WINDOWS
-        sync: false
+        value: https://github.com/Juifdev20/HotelSaver/releases/download/v1.0.0/HotelSaver-Setup-1.0.0.exe
+      - key: VITE_URL_ANDROID_APK
+        value: https://github.com/Juifdev20/HotelSaver/releases/download/v1.0.0/HotelSaver-1.0.0.apk
       - key: VITE_URL_SCANLINKPAY
         sync: false
       - key: VITE_TURNSTILE_SITE_KEY

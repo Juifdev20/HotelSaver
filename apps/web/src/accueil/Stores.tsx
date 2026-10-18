@@ -1,9 +1,10 @@
 import * as React from "react";
 import { useState } from "react";
-import { BellRing, Cloud, ShieldCheck } from "lucide-react";
+import { BellRing, Cloud, Monitor, ShieldCheck, Smartphone } from "lucide-react";
 import { configuration } from "../config";
 import { Apparition } from "./animations";
 import { MaquetteTelephone } from "./MaquetteTelephone";
+import { BoutonTelechargement } from "./BoutonTelechargement";
 
 interface BoutonStoreProps {
   /** Lien de la fiche de l'application (variable VITE_URL_*) ; null = pas encore publiée. */
@@ -59,6 +60,21 @@ const ATOUTS = [
   { icone: BellRing, titre: "Toujours à jour", texte: "Vos chambres et réservations en direct." },
 ];
 
+/** Téléchargement direct (GitHub Releases) : APK Android tant que l'application n'est pas sur le Play Store, installateur
+ * Windows. Masqué tant qu'aucun lien n'est renseigné (VITE_URL_ANDROID_APK, VITE_URL_WINDOWS). */
+function TelechargementsDirects() {
+  if (!configuration.urlAndroidApk && !configuration.urlWindows) return null;
+  return (
+    <div className="telechargements-directs">
+      <p className="telechargements-directs__titre">Téléchargement direct</p>
+      <div className="telechargements">
+        {configuration.urlAndroidApk && <BoutonTelechargement url={configuration.urlAndroidApk} icone={Smartphone} libelle="Android (téléphone)" detail="Télécharger l'APK" />}
+        {configuration.urlWindows && <BoutonTelechargement url={configuration.urlWindows} icone={Monitor} libelle="Windows (ordinateur)" detail="Télécharger l'installateur" />}
+      </div>
+    </div>
+  );
+}
+
 /** Section « Téléchargez notre application mobile » de la page d'accueil. */
 export function SectionApplication() {
   return (
@@ -71,6 +87,7 @@ export function SectionApplication() {
           </h2>
           <p>Gérez votre réception, votre cafétaria et vos réservations directement depuis votre smartphone, où que vous soyez.</p>
           <BoutonsStores />
+          <TelechargementsDirects />
           <ul className="application__atouts">
             {ATOUTS.map(({ icone: Icone, titre, texte }) => (
               <li key={titre}>

@@ -12,7 +12,8 @@ const PACKAGE_ANDROID = "com.hotelsaver.app";
  * (connexion par numéro, 15/10/2026). */
 function lienApplication(telephone?: string): { direct: string; android: string } {
   const requete = telephone ? `?telephone=${encodeURIComponent(telephone)}` : "";
-  const repli = configuration.urlPlayStore ? `S.browser_fallback_url=${encodeURIComponent(configuration.urlPlayStore)};` : "";
+  const lienAndroid = configuration.urlPlayStore ?? configuration.urlAndroidApk;
+  const repli = lienAndroid ? `S.browser_fallback_url=${encodeURIComponent(lienAndroid)};` : "";
   return {
     direct: `hotelsaver://connexion${requete}`,
     // Chrome Android : ouvre l'application si elle est installée, sinon la fiche du Play Store.

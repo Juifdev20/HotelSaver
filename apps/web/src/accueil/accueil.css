@@ -1570,3 +1570,16 @@ html {
   outline: 3px solid var(--hc-info);
   outline-offset: 2px;
 }
+
+/* Téléchargement direct sous les badges des stores (accueil). */
+.telechargements-directs {
+  margin-top: 18px;
+}
+.telechargements-directs__titre {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hc-ink-muted);
+}
