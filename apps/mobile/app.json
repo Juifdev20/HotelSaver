@@ -3,7 +3,7 @@
     "name": "HotelSaver",
     "slug": "hotelsaver",
     "scheme": "hotelsaver",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -20,7 +20,8 @@
         "backgroundImage": "./assets/android-icon-background.png"
       },
       "predictiveBackGestureEnabled": false,
-      "allowBackup": false
+      "allowBackup": false,
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"

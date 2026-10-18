@@ -32,6 +32,44 @@ const { Client } = require("pg");
 
 const DOSSIER_MIGRATIONS = path.join(__dirname, "..", "prisma", "migrations");
 const verifierSeulement = process.argv.includes("--verifier");
+// --marquer <nom> : enregistre une migration comme appliquée SANS l'exécuter (équivalent de `prisma migrate resolve --applied`),
+// seulement après avoir vérifié à la main que ses objets existent déjà et sont identiques à ceux de Test (voir DECISIONS.md, 18/10/2026).
+const indexMarquer = process.argv.indexOf("--marquer");
+const aMarquer = indexMarquer >= 0 ? process.argv[indexMarquer + 1] : null;
+
+function nouveauClient() {
+  return new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 30_000 });
+}
+
+/** La migration est-elle enregistrée et terminée ? Lu sur une connexion NEUVE (l'ancienne a pu être coupée). */
+async function migrationEnregistree(nom) {
+  const c = nouveauClient();
+  await c.connect();
+  try {
+    const { rows } = await c.query('SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1 AND finished_at IS NOT NULL AND rolled_back_at IS NULL', [nom]);
+    return rows.length > 0;
+  } finally {
+    await c.end();
+  }
+}
+
+async function marquer(nom) {
+  const m = lireMigrationsLocales().find((x) => x.nom === nom);
+  if (!m) throw new Error(`Migration inconnue : ${nom} (dossier absent de prisma/migrations).`);
+  const c = nouveauClient();
+  await c.connect();
+  try {
+    const { rows } = await c.query('SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1', [nom]);
+    if (rows.length > 0) return console.log(`Déjà enregistrée : ${nom}`);
+    await c.query(
+      'INSERT INTO "_prisma_migrations" (id, checksum, migration_name, started_at, finished_at, applied_steps_count, logs) VALUES ($1, $2, $3, now(), now(), 1, $4)',
+      [crypto.randomUUID(), m.checksum, nom, "Marquée appliquée à la main (--marquer) : objets déjà présents, vérifiés."],
+    );
+    console.log(`Enregistrée comme appliquée : ${nom}`);
+  } finally {
+    await c.end();
+  }
+}
 
 function lireMigrationsLocales() {
   return fs
@@ -49,6 +87,10 @@ function lireMigrationsLocales() {
 async function main() {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL manquant — copier .env.example en .env dans packages/database.");
+  }
+  if (indexMarquer >= 0) {
+    if (!aMarquer) throw new Error("Usage : --marquer <nom de la migration>");
+    return marquer(aMarquer);
   }
 
   const locales = lireMigrationsLocales();
@@ -107,21 +149,27 @@ async function main() {
     for (const m of aAppliquer) {
       console.log(`\nApplication de ${m.nom}...`);
       const id = crypto.randomUUID();
-      await client.query("BEGIN");
+      // UN SEUL message (protocole simple) : BEGIN, trace, SQL, fin de trace, COMMIT. Avant (18/10/2026), cinq messages séparés
+      // à travers le pooler : une coupure réseau entre deux d'entre eux a laissé en Prod les objets créés SANS la trace. Ainsi,
+      // objets et trace existent ensemble ou pas du tout. id / checksum / nom ne contiennent que [0-9a-z_-] : rien à échapper.
+      if (!/^[0-9a-z_-]+$/i.test(m.nom)) throw new Error(`Nom de migration inattendu : ${m.nom}`);
+      const tout =
+        `BEGIN;\n` +
+        `INSERT INTO "_prisma_migrations" (id, checksum, migration_name, started_at) VALUES ('${id}', '${m.checksum}', '${m.nom}', now());\n` +
+        `${m.sql}\n;\n` +
+        `UPDATE "_prisma_migrations" SET finished_at = now(), applied_steps_count = 1 WHERE id = '${id}';\n` +
+        `COMMIT;`;
       try {
-        await client.query(
-          'INSERT INTO "_prisma_migrations" (id, checksum, migration_name, started_at) VALUES ($1, $2, $3, now())',
-          [id, m.checksum, m.nom],
-        );
-        await client.query(m.sql);
-        await client.query(
-          'UPDATE "_prisma_migrations" SET finished_at = now(), applied_steps_count = 1 WHERE id = $1',
-          [id],
-        );
-        await client.query("COMMIT");
+        await client.query(tout);
         console.log(`  OK : ${m.nom}`);
       } catch (erreur) {
-        await client.query("ROLLBACK");
+        await client.query("ROLLBACK").catch(() => undefined);
+        // Coupure APRÈS le COMMIT côté serveur : la réponse s'est perdue mais tout est appliqué. On relit (nouvelle connexion).
+        const appliquee = await migrationEnregistree(m.nom).catch(() => null);
+        if (appliquee) {
+          console.log(`  OK (confirmé après coupure de la réponse) : ${m.nom}`);
+          continue;
+        }
         throw new Error(`Échec de ${m.nom} (transaction annulée, rien d'enregistré) : ${erreur.message}`);
       }
     }

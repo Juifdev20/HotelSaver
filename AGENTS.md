@@ -87,6 +87,8 @@ build Android exige `JAVA_HOME=C:\Program Files\Java\jdk-21.0.12` et
 - Migrations : `prisma migrate deploy/status` échouent via ce pooler. Utiliser
   `pnpm --filter @hotel-chicago/database migrate:verifier` puis
   `migrate:appliquer` (script `pg` brut compatible `_prisma_migrations`).
+  Chaque migration part en UN seul message (objets + trace ensemble ou rien, même si le réseau coupe) ; après une coupure, le
+  script relit l'état. Objets présents mais migration non enregistrée (vérifiés identiques à Test) : `--marquer <nom>`.
   Créer une migration : SQL écrit à la main (ou `prisma migrate diff`), contrôlé
   sur une base locale jetable puis sur Test. Super-admin d'un projet :
   `MOT_DE_PASSE='…' pnpm --filter @hotel-chicago/database creer-super-admin <tél> "<nom>"` (`-- --prod --oui-prod` pour Prod).

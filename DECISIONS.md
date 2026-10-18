@@ -3722,3 +3722,20 @@ toujours** : des essais abandonnés pouvaient remplir la base et le stockage pou
 - **Vérifié sur Test** (API locale) : 3e inscription du jour → 429 ; 11e chambre refusée avec le message ; état d'abonnement avec
   date de suppression (18/10 + 14 + 3 + 10 = 14/11) et plafonds ; hôtel vieilli → supprimé par la vraie tâche (hôtel, utilisateur,
   chambres, compte, trace) ; réinscription avec le même numéro → `essaiGratuit: false`, accès bloqué (402), paiement possible.
+
+## 18/10/2026 — Version 1.0.1 des applications et migrations résistantes aux coupures
+
+- **Applications 1.0.1** (installateur Windows et APK, versionCode 2) : elles portent la protection contre les essais abusifs
+  côté appareil — identifiant d'appareil envoyé à l'inscription (`X-Appareil`), plafonds de l'essai appliqués hors ligne, date de
+  suppression annoncée sur l'écran « abonnement expiré ». Même clé de signature que la 1.0.0 : l'APK s'installe PAR-DESSUS
+  (« Mettre à jour », vérifié sur le téléphone de test avec `adb install -r`), sans désinstaller ni perdre de données.
+- **Fichier abîmé au téléchargement** : sur le téléphone, l'APK 1.0.0 avait la bonne taille mais un contenu différent (empreinte
+  `11ac…` au lieu de `c42a…`) → « le paquet semble ne pas être valide ». Le fichier sur GitHub était intact. Cause : la connexion
+  (ou le mode économie de données du navigateur), pas l'application. Conseil aux hôtels : retélécharger en Wi-Fi, sans mode
+  économie de données, et vérifier les 63 Mo.
+- **Migrations** (`scripts/appliquer-migrations.js`) : la migration de Prod du 18/10 avait laissé les objets créés SANS la trace
+  (coupure réseau entre deux des cinq messages envoyés au pooler) ; réparée en vérifiant les objets identiques à Test puis en
+  enregistrant la trace. Désormais BEGIN, trace, SQL, fin de trace et COMMIT partent en UN SEUL message : tout ou rien. Après une
+  erreur, le script relit l'état sur une nouvelle connexion (« appliquée malgré la coupure de la réponse »). Nouvelle option
+  `--marquer <nom>` pour enregistrer à la main une migration déjà présente et vérifiée. Testé sur Test : migration valide
+  appliquée et tracée ; migration en erreur entièrement annulée (aucune table, aucune trace).
