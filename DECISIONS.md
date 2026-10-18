@@ -3627,3 +3627,37 @@ logos des réseaux Mobile Money, étapes claires, récapitulatif, professionnel 
 - **Aucune logique changée** (suivi du paiement, aperçu des frais ScanLinkPay, reprise d'un paiement en cours) ; textes, libellés et
   `data-testid` lus par `navigateur-abonnement.e2e-spec.ts` conservés. Historique : une saisie du support sans formule ni durée affiche
   « Paiement manuel » au lieu de « · 0 mois ».
+
+## 18/10/2026 — Déploiement Render (render.yaml), sans domaine propre pour l'instant
+
+Le déploiement prévu en « Phase 8 » (section « render.yaml », reporté le 27/09) est fait par un **Blueprint** : `render.yaml` à
+la racine décrit trois services, créés d'un coup par « New → Blueprint ».
+
+- **hotelsaver-api** (Web Service Node, Starter, Frankfurt — au plus près de Supabase eu-west-1) : projet Supabase **Prod**,
+  santé sur `/health`, démarrage `node apps/api/dist/main.js`. Starter plutôt que gratuit : l'offre gratuite s'endort après
+  15 min (première requête ~50 s) et arrête les tâches planifiées (rappels d'abonnement, rapports mensuels).
+- **hotelsaver-site** (Static Site, gratuit) : vitrine HotelSaver **et** site de chaque hôtel — une seule application qui lit
+  l'adresse. Réécriture `/* → /index.html` (application d'une seule page).
+- **hotelsaver-admin** (Static Site, gratuit) : portail super-admin, `X-Frame-Options: DENY`.
+- Ni le bureau ni le mobile ne vont sur Render : ils sont **construits** avec l'adresse de l'API et le projet Supabase Prod
+  (`MAIN_VITE_*`, `EXPO_PUBLIC_*`), puis distribués.
+
+**Sans domaine** : chaque service a une adresse `https://<nom>.onrender.com`. La vitrine s'affiche sur l'adresse du site (aucun
+hôtel ne s'appelle « hotelsaver-site ») et les sites d'hôtels marchent par `?hotel=<sous-domaine>` — c'est déjà le lien
+que construit l'API (`urlSiteHotel`). Avec le domaine viendront `domaine`, `*.domaine` (site), `api.` et `admin.` ; il faudra
+alors changer `CORS_ORIGIN`, `SITE_WEB_URL`, `VITE_API_URL`, les URL de redirection Supabase et reconstruire bureau et mobile.
+
+**Pièges évités dans les commandes de build** (vérifiées en local avec les mêmes filtres) :
+- installation filtrée `--filter "@hotel-chicago/<app>..."` : l'application et ses paquets seulement, ni Electron ni Expo ;
+- `virtualStoreDir: C:/.pnpm-hc` (pnpm-workspace.yaml, pour le build Android sous Windows) est retiré par `sed` dans la copie
+  de Render — chaque build part d'un clone neuf ;
+- Render pose `NODE_ENV=production` aussi pendant le build : `--production=false` pour garder TypeScript et Prisma
+  (devDependencies) côté API ;
+- l'API met ~20 s à charger ses modules sur ce PC Windows avant d'écouter : rien d'anormal, la vérification de santé de Render
+  attend le démarrage.
+
+**Variables à saisir dans Render** (`sync: false`, jamais dans le dépôt) : `DATABASE_URL` (Prod, pooler 6543),
+`SUPABASE_SERVICE_ROLE_KEY` (Prod), `LINKPAY_API_URL`, `LINKPAY_NUMERO_MARCHAND`, `LINKPAY_SITE_URL` ; facultatives :
+`TURNSTILE_SECRET` (+ `VITE_TURNSTILE_SITE_KEY` du site), `FIREBASE_SERVICE_ACCOUNT_JSON`, `RENDER_API_KEY` +
+`RENDER_WEB_SERVICE_ID` (domaines personnalisés : l'identifiant du service **hotelsaver-site**, que visent les domaines des
+hôtels), liens des stores (`VITE_URL_*`). L'URL et la clé anon Supabase Prod sont publiques : écrites dans `render.yaml`.

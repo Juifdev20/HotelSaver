@@ -1,0 +1,146 @@
+# Déploiement Render (18/10/2026) — « New → Blueprint » sur ce dépôt crée les trois services d'un coup.
+# Voir DECISIONS.md (« Déploiement Render ») pour la liste des variables à remplir et l'ordre des étapes.
+#
+# Sans domaine propre pour l'instant : chaque service reçoit une adresse https://<nom>.onrender.com. Si Render
+# ajoute un suffixe parce que le nom est déjà pris, reporter la vraie adresse dans CORS_ORIGIN / SITE_WEB_URL (API)
+# et VITE_API_URL (sites), puis redéployer. Les sites des hôtels marchent déjà via https://<site>/?hotel=<sous-domaine>
+# (lien construit par l'API, urlSiteHotel) ; les sous-domaines <hotel>.<domaine> viendront avec le domaine.
+#
+# Installation filtrée (`--filter <app>...`) : seulement l'application et ses paquets du monorepo — ni Electron ni
+# Expo. Le `sed` retire de la copie de Render le chemin Windows de pnpm-workspace.yaml (virtualStoreDir: C:/.pnpm-hc,
+# utile seulement au build Android sous Windows) ; chaque build part d'un clone neuf, le dépôt n'est pas modifié.
+# API : NODE_ENV=production est aussi posé pendant le build, d'où --production=false (sinon pnpm saute TypeScript
+# et Prisma, outils de build en devDependencies). Valeurs `sync: false` : secrets à saisir dans le tableau de bord,
+# jamais dans ce fichier.
+
+services:
+  # ---------------------------------------------------------------- API (NestJS) — projet Supabase « Hotelsaver Prod »
+  - type: web
+    name: hotelsaver-api
+    runtime: node
+    region: frankfurt
+    plan: starter
+    branch: master
+    buildCommand: >-
+      corepack enable &&
+      sed -i "/^virtualStoreDir:/d" pnpm-workspace.yaml &&
+      pnpm install --frozen-lockfile --production=false --filter "@hotel-chicago/api..." &&
+      pnpm --filter "@hotel-chicago/api..." run build
+    startCommand: node apps/api/dist/main.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      # Supabase Prod : pooler en mode transaction (6543), sans ?pgbouncer=true.
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        value: https://axeznwmwupcgmhuajvte.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4ZXpud213dXBjZ21odWFqdnRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjc4NTQsImV4cCI6MjEwNzg0Mzg1NH0.I8rPaUk91q7uh6WCHIhLINH6F0MqeuFepszsrM8zDGY
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Sites autorisés à appeler les routes authentifiées (les routes /public/* acceptent toute origine : sites d'hôtels).
+      - key: CORS_ORIGIN
+        value: https://hotelsaver-site.onrender.com,https://hotelsaver-admin.onrender.com
+      # Base des liens envoyés aux clients (suivi de réservation, mot de passe oublié, page « Payer »).
+      - key: SITE_WEB_URL
+        value: https://hotelsaver-site.onrender.com
+      # ScanLinkPay (paiements Mobile Money / carte).
+      - key: LINKPAY_API_URL
+        sync: false
+      - key: LINKPAY_NUMERO_MARCHAND
+        sync: false
+      - key: LINKPAY_SITE_URL
+        sync: false
+      # Facultatifs : CAPTCHA du site, notifications push, domaines personnalisés des hôtels (API Render).
+      - key: TURNSTILE_SECRET
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: RENDER_API_KEY
+        sync: false
+      - key: RENDER_WEB_SERVICE_ID
+        sync: false
+
+  # ---------------------------------------------------------------- Site public : vitrine HotelSaver + site de chaque hôtel
+  - type: web
+    name: hotelsaver-site
+    runtime: static
+    branch: master
+    buildCommand: >-
+      corepack enable &&
+      sed -i "/^virtualStoreDir:/d" pnpm-workspace.yaml &&
+      pnpm install --frozen-lockfile --filter "@hotel-chicago/web..." &&
+      pnpm --filter "@hotel-chicago/web..." run build
+    staticPublishPath: apps/web/dist
+    autoDeploy: true
+    # Application d'une seule page : toute adresse (/payer, /suivi/…, /menu…) sert index.html.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: VITE_API_URL
+        value: https://hotelsaver-api.onrender.com
+      - key: VITE_URL_PLAY_STORE
+        sync: false
+      - key: VITE_URL_APP_STORE
+        sync: false
+      - key: VITE_URL_WINDOWS
+        sync: false
+      - key: VITE_URL_SCANLINKPAY
+        sync: false
+      - key: VITE_TURNSTILE_SITE_KEY
+        sync: false
+
+  # ---------------------------------------------------------------- Portail super-admin
+  - type: web
+    name: hotelsaver-admin
+    runtime: static
+    branch: master
+    buildCommand: >-
+      corepack enable &&
+      sed -i "/^virtualStoreDir:/d" pnpm-workspace.yaml &&
+      pnpm install --frozen-lockfile --filter "@hotel-chicago/super-admin..." &&
+      pnpm --filter "@hotel-chicago/super-admin..." run build
+    staticPublishPath: apps/super-admin/dist
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: VITE_API_URL
+        value: https://hotelsaver-api.onrender.com
+      - key: VITE_SUPABASE_URL
+        value: https://axeznwmwupcgmhuajvte.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4ZXpud213dXBjZ21odWFqdnRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjc4NTQsImV4cCI6MjEwNzg0Mzg1NH0.I8rPaUk91q7uh6WCHIhLINH6F0MqeuFepszsrM8zDGY
