@@ -245,6 +245,20 @@ export default function App() {
     }
   }
 
+  /** Paiements d'un hôtel (annulés compris) et annulation d'une saisie manuelle (17/10/2026). */
+  async function listerPaiements(hotelId: string) {
+    if (!client) throw new Error("Session expirée : reconnectez-vous.");
+    return client.listerPaiements(hotelId);
+  }
+
+  async function annulerPaiement(hotelId: string, paiementId: string, motif: string) {
+    if (!client) throw new Error("Session expirée : reconnectez-vous.");
+    const liste = await client.annulerPaiement(hotelId, paiementId, motif);
+    // Validité et statut ont pu changer : la liste des hôtels se met à jour derrière la fenêtre.
+    void chargerHotels(client);
+    return liste;
+  }
+
   async function enregistrerPaiement(hotelId: string, dto: DonneesEnregistrementPaiement): Promise<boolean> {
     if (!client) return false;
     setErreurPaiement(null);
@@ -379,6 +393,8 @@ export default function App() {
       domaineEnCours={domaineEnCours}
       erreurDomaine={erreurDomaine}
       onModifierPatron={modifierPatron}
+      onListerPaiements={listerPaiements}
+      onAnnulerPaiement={annulerPaiement}
       patronEnCours={patronEnCours}
       erreurPatron={erreurPatron}
       onDeconnexion={seDeconnecter}

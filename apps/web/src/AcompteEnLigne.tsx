@@ -13,7 +13,10 @@ import type {
   PaiementReservationVue,
   StatutSuiviPublic,
 } from "@hotel-chicago/types";
+import { CircleCheck, CircleX, CreditCard, Lock, ShieldCheck, Smartphone, Wallet } from "lucide-react";
 import { Captcha, captchaActif } from "./Captcha";
+import { LogoOperateur, LogosCartes, LogosMobileMoney } from "./paiement/LogosPaiement";
+import { CarteChoix } from "./paiement/CarteChoix";
 import { configuration } from "./config";
 import { lienHttps } from "./liensSurs";
 
@@ -47,28 +50,6 @@ const chronometre = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padSt
 function libelleMoyen(p: PaiementReservationVue): string {
   if (p.moyen === "CARTE") return "carte bancaire";
   return p.operateur ? OPERATEURS_MOBILE_MONEY[p.operateur].libelle : "Mobile Money";
-}
-
-interface CarteChoixProps {
-  name: string;
-  value: string;
-  checked: boolean;
-  onChange: () => void;
-  titre: string;
-  detail?: string;
-}
-
-/** Carte à cocher : un vrai bouton radio (clavier, flèches, lecteur d'écran) habillé en carte. */
-function CarteChoix({ name, value, checked, onChange, titre, detail }: CarteChoixProps) {
-  return (
-    <label className={`acompte-choix ${checked ? "acompte-choix--actif" : ""}`}>
-      <input type="radio" className="acompte-choix__radio" name={name} value={value} checked={checked} onChange={onChange} />
-      <span className="acompte-choix__corps">
-        <strong>{titre}</strong>
-        {detail && <small>{detail}</small>}
-      </span>
-    </label>
-  );
 }
 
 export interface AcompteEnLigneProps {
@@ -267,34 +248,73 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
 
   const formulaireVisible = etat.phase === "saisie" && formulaireOuvert && acompte.disponible;
 
+  const progression = acompte.objectif > 0 ? Math.min(100, Math.round((acompte.dejaPaye / acompte.objectif) * 100)) : 0;
+  const operateurDetecte = moyenActif === "MOBILE_MONEY" ? operateur : null;
+
   return (
     <section className="suivi-carte acompte" aria-labelledby={idTitre}>
-      <h3 id={idTitre} className="suivi-sous-titre">
-        Acompte en ligne
-      </h3>
+      <div className="acompte-tete">
+        <span className="acompte-tete__icone" aria-hidden="true">
+          <Wallet size={22} />
+        </span>
+        <div>
+          <h2 id={idTitre} className="acompte-tete__titre">
+            Acompte
+          </h2>
+          <p>
+            L'hôtel demande <strong>{acompte.pourcentage} %</strong> du séjour pour garantir votre chambre.
+          </p>
+        </div>
+      </div>
 
-      <p className="acompte-resume">
-        L'hôtel demande un acompte de <strong>{acompte.pourcentage} %</strong> : <strong>{fmt(acompte.objectif)}</strong>. Déjà payé :{" "}
-        <strong>{fmt(acompte.dejaPaye)}</strong>. Reste : <strong>{fmt(acompte.reste)}</strong>.
-      </p>
+      <div className="acompte-progression">
+        <div className="acompte-progression__chiffres">
+          <div>
+            <span>Déjà payé</span>
+            <strong>{fmt(acompte.dejaPaye)}</strong>
+          </div>
+          <div className="acompte-progression__reste">
+            <span>Reste à payer</span>
+            <strong>{fmt(acompte.reste)}</strong>
+          </div>
+        </div>
+        <div
+          className="acompte-progression__barre"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progression}
+          aria-label={`Acompte payé à ${progression} %`}
+        >
+          <span style={{ width: `${progression}%` }} />
+        </div>
+        <p className="acompte-progression__objectif">Acompte demandé : {fmt(acompte.objectif)}</p>
+      </div>
+
       {acompte.nomMarchand && (
         <p className="acompte-marchand">
-          Vous payez à : <strong>{acompte.nomMarchand}</strong> (via ScanLinkPay)
+          <ShieldCheck size={17} aria-hidden="true" />
+          <span>
+            Vous payez à <strong>{acompte.nomMarchand}</strong>, en toute sécurité via ScanLinkPay.
+          </span>
         </p>
       )}
 
       {acompte.conditionsAnnulation && (
-        <div className="acompte-conditions" role="note">
-          <h4>Conditions d'annulation et de remboursement</h4>
+        <details className="acompte-conditions">
+          <summary>Conditions d'annulation et de remboursement</summary>
           <p>{acompte.conditionsAnnulation}</p>
-        </div>
+        </details>
       )}
 
       {paiementsReussis.length > 0 && (
         <ul className="acompte-historique" aria-label="Paiements reçus">
           {paiementsReussis.map((p) => (
             <li key={p.id}>
-              ✓ {fmt(p.montant)} reçus{p.confirmeLe ? ` le ${dateAbonnement(p.confirmeLe)}` : ""} ({libelleMoyen(p)})
+              <CircleCheck size={17} aria-hidden="true" />
+              <span>
+                <strong>{fmt(p.montant)}</strong> reçus{p.confirmeLe ? ` le ${dateAbonnement(p.confirmeLe)}` : ""} · {libelleMoyen(p)}
+              </span>
             </li>
           ))}
         </ul>
@@ -330,18 +350,28 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
 
       {/* Écran du paiement : zone annoncée aux lecteurs d'écran à chaque changement, et le focus y est ramené à chaque étape (attente, réussite, échec). */}
       <div ref={panneau} tabIndex={-1} className="acompte-panneau" aria-live="polite">
-        {etat.phase === "envoi" && <p className="acompte-attente">Envoi de votre demande de paiement…</p>}
+        {etat.phase === "envoi" && (
+          <div className="acompte-etat acompte-etat--attente">
+            <span className="acompte-etat__rond" aria-hidden="true">
+              <span className="acompte-spinner" />
+            </span>
+            <p>Envoi de votre demande de paiement…</p>
+          </div>
+        )}
 
         {etat.phase === "attente" && !attenteCarte && (
-          <div className="acompte-attente">
-            <h4>Confirmez le paiement sur votre téléphone</h4>
+          <div className="acompte-etat acompte-etat--attente">
+            <span className="acompte-etat__rond" aria-hidden="true">
+              <Smartphone size={26} />
+            </span>
+            <h3>Confirmez le paiement sur votre téléphone</h3>
             <p>
-              Une demande de paiement de <strong>{etat.paiement ? fmt(etat.paiement.total ?? etat.paiement.montant) : fmt(acompte.reste)}</strong> a été
+              Une demande de <strong>{etat.paiement ? fmt(etat.paiement.total ?? etat.paiement.montant) : fmt(acompte.reste)}</strong> a été
               envoyée{etat.paiement?.telephoneMasque ? ` au ${etat.paiement.telephoneMasque}` : " à votre téléphone"}. Saisissez votre code secret
-              Mobile Money pour valider… Ne quittez pas cette page.
+              Mobile Money pour valider. Ne quittez pas cette page.
             </p>
             <p className="acompte-chrono" aria-hidden="true">
-              En attente depuis {chronometre(etat.secondes)}
+              <span className="acompte-spinner acompte-spinner--petit" /> En attente depuis {chronometre(etat.secondes)}
             </p>
             {etat.lent && (
               <div className="acompte-conseils">
@@ -365,18 +395,20 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
         )}
 
         {etat.phase === "attente" && attenteCarte && (
-          <div className="acompte-attente">
+          <div className="acompte-etat acompte-etat--attente">
+            <span className="acompte-etat__rond" aria-hidden="true">
+              <CreditCard size={26} />
+            </span>
             {redirigeVers ? (
               <>
-                <h4>Redirection vers la page de paiement sécurisée…</h4>
+                <h3>Redirection vers la page de paiement sécurisée…</h3>
                 <p>
-                  Vous allez saisir votre carte sur la page sécurisée de paiement.{" "}
-                  <a href={redirigeVers}>Cliquez ici si rien ne se passe</a>.
+                  Vous allez saisir votre carte sur la page sécurisée de paiement. <a href={redirigeVers}>Cliquez ici si rien ne se passe</a>.
                 </p>
               </>
             ) : (
               <>
-                <h4>Vérification de votre paiement…</h4>
+                <h3>Vérification de votre paiement…</h3>
                 <p>Nous attendons la confirmation de votre banque. Cela ne prend généralement que quelques instants.</p>
                 {urlCarte && (
                   <p>
@@ -397,8 +429,11 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
         )}
 
         {etat.phase === "reussi" && (
-          <div className="acompte-succes">
-            <h4>Merci, votre acompte est bien reçu !</h4>
+          <div className="acompte-etat acompte-etat--succes">
+            <span className="acompte-etat__rond" aria-hidden="true">
+              <CircleCheck size={28} />
+            </span>
+            <h3>Merci, votre acompte est bien reçu !</h3>
             <p>
               Nous avons bien reçu {montantPaye}.{" "}
               {statutReservation === "CONFIRMEE" ? "Votre réservation est confirmée." : "L'hôtel est prévenu et vous confirmera votre réservation."}
@@ -407,8 +442,11 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
         )}
 
         {etat.phase === "echec" && (
-          <div className="acompte-echec">
-            <h4>Le paiement n'a pas abouti</h4>
+          <div className="acompte-etat acompte-etat--echec">
+            <span className="acompte-etat__rond" aria-hidden="true">
+              <CircleX size={28} />
+            </span>
+            <h3>Le paiement n'a pas abouti</h3>
             <p>{etat.message ?? "Le paiement n'a pas abouti."} Rien n'a été débité si le paiement n'a pas été confirmé.</p>
             <button type="button" className="hotel-bouton hotel-bouton--primaire" onClick={reessayer}>
               Réessayer
@@ -419,9 +457,16 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
         {etat.phase === "saisie" && !formulaireVisible && (
           <>
             {acompte.disponible ? (
-              <button type="button" className="hotel-bouton hotel-bouton--primaire acompte-bouton-payer" onClick={ouvrirFormulaire}>
-                Payer l'acompte
-              </button>
+              <div className="acompte-appel">
+                <button type="button" className="acompte-bouton-payer" onClick={ouvrirFormulaire}>
+                  <Lock size={18} aria-hidden="true" />
+                  Payer l'acompte · {fmt(acompte.reste)}
+                </button>
+                <div className="acompte-appel__moyens">
+                  {acompte.moyens.mobileMoney && <LogosMobileMoney taille={24} />}
+                  {acompte.moyens.carte && <LogosCartes taille={24} />}
+                </div>
+              </div>
             ) : (
               acompte.indisponibleRaison && <p className="acompte-indisponible">{acompte.indisponibleRaison}</p>
             )}
@@ -431,14 +476,14 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
 
       {formulaireVisible && (
         <form className="acompte-formulaire" onSubmit={envoyer} noValidate aria-labelledby={idTitreForm}>
-          <h4 id={idTitreForm} ref={titreFormulaire} tabIndex={-1}>
+          <h3 id={idTitreForm} ref={titreFormulaire} tabIndex={-1} className="acompte-formulaire__titre">
             Payer l'acompte
-          </h4>
+          </h3>
 
           {moyensDispos.length > 1 ? (
             <fieldset className="acompte-groupe" role="radiogroup" aria-labelledby={idMoyen}>
-              <legend id={idMoyen}>Comment voulez-vous payer ?</legend>
-              <div className="acompte-choix-liste">
+              <legend id={idMoyen}>1. Comment voulez-vous payer ?</legend>
+              <div className="acompte-moyens">
                 {acompte.moyens.mobileMoney && (
                   <CarteChoix
                     name={idMoyen}
@@ -447,6 +492,7 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
                     onChange={() => setMoyen("MOBILE_MONEY")}
                     titre="Mobile Money"
                     detail="M-Pesa, Airtel Money, Orange Money, Africell"
+                    visuel={<LogosMobileMoney taille={26} />}
                   />
                 )}
                 {acompte.moyens.carte && (
@@ -457,21 +503,25 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
                     onChange={() => setMoyen("CARTE")}
                     titre="Carte bancaire"
                     detail="Visa, Mastercard"
+                    visuel={<LogosCartes taille={26} />}
                   />
                 )}
               </div>
             </fieldset>
           ) : (
             <p className="acompte-moyen-unique">
-              Moyen de paiement : <strong>{moyenActif === "CARTE" ? "carte bancaire (Visa, Mastercard)" : "Mobile Money"}</strong>
+              {moyenActif === "CARTE" ? <LogosCartes taille={24} /> : <LogosMobileMoney taille={24} />}
+              <span>
+                Paiement par <strong>{moyenActif === "CARTE" ? "carte bancaire (Visa, Mastercard)" : "Mobile Money"}</strong>
+              </span>
             </p>
           )}
 
           {moyenActif === "MOBILE_MONEY" && (
             <>
               <fieldset className="acompte-groupe" role="radiogroup" aria-labelledby={idReseau}>
-                <legend id={idReseau}>Votre réseau Mobile Money</legend>
-                <div className="acompte-choix-liste acompte-choix-liste--reseaux">
+                <legend id={idReseau}>{moyensDispos.length > 1 ? "2. " : ""}Votre réseau Mobile Money</legend>
+                <div className="acompte-reseaux">
                   {LISTE_OPERATEURS.map((op) => (
                     <CarteChoix
                       key={op}
@@ -483,28 +533,36 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
                         setOperateurChoisiAMain(true);
                       }}
                       titre={OPERATEURS_MOBILE_MONEY[op].libelle}
+                      visuel={<LogoOperateur operateur={op} taille={40} />}
+                      compact
                     />
                   ))}
                 </div>
               </fieldset>
 
-              <label className="label" htmlFor={idTel}>
-                Votre numéro Mobile Money
+              <label className="label acompte-label" htmlFor={idTel}>
+                {moyensDispos.length > 1 ? "3. " : ""}Votre numéro Mobile Money
               </label>
-              <input
-                id={idTel}
-                ref={champTelephone}
-                className="champ"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel"
-                placeholder="0828 497 218"
-                value={telephone}
-                onChange={(e) => surTelephone(e.target.value)}
-                onBlur={() => telephone.trim() !== "" && setTouche(true)}
-                aria-invalid={afficherProbleme}
-                aria-describedby={idTelAide}
-              />
+              <div className={`acompte-tel ${afficherProbleme ? "acompte-tel--erreur" : ""}`}>
+                <span className="acompte-tel__prefixe" aria-hidden="true">
+                  {operateurDetecte ? <LogoOperateur operateur={operateurDetecte} taille={26} /> : <Smartphone size={20} />}
+                  <span>+243</span>
+                </span>
+                <input
+                  id={idTel}
+                  ref={champTelephone}
+                  className="acompte-tel__saisie"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  placeholder="0828 497 218"
+                  value={telephone}
+                  onChange={(e) => surTelephone(e.target.value)}
+                  onBlur={() => telephone.trim() !== "" && setTouche(true)}
+                  aria-invalid={afficherProbleme}
+                  aria-describedby={idTelAide}
+                />
+              </div>
               <p id={idTelAide} className={afficherProbleme ? "erreur acompte-aide" : "acompte-aide"} role={afficherProbleme ? "alert" : undefined}>
                 {afficherProbleme ? problemeTel : "C'est sur ce numéro que vous recevrez la demande de confirmation."}
               </p>
@@ -513,81 +571,102 @@ export function AcompteEnLigne({ sousDomaine, jeton, statutReservation, acompte,
 
           {moyenActif === "CARTE" && (
             <p className="acompte-info">
-              Vous serez dirigé vers la page de paiement sécurisée pour saisir votre carte Visa ou Mastercard. Vos informations de carte ne passent
-              jamais par ce site.
+              <Lock size={16} aria-hidden="true" />
+              <span>
+                Vous serez dirigé vers la page de paiement sécurisée pour saisir votre carte Visa ou Mastercard. Vos informations de carte ne
+                passent jamais par ce site.
+              </span>
             </p>
           )}
 
-          <label className="label" htmlFor={idSlp}>
-            Votre numéro ScanLinkPay (facultatif)
-          </label>
-          <input
-            id={idSlp}
-            className="champ"
-            type="tel"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={20}
-            value={numeroScanLinkPay}
-            onChange={(e) => setNumeroScanLinkPay(e.target.value)}
-            aria-describedby={idSlpAide}
-          />
-          <p id={idSlpAide} className="acompte-aide">
-            Pour être remboursé directement sur votre compte en cas d'annulation. Vous n'en avez pas ?{" "}
-            {lienCreation ? (
-              <a href={lienCreation} target="_blank" rel="noopener noreferrer">
-                Créez-le gratuitement<span className="visuellement-cache"> (s'ouvre dans un nouvel onglet)</span>
-              </a>
-            ) : (
-              "Vous pourrez le créer gratuitement dans l'application ScanLinkPay."
-            )}
-          </p>
+          <details className="acompte-slp">
+            <summary>Être remboursé sur ScanLinkPay en cas d'annulation (facultatif)</summary>
+            <label className="label" htmlFor={idSlp}>
+              Votre numéro ScanLinkPay
+            </label>
+            <input
+              id={idSlp}
+              className="champ"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={20}
+              placeholder="SLP-…"
+              value={numeroScanLinkPay}
+              onChange={(e) => setNumeroScanLinkPay(e.target.value)}
+              aria-describedby={idSlpAide}
+            />
+            <p id={idSlpAide} className="acompte-aide">
+              Le remboursement arrive alors directement sur votre compte. Vous n'en avez pas ?{" "}
+              {lienCreation ? (
+                <a href={lienCreation} target="_blank" rel="noopener noreferrer">
+                  Créez-le gratuitement<span className="visuellement-cache"> (s'ouvre dans un nouvel onglet)</span>
+                </a>
+              ) : (
+                "Vous pourrez le créer gratuitement dans l'application ScanLinkPay."
+              )}
+            </p>
+          </details>
 
-          <div className="acompte-apercu" aria-live="polite">
+          <div className="acompte-recap" aria-live="polite">
             {!apercuCharge ? (
-              <p>Calcul des frais…</p>
-            ) : fraisClient > 0 ? (
-              <p>
-                Acompte {fmt(montantAPayer)} + frais ScanLinkPay {fmt(fraisClient)} = <strong>{fmt(totalAPayer)}</strong> à payer
+              <p className="acompte-recap__calcul">
+                <span className="acompte-spinner acompte-spinner--petit" aria-hidden="true" /> Calcul des frais…
               </p>
             ) : (
-              <p>
-                Acompte à payer : <strong>{fmt(montantAPayer)}</strong>
-              </p>
+              <dl>
+                <div>
+                  <dt>Acompte</dt>
+                  <dd>{fmt(montantAPayer)}</dd>
+                </div>
+                {fraisClient > 0 && (
+                  <div>
+                    <dt>Frais ScanLinkPay</dt>
+                    <dd>{fmt(fraisClient)}</dd>
+                  </div>
+                )}
+                <div className="acompte-recap__total">
+                  <dt>Total à payer</dt>
+                  <dd>{fmt(totalAPayer)}</dd>
+                </div>
+              </dl>
             )}
           </div>
 
           <Captcha key={cleCaptcha} onJeton={setJetonCaptcha} />
 
           {(erreurLocale || etat.message) && (
-            <p className="erreur" role="alert">
+            <p className="erreur acompte-erreur" role="alert">
               {erreurLocale ?? etat.message}
             </p>
           )}
 
-          <div className="suivi-actions">
-            <button
-              type="submit"
-              className="hotel-bouton hotel-bouton--primaire acompte-bouton-payer"
-              disabled={!apercuCharge || (captchaActif && !jetonCaptcha)}
-            >
-              {apercuCharge ? `Payer ${fmt(totalAPayer)}` : "Payer l'acompte"}
-            </button>
-            <button type="button" className="hotel-bouton hotel-bouton--contour" onClick={() => setFormulaireOuvert(false)}>
-              Retour
-            </button>
-          </div>
+          <button type="submit" className="acompte-bouton-payer" disabled={!apercuCharge || (captchaActif && !jetonCaptcha)}>
+            <Lock size={18} aria-hidden="true" />
+            {apercuCharge ? `Payer ${fmt(totalAPayer)}` : "Payer l'acompte"}
+          </button>
+          <p className="acompte-securite">
+            <ShieldCheck size={15} aria-hidden="true" /> Paiement sécurisé par ScanLinkPay.
+            {moyenActif === "MOBILE_MONEY" ? " Vous validez avec votre code secret, sur votre téléphone." : ""}
+          </p>
+          <button type="button" className="acompte-retour" onClick={() => setFormulaireOuvert(false)}>
+            Retour
+          </button>
         </form>
       )}
 
       <aside className="acompte-promo" aria-label="À propos de ScanLinkPay">
-        <h4>Payez et soyez remboursé en un instant avec ScanLinkPay</h4>
-        <p>ScanLinkPay est l'application de paiement qui réunit Mobile Money et carte, et rembourse directement sur votre compte.</p>
-        {lienCreation && (
-          <a href={lienCreation} target="_blank" rel="noopener noreferrer">
-            Créer mon compte gratuit<span className="visuellement-cache"> (s'ouvre dans un nouvel onglet)</span>
-          </a>
-        )}
+        <p>
+          <strong>ScanLinkPay</strong> réunit Mobile Money et carte, et rembourse directement sur votre compte.
+          {lienCreation && (
+            <>
+              {" "}
+              <a href={lienCreation} target="_blank" rel="noopener noreferrer">
+                Créer mon compte gratuit<span className="visuellement-cache"> (s'ouvre dans un nouvel onglet)</span>
+              </a>
+            </>
+          )}
+        </p>
       </aside>
     </section>
   );

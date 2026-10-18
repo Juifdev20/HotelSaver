@@ -54,6 +54,14 @@ build Android exige `JAVA_HOME=C:\Program Files\Java\jdk-21.0.12` et
 
 ## Base de données (Prisma 7 + `pg`)
 
+- **Deux projets Supabase** (17/10/2026) : « Hotelsaver Test » (développement : API locale, bureau, mobile,
+  super-admin) et « Hotelsaver Prod » (version publiée, variables Render). Les scripts de `packages/database`
+  lisent `.env.test` par défaut, `.env.prod` avec `--prod` (+ `--oui-prod` pour écrire) — voir `scripts/cible.js`.
+  **Toute nouvelle migration passe d'abord sur Test** (`migrate:appliquer`), puis sur Prod à la mise en production
+  (`migrate:verifier:prod`, `migrate:appliquer:prod -- --oui-prod`). Une migration qui crée une table rejoue le bloc
+  RLS final de `20261017120000_base_initiale` (RLS sur toutes les tables). Les 34 migrations d'avant la base
+  unique sont dans `prisma/migrations-archive/` (historique seulement, jamais rejouées).
+
 - Connexion via le pooler Supabase en **mode transaction** (port 6543), sans
   `pgbouncer=true`. Ne pas remettre ce paramètre : il n'a plus d'effet avec
   l'adaptateur `pg`, et avec l'ancien moteur il multipliait par 6 le coût de
@@ -71,7 +79,9 @@ build Android exige `JAVA_HOME=C:\Program Files\Java\jdk-21.0.12` et
 - Migrations : `prisma migrate deploy/status` échouent via ce pooler. Utiliser
   `pnpm --filter @hotel-chicago/database migrate:verifier` puis
   `migrate:appliquer` (script `pg` brut compatible `_prisma_migrations`).
-  Créer une migration reste `prisma migrate dev` contre une base directe.
+  Créer une migration : SQL écrit à la main (ou `prisma migrate diff`), contrôlé
+  sur une base locale jetable puis sur Test. Super-admin d'un projet :
+  `MOT_DE_PASSE='…' pnpm --filter @hotel-chicago/database creer-super-admin <tél> "<nom>"` (`-- --prod --oui-prod` pour Prod).
 - Mesure de latence rapide (dans `packages/database`, après build) :
   `new PrismaClient({ adapter, log: [{ emit: "event", level: "query" }] })` et
   `prisma.$on("query", …)` — une lecture simple doit produire **une seule**

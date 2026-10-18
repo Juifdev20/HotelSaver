@@ -13,12 +13,11 @@
 // créée en Phase 1 — utiliser `POST /super-admin/hotels` pour un nouvel
 // hôtel, Phase 3). Argument obligatoire depuis que `Utilisateur.hotelId`
 // n'a plus de valeur par défaut en base (Phase 2, DECISIONS.md).
-// Lit DATABASE_URL (packages/database/.env) et SUPABASE_URL /
-// SUPABASE_SERVICE_ROLE_KEY (apps/api/.env). Mot de passe via variable
+// Lit DATABASE_URL, SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY dans .env.test
+// (défaut) ou .env.prod (--prod --oui-prod), voir cible.js. Mot de passe via variable
 // d'environnement pour ne pas le laisser dans l'historique des arguments.
 const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
-require("dotenv").config({ path: path.join(__dirname, "..", "..", "..", "apps", "api", ".env") });
+require("./cible.js").chargerCible();
 const { prisma } = require("../dist/index.js");
 const { normaliserTelephoneRdc, emailDuCompte } = require("./telephone.js");
 
@@ -40,7 +39,7 @@ async function appelAdmin(methode, chemin, corps) {
 
 async function main() {
   // pnpm transmet un "--" littéral s'il est tapé : on l'ignore.
-  const [saisieTelephone, nom, role, hotelId] = process.argv.slice(2).filter((argument) => argument !== "--");
+  const [saisieTelephone, nom, role, hotelId] = process.argv.slice(2).filter((argument) => !argument.startsWith("--"));
   const motDePasse = process.env.MOT_DE_PASSE;
   const telephone = normaliserTelephoneRdc(saisieTelephone);
   const email = process.env.EMAIL || null;

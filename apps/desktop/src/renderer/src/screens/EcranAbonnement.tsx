@@ -26,11 +26,12 @@ import type {
   StatutPaiementAbonnement,
   VueAbonnement,
 } from "@hotel-chicago/types";
-import { Button, StatusBadge, useTitrePage } from "@hotel-chicago/ui";
+import { Button, LogoOperateur, LogosMobileMoney, StatusBadge, useTitrePage } from "@hotel-chicago/ui";
 import type { StatusTone } from "@hotel-chicago/ui";
-import { AlertTriangle, CheckCircle2, CircleCheck, Info, ShieldCheck, XCircle } from "lucide-react";
+import { AlertTriangle, BedDouble, CalendarClock, Check, CheckCircle2, CircleCheck, Crown, Gift, Info, Lock, Receipt, ShieldCheck, Smartphone, Sparkles, XCircle } from "lucide-react";
 import { BlocAide } from "../components/BlocAide";
 import "./abonnement.css";
+import "./abonnement-pro.css";
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Lecture de l'abonnement (état, formules, prix, historique) : toujours auprès du serveur, qui est la référence pour les prix.
@@ -134,34 +135,60 @@ function Chrono({ secondes }: { secondes: number }) {
 
 function CarteEtat({ etat, vue }: { etat: EtatAbonnement; vue: VueAbonnement | null }) {
   const resume = resumerAbonnement(etat, vue?.formuleActuelle ?? null);
+  // Compte à rebours seulement quand il a un sens (période en cours) ; suspendu, résilié ou expiré : le titre suffit.
+  const compte = etat.joursRestants > 0 && etat.statut !== "SUSPENDU" && etat.statut !== "RESILIE";
   return (
-    <section className={`abo-carte abo-etat abo-etat--${resume.niveau}`} aria-labelledby="abo-etat-titre" data-testid="abonnement-etat">
-      <span className="abo-etat__icone">
-        <IconeNiveau niveau={resume.niveau} />
-      </span>
-      <div className="abo-etat__corps">
-        <h2 id="abo-etat-titre" className="hc-text-heading">
-          {resume.titre}
-        </h2>
-        <p className="hc-text-body">{resume.detail}</p>
-        <dl className="abo-faits hc-text-body">
-          <div>
-            <dt>Formule actuelle</dt>
-            <dd>{nomFormule(vue?.formuleActuelle, vue?.formules) ?? (etat.statut === "ESSAI" ? "Essai gratuit" : "Aucune")}</dd>
-          </div>
-          {vue && (
-            <div>
-              <dt>Nombre de chambres</dt>
-              <dd>{vue.nombreChambres}</dd>
-            </div>
-          )}
-          <div>
-            <dt>Valable jusqu'au</dt>
-            <dd>{dateAbonnement(etat.valideJusquau)}</dd>
-          </div>
-        </dl>
+    <section className={`ap-hero ap-hero--${resume.niveau}`} aria-labelledby="abo-etat-titre" data-testid="abonnement-etat">
+      <div className="ap-hero__haut">
+        <span className="ap-hero__icone">
+          <IconeNiveau niveau={resume.niveau} />
+        </span>
+        <div className="ap-hero__textes">
+          <p className="ap-surtitre">Votre abonnement</p>
+          <h2 id="abo-etat-titre" className="ap-hero__titre">
+            {resume.titre}
+          </h2>
+          <p className="ap-hero__detail">{resume.detail}</p>
+        </div>
+        {compte && (
+          <p className="ap-hero__compte" aria-label={`${etat.joursRestants} jours restants`}>
+            <strong>{etat.joursRestants}</strong>
+            <span>{etat.joursRestants > 1 ? "jours restants" : "jour restant"}</span>
+          </p>
+        )}
       </div>
+      <dl className="ap-hero__faits">
+        <div>
+          <dt>
+            <Crown size={14} aria-hidden="true" /> Formule actuelle
+          </dt>
+          <dd>{nomFormule(vue?.formuleActuelle, vue?.formules) ?? (etat.statut === "ESSAI" ? "Essai gratuit" : "Aucune")}</dd>
+        </div>
+        {vue && (
+          <div>
+            <dt>
+              <BedDouble size={14} aria-hidden="true" /> Nombre de chambres
+            </dt>
+            <dd>{vue.nombreChambres}</dd>
+          </div>
+        )}
+        <div>
+          <dt>
+            <CalendarClock size={14} aria-hidden="true" /> Valable jusqu'au
+          </dt>
+          <dd>{dateAbonnement(etat.valideJusquau)}</dd>
+        </div>
+      </dl>
     </section>
+  );
+}
+
+/** Logo du réseau, décoratif : le nom du réseau est toujours écrit à côté (lecteurs d'écran compris). */
+function MarqueReseau({ operateur, taille = 32 }: { operateur: OperateurMobileMoney; taille?: number }) {
+  return (
+    <span className="ap-marque" aria-hidden="true">
+      <LogoOperateur operateur={operateur} taille={taille} />
+    </span>
   );
 }
 
@@ -171,10 +198,19 @@ function CarteEtat({ etat, vue }: { etat: EtatAbonnement; vue: VueAbonnement | n
 function Historique({ historique, formules }: { historique: PaiementAbonnementVue[]; formules: FormuleProposee[] }) {
   if (historique.length === 0) return null;
   return (
-    <section className="abo-carte" aria-label="Historique des paiements" data-testid="abonnement-historique">
+    <section className="ap-carte" aria-label="Historique des paiements" data-testid="abonnement-historique">
+      <div className="ap-carte__entete">
+        <span className="ap-carte__icone">
+          <Receipt size={18} aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="ap-carte__titre">Historique des paiements</h2>
+          <p className="ap-carte__sous-titre">Chaque paiement, réussi ou non, avec son moyen de paiement.</p>
+        </div>
+      </div>
       <div className="abo-historique-scroll">
-        <table className="abo-historique">
-          <caption>Historique des paiements</caption>
+        <table className="abo-historique ap-historique">
+          <caption className="visuellement-cache">Historique des paiements</caption>
           <thead>
             <tr>
               <th scope="col">Date</th>
@@ -191,7 +227,8 @@ function Historique({ historique, formules }: { historique: PaiementAbonnementVu
                 <tr key={p.id}>
                   <td>{dateAbonnement(p.createdAt)}</td>
                   <td>
-                    {nomFormule(p.formule, formules)} · {duree(p.mois)}
+                    {/* Saisie du support sans formule ni durée (paiement reçu par un autre canal) : pas de « · 0 mois ». */}
+                    {[nomFormule(p.formule, formules), p.mois > 0 ? duree(p.mois) : null].filter(Boolean).join(" · ") || "Paiement manuel"}
                   </td>
                   <td>
                     {montantAbonnement(p.montant, p.devise)}
@@ -202,7 +239,10 @@ function Historique({ historique, formules }: { historique: PaiementAbonnementVu
                     )}
                   </td>
                   <td>
-                    {p.source === "SUPPORT" ? "Enregistré par le support" : `${p.operateur ? OPERATEURS_MOBILE_MONEY[p.operateur].libelle : "Mobile Money"}${p.telephoneMasque ? ` · ${p.telephoneMasque}` : ""}`}
+                    <span className="ap-historique__moyen">
+                      {p.source !== "SUPPORT" && p.operateur && <MarqueReseau operateur={p.operateur} taille={24} />}
+                      {p.source === "SUPPORT" ? "Enregistré par le support" : `${p.operateur ? OPERATEURS_MOBILE_MONEY[p.operateur].libelle : "Mobile Money"}${p.telephoneMasque ? ` · ${p.telephoneMasque}` : ""}`}
+                    </span>
                   </td>
                   <td>
                     <StatusBadge tone={statut.ton} label={statut.libelle} />
@@ -363,40 +403,58 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
   // ---- Envoi / attente de la confirmation sur le téléphone
   if (etat.phase === "envoi" || etat.phase === "attente") {
     const p = etat.paiement;
+    const reseau = p?.operateur ?? operateur;
     return (
-      <section className="abo-carte" aria-labelledby="abo-etape-titre" data-testid="abonnement-attente">
+      <section className="ap-carte ap-phase" aria-labelledby="abo-etape-titre" data-testid="abonnement-attente">
         {annonce}
-        <div className="abo-etape">
-          <div className="abo-spinner" role="img" aria-label="Chargement en cours" />
-          <h2 id="abo-etape-titre" className="hc-text-heading" tabIndex={-1} ref={titreEtape}>
-            {etat.phase === "envoi" ? "Envoi de la demande…" : "Confirmez le paiement sur votre téléphone…"}
-          </h2>
-          {p && (
-            <p className="hc-text-body">
-              Une demande de {montantAbonnement(p.montant, p.devise)} a été envoyée{p.telephoneMasque ? ` au ${p.telephoneMasque}` : " à votre téléphone"}. Entrez votre code secret Mobile Money pour valider.
-            </p>
-          )}
-          {etat.phase === "attente" && <Chrono secondes={etat.secondes} />}
-          {etat.lent && (
-            <div className="abo-conseils" data-testid="abonnement-conseils">
-              <p className="hc-text-body-strong">Cela prend plus de temps que prévu. Vérifiez ceci :</p>
-              <ul className="hc-text-body" style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Votre solde Mobile Money est suffisant.</li>
-                <li>Votre téléphone a du réseau.</li>
-                <li>Vous avez bien entré votre code secret (code PIN) quand la demande est apparue.</li>
-                <li>Le numéro est le bon{p?.telephoneMasque ? ` (${p.telephoneMasque})` : ""}.</li>
-              </ul>
-            </div>
-          )}
-          {etat.peutReessayer && (
-            <>
-              <p className="hc-text-body">Vous pouvez fermer cet écran : votre abonnement s'activera tout seul dès que le paiement sera confirmé.</p>
-              <Button type="button" variant="secondary" onClick={() => suivi.reinitialiser()}>
-                Réessayer
-              </Button>
-            </>
-          )}
+        <div className="ap-phase__visuel" aria-hidden="true">
+          <span className="ap-pulsation" />
+          <span className="ap-phase__telephone">{reseau ? <LogoOperateur operateur={reseau} taille={56} /> : <Smartphone size={40} />}</span>
         </div>
+        <h2 id="abo-etape-titre" className="ap-phase__titre" tabIndex={-1} ref={titreEtape}>
+          {etat.phase === "envoi" ? "Envoi de la demande…" : "Confirmez le paiement sur votre téléphone…"}
+        </h2>
+        {p && (
+          <p className="ap-phase__texte">
+            Une demande de <strong>{montantAbonnement(p.montant, p.devise)}</strong> a été envoyée{p.telephoneMasque ? ` au ${p.telephoneMasque}` : " à votre téléphone"}. Entrez votre code secret Mobile Money pour valider.
+          </p>
+        )}
+        <ol className="ap-progression" aria-label="Étapes du paiement">
+          <li className="ap-progression__etape ap-progression__etape--fait">
+            <span className="ap-progression__point">
+              <Check size={14} aria-hidden="true" />
+            </span>
+            Demande envoyée
+          </li>
+          <li className={`ap-progression__etape${etat.phase === "attente" ? " ap-progression__etape--encours" : ""}`}>
+            <span className="ap-progression__point">2</span>
+            Code secret sur le téléphone
+          </li>
+          <li className="ap-progression__etape">
+            <span className="ap-progression__point">3</span>
+            Abonnement activé
+          </li>
+        </ol>
+        {etat.phase === "attente" && <Chrono secondes={etat.secondes} />}
+        {etat.lent && (
+          <div className="abo-conseils ap-conseils" data-testid="abonnement-conseils">
+            <p className="hc-text-body-strong">Cela prend plus de temps que prévu. Vérifiez ceci :</p>
+            <ul className="hc-text-body">
+              <li>Votre solde Mobile Money est suffisant.</li>
+              <li>Votre téléphone a du réseau.</li>
+              <li>Vous avez bien entré votre code secret (code PIN) quand la demande est apparue.</li>
+              <li>Le numéro est le bon{p?.telephoneMasque ? ` (${p.telephoneMasque})` : ""}.</li>
+            </ul>
+          </div>
+        )}
+        {etat.peutReessayer && (
+          <>
+            <p className="ap-phase__note">Vous pouvez fermer cet écran : votre abonnement s'activera tout seul dès que le paiement sera confirmé.</p>
+            <Button type="button" variant="secondary" onClick={() => suivi.reinitialiser()}>
+              Réessayer
+            </Button>
+          </>
+        )}
       </section>
     );
   }
@@ -404,26 +462,48 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
   // ---- Paiement réussi
   if (etat.phase === "reussi") {
     const fin = etat.paiement?.periodeCouverteJusquau ?? etat.etatAbonnement?.valideJusquau ?? null;
+    const p = etat.paiement;
     return (
-      <section className="abo-carte" aria-labelledby="abo-etape-titre" data-testid="abonnement-succes">
+      <section className="ap-carte ap-phase" aria-labelledby="abo-etape-titre" data-testid="abonnement-succes">
         {annonce}
-        <div className="abo-etape">
-          <span className="abo-etape__icone abo-etape__icone--ok">
-            <CheckCircle2 size={34} aria-hidden="true" />
-          </span>
-          <h2 id="abo-etape-titre" className="hc-text-heading" tabIndex={-1} ref={titreEtape}>
-            Merci ! Abonnement actif{fin ? ` jusqu'au ${dateAbonnement(fin)}` : ""}.
-          </h2>
-          <p className="hc-text-body">Votre paiement est confirmé. Vous pouvez continuer à travailler.</p>
-          {suite.erreur && (
-            <p role="alert" className="hc-text-body texte-erreur">
-              {suite.erreur}
-            </p>
-          )}
-          <Button type="button" onClick={() => void continuer()} disabled={suite.enCours}>
-            {suite.enCours ? "Chargement…" : "Continuer"}
-          </Button>
-        </div>
+        <span className="ap-phase__resultat ap-phase__resultat--ok">
+          <CheckCircle2 size={44} aria-hidden="true" />
+        </span>
+        <h2 id="abo-etape-titre" className="ap-phase__titre" tabIndex={-1} ref={titreEtape}>
+          Merci ! Abonnement actif{fin ? ` jusqu'au ${dateAbonnement(fin)}` : ""}.
+        </h2>
+        <p className="ap-phase__texte">Votre paiement est confirmé. Vous pouvez continuer à travailler.</p>
+        {p && (
+          <dl className="ap-recu">
+            <div>
+              <dt>Montant payé</dt>
+              <dd>{montantAbonnement(p.total ?? p.montant, p.devise)}</dd>
+            </div>
+            {p.operateur && (
+              <div>
+                <dt>Payé avec</dt>
+                <dd className="ap-recu__reseau">
+                  <MarqueReseau operateur={p.operateur} taille={22} />
+                  {OPERATEURS_MOBILE_MONEY[p.operateur].libelle}
+                </dd>
+              </div>
+            )}
+            {fin && (
+              <div>
+                <dt>Valable jusqu'au</dt>
+                <dd>{dateAbonnement(fin)}</dd>
+              </div>
+            )}
+          </dl>
+        )}
+        {suite.erreur && (
+          <p role="alert" className="hc-text-body texte-erreur">
+            {suite.erreur}
+          </p>
+        )}
+        <Button type="button" size="lg" onClick={() => void continuer()} disabled={suite.enCours}>
+          {suite.enCours ? "Chargement…" : "Continuer"}
+        </Button>
       </section>
     );
   }
@@ -431,21 +511,19 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
   // ---- Paiement refusé, expiré ou annulé
   if (etat.phase === "echec") {
     return (
-      <section className="abo-carte" aria-labelledby="abo-etape-titre" data-testid="abonnement-echec">
+      <section className="ap-carte ap-phase" aria-labelledby="abo-etape-titre" data-testid="abonnement-echec">
         {annonce}
-        <div className="abo-etape">
-          <span className="abo-etape__icone abo-etape__icone--danger">
-            <XCircle size={34} aria-hidden="true" />
-          </span>
-          <h2 id="abo-etape-titre" className="hc-text-heading" tabIndex={-1} ref={titreEtape}>
-            Le paiement n'a pas abouti
-          </h2>
-          <p className="hc-text-body">{etat.message ?? "Vous n'avez pas été débité. Vous pouvez réessayer."}</p>
-          <p className="hc-text-body texte-discret">Si de l'argent a quitté votre compte Mobile Money, il sera crédité automatiquement dès que le paiement sera confirmé.</p>
-          <Button type="button" onClick={() => suivi.reinitialiser()}>
-            Réessayer
-          </Button>
-        </div>
+        <span className="ap-phase__resultat ap-phase__resultat--danger">
+          <XCircle size={44} aria-hidden="true" />
+        </span>
+        <h2 id="abo-etape-titre" className="ap-phase__titre" tabIndex={-1} ref={titreEtape}>
+          Le paiement n'a pas abouti
+        </h2>
+        <p className="ap-phase__texte">{etat.message ?? "Vous n'avez pas été débité. Vous pouvez réessayer."}</p>
+        <p className="ap-phase__note">Si de l'argent a quitté votre compte Mobile Money, il sera crédité automatiquement dès que le paiement sera confirmé.</p>
+        <Button type="button" size="lg" onClick={() => suivi.reinitialiser()}>
+          Réessayer
+        </Button>
       </section>
     );
   }
@@ -453,198 +531,261 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
   // ---- Saisie
   const titre = mode === "bloque" ? "Renouveler l'abonnement" : vue.etat.statut === "ESSAI" ? "Choisir une formule" : "Renouveler l'abonnement";
   const descriptionTel = ["abo-tel-aide", afficherProbleme && probleme ? "abo-tel-erreur" : null].filter(Boolean).join(" ");
+  const reseauDetecte = operateurDuNumero(telephone);
 
   return (
-    <form className="abo-carte abo-form" onSubmit={(e) => void payer(e)} noValidate aria-labelledby="abo-form-titre" data-testid="abonnement-formulaire">
+    <form className="ap-paiement" onSubmit={(e) => void payer(e)} noValidate aria-labelledby="abo-form-titre" data-testid="abonnement-formulaire">
       {annonce}
-      <h2 id="abo-form-titre" className="hc-text-heading" tabIndex={-1} ref={titreEtape}>
-        {titre}
-      </h2>
-      {mode !== "bloque" && vue.etat.statut === "ESSAI" && (
-        <p className="abo-message hc-text-body">Vous payez avant la fin de l'essai ? Aucun jour d'essai n'est perdu : ils s'ajoutent à votre abonnement.</p>
-      )}
-
-      {etat.message && (
-        <p role="alert" className="abo-message abo-message--erreur hc-text-body" data-testid="abonnement-erreur-envoi">
-          {etat.message}
-        </p>
-      )}
-
-      <fieldset className="abo-groupe">
-        <legend>1. Choisissez une formule</legend>
-        <div className="abo-choix-liste abo-choix-liste--formules">
-          {vue.formules.map((f) => {
-            const trop = !convient(f);
-            const choisi = f.code === formuleCode;
-            const mensuel = f.durees.find((d) => d.mois === 1);
-            const prixMensuel = mensuel ? (devise === "USD" ? mensuel.prixUsd : mensuel.prixCdf) : f.prixMensuelUsd;
-            const idAide = `abo-formule-${f.code}-aide`;
-            const idNom = `abo-formule-${f.code}-nom`;
-            const idDetail = `abo-formule-${f.code}-detail`;
-            return (
-              <label key={f.code} className={`abo-choix${choisi ? " abo-choix--actif" : ""}${trop ? " abo-choix--inactif" : ""}`}>
-                <input
-                  type="radio"
-                  name="abo-formule"
-                  value={f.code}
-                  checked={choisi}
-                  disabled={trop}
-                  onChange={() => setFormuleCode(f.code)}
-                  aria-labelledby={idNom}
-                  aria-describedby={[idDetail, f.code === vue.formuleActuelle ? `abo-formule-${f.code}-actuelle` : null, trop ? idAide : null].filter(Boolean).join(" ")}
-                />
-                {(f.recommandee || f.code === vue.formuleActuelle) && (
-                  <span className="abo-etiquettes">
-                    {f.code === vue.formuleActuelle && (
-                      <span id={`abo-formule-${f.code}-actuelle`} className="abo-etiquette abo-etiquette--actuelle" data-testid="abonnement-formule-actuelle">
-                        Votre formule
-                      </span>
-                    )}
-                    {f.recommandee && <span className="abo-etiquette">Le plus choisi</span>}
-                  </span>
-                )}
-                <span className="abo-choix__titre">
-                  <span className="abo-choix__marque" aria-hidden="true" />
-                  <span id={idNom} className="hc-text-heading">
-                    {f.nom}
-                  </span>
-                </span>
-                <span id={idDetail} className="abo-choix__detail-groupe">
-                  <span className="abo-choix__prix">
-                    {montantAbonnement(prixMensuel, devise)} <small>par mois</small>
-                  </span>
-                  <span className="abo-choix__detail">{f.maxChambres === null ? "Chambres illimitées" : `Jusqu'à ${f.maxChambres} chambres`}</span>
-                  <span className="abo-choix__detail">{f.description}</span>
-                </span>
-                <ul>
-                  {f.inclus.filter((ligne) => !estLignePlafond(ligne)).map((ligne) => (
-                    <li key={ligne}>{ligne}</li>
-                  ))}
-                </ul>
-                {trop && (
-                  <span id={idAide} className="abo-choix__detail texte-erreur">
-                    Votre hôtel a {nombreChambres} chambres : cette formule en accepte {f.maxChambres} au maximum.
-                  </span>
-                )}
-              </label>
-            );
-          })}
+      <div className="ap-paiement__etapes">
+        <div className="ap-paiement__entete">
+          <h2 id="abo-form-titre" className="ap-paiement__titre" tabIndex={-1} ref={titreEtape}>
+            {titre}
+          </h2>
+          <p className="ap-paiement__sous-titre">Quatre étapes, moins d'une minute. Vous confirmez avec votre code secret Mobile Money : rien n'est débité sans lui.</p>
         </div>
-      </fieldset>
-
-      <fieldset className="abo-groupe">
-        <legend>2. Choisissez la durée</legend>
-        <div className="abo-choix-liste">
-          {(formule?.durees ?? []).map((d) => {
-            const choisi = d.mois === dureeChoisie?.mois;
-            const p = devise === "USD" ? d.prixUsd : d.prixCdf;
-            return (
-              <label key={d.mois} className={`abo-choix${choisi ? " abo-choix--actif" : ""}`}>
-                <input type="radio" name="abo-duree" value={d.mois} checked={choisi} onChange={() => setMois(d.mois)} />
-                <span className="abo-choix__titre">
-                  <span className="abo-choix__marque" aria-hidden="true" />
-                  {duree(d.mois)}
-                </span>
-                <span className="abo-choix__prix">{montantAbonnement(p, devise)}</span>
-                {d.moisOfferts > 0 && <span className="abo-offert">{d.moisOfferts} mois offerts</span>}
-              </label>
-            );
-          })}
-        </div>
-      </fieldset>
-
-      <fieldset className="abo-groupe">
-        <legend>3. Choisissez la monnaie</legend>
-        <div className="abo-choix-liste">
-          {(
-            [
-              ["USD", "Dollars (USD)"],
-              ["CDF", "Francs congolais (FC)"],
-            ] as const
-          ).map(([code, libelle]) => (
-            <label key={code} className={`abo-choix${devise === code ? " abo-choix--actif" : ""}`}>
-              <input type="radio" name="abo-devise" value={code} checked={devise === code} onChange={() => setDevise(code)} />
-              <span className="abo-choix__titre">
-                <span className="abo-choix__marque" aria-hidden="true" />
-                {libelle}
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <fieldset className="abo-groupe">
-        <legend>4. Payer avec Mobile Money</legend>
-        <div className="abo-choix-liste">
-          {LISTE_OPERATEURS.map((o) => (
-            <label key={o} className={`abo-choix${operateur === o ? " abo-choix--actif" : ""}`}>
-              <input type="radio" name="abo-operateur" value={o} checked={operateur === o} onChange={() => setOperateur(o)} />
-              <span className="abo-choix__titre">
-                <span className="abo-choix__marque" aria-hidden="true" />
-                {OPERATEURS_MOBILE_MONEY[o].libelle}
-              </span>
-            </label>
-          ))}
-        </div>
-        <div className="abo-champ">
-          <label className="hc-text-label" htmlFor="abo-telephone">
-            Numéro de téléphone Mobile Money
-          </label>
-          <input
-            id="abo-telephone"
-            ref={champTelephone}
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="Ex. 0828 497 218"
-            value={telephone}
-            onChange={(e) => surTelephone(e.target.value)}
-            onBlur={() => telephone.trim() !== "" && setTouche(true)}
-            aria-invalid={afficherProbleme && probleme ? true : undefined}
-            aria-describedby={descriptionTel}
-          />
-          <p id="abo-tel-aide" className="hc-text-caption texte-discret">
-            C'est ce numéro qui recevra la demande de confirmation.
+        {mode !== "bloque" && vue.etat.statut === "ESSAI" && (
+          <p className="ap-astuce">
+            <Gift size={16} aria-hidden="true" /> Vous payez avant la fin de l'essai ? Aucun jour d'essai n'est perdu : ils s'ajoutent à votre abonnement.
           </p>
-          <div aria-live="polite">
-            {afficherProbleme && probleme && (
-              <p id="abo-tel-erreur" className="hc-text-body texte-erreur" data-testid="abonnement-erreur-numero">
-                {probleme}
-              </p>
-            )}
+        )}
+
+        {etat.message && (
+          <p role="alert" className="abo-message abo-message--erreur hc-text-body" data-testid="abonnement-erreur-envoi">
+            {etat.message}
+          </p>
+        )}
+
+        <fieldset className="ap-etape">
+          <legend className="ap-etape__legende">
+            <span className="ap-etape__numero">1</span> Choisissez une formule
+          </legend>
+          <div className="ap-formules">
+            {vue.formules.map((f) => {
+              const trop = !convient(f);
+              const choisi = f.code === formuleCode;
+              const mensuel = f.durees.find((d) => d.mois === 1);
+              const prixMensuel = mensuel ? (devise === "USD" ? mensuel.prixUsd : mensuel.prixCdf) : f.prixMensuelUsd;
+              const idAide = `abo-formule-${f.code}-aide`;
+              const idNom = `abo-formule-${f.code}-nom`;
+              const idDetail = `abo-formule-${f.code}-detail`;
+              return (
+                <label key={f.code} className={`ap-formule${choisi ? " ap-formule--active" : ""}${trop ? " ap-formule--inactive" : ""}${f.recommandee ? " ap-formule--recommandee" : ""}`}>
+                  <input
+                    type="radio"
+                    className="ap-radio"
+                    name="abo-formule"
+                    value={f.code}
+                    checked={choisi}
+                    disabled={trop}
+                    onChange={() => setFormuleCode(f.code)}
+                    aria-labelledby={idNom}
+                    aria-describedby={[idDetail, f.code === vue.formuleActuelle ? `abo-formule-${f.code}-actuelle` : null, trop ? idAide : null].filter(Boolean).join(" ")}
+                  />
+                  {(f.recommandee || f.code === vue.formuleActuelle) && (
+                    <span className="ap-formule__etiquettes">
+                      {f.recommandee && (
+                        <span className="ap-etiquette ap-etiquette--vedette">
+                          <Sparkles size={12} aria-hidden="true" /> Le plus choisi
+                        </span>
+                      )}
+                      {f.code === vue.formuleActuelle && (
+                        <span id={`abo-formule-${f.code}-actuelle`} className="ap-etiquette" data-testid="abonnement-formule-actuelle">
+                          Votre formule
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  <span className="ap-formule__tete">
+                    <span id={idNom} className="ap-formule__nom">
+                      {f.nom}
+                    </span>
+                    <span className="ap-coche" aria-hidden="true">
+                      <Check size={14} />
+                    </span>
+                  </span>
+                  <span id={idDetail} className="ap-formule__detail">
+                    <span className="ap-formule__prix">
+                      {montantAbonnement(prixMensuel, devise)} <small>/ mois</small>
+                    </span>
+                    <span className="ap-formule__plafond">
+                      <BedDouble size={14} aria-hidden="true" /> {f.maxChambres === null ? "Chambres illimitées" : `Jusqu'à ${f.maxChambres} chambres`}
+                    </span>
+                    <span className="ap-formule__description">{f.description}</span>
+                  </span>
+                  <ul className="ap-formule__inclus">
+                    {f.inclus.filter((ligne) => !estLignePlafond(ligne)).map((ligne) => (
+                      <li key={ligne}>
+                        <Check size={14} aria-hidden="true" />
+                        {ligne}
+                      </li>
+                    ))}
+                  </ul>
+                  {trop && (
+                    <span id={idAide} className="ap-formule__trop texte-erreur">
+                      Votre hôtel a {nombreChambres} chambres : cette formule en accepte {f.maxChambres} au maximum.
+                    </span>
+                  )}
+                </label>
+              );
+            })}
           </div>
-        </div>
-      </fieldset>
+        </fieldset>
+
+        <fieldset className="ap-etape">
+          <legend className="ap-etape__legende">
+            <span className="ap-etape__numero">2</span> Choisissez la durée
+          </legend>
+          <div className="ap-durees">
+            {(formule?.durees ?? []).map((d) => {
+              const choisi = d.mois === dureeChoisie?.mois;
+              const p = devise === "USD" ? d.prixUsd : d.prixCdf;
+              return (
+                <label key={d.mois} className={`ap-tuile${choisi ? " ap-tuile--active" : ""}`}>
+                  <input type="radio" className="ap-radio" name="abo-duree" value={d.mois} checked={choisi} onChange={() => setMois(d.mois)} />
+                  <span className="ap-tuile__titre">{duree(d.mois)}</span>
+                  <span className="ap-tuile__prix">{montantAbonnement(p, devise)}</span>
+                  {d.mois > 1 && <span className="ap-tuile__sous">soit {montantAbonnement(Math.round((p / d.mois) * 100) / 100, devise)} / mois</span>}
+                  {d.moisOfferts > 0 && (
+                    <span className="ap-tuile__offert">
+                      <Gift size={12} aria-hidden="true" /> {d.moisOfferts} mois offerts
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <fieldset className="ap-etape">
+          <legend className="ap-etape__legende">
+            <span className="ap-etape__numero">3</span> Choisissez la monnaie
+          </legend>
+          <div className="ap-segment">
+            {(
+              [
+                ["USD", "Dollars (USD)", "$"],
+                ["CDF", "Francs congolais (FC)", "FC"],
+              ] as const
+            ).map(([code, libelle, symbole]) => (
+              <label key={code} className={`ap-segment__option${devise === code ? " ap-segment__option--active" : ""}`}>
+                <input type="radio" className="ap-radio" name="abo-devise" value={code} checked={devise === code} onChange={() => setDevise(code)} />
+                <span className="ap-segment__symbole" aria-hidden="true">
+                  {symbole}
+                </span>
+                {libelle}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="ap-etape">
+          <legend className="ap-etape__legende">
+            <span className="ap-etape__numero">4</span> Payer avec Mobile Money
+          </legend>
+          <div className="ap-reseaux">
+            {LISTE_OPERATEURS.map((o) => (
+              <label key={o} className={`ap-reseau${operateur === o ? " ap-reseau--actif" : ""}`}>
+                <input type="radio" className="ap-radio" name="abo-operateur" value={o} checked={operateur === o} onChange={() => setOperateur(o)} />
+                <MarqueReseau operateur={o} taille={40} />
+                <span className="ap-reseau__nom">{OPERATEURS_MOBILE_MONEY[o].libelle}</span>
+                <span className="ap-coche" aria-hidden="true">
+                  <Check size={14} />
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="ap-champ">
+            <label className="ap-champ__libelle" htmlFor="abo-telephone">
+              Numéro de téléphone Mobile Money
+            </label>
+            <div className={`ap-champ__boite${afficherProbleme && probleme ? " ap-champ__boite--erreur" : ""}`}>
+              <span className="ap-champ__prefixe" aria-hidden="true">
+                {reseauDetecte ? <LogoOperateur operateur={reseauDetecte} taille={26} /> : <Smartphone size={18} />}
+              </span>
+              <input
+                id="abo-telephone"
+                ref={champTelephone}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="Ex. 0828 497 218"
+                value={telephone}
+                onChange={(e) => surTelephone(e.target.value)}
+                onBlur={() => telephone.trim() !== "" && setTouche(true)}
+                aria-invalid={afficherProbleme && probleme ? true : undefined}
+                aria-describedby={descriptionTel}
+              />
+            </div>
+            <p id="abo-tel-aide" className="ap-champ__aide">
+              {reseauDetecte && !problemeTel ? `Réseau reconnu : ${OPERATEURS_MOBILE_MONEY[reseauDetecte].libelle}. ` : ""}C'est ce numéro qui recevra la demande de confirmation.
+            </p>
+            <div aria-live="polite">
+              {afficherProbleme && probleme && (
+                <p id="abo-tel-erreur" className="ap-champ__erreur" data-testid="abonnement-erreur-numero">
+                  <AlertTriangle size={14} aria-hidden="true" /> {probleme}
+                </p>
+              )}
+            </div>
+          </div>
+        </fieldset>
+      </div>
 
       {formule && dureeChoisie && montant && (
-        <div className="abo-recap" data-testid="abonnement-recap">
-          <div aria-live="polite" aria-atomic="true" className="abo-recap__prix">
+        <aside className="ap-commande" aria-label="Votre commande" data-testid="abonnement-recap">
+          <p className="ap-surtitre">Votre commande</p>
+          <div className="ap-commande__ligne">
+            <span>
+              Formule <strong>{formule.nom}</strong>
+            </span>
+            <span>{montant}</span>
+          </div>
+          <div className="ap-commande__ligne ap-commande__ligne--discrete">
+            <span>Durée</span>
+            <span>
+              {duree(dureeChoisie.mois)}
+              {dureeChoisie.moisOfferts > 0 ? ` (dont ${dureeChoisie.moisOfferts} offerts)` : ""}
+            </span>
+          </div>
+          {operateur && (
+            <div className="ap-commande__ligne ap-commande__ligne--discrete">
+              <span>Payé avec</span>
+              <span className="ap-commande__reseau">
+                <MarqueReseau operateur={operateur} taille={20} />
+                {OPERATEURS_MOBILE_MONEY[operateur].libelle}
+              </span>
+            </div>
+          )}
+          <div className="ap-commande__total" aria-live="polite" aria-atomic="true">
+            <span>Total à payer</span>
+            <strong>{calculEnCours ? "…" : aPayer}</strong>
+          </div>
+          <div aria-live="polite" aria-atomic="true" className="ap-commande__detail">
             {calculEnCours ? (
-              <p className="hc-text-body texte-discret" data-testid="abonnement-calcul-frais">
-                Calcul des frais ScanLinkPay…
-              </p>
+              <p data-testid="abonnement-calcul-frais">Calcul des frais ScanLinkPay…</p>
             ) : fraisAjoutes && apercuValable ? (
-              <p className="hc-text-body" data-testid="abonnement-detail-prix">
+              <p data-testid="abonnement-detail-prix">
                 Prix {montant} + frais ScanLinkPay {montantAbonnement(apercuValable.commission, devise)} = <strong>{aPayer}</strong> à payer
               </p>
             ) : (
-              <p className="hc-text-body" data-testid="abonnement-detail-prix">
+              <p data-testid="abonnement-detail-prix">
                 Prix : <strong>{montant}</strong>
               </p>
             )}
           </div>
-          <p className="hc-text-body">
+          <p className="ap-commande__phrase">
             Vous allez payer <strong>{aPayer}</strong> pour {duree(dureeChoisie.mois)} de la formule {formule.nom}. Une demande de confirmation va arriver sur le téléphone ; entrez votre code secret Mobile Money.
           </p>
-          <div>
-            <Button type="submit" size="lg" disabled={calculEnCours} aria-busy={calculEnCours || undefined}>
-              {calculEnCours ? "Payer" : `Payer ${aPayer}`}
-            </Button>
-          </div>
-          <p className="hc-text-caption texte-discret abo-securise" data-testid="abonnement-securise">
+          <Button type="submit" size="lg" className="ap-commande__bouton" disabled={calculEnCours} aria-busy={calculEnCours || undefined}>
+            <Lock size={16} aria-hidden="true" />
+            {calculEnCours ? "Payer" : `Payer ${aPayer}`}
+          </Button>
+          <p className="ap-commande__securise abo-securise" data-testid="abonnement-securise">
             <ShieldCheck size={14} aria-hidden="true" /> Paiement sécurisé par ScanLinkPay
           </p>
-        </div>
+          <div className="ap-commande__logos">
+            <LogosMobileMoney taille={24} />
+          </div>
+        </aside>
       )}
     </form>
   );
@@ -733,7 +874,7 @@ export function EcranAbonnement({ client, utilisateur, horsLigne, onPaiementReus
         )}
       </header>
 
-      <div className="abo">
+      <div className="abo ap">
         {etat ? <CarteEtat etat={etat} vue={lecture.vue} /> : <p className="abo-message hc-text-body">L'état de votre abonnement n'est pas encore connu. Connectez-vous à Internet pour le lire.</p>}
         <ZonePaiement client={client} utilisateur={utilisateur} etat={etat} lecture={lecture} horsLigne={horsLigne} mode="page" onPaiementReussi={onPaiementReussi} />
         {utilisateur.role === Role.PATRON && lecture.vue && <Historique historique={lecture.vue.historique} formules={lecture.vue.formules} />}

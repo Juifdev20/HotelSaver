@@ -7,6 +7,7 @@ import { messages } from "../notifications/messages";
 import { CreerHotelDto } from "./dto/creer-hotel.dto";
 import { ChangerStatutHotelDto } from "./dto/changer-statut-hotel.dto";
 import { EnregistrerPaiementDto } from "./dto/enregistrer-paiement.dto";
+import { AnnulerPaiementDto } from "./dto/annuler-paiement.dto";
 import { AjouterDomaineDto } from "./dto/ajouter-domaine.dto";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 import { genererPalette } from "../common/palette/generer-palette";
@@ -31,7 +32,7 @@ export class SuperAdminService {
     const hotels = await this.prisma.hotel.findMany({
       include: {
         branding: true,
-        paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 },
+        paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 },
         _count: { select: { chambres: true } },
         // Patron : son numéro de connexion s'affiche dans la liste (15/10/2026).
         utilisateurs: { where: { role: "PATRON" }, select: { nom: true, telephone: true }, take: 1 },
@@ -127,6 +128,69 @@ export class SuperAdminService {
     return paiement;
   }
 
+  /** Tous les paiements d'un hôtel (les plus récents d'abord), annulés compris : l'écran du super-admin montre la trace complète. */
+  async listerPaiements(hotelId: string) {
+    const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId }, select: { id: true } });
+    if (!hotel) throw new NotFoundException(`Aucun hôtel trouvé avec l'identifiant ${hotelId}.`);
+    const lignes = await this.prisma.paiementLicence.findMany({
+      where: { hotelId },
+      orderBy: { createdAt: "desc" },
+      include: { paiementAbonnement: { select: { id: true } }, enregistrePar: { select: { nom: true } } },
+    });
+    return lignes.map(({ paiementAbonnement, enregistrePar, ...p }) => ({
+      ...p,
+      montant: Number(p.montant),
+      source: paiementAbonnement ? ("EN_LIGNE" as const) : ("MANUEL" as const),
+      enregistreParNom: enregistrePar?.nom ?? null,
+    }));
+  }
+
+  /**
+   * Annule un paiement SAISI À LA MAIN (17/10/2026) — erreur de saisie, test. La ligne n'est jamais effacée (traçabilité) : marquée
+   * annulée avec son motif, elle ne compte plus nulle part (validité, accès, statut, fonctions, historique du patron). Un paiement en
+   * ligne réel (Mobile Money via ScanLinkPay) ne s'annule pas ici : de l'argent a réellement été reçu. Le statut de l'hôtel est
+   * recalculé tout de suite, avec les mêmes règles que la garde d'accès (etatAbonnement), sans attendre la tâche de minuit.
+   */
+  async annulerPaiement(hotelId: string, paiementId: string, dto: AnnulerPaiementDto, superAdminId: string) {
+    const paiement = await this.prisma.paiementLicence.findFirst({
+      where: { id: paiementId, hotelId },
+      include: { paiementAbonnement: { select: { id: true } } },
+    });
+    if (!paiement) throw new NotFoundException("Paiement introuvable pour cet hôtel.");
+    if (paiement.paiementAbonnement) {
+      throw new BadRequestException("C'est un paiement en ligne réellement reçu : il ne peut pas être annulé ici.");
+    }
+    if (paiement.annuleLe) throw new ConflictException("Ce paiement est déjà annulé.");
+
+    // Compare-and-swap : deux annulations simultanées ne peuvent pas toutes les deux réussir.
+    const { count } = await this.prisma.paiementLicence.updateMany({
+      where: { id: paiementId, annuleLe: null },
+      data: { annuleLe: new Date(), annuleParSuperAdminId: superAdminId, motifAnnulation: dto.motif.trim() },
+    });
+    if (count === 0) throw new ConflictException("Ce paiement est déjà annulé.");
+
+    await this.recalculerStatut(hotelId);
+    return this.listerPaiements(hotelId);
+  }
+
+  /** Statut d'un hôtel ESSAI/ACTIF après la disparition d'un paiement : plus aucun paiement valide → ESSAI ; échéance dépassée
+   * (grâce comprise) → SUSPENDU. Une suspension manuelle ou une résiliation n'est jamais touchée. */
+  private async recalculerStatut(hotelId: string) {
+    const hotel = await this.prisma.hotel.findUniqueOrThrow({
+      where: { id: hotelId },
+      include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+    });
+    if (hotel.suspensionManuelle || !["ESSAI", "ACTIF"].includes(hotel.statutLicence)) return;
+    const { parametres } = await lireCatalogue(this.prisma);
+    const dernier = hotel.paiementsLicence[0] ?? null;
+    const base = dernier ? "ACTIF" : "ESSAI";
+    const etat = etatAbonnement({ ...hotel, statutLicence: base }, dernier, new Date(), parametres);
+    const nouveau = etat.bloque ? "SUSPENDU" : base;
+    if (nouveau !== hotel.statutLicence) {
+      await this.prisma.hotel.update({ where: { id: hotelId }, data: { statutLicence: nouveau, suspensionManuelle: false } });
+    }
+  }
+
   /**
    * Appelée quotidiennement par LicenceSchedulerService (voir ce fichier) —
    * extraite en méthode ordinaire pour rester testable directement, sans
@@ -137,7 +201,7 @@ export class SuperAdminService {
   async suspendreHotelsExpires(): Promise<number> {
     const hotels = await this.prisma.hotel.findMany({
       where: { statutLicence: { in: ["ESSAI", "ACTIF"] } },
-      include: { paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+      include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
     });
 
     const maintenant = new Date();
@@ -178,7 +242,7 @@ export class SuperAdminService {
       throw new NotFoundException(`Aucun hôtel trouvé avec l'identifiant ${hotelId}.`);
     }
     const catalogue = await lireCatalogue(this.prisma);
-    const fonctions = fonctionsAutorisees(hotel, (await this.prisma.paiementLicence.count({ where: { hotelId } })) > 0, catalogue.formules, catalogue.parametres);
+    const fonctions = fonctionsAutorisees(hotel, (await this.prisma.paiementLicence.count({ where: { hotelId, annuleLe: null } })) > 0, catalogue.formules, catalogue.parametres);
     if (!fonctions.includes("DOMAINE_PERSONNALISE")) {
       throw new BadRequestException("La formule de cet hôtel n'inclut pas le domaine personnalisé : changez sa formule d'abord.");
     }

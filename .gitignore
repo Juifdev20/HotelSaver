@@ -16,6 +16,9 @@ out/
 .env
 .env.local
 .env.*.local
+# Un fichier par projet Supabase (Hotelsaver Test / Prod), voir packages/database/scripts/cible.js
+.env.test
+.env.prod
 # Sauvegardes ponctuelles de .env (ex. avant de changer DATABASE_URL) — même
 # contenu sensible que .env lui-même, voir DECISIONS.md (panne du pooler
 # Supabase du 25/09/2026).

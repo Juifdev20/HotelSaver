@@ -8,6 +8,7 @@ import { ChangerStatutHotelDto } from "./dto/changer-statut-hotel.dto";
 import { EnregistrerPaiementDto } from "./dto/enregistrer-paiement.dto";
 import { AjouterDomaineDto } from "./dto/ajouter-domaine.dto";
 import { ModifierPatronDto } from "./dto/modifier-patron.dto";
+import { AnnulerPaiementDto } from "./dto/annuler-paiement.dto";
 import { UtilisateursService } from "../utilisateurs/utilisateurs.service";
 
 /**
@@ -44,6 +45,22 @@ export class SuperAdminController {
     @CurrentUser() currentUser: SuperAdminAuthentifie
   ) {
     return this.superAdminService.enregistrerPaiement(id, dto, currentUser.id);
+  }
+
+  @Get(":id/paiements")
+  listerPaiements(@Param("id") id: string) {
+    return this.superAdminService.listerPaiements(id);
+  }
+
+  /** Annule un paiement saisi à la main (motif obligatoire) — jamais un paiement en ligne réel (17/10/2026). */
+  @Post(":id/paiements/:paiementId/annuler")
+  annulerPaiement(
+    @Param("id") id: string,
+    @Param("paiementId") paiementId: string,
+    @Body() dto: AnnulerPaiementDto,
+    @CurrentUser() currentUser: SuperAdminAuthentifie
+  ) {
+    return this.superAdminService.annulerPaiement(id, paiementId, dto, currentUser.id);
   }
 
   /** Numéro de connexion et/ou nouveau mot de passe du patron (15/10/2026) —

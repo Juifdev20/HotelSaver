@@ -18,3 +18,4 @@ export type { DonutProps, DonutSegment } from "./Donut";
 //   import "@hotel-chicago/ui/dist/typography.css";
 export { ChampTelephone, DrapeauRdc, telephoneDepuisSaisie, saisieDepuisTelephone } from "./ChampTelephone";
 export type { ChampTelephoneProps } from "./ChampTelephone";
+export { LogoAfricell, LogoAirtel, LogoMastercard, LogoMpesa, LogoOperateur, LogoOrange, LogoVisa, LogosCartes, LogosMobileMoney } from "./LogosPaiement";

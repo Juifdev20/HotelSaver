@@ -29,11 +29,17 @@ export interface ConfigurationApp {
  *   MAIN_VITE_API_URL=https://api.hotelsaver.com pnpm --filter desktop build */
 const API_URL_COMPILATION: string = import.meta.env.MAIN_VITE_API_URL || "http://localhost:3001";
 
+/** Projet Supabase intégré au build (17/10/2026) : « Hotelsaver Test » par défaut (développement). Build publié :
+ *   MAIN_VITE_SUPABASE_URL=https://<ref-prod>.supabase.co MAIN_VITE_SUPABASE_ANON_KEY=… (voir .env.example).
+ * La clé anon est publique par conception (la RLS ferme tout accès direct). */
+const SUPABASE_TEST_URL = "https://glkmhesvmbxmryowbhkr.supabase.co";
+const SUPABASE_TEST_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdsa21oZXN2bWJ4bXJ5b3diaGtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjkzMTgsImV4cCI6MjEwNzg0NTMxOH0.b-jVA2ElhxO_1uUblGRhFbZmLCx2XBXM_61SGQ2avpo";
+
 const VALEURS_PAR_DEFAUT: ConfigurationApp = {
   apiUrl: API_URL_COMPILATION,
-  supabaseUrl: "https://zjplcqocmkctbfxnxheq.supabase.co",
-  supabaseAnonKey:
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqcGxjcW9jbWtjdGJmeG54aGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NTg0MzgsImV4cCI6MjEwNjAzNDQzOH0.fkgb9UjnDKQ956wWrv73EAGbBcJly_NrfS-pwKibMSI",
+  supabaseUrl: import.meta.env.MAIN_VITE_SUPABASE_URL || SUPABASE_TEST_URL,
+  supabaseAnonKey: import.meta.env.MAIN_VITE_SUPABASE_ANON_KEY || SUPABASE_TEST_ANON_KEY,
   refreshToken: null,
   imprimanteInterface: null,
   comptesLocaux: {},

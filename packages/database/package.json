@@ -2,7 +2,7 @@
   "name": "@hotel-chicago/database",
   "private": true,
   "version": "0.1.0",
-  "description": "Schéma Prisma partagé + client, connecté à Supabase Postgres (production)",
+  "description": "Schéma Prisma partagé + client, connecté à Supabase Postgres (projets Hotelsaver Test et Prod)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -13,8 +13,9 @@
     "migrate:status": "prisma migrate status",
     "migrate:appliquer": "node scripts/appliquer-migrations.js",
     "migrate:verifier": "node scripts/appliquer-migrations.js --verifier",
+    "migrate:appliquer:prod": "node scripts/appliquer-migrations.js --prod",
+    "migrate:verifier:prod": "node scripts/appliquer-migrations.js --verifier --prod",
     "studio": "prisma studio",
-    "apply-rls": "node scripts/apply-rls.js",
     "creer-utilisateur": "node scripts/creer-utilisateur.js",
     "reconnecter-utilisateur": "node scripts/reconnecter-utilisateur.js",
     "creer-super-admin": "node scripts/creer-super-admin.js"

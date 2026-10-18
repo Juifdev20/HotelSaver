@@ -1,13 +1,14 @@
 import * as React from "react";
 import { useState } from "react";
 import { Button, StatusBadge, useTitrePage, type StatusTone } from "@hotel-chicago/ui";
-import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement } from "@hotel-chicago/api-client";
+import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement, PaiementLicenceSuperAdmin } from "@hotel-chicago/api-client";
 import { formaterTelephoneRdc } from "@hotel-chicago/types";
 import type { FormuleAdminVue, HotelAvecValidite, StatutLicence } from "@hotel-chicago/types";
 import { AIDE_FORMULES } from "./fonctions";
 import { FormulairePaiement } from "./FormulairePaiement";
 import { FormulaireDomaine } from "./FormulaireDomaine";
 import { FormulairePatron } from "./FormulairePatron";
+import { PaiementsHotel } from "./PaiementsHotel";
 import { DialogueConfirmation } from "./DialogueConfirmation";
 import { EnteteApp, type Onglet } from "./EnteteApp";
 import { badgeAbonnement, dateFin, libelleFormule, type HotelListe } from "./etatHotel";
@@ -35,6 +36,9 @@ export interface EcranHotelsProps {
   erreurDomaine: string | null;
   /** Numéro de connexion et/ou nouveau mot de passe du patron (15/10/2026). */
   onModifierPatron: (hotelId: string, dto: { telephone?: string; motDePasse?: string }) => Promise<boolean>;
+  /** Paiements d'un hôtel et annulation d'une saisie manuelle (17/10/2026). */
+  onListerPaiements: (hotelId: string) => Promise<PaiementLicenceSuperAdmin[]>;
+  onAnnulerPaiement: (hotelId: string, paiementId: string, motif: string) => Promise<PaiementLicenceSuperAdmin[]>;
   patronEnCours: boolean;
   erreurPatron: string | null;
   onDeconnexion: () => void;
@@ -111,6 +115,8 @@ export function EcranHotels({
   domaineEnCours,
   erreurDomaine,
   onModifierPatron,
+  onListerPaiements,
+  onAnnulerPaiement,
   patronEnCours,
   erreurPatron,
   onDeconnexion,
@@ -119,6 +125,7 @@ export function EcranHotels({
   const [hotelPourPatron, setHotelPourPatron] = useState<HotelAvecValidite | null>(null);
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
   const [hotelPourPaiement, setHotelPourPaiement] = useState<HotelListe | null>(null);
+  const [hotelPourHistorique, setHotelPourHistorique] = useState<HotelListe | null>(null);
   // Par id, pas par objet : l'hôtel affiché doit refléter les données à
   // jour après chaque action (ajout/vérification/retrait), sans fermer la
   // modale entre chaque étape (voir FormulaireDomaine).
@@ -398,9 +405,14 @@ export function EcranHotels({
                       </div>
                     </td>
                     <td>
-                      <Button variant="secondary" size="sm" aria-label={`Enregistrer un paiement pour ${hotel.nom}`} onClick={() => setHotelPourPaiement(hotel)}>
-                        Enregistrer un paiement
-                      </Button>
+                      <div className="actions-paiement">
+                        <Button variant="secondary" size="sm" aria-label={`Enregistrer un paiement pour ${hotel.nom}`} onClick={() => setHotelPourPaiement(hotel)}>
+                          Enregistrer un paiement
+                        </Button>
+                        <Button variant="secondary" size="sm" aria-label={`Voir les paiements de ${hotel.nom}`} onClick={() => setHotelPourHistorique(hotel)}>
+                          Paiements
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -470,6 +482,15 @@ export function EcranHotels({
             if (succes) setHotelPourPaiement(null);
           }}
           onFermer={() => setHotelPourPaiement(null)}
+        />
+      )}
+
+      {hotelPourHistorique && (
+        <PaiementsHotel
+          hotelNom={hotelPourHistorique.nom}
+          charger={() => onListerPaiements(hotelPourHistorique.id)}
+          annuler={(paiementId, motif) => onAnnulerPaiement(hotelPourHistorique.id, paiementId, motif)}
+          onFermer={() => setHotelPourHistorique(null)}
         />
       )}
 

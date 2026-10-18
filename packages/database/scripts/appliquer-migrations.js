@@ -13,17 +13,18 @@
 //      annulées) ; refuse de continuer si une entrée est en échec ;
 //   3. applique chaque SQL manquant dans une transaction, sur UNE connexion
 //      `pg` (protocole simple : tout le fichier en un seul appel, comme
-//      apply-rls.js), puis l'enregistre avec le checksum SHA-256 du fichier,
+//      l’ancien apply-rls.js), puis l'enregistre avec le checksum SHA-256 du fichier,
 //      exactement comme Prisma, pour que `prisma migrate status` et
 //      `migrate dev` (via une connexion directe, un jour) la reconnaissent.
 //
-// Usage :  node scripts/appliquer-migrations.js            # applique
+// Usage :  node scripts/appliquer-migrations.js            # applique (projet Test, voir cible.js)
 //          node scripts/appliquer-migrations.js --verifier  # liste seulement
+//          node scripts/appliquer-migrations.js --prod --oui-prod  # projet Prod
 //
 // Ne remplace pas `prisma migrate dev` pour CRÉER une migration : celui-ci
 // reste à faire contre une base locale/direct (le fichier SQL généré est
 // ensuite commité et appliqué ici).
-require("dotenv").config();
+require("./cible.js").chargerCible({ lectureSeule: process.argv.includes("--verifier") });
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");

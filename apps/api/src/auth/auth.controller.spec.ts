@@ -41,7 +41,7 @@ describe("AuthController.moi", () => {
         createdAt: true,
         suspensionManuelle: true,
         site: { select: { slogan: true } },
-        paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
+        paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
       },
     });
     expect(profil).toEqual({

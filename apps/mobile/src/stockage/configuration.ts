@@ -30,10 +30,19 @@ function apiUrlViaWifi(): string | null {
  * la valeur du build (prod : l'URL publique ; dev : 127.0.0.1 via le câble
  * USB), puis l'IP Wi-Fi courante en dev, puis localhost en dernier recours.
  * ClientApi essaie chacune jusqu'à une réponse (voir client.ts). */
+/** Adresse du poste ou du réseau local (127.0.0.1, localhost, 10.x, 192.168.x, 172.16-31.x), en http. */
+function estAdresseLocale(url: string): boolean {
+  return /^http:\/\/(127\.0\.0\.1|localhost|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?(\/|$)/i.test(url);
+}
+
 export function candidatsApi(): string[] {
   // Version installée : uniquement l'adresse du build, et en https. Les repli locaux (127.0.0.1, IP Wi-Fi du poste de développement) ne
   // servent qu'en développement : sinon, serveur injoignable, le mot de passe partirait en clair vers n'importe quelle application locale.
-  if (!__DEV__) {
+  // L'APK de développement embarque son JS (`debuggableVariants = []`, voir AGENTS.md) et tourne donc avec
+  // `__DEV__` faux : sans cette exception, une adresse locale compilée exprès (127.0.0.1 via le câble USB)
+  // était rejetée et l'application ne joignait plus aucun serveur (16/10/2026). Une version publiée, elle,
+  // est compilée avec l'adresse https publique : une adresse locale ne peut être qu'un choix de développement.
+  if (!__DEV__ && !estAdresseLocale(API_URL_COMPILATION)) {
     if (!API_URL_COMPILATION.startsWith("https://")) {
       // eslint-disable-next-line no-console
       console.warn("EXPO_PUBLIC_API_URL n'est pas une adresse https : la connexion au serveur sera refusée en production.");
@@ -53,19 +62,32 @@ export function candidatsApi(): string[] {
 //   EXPO_PUBLIC_API_URL=https://api.hotelsaver.com (voir .env.example).
 const API_URL_COMPILATION: string = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
 
+// Projet Supabase intégré au build (17/10/2026) : « Hotelsaver Test » par défaut (développement). Build publié :
+// EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY du projet « Hotelsaver Prod » (voir .env.example).
+const SUPABASE_TEST_URL = "https://glkmhesvmbxmryowbhkr.supabase.co";
+const SUPABASE_TEST_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdsa21oZXN2bWJ4bXJ5b3diaGtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjkzMTgsImV4cCI6MjEwNzg0NTMxOH0.b-jVA2ElhxO_1uUblGRhFbZmLCx2XBXM_61SGQ2avpo";
+
 const VALEURS_PAR_DEFAUT: ConfigurationApp = {
   apiUrl: API_URL_COMPILATION,
-  supabaseUrl: "https://zjplcqocmkctbfxnxheq.supabase.co",
-  supabaseAnonKey:
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqcGxjcW9jbWtjdGJmeG54aGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NTg0MzgsImV4cCI6MjEwNjAzNDQzOH0.fkgb9UjnDKQ956wWrv73EAGbBcJly_NrfS-pwKibMSI",
+  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || SUPABASE_TEST_URL,
+  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || SUPABASE_TEST_ANON_KEY,
 };
 
 export async function lireConfiguration(): Promise<ConfigurationApp> {
   try {
     const brut = await AsyncStorage.getItem(CLE);
-    // L'adresse de l'API vient TOUJOURS du build : un ancien `apiUrl` mémorisé (du temps où
-    // l'écran Paramètres la proposait) ne doit pas masquer celle de la version installée.
-    return brut ? { ...VALEURS_PAR_DEFAUT, ...JSON.parse(brut), apiUrl: API_URL_COMPILATION } : VALEURS_PAR_DEFAUT;
+    // L'API et le projet Supabase viennent TOUJOURS du build : une valeur mémorisée (ancien écran Paramètres, ancien
+    // projet Supabase) ne doit pas masquer celle de la version installée.
+    return brut
+      ? {
+          ...VALEURS_PAR_DEFAUT,
+          ...JSON.parse(brut),
+          apiUrl: API_URL_COMPILATION,
+          supabaseUrl: VALEURS_PAR_DEFAUT.supabaseUrl,
+          supabaseAnonKey: VALEURS_PAR_DEFAUT.supabaseAnonKey,
+        }
+      : VALEURS_PAR_DEFAUT;
   } catch {
     return VALEURS_PAR_DEFAUT;
   }

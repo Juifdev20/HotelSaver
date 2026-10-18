@@ -46,7 +46,7 @@ export class AbonnementService {
   private async chargerHotel(hotelId: string) {
     const hotel = await this.prisma.hotel.findUnique({
       where: { id: hotelId },
-      include: { paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } },
+      include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } },
     });
     if (!hotel) throw new NotFoundException("Hôtel introuvable.");
     return hotel;
@@ -64,7 +64,7 @@ export class AbonnementService {
         ? this.prisma.paiementAbonnement.findFirst({ where: { hotelId: hotel.id, statut: "EN_ATTENTE", createdAt: { gt: new Date(Date.now() - DELAI_ABANDON_MS) } }, orderBy: { createdAt: "desc" }, include: { paiementLicence: true } })
         : null,
       estPatron ? this.prisma.paiementAbonnement.findMany({ where: { hotelId: hotel.id }, orderBy: { createdAt: "desc" }, take: NOMBRE_HISTORIQUE, include: { paiementLicence: true } }) : [],
-      estPatron ? this.prisma.paiementLicence.findMany({ where: { hotelId: hotel.id, paiementAbonnement: null }, orderBy: { createdAt: "desc" }, take: NOMBRE_HISTORIQUE }) : [],
+      estPatron ? this.prisma.paiementLicence.findMany({ where: { hotelId: hotel.id, paiementAbonnement: null, annuleLe: null }, orderBy: { createdAt: "desc" }, take: NOMBRE_HISTORIQUE }) : [],
     ]);
     const lignes = [
       ...historique.map((p) => this.versVue(p)),
@@ -345,7 +345,7 @@ export class AbonnementService {
       const ligne = await tx.paiementAbonnement.findUniqueOrThrow({ where: { id } });
       const hotel = await tx.hotel.findUniqueOrThrow({
         where: { id: ligne.hotelId },
-        include: { paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } },
+        include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } },
       });
       const catalogue = await lireCatalogue(this.prisma);
       const fin = nouvelleFinValidite(finValidite(hotel, hotel.paiementsLicence[0] ?? null, catalogue.parametres.joursEssai), maintenant, ligne.mois);

@@ -15,8 +15,7 @@
 // le port 6543 pour cette seule opération. À enlever une fois le pooler en
 // mode session de nouveau opérationnel (revérifier avant de l'enlever).
 const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
-require("dotenv").config({ path: path.join(__dirname, "..", "..", "..", "apps", "api", ".env") });
+require("./cible.js").chargerCible();
 if (process.env.DATABASE_URL) {
   process.env.DATABASE_URL = process.env.DATABASE_URL.replace(":5432/", ":6543/");
 }
@@ -37,7 +36,7 @@ async function appelAdmin(methode, chemin, corps) {
 }
 
 async function main() {
-  const [email, idUtilisateur] = process.argv.slice(2).filter((argument) => argument !== "--");
+  const [email, idUtilisateur] = process.argv.slice(2).filter((argument) => !argument.startsWith("--"));
   const motDePasse = process.env.MOT_DE_PASSE;
 
   if (!email || !idUtilisateur || !motDePasse) {

@@ -18,9 +18,9 @@ const VALEURS_PAR_DEFAUT: ConfigurationApp = {
   // serveur de l'hôtel qui tourne sur le PC via le câble USB, sans IP réseau
   // à connaître ni à exposer sur le Wi-Fi.
   apiUrl: "http://localhost:3001",
-  supabaseUrl: "https://zjplcqocmkctbfxnxheq.supabase.co",
+  supabaseUrl: "https://glkmhesvmbxmryowbhkr.supabase.co",
   supabaseAnonKey:
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqcGxjcW9jbWtjdGJmeG54aGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0NTg0MzgsImV4cCI6MjEwNjAzNDQzOH0.fkgb9UjnDKQ956wWrv73EAGbBcJly_NrfS-pwKibMSI",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdsa21oZXN2bWJ4bXJ5b3diaGtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjkzMTgsImV4cCI6MjEwNzg0NTMxOH0.b-jVA2ElhxO_1uUblGRhFbZmLCx2XBXM_61SGQ2avpo",
   refreshToken: null,
   imprimanteInterface: null,
   comptesLocaux: {},

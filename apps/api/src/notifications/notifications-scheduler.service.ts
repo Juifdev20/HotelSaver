@@ -168,7 +168,7 @@ export class NotificationsSchedulerService {
     try {
       const hotels = await this.prisma.hotel.findMany({
         where: { statutLicence: { in: ["ESSAI", "ACTIF"] } },
-        include: { paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+        include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
       });
       const { cle } = bornesDuJour(maintenant);
       const { parametres } = await lireCatalogue(this.prisma);

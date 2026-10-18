@@ -132,7 +132,7 @@ describe("SuperAdminService", () => {
         expect.objectContaining({
           include: expect.objectContaining({
             branding: true,
-            paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1 },
+            paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 },
           }),
         })
       );
@@ -192,6 +192,62 @@ describe("SuperAdminService", () => {
       await service.enregistrerPaiement("h1", dto as any, "admin-1");
 
       expect(prisma.hotel.update).toHaveBeenCalledWith({ where: { id: "h1" }, data: { statutLicence: "ACTIF", suspensionManuelle: false } });
+    });
+  });
+
+  describe("annulerPaiement (saisie manuelle erronée, 17/10/2026)", () => {
+    const manuel = { id: "p1", hotelId: "h1", annuleLe: null, paiementAbonnement: null };
+
+    function preparer(ligne: any, hotel: any) {
+      prisma.paiementLicence.findFirst = jest.fn().mockResolvedValue(ligne);
+      prisma.paiementLicence.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      prisma.paiementLicence.findMany = jest.fn().mockResolvedValue([]);
+      prisma.hotel.findUnique.mockResolvedValue({ id: "h1" });
+      prisma.hotel.findUniqueOrThrow = jest.fn().mockResolvedValue(hotel);
+    }
+
+    it("marque le paiement annulé (jamais effacé) avec le motif et l'auteur", async () => {
+      const dans10Jours = new Date(Date.now() + 10 * 86_400_000);
+      preparer(manuel, { id: "h1", statutLicence: "ACTIF", suspensionManuelle: false, createdAt: new Date(), paiementsLicence: [{ periodeCouverteJusquau: dans10Jours }] });
+      await service.annulerPaiement("h1", "p1", { motif: "  Saisie de test  " }, "sa-1");
+      expect(prisma.paiementLicence.updateMany).toHaveBeenCalledWith({
+        where: { id: "p1", annuleLe: null },
+        data: { annuleLe: expect.any(Date), annuleParSuperAdminId: "sa-1", motifAnnulation: "Saisie de test" },
+      });
+      // Un autre paiement valide couvre encore l'hôtel : statut inchangé.
+      expect(prisma.hotel.update).not.toHaveBeenCalled();
+    });
+
+    it("dernier paiement annulé, essai terminé depuis longtemps : l'hôtel est suspendu tout de suite", async () => {
+      const ilYa60Jours = new Date(Date.now() - 60 * 86_400_000);
+      preparer(manuel, { id: "h1", statutLicence: "ACTIF", suspensionManuelle: false, createdAt: ilYa60Jours, paiementsLicence: [] });
+      await service.annulerPaiement("h1", "p1", { motif: "Saisie de test" }, "sa-1");
+      expect(prisma.hotel.update).toHaveBeenCalledWith({ where: { id: "h1" }, data: { statutLicence: "SUSPENDU", suspensionManuelle: false } });
+    });
+
+    it("dernier paiement annulé pendant l'essai : l'hôtel repasse en ESSAI", async () => {
+      preparer(manuel, { id: "h1", statutLicence: "ACTIF", suspensionManuelle: false, createdAt: new Date(), paiementsLicence: [] });
+      await service.annulerPaiement("h1", "p1", { motif: "Saisie de test" }, "sa-1");
+      expect(prisma.hotel.update).toHaveBeenCalledWith({ where: { id: "h1" }, data: { statutLicence: "ESSAI", suspensionManuelle: false } });
+    });
+
+    it("refuse d'annuler un paiement en ligne réellement reçu", async () => {
+      preparer({ ...manuel, paiementAbonnement: { id: "pa-1" } }, null);
+      await expect(service.annulerPaiement("h1", "p1", { motif: "Erreur" }, "sa-1")).rejects.toThrow(BadRequestException);
+      expect(prisma.paiementLicence.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("refuse une seconde annulation (409), et un paiement d'un autre hôtel (404)", async () => {
+      preparer({ ...manuel, annuleLe: new Date() }, null);
+      await expect(service.annulerPaiement("h1", "p1", { motif: "Erreur" }, "sa-1")).rejects.toThrow(ConflictException);
+      preparer(null, null);
+      await expect(service.annulerPaiement("h1", "p-autre", { motif: "Erreur" }, "sa-1")).rejects.toThrow(NotFoundException);
+    });
+
+    it("ne touche jamais à une suspension manuelle", async () => {
+      preparer(manuel, { id: "h1", statutLicence: "SUSPENDU", suspensionManuelle: true, createdAt: new Date(0), paiementsLicence: [] });
+      await service.annulerPaiement("h1", "p1", { motif: "Saisie de test" }, "sa-1");
+      expect(prisma.hotel.update).not.toHaveBeenCalled();
     });
   });
 

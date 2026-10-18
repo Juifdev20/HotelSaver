@@ -50,7 +50,7 @@ export class PaiementReservationService {
 
   private async fonctionsDe(hotel: Hotel) {
     const catalogue = await lireCatalogue(this.prisma);
-    const aPaye = (await this.prisma.paiementLicence.count({ where: { hotelId: hotel.id } })) > 0;
+    const aPaye = (await this.prisma.paiementLicence.count({ where: { hotelId: hotel.id, annuleLe: null } })) > 0;
     return fonctionsAutorisees(hotel, aPaye, catalogue.formules, catalogue.parametres);
   }
 

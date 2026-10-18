@@ -50,7 +50,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
     const utilisateur = await this.prisma.utilisateur.findUnique({
       where: { supabaseAuthId: sub },
-      include: { hotel: { include: { paiementsLicence: { orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } } } },
+      include: { hotel: { include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } } } },
     });
 
     if (!utilisateur || !utilisateur.actif) {

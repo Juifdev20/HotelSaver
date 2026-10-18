@@ -315,6 +315,12 @@ model PaiementLicence {
   enregistreParSuperAdminId String?
   paiementAbonnement        PaiementAbonnement?
   createdAt                 DateTime               @default(now())
+  /// Annulation par le super-admin (17/10/2026) : une saisie manuelle erronée ou de test n'est jamais effacée (traçabilité) ;
+  /// marquée annulée, elle ne compte plus nulle part (validité, accès, statut, historique du patron). Réservé aux saisies
+  /// manuelles : un paiement en ligne réel (paiementAbonnement) ne s'annule pas ici.
+  annuleLe                  DateTime?
+  annuleParSuperAdminId     String?
+  motifAnnulation           String?
 
   @@index([hotelId])
 }

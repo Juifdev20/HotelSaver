@@ -22,7 +22,7 @@ export class ReglagesPaiementService {
 
   private async fonctionIncluse(hotel: { id: string; formule: string | null }): Promise<boolean> {
     const catalogue = await lireCatalogue(this.prisma);
-    const aPaye = (await this.prisma.paiementLicence.count({ where: { hotelId: hotel.id } })) > 0;
+    const aPaye = (await this.prisma.paiementLicence.count({ where: { hotelId: hotel.id, annuleLe: null } })) > 0;
     return fonctionsAutorisees(hotel, aPaye, catalogue.formules, catalogue.parametres).includes("ACOMPTE_EN_LIGNE");
   }
 

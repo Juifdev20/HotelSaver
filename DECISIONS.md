@@ -3545,3 +3545,85 @@ création d'un compte employé, l'e-mail devient optionnel.
 ## 17/10/2026 — Fusion de `master` (connexion par numéro, nouvelle interface) dans `claude/salut-a0vnrz`
 
 `master` avait avancé (commit `304baaf` : connexion par numéro +243, nouvelle maquette mobile, retour en stock à l'annulation d'un reçu, heures réelles d'arrivée/départ). Fusionné DANS la branche de travail (jamais l'inverse), conflit par conflit, en gardant l'interface de `master` et en y remettant les ajouts de la branche : choix « essai gratuit / payer maintenant », bouton « Payer sur le site », badges « Payé en ligne » / « Chambre déjà réservée », accessibilité, retour Android. Adaptations : la page `/payer` et le gestionnaire de session du bureau se connectent par NUMÉRO via le relais `/auth/connexion` ; `arriveeLe`/`departLe` ajoutés au miroir local (check-in/out hors ligne) ; l'annulation d'un reçu transmet `remettreEnStock` ; les anciens fichiers de stockage mobile (remplacés par le miroir partagé) restent supprimés. Tests navigateur mis à jour pour la connexion par numéro.
+
+## Annulation d'un paiement d'abonnement saisi à la main (17/10/2026)
+
+Une saisie de test (« 27/09/2026 · 50 $ · Payé », Hôtel Test, note « Vérification
+post-interruption agent ») s'affichait comme un vrai paiement dans l'historique du
+patron. Les paiements restent **immuables** (jamais effacés, traçabilité) ; le
+super-admin peut désormais **annuler** une saisie manuelle :
+`PaiementLicence.annuleLe / annuleParSuperAdminId / motifAnnulation` (migration
+`20261017090000_annulation_paiement_licence`), motif obligatoire.
+
+- Un paiement annulé ne compte **plus nulle part** : les 12 lectures de
+  `PaiementLicence` filtrent `annuleLe: null` (validité, garde d'accès, `/auth/me`,
+  fonctions autorisées, notifications d'échéance, suspension de minuit, liste des
+  hôtels, historique du patron, acompte/site public).
+- **Seules les saisies manuelles** s'annulent : un paiement en ligne
+  (`paiementAbonnement` lié, argent réellement reçu via ScanLinkPay) est refusé (400).
+- Annulation en compare-and-swap (`updateMany … annuleLe: null`), puis statut de
+  l'hôtel recalculé tout de suite avec `etatAbonnement` : plus aucun paiement
+  valide → ESSAI, échéance dépassée (grâce comprise) → SUSPENDU ; une suspension
+  manuelle ou une résiliation n'est jamais touchée.
+- Routes : `GET /super-admin/hotels/:id/paiements` (annulés compris) et
+  `POST /super-admin/hotels/:id/paiements/:paiementId/annuler`. Super-admin : bouton
+  « Paiements » par hôtel (`PaiementsHotel.tsx`), lignes annulées barrées avec leur motif.
+
+
+## 17/10/2026 — Projets Supabase Prod et Test, migration de base unique
+
+**Problème** : un seul projet Supabase (`zjplcqocmkctbfxnxheq`) servait à la fois au développement et à la
+« production » ; chaque essai touchait la base des vrais hôtels. Le patron a créé deux projets : **Hotelsaver
+Test** (développement, `glkmhesvmbxmryowbhkr`) et **Hotelsaver Prod** (version publiée, `axeznwmwupcgmhuajvte`),
+région eu-west-1. Migration de base appliquée sur les deux le 18/10/2026.
+
+**Décisions** :
+- On repart **à vide** dans les deux projets : aucune donnée ni compte copié (les comptes Supabase Auth ne se
+  transfèrent pas d'un projet à l'autre de toute façon). L'ancien projet reste intact tant qu'on ne le supprime pas.
+- Développement = **Test** : `apps/api/.env`, `apps/super-admin/.env`, et les valeurs par défaut du bureau et du mobile.
+  Version publiée = **Prod** : variables Render pour l'API ; `MAIN_VITE_SUPABASE_URL` / `MAIN_VITE_SUPABASE_ANON_KEY`
+  (bureau) et `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` (mobile) au build. Comme l'adresse de l'API,
+  le projet Supabase du build **prime** sur une valeur mémorisée sur l'appareil (le mobile ne le faisait pas encore).
+- **Une seule migration de base** `20261017120000_base_initiale` remplace les 34 précédentes, archivées dans
+  `prisma/migrations-archive/` avec `apply_manually.sql` et `rls-policies.sql` (`apply-rls.js` retiré). Raison : la
+  chaîne n'était pas rejouable sur une base neuve — `MenuDuJour`, `MenuDuJourItem` et l'enum `StatutLigne` n'existaient
+  que via `apply_manually.sql` collé à la main dans l'éditeur SQL. La base part donc du **schéma Prisma**
+  (`prisma migrate diff --from-empty`), complété par ce que Prisma n'exprime pas, recopié de l'**état réel** de
+  l'ancien projet (catalogue lu en lecture seule) : `btree_gist` + contrainte `reservation_chambre_sans_chevauchement`,
+  fonctions `role_utilisateur_courant` / `controle_ecriture_chambre` et leur trigger, les 34 policies, RLS sur toutes
+  les tables (bloc final idempotent), et les formules 29 / 59 / 99 $ + `ParametresPlateforme`. L'hôtel « Hôtel Chicago »
+  inséré par `multi_tenant_foundations` n'est **pas** repris.
+- Écarts connus avec l'ancien projet, sans effet : `MenuDuJour_hotelId_date_key` et `MenuDuJourItem_menuId_produitId_key`
+  sont des index uniques (forme Prisma) au lieu de contraintes UNIQUE (forme du SQL manuel) ; les clés étrangères
+  d'`InventairePhysiqueItem` / `MenuDuJourItem` prennent la forme Prisma (`ON UPDATE CASCADE`, `RESTRICT` au lieu de
+  `NO ACTION`) ; `Client.updatedAt` et `MenuDuJour.updatedAt` n'ont plus de valeur par défaut en base (`@updatedAt` :
+  c'est Prisma qui la remplit, aucun INSERT SQL brut dans le code). Comparaison faite sur Test après application :
+  extensions, tables, index, enums, triggers, policies, droits et RLS identiques à l'ancien projet.
+- **Choix du projet dans les scripts** (`packages/database/scripts/cible.js`) : `.env.test` par défaut, `.env.prod` avec
+  `--prod` ; toute écriture sur Prod exige en plus `--oui-prod` (un contrôle `--verifier` non). Garde-fou :
+  `DATABASE_URL` doit viser le même projet que `SUPABASE_URL`. Scripts : `migrate:verifier[:prod]`,
+  `migrate:appliquer[:prod]`, `creer-super-admin`, `creer-utilisateur`, `reconnecter-utilisateur`.
+- **Règle à partir de maintenant** : toute migration passe d'abord sur Test, puis sur Prod au moment de la mise en
+  production.
+
+## 18/10/2026 — Onglet « Abonnement » (bureau et mobile) : même présentation que les autres paiements
+
+**Demande** : l'onglet Abonnement du patron devait ressembler aux pages de paiement refaites le 17/10 (réservation, abonnement sur le site) :
+logos des réseaux Mobile Money, étapes claires, récapitulatif, professionnel sur ordinateur comme sur téléphone.
+
+- **Logos partagés** : `LogosPaiement.tsx` passe de `apps/web` à `@hotel-chicago/ui` (le site le réexporte) pour que le bureau l'utilise ;
+  le mobile a sa copie en `react-native-svg` (`apps/mobile/src/composants/LogosPaiement.tsx`, mêmes dessins).
+- **Bureau** (`EcranAbonnement.tsx` + `abonnement-pro.css`, préfixe `ap-`) : carte d'état avec compte à rebours des jours restants ;
+  formulaire en 4 étapes numérotées (cartes de formule, tuiles de durée avec « soit X / mois » et mois offerts, sélecteur de monnaie,
+  cartes de réseau avec logo, champ numéro qui affiche le logo du réseau reconnu) ; **récapitulatif collant** à droite (formule, durée,
+  réseau, total, bouton « Payer … ») au-delà de 900 px de conteneur, sous les étapes en dessous ; attente avec le logo du réseau, une onde
+  et une progression en 3 étapes ; reçu après réussite ; logos dans l'historique. Requêtes de conteneur : le même formulaire sert l'écran
+  Abonnement et le plein écran « abonnement expiré ». `abonnement.css` est gardé tel quel (classes `abo-*` aussi utilisées par l'acompte
+  en ligne, les remboursements et le détail de réservation).
+- Les vrais boutons radio restent dans le DOM, transparents et étendus à toute la carte : clavier, lecteur d'écran et `check()` des
+  tests navigateur fonctionnent (un radio réduit à 1 px était masqué par le logo et refusait le clic).
+- **Mobile** (`PanneauAbonnement.tsx`) : mêmes éléments en React Native ; les « inclus » ne se déplient que pour la formule choisie
+  (liste courte sur petit écran) ; le bouton « Payer » est dans la carte « Votre commande ».
+- **Aucune logique changée** (suivi du paiement, aperçu des frais ScanLinkPay, reprise d'un paiement en cours) ; textes, libellés et
+  `data-testid` lus par `navigateur-abonnement.e2e-spec.ts` conservés. Historique : une saisie du support sans formule ni durée affiche
+  « Paiement manuel » au lieu de « · 0 mois ».

@@ -31,6 +31,22 @@ export interface PaiementAbonnementSupport extends PaiementAbonnementVue {
   referenceFournisseur: string | null;
 }
 
+/** Un paiement d'abonnement d'un hôtel vu par le super-admin (GET /super-admin/hotels/:id/paiements), annulés compris. */
+export interface PaiementLicenceSuperAdmin {
+  id: string;
+  montant: number;
+  devise: Devise;
+  methode: MethodePaiementLicence;
+  periodeCouverteJusquau: string;
+  note: string | null;
+  createdAt: string;
+  /** MANUEL = saisi par le support (annulable) ; EN_LIGNE = Mobile Money réellement reçu (jamais annulable). */
+  source: "MANUEL" | "EN_LIGNE";
+  enregistreParNom: string | null;
+  annuleLe: string | null;
+  motifAnnulation: string | null;
+}
+
 /** Champ de apps/api/src/super-admin/dto/ajouter-domaine.dto.ts
  * (Phase 13, domaines personnalisés — onboarding manuel uniquement). */
 export interface DonneesAjoutDomaine {
@@ -127,6 +143,18 @@ export class ClientSuperAdmin {
     return this.requete(`/super-admin/hotels/${hotelId}/patron`, {
       method: "PATCH",
       body: JSON.stringify(dto),
+    });
+  }
+
+  async listerPaiements(hotelId: string): Promise<PaiementLicenceSuperAdmin[]> {
+    return this.requete<PaiementLicenceSuperAdmin[]>(`/super-admin/hotels/${hotelId}/paiements`);
+  }
+
+  /** Annule un paiement saisi à la main (motif obligatoire, 17/10/2026) ; renvoie la liste à jour. */
+  async annulerPaiement(hotelId: string, paiementId: string, motif: string): Promise<PaiementLicenceSuperAdmin[]> {
+    return this.requete<PaiementLicenceSuperAdmin[]>(`/super-admin/hotels/${hotelId}/paiements/${paiementId}/annuler`, {
+      method: "POST",
+      body: JSON.stringify({ motif }),
     });
   }
 

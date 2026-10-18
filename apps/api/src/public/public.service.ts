@@ -129,7 +129,7 @@ export class PublicService {
   /** Fonctions ouvertes à un hôtel par sa formule (ou son essai) : voir `fonctionsAutorisees`. */
   private async fonctionsDe(hotel: { id: string; formule: string | null }): Promise<Fonction[]> {
     const catalogue = await lireCatalogue(this.prisma);
-    const aPaye = (await this.prisma.paiementLicence.count({ where: { hotelId: hotel.id } })) > 0;
+    const aPaye = (await this.prisma.paiementLicence.count({ where: { hotelId: hotel.id, annuleLe: null } })) > 0;
     return fonctionsAutorisees(hotel, aPaye, catalogue.formules, catalogue.parametres);
   }
 

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { Check, CircleAlert, CircleCheck, Info, Lock } from "lucide-react-native";
+import { AppState, ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { AlertTriangle, BedDouble, CalendarClock, Check, CircleAlert, CircleCheck, Crown, Gift, Info, Lock, ShieldCheck, Smartphone, Sparkles, XCircle } from "lucide-react-native";
 import { ErreurApi } from "@hotel-chicago/api-client";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { SuiviPaiementAbonnement, type EtatSuiviPaiement } from "@hotel-chicago/miroir-local";
@@ -26,6 +26,7 @@ import { ouvrirLienSur } from "../liens";
 import { confirmerAction } from "../confirmer";
 import { messageErreur } from "../messagesErreur";
 import { BlocAide, choisirContactSupport, memoriserContactSupport } from "./AideSupport";
+import { LogoOperateur, LogosMobileMoney } from "./LogosPaiement";
 
 type ClientAbonnement = Pick<ClientApi, "abonnement" | "payerAbonnement" | "paiementAbonnement" | "apercuAbonnement">;
 type Devise = "USD" | "CDF";
@@ -289,10 +290,13 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
 
   if (phase === "envoi" || phase === "attente") {
     const p = suiviEtat.paiement;
+    const reseau = p?.operateur ?? operateur;
     return (
       <View style={styles.carte}>
         <View style={styles.centre}>
-          <ActivityIndicator size="large" color={couleurs.bleu} accessibilityLabel={phase === "envoi" ? "Envoi de la demande de paiement en cours" : "Attente de la confirmation du paiement sur votre téléphone"} />
+          <View accessible accessibilityLabel={phase === "envoi" ? "Envoi de la demande de paiement en cours" : "Attente de la confirmation du paiement sur votre téléphone"}>
+            <Pulsation>{reseau ? <LogoOperateur operateur={reseau} taille={52} /> : <Smartphone size={36} color={couleurs.bleu} />}</Pulsation>
+          </View>
           {phase === "envoi" || !p ? (
             <>
               <Text style={styles.titrePhase} accessibilityRole="header" accessibilityLiveRegion="polite">Envoi de la demande…</Text>
@@ -308,6 +312,12 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
               <Text style={styles.compteur}>Attente : {minutesSecondes(secondes)}</Text>
             </>
           )}
+        </View>
+
+        <View style={styles.progression}>
+          <EtapeProgression etat="fait" numero={1} libelle="Demande envoyée" />
+          <EtapeProgression etat={phase === "attente" ? "encours" : "avenir"} numero={2} libelle="Code secret sur le téléphone" />
+          <EtapeProgression etat="avenir" numero={3} libelle="Abonnement activé" />
         </View>
 
         {phase === "attente" && suiviEtat.lent && (
@@ -334,13 +344,23 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
 
   if (phase === "reussi") {
     const fin = suiviEtat.paiement?.periodeCouverteJusquau ?? suiviEtat.etatAbonnement?.valideJusquau ?? null;
+    const p = suiviEtat.paiement;
     return (
       <View style={styles.carte}>
         <View style={styles.centre}>
-          <CircleCheck size={48} color={couleurs.succes} />
+          <View style={[styles.resultat, { backgroundColor: couleurs.succesClair }]}>
+            <CircleCheck size={44} color={couleurs.succes} />
+          </View>
           <Text style={styles.titrePhase} accessibilityRole="header" accessibilityLiveRegion="polite">Merci !</Text>
           <Text style={styles.textePhase}>{fin ? `Abonnement actif jusqu'au ${dateAbonnement(fin)}.` : "Votre abonnement est actif."}</Text>
         </View>
+        {p && (
+          <View style={styles.recu}>
+            <LigneRecap libelle="Montant payé" valeur={montantAbonnement(p.total ?? p.montant, p.devise)} fort />
+            {p.operateur && <LigneRecap libelle="Payé avec" valeur={LIBELLE_OPERATEUR[p.operateur] ?? p.operateur} operateur={p.operateur} />}
+            {fin && <LigneRecap libelle="Valable jusqu'au" valeur={dateAbonnement(fin)} />}
+          </View>
+        )}
         {erreurContinuer && <Text style={styles.erreur} accessibilityRole="alert">{erreurContinuer}</Text>}
         <Bouton libelle="Continuer" onPress={() => void continuer()} occupe={continuerEnCours} />
       </View>
@@ -351,7 +371,9 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
     return (
       <View style={styles.carte}>
         <View style={styles.centre}>
-          <CircleAlert size={48} color={couleurs.danger} />
+          <View style={[styles.resultat, { backgroundColor: couleurs.dangerClair }]}>
+            <XCircle size={44} color={couleurs.danger} />
+          </View>
           <Text style={styles.titrePhase} accessibilityRole="header" accessibilityLiveRegion="polite">Le paiement n'a pas abouti</Text>
           <Text style={styles.textePhase}>{messageErreur(suiviEtat.message, "Le paiement n'a pas abouti.")}</Text>
           <Text style={styles.petit}>Vous n'avez rien payé si l'argent n'a pas quitté votre compte Mobile Money.</Text>
@@ -372,17 +394,36 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
   return (
     <View style={styles.colonne}>
       {resume && etat && (
-        <View style={[styles.carte, { backgroundColor: NIVEAUX[resume.niveau].fond, borderColor: NIVEAUX[resume.niveau].texte }]}>
-          <Text style={[styles.etatTitre, { color: NIVEAUX[resume.niveau].texte }]} accessibilityRole="header">
-            {resume.titre}
-          </Text>
-          <Text style={styles.etatDetail}>{resume.detail}</Text>
-          {vue && (
-            <View style={styles.faits}>
-              <Text style={styles.fait}>Formule actuelle : {vue.formuleActuelle ? nomFormule(vue.formuleActuelle, vue.formules) : "essai gratuit"}</Text>
-              <Text style={styles.fait}>Nombre de chambres : {vue.nombreChambres}</Text>
+        <View style={[styles.hero, { borderLeftColor: NIVEAUX[resume.niveau].texte }]}>
+          <View style={styles.heroHaut}>
+            <View style={[styles.heroIcone, { backgroundColor: NIVEAUX[resume.niveau].fond }]}>
+              {resume.niveau === "ok" ? (
+                <CircleCheck size={22} color={NIVEAUX[resume.niveau].texte} />
+              ) : resume.niveau === "attention" ? (
+                <AlertTriangle size={22} color={NIVEAUX[resume.niveau].texte} />
+              ) : (
+                <XCircle size={22} color={NIVEAUX[resume.niveau].texte} />
+              )}
             </View>
-          )}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.surtitre}>VOTRE ABONNEMENT</Text>
+              <Text style={styles.etatTitre} accessibilityRole="header">
+                {resume.titre}
+              </Text>
+            </View>
+            {etat.joursRestants > 0 && etat.statut !== "SUSPENDU" && etat.statut !== "RESILIE" && (
+              <View style={styles.heroCompte} accessible accessibilityLabel={`${etat.joursRestants} jours restants`}>
+                <Text style={[styles.heroCompteChiffre, { color: NIVEAUX[resume.niveau].texte }]}>{etat.joursRestants}</Text>
+                <Text style={styles.heroCompteTexte}>{etat.joursRestants > 1 ? "jours" : "jour"}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.etatDetail}>{resume.detail}</Text>
+          <View style={styles.faits}>
+            <Fait icone={<Crown size={13} color={couleurs.encreAttenuee} />} libelle="Formule" valeur={vue?.formuleActuelle ? nomFormule(vue.formuleActuelle, vue.formules) : etat.statut === "ESSAI" ? "Essai gratuit" : "Aucune"} />
+            {vue && <Fait icone={<BedDouble size={13} color={couleurs.encreAttenuee} />} libelle="Chambres" valeur={String(vue.nombreChambres)} />}
+            <Fait icone={<CalendarClock size={13} color={couleurs.encreAttenuee} />} libelle="Jusqu'au" valeur={dateAbonnement(etat.valideJusquau)} />
+          </View>
         </View>
       )}
 
@@ -455,7 +496,14 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
 
       {peutPayer && !nonRenouvelable && vue && !dejaActif && vue.paiementEnLigne && (
         <>
-          <Section titre="1. Choisissez votre formule">
+          {etat?.statut === "ESSAI" && mode !== "bloque" && (
+            <View style={styles.astuce}>
+              <Gift size={16} color={couleurs.succes} />
+              <Text style={styles.astuceTexte}>Vous payez avant la fin de l'essai ? Aucun jour n'est perdu : ils s'ajoutent à votre abonnement.</Text>
+            </View>
+          )}
+
+          <Section numero={1} titre="Choisissez votre formule">
             <View accessibilityRole="radiogroup" style={styles.colonne}>
               {vue.formules.map((f) => {
                 const accessible = formuleAccessible(f, vue.nombreChambres);
@@ -467,38 +515,54 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
                 return (
                   <Pressable
                     key={f.code}
-                    style={[styles.formule, choisie && styles.formuleChoisie, !accessible && styles.formuleGrisee]}
+                    style={({ pressed }) => [styles.formule, choisie && styles.formuleChoisie, !accessible && styles.formuleGrisee, pressed && accessible && styles.presse]}
                     onPress={() => accessible && setFormule(f.code)}
                     disabled={!accessible}
                     accessibilityRole="radio"
                     accessibilityState={{ selected: choisie, disabled: !accessible }}
                     accessibilityLabel={`Formule ${f.nom}, ${prixMois} par mois, ${plafond}${f.recommandee ? ", le plus choisi" : ""}${raison ? `. ${raison}` : ""}`}
                   >
+                    {(f.recommandee || vue.formuleActuelle === f.code) && (
+                      <View style={styles.formuleEtiquettes}>
+                        {f.recommandee && (
+                          <View style={styles.pastilleBleue}>
+                            <Sparkles size={11} color="#fff" />
+                            <Text style={styles.pastilleBleueTexte}>Le plus choisi</Text>
+                          </View>
+                        )}
+                        {vue.formuleActuelle === f.code && (
+                          <View style={styles.pastilleNeutre}>
+                            <Text style={styles.pastilleNeutreTexte}>Votre formule</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
                     <View style={styles.formuleEntete}>
                       <Text style={styles.formuleNom}>{f.nom}</Text>
-                      {f.recommandee && (
-                        <View style={styles.pastilleBleue}>
-                          <Text style={styles.pastilleBleueTexte}>Le plus choisi</Text>
-                        </View>
-                      )}
-                      {vue.formuleActuelle === f.code && (
-                        <View style={styles.pastilleNeutre}>
-                          <Text style={styles.pastilleNeutreTexte}>Votre formule</Text>
-                        </View>
-                      )}
+                      <Coche active={choisie} />
                     </View>
                     <Text style={styles.formulePrix}>
                       {prixMois}
-                      <Text style={styles.formulePrixUnite}> par mois</Text>
+                      <Text style={styles.formulePrixUnite}> / mois</Text>
                     </Text>
-                    <Text style={styles.formulePlafond}>{plafond}</Text>
+                    <View style={styles.formulePlafondLigne}>
+                      <BedDouble size={14} color={couleurs.encre} />
+                      <Text style={styles.formulePlafond}>{plafond}</Text>
+                    </View>
                     {raison && <Text style={styles.formuleRaison}>{raison}</Text>}
-                    {f.inclus.map((ligne) => (
-                      <View key={ligne} style={styles.inclus}>
-                        <Check size={14} color={couleurs.succes} />
-                        <Text style={styles.inclusTexte}>{ligne}</Text>
+                    {/* Inclus : dépliés pour la formule choisie seulement, pour garder la liste courte à l'écran. */}
+                    {choisie && (
+                      <View style={styles.formuleInclus}>
+                        {f.inclus
+                          .filter((ligne) => !/^(jusqu'à \d+ chambres|chambres illimitées)$/i.test(ligne.trim()))
+                          .map((ligne) => (
+                            <View key={ligne} style={styles.inclus}>
+                              <Check size={14} color={couleurs.succes} />
+                              <Text style={styles.inclusTexte}>{ligne}</Text>
+                            </View>
+                          ))}
                       </View>
-                    ))}
+                    )}
                   </Pressable>
                 );
               })}
@@ -506,23 +570,30 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
           </Section>
 
           {formuleChoisie && (
-            <Section titre="2. Combien de temps ?">
-              <View accessibilityRole="radiogroup" style={styles.rangee}>
+            <Section numero={2} titre="Combien de temps ?">
+              <View accessibilityRole="radiogroup" style={styles.grille}>
                 {formuleChoisie.durees.map((d) => {
                   const actif = duree?.mois === d.mois;
-                  const prix = montantAbonnement(devise === "USD" ? d.prixUsd : d.prixCdf, devise);
+                  const valeur = devise === "USD" ? d.prixUsd : d.prixCdf;
+                  const prix = montantAbonnement(valeur, devise);
                   return (
                     <Pressable
                       key={d.mois}
-                      style={[styles.choix, styles.choixDuree, actif && styles.choixActif]}
+                      style={({ pressed }) => [styles.tuile, actif && styles.tuileActive, pressed && styles.presse]}
                       onPress={() => setMois(d.mois)}
                       accessibilityRole="radio"
                       accessibilityState={{ selected: actif }}
                       accessibilityLabel={`${d.mois} mois, ${prix}${d.moisOfferts > 0 ? `, dont ${d.moisOfferts} mois offerts` : ""}`}
                     >
-                      <Text style={[styles.choixTexte, actif && styles.choixTexteActif]}>{d.mois} mois</Text>
-                      <Text style={[styles.choixSous, actif && styles.choixTexteActif]}>{prix}</Text>
-                      {d.moisOfferts > 0 && <Text style={[styles.choixOffre, actif && styles.choixTexteActif]}>{d.moisOfferts} mois offerts</Text>}
+                      <Text style={styles.tuileTitre}>{d.mois} mois</Text>
+                      <Text style={styles.tuilePrix}>{prix}</Text>
+                      {d.mois > 1 && <Text style={styles.tuileSous}>soit {montantAbonnement(arrondiCentimes(valeur / d.mois), devise)} / mois</Text>}
+                      {d.moisOfferts > 0 && (
+                        <View style={styles.offert}>
+                          <Gift size={11} color={couleurs.succes} />
+                          <Text style={styles.offertTexte}>{d.moisOfferts} mois offerts</Text>
+                        </View>
+                      )}
                     </Pressable>
                   );
                 })}
@@ -530,98 +601,117 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
             </Section>
           )}
 
-          <Section titre="3. Devise">
-            <View accessibilityRole="radiogroup" style={styles.rangee}>
+          <Section numero={3} titre="Monnaie">
+            <View accessibilityRole="radiogroup" style={styles.segment}>
               {(["USD", "CDF"] as const).map((d) => {
                 const actif = devise === d;
                 return (
                   <Pressable
                     key={d}
-                    style={[styles.choix, actif && styles.choixActif]}
+                    style={[styles.segmentOption, actif && styles.segmentOptionActive]}
                     onPress={() => setDevise(d)}
                     accessibilityRole="radio"
                     accessibilityState={{ selected: actif }}
                     accessibilityLabel={d === "USD" ? "Payer en dollars" : "Payer en francs congolais"}
                   >
-                    <Text style={[styles.choixTexte, actif && styles.choixTexteActif]}>{d === "USD" ? "Dollars ($)" : "Francs congolais (FC)"}</Text>
+                    <Text style={[styles.segmentTexte, actif && styles.segmentTexteActif]}>{d === "USD" ? "$  Dollars" : "FC  Francs congolais"}</Text>
                   </Pressable>
                 );
               })}
             </View>
           </Section>
 
-          <Section titre="4. Comment payer ?">
-            <Text style={styles.libelle}>Réseau Mobile Money</Text>
-            <View accessibilityRole="radiogroup" style={styles.rangee}>
+          <Section numero={4} titre="Payer avec Mobile Money">
+            <View accessibilityRole="radiogroup" style={styles.grille}>
               {LISTE_OPERATEURS.map((o) => {
                 const actif = operateur === o;
                 return (
                   <Pressable
                     key={o}
-                    style={[styles.choix, actif && styles.choixActif]}
+                    style={({ pressed }) => [styles.reseau, actif && styles.reseauActif, pressed && styles.presse]}
                     onPress={() => setOperateur(o)}
                     accessibilityRole="radio"
                     accessibilityState={{ selected: actif }}
                     accessibilityLabel={OPERATEURS_MOBILE_MONEY[o].libelle}
                   >
-                    <Text style={[styles.choixTexte, actif && styles.choixTexteActif]}>{OPERATEURS_MOBILE_MONEY[o].libelle}</Text>
+                    <LogoOperateur operateur={o} taille={36} />
+                    {/* « M-Pesa (Vodacom) » : la marque en gras, l'opérateur dessous — tient dans une demi-largeur d'écran. */}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reseauNom} numberOfLines={2}>
+                        {OPERATEURS_MOBILE_MONEY[o].libelle.split(" (")[0]}
+                      </Text>
+                      {OPERATEURS_MOBILE_MONEY[o].libelle.includes(" (") && <Text style={styles.reseauSous}>{OPERATEURS_MOBILE_MONEY[o].libelle.split(" (")[1].replace(")", "")}</Text>}
+                    </View>
+                    <Coche active={actif} />
                   </Pressable>
                 );
               })}
             </View>
 
             <Text style={[styles.libelle, { marginTop: espacements.s3 }]}>Numéro Mobile Money</Text>
-            <TextInput
-              style={[styles.champ, probleme ? styles.champErreur : null]}
-              value={telephone}
-              onChangeText={saisirNumero}
-              keyboardType="phone-pad"
-              autoComplete="tel"
-              textContentType="telephoneNumber"
-              placeholder="Exemple : 0828 497 218"
-              placeholderTextColor={couleurs.encreFaible}
-              maxLength={20}
-              accessibilityLabel="Numéro Mobile Money qui recevra la demande de paiement"
-            />
+            <View style={[styles.champBoite, probleme ? styles.champErreur : null]}>
+              {operateurDuNumero(telephone) ? <LogoOperateur operateur={operateurDuNumero(telephone)!} taille={26} /> : <Smartphone size={18} color={couleurs.encreAttenuee} />}
+              <TextInput
+                style={styles.champ}
+                value={telephone}
+                onChangeText={saisirNumero}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                textContentType="telephoneNumber"
+                placeholder="Exemple : 0828 497 218"
+                placeholderTextColor={couleurs.encreFaible}
+                maxLength={20}
+                accessibilityLabel="Numéro Mobile Money qui recevra la demande de paiement"
+              />
+            </View>
             {probleme ? (
-              <Text style={styles.erreur} accessibilityRole="alert">{probleme}</Text>
+              <View style={styles.erreurLigne}>
+                <AlertTriangle size={14} color={couleurs.danger} />
+                <Text style={[styles.erreur, { flex: 1 }]} accessibilityRole="alert">
+                  {probleme}
+                </Text>
+              </View>
             ) : (
-              <Text style={styles.aide}>C'est sur ce numéro que vous recevrez la demande de paiement.</Text>
+              <Text style={styles.aide}>
+                {operateurDuNumero(telephone) ? `Réseau reconnu : ${OPERATEURS_MOBILE_MONEY[operateurDuNumero(telephone)!].libelle}. ` : ""}C'est sur ce numéro que vous recevrez la demande de paiement.
+              </Text>
             )}
           </Section>
 
           {formuleChoisie && duree && montant !== null && (
-            <View style={styles.recap} accessibilityRole="summary">
-              <Text style={styles.recapTitre}>
-                Vous allez payer {texteTotal} pour {duree.mois} mois de la formule {formuleChoisie.nom}.
-              </Text>
-              {calculFraisEnCours ? (
-                <Text style={styles.recapDetail} accessibilityLiveRegion="polite">Calcul du total…</Text>
-              ) : fraisPayeur > 0 ? (
-                <Text style={styles.recapDetail} accessibilityLiveRegion="polite">
-                  Prix {texteMontant} + frais ScanLinkPay {texteFrais} = {texteTotal} à payer
-                </Text>
-              ) : (
-                <Text style={styles.recapDetail}>Prix {texteMontant}</Text>
-              )}
+            <View style={styles.commande} accessibilityRole="summary">
+              <Text style={styles.surtitre}>VOTRE COMMANDE</Text>
+              <LigneRecap libelle={`Formule ${formuleChoisie.nom}`} valeur={texteMontant} fort />
+              <LigneRecap libelle="Durée" valeur={`${duree.mois} mois${duree.moisOfferts > 0 ? ` (dont ${duree.moisOfferts} offerts)` : ""}`} />
+              {fraisPayeur > 0 && <LigneRecap libelle="Frais ScanLinkPay" valeur={texteFrais} />}
+              {operateur && <LigneRecap libelle="Payé avec" valeur={OPERATEURS_MOBILE_MONEY[operateur].libelle} operateur={operateur} />}
+              <View style={styles.total} accessibilityLiveRegion="polite">
+                <Text style={styles.totalLibelle}>Total à payer</Text>
+                <Text style={styles.totalMontant}>{calculFraisEnCours ? "…" : texteTotal}</Text>
+              </View>
+              {calculFraisEnCours && <Text style={styles.aide}>Calcul des frais ScanLinkPay…</Text>}
               <Text style={styles.recapTexte}>
-                Une demande de confirmation va arriver sur {numeroLisible(telephone) ? `le ${numeroLisible(telephone)}` : "le numéro saisi"}. Entrez votre code secret Mobile Money pour confirmer.
+                Une demande de confirmation va arriver sur {numeroLisible(telephone) ? `le ${numeroLisible(telephone)}` : "le numéro saisi"}. Entrez votre code secret Mobile Money pour confirmer : rien n'est débité sans lui.
               </Text>
+
+              {suiviEtat.message && <Text style={styles.erreur} accessibilityRole="alert">{messageErreur(suiviEtat.message, "Le paiement n'a pas pu être lancé. Réessayez.")}</Text>}
+
+              <Bouton
+                libelle={calculFraisEnCours ? "Calcul du total…" : texteTotal ? `Payer ${texteTotal}` : "Payer"}
+                onPress={demanderPaiement}
+                desactive={!formulaireValide || calculFraisEnCours}
+                icone={<Lock size={16} color="#fff" />}
+              />
+              {!formulaireValide && <Text style={[styles.aide, { textAlign: "center" }]}>{!operateur ? "Choisissez votre réseau Mobile Money pour continuer." : "Saisissez un numéro Mobile Money valide pour continuer."}</Text>}
+              <View style={styles.securise} accessible accessibilityLabel="Paiement sécurisé par ScanLinkPay">
+                <ShieldCheck size={13} color={couleurs.encreAttenuee} />
+                <Text style={styles.securiseTexte}>Paiement sécurisé par ScanLinkPay</Text>
+              </View>
+              <View style={{ alignItems: "center" }}>
+                <LogosMobileMoney taille={22} />
+              </View>
             </View>
           )}
-
-          {suiviEtat.message && <Text style={styles.erreur} accessibilityRole="alert">{messageErreur(suiviEtat.message, "Le paiement n'a pas pu être lancé. Réessayez.")}</Text>}
-
-          <Bouton
-            libelle={calculFraisEnCours ? "Calcul du total…" : texteTotal ? `Payer ${texteTotal}` : "Payer"}
-            onPress={demanderPaiement}
-            desactive={!formulaireValide || calculFraisEnCours}
-          />
-          {!formulaireValide && <Text style={styles.aide}>{!operateur ? "Choisissez votre réseau Mobile Money pour continuer." : "Saisissez un numéro Mobile Money valide pour continuer."}</Text>}
-          <View style={styles.securise} accessible accessibilityLabel="Paiement sécurisé par ScanLinkPay">
-            <Lock size={12} color={couleurs.encreAttenuee} />
-            <Text style={styles.securiseTexte}>Paiement sécurisé par ScanLinkPay</Text>
-          </View>
         </>
       )}
 
@@ -644,13 +734,82 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
   );
 }
 
-function Section({ titre, children }: { titre: string; children: React.ReactNode }) {
+function Section({ titre, numero, children }: { titre: string; numero?: number; children: React.ReactNode }) {
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitre} accessibilityRole="header">
-        {titre}
-      </Text>
+    <View style={[styles.section, numero !== undefined && styles.sectionCarte]}>
+      <View style={styles.sectionEntete}>
+        {numero !== undefined && (
+          <View style={styles.sectionNumero}>
+            <Text style={styles.sectionNumeroTexte}>{numero}</Text>
+          </View>
+        )}
+        <Text style={styles.sectionTitre} accessibilityRole="header" accessibilityLabel={numero !== undefined ? `Étape ${numero} : ${titre}` : titre}>
+          {titre}
+        </Text>
+      </View>
       {children}
+    </View>
+  );
+}
+
+/** Pastille ronde cochée / vide (formules, réseaux). */
+function Coche({ active }: { active: boolean }) {
+  return <View style={[styles.coche, active && styles.cocheActive]}>{active && <Check size={13} color="#fff" />}</View>;
+}
+
+/** Logo du réseau entouré d'une onde qui bat pendant l'attente de la confirmation. */
+function Pulsation({ children }: { children: React.ReactNode }) {
+  const onde = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const boucle = Animated.loop(Animated.timing(onde, { toValue: 1, duration: 1600, easing: Easing.out(Easing.ease), useNativeDriver: true }));
+    boucle.start();
+    return () => boucle.stop();
+  }, [onde]);
+  return (
+    <View style={styles.pulsation}>
+      <Animated.View
+        style={[
+          styles.pulsationOnde,
+          { opacity: onde.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] }), transform: [{ scale: onde.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.25] }) }] },
+        ]}
+      />
+      <View style={styles.pulsationCentre}>{children}</View>
+    </View>
+  );
+}
+
+function EtapeProgression({ etat, numero, libelle }: { etat: "fait" | "encours" | "avenir"; numero: number; libelle: string }) {
+  const couleur = etat === "fait" ? couleurs.succes : etat === "encours" ? couleurs.bleu : couleurs.encreFaible;
+  return (
+    <View style={styles.etapeProgression} accessible accessibilityLabel={`${libelle}${etat === "fait" ? ", fait" : etat === "encours" ? ", en cours" : ""}`}>
+      <View style={[styles.etapePoint, { borderColor: couleur }, etat === "fait" && { backgroundColor: couleur }]}>
+        {etat === "fait" ? <Check size={12} color="#fff" /> : <Text style={[styles.etapePointTexte, { color: couleur }]}>{numero}</Text>}
+      </View>
+      <Text style={[styles.etapeTexte, { color: etat === "avenir" ? couleurs.encreAttenuee : couleur }]}>{libelle}</Text>
+    </View>
+  );
+}
+
+function LigneRecap({ libelle, valeur, fort, operateur }: { libelle: string; valeur: string; fort?: boolean; operateur?: OperateurMobileMoney }) {
+  return (
+    <View style={styles.ligneRecap}>
+      <Text style={[styles.ligneRecapLibelle, fort && styles.ligneRecapFort]}>{libelle}</Text>
+      <View style={styles.ligneRecapValeur}>
+        {operateur && <LogoOperateur operateur={operateur} taille={20} />}
+        <Text style={[styles.ligneRecapTexte, fort && styles.ligneRecapFort]}>{valeur}</Text>
+      </View>
+    </View>
+  );
+}
+
+function Fait({ icone, libelle, valeur }: { icone: React.ReactNode; libelle: string; valeur: string }) {
+  return (
+    <View style={styles.fait} accessible accessibilityLabel={`${libelle} : ${valeur}`}>
+      <View style={styles.faitLibelle}>
+        {icone}
+        <Text style={styles.faitLibelleTexte}>{libelle}</Text>
+      </View>
+      <Text style={styles.faitValeur}>{valeur}</Text>
     </View>
   );
 }
@@ -664,7 +823,7 @@ function Message({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Bouton({ libelle, onPress, desactive, occupe, variante = "principal" }: { libelle: string; onPress: () => void; desactive?: boolean; occupe?: boolean; variante?: "principal" | "secondaire" }) {
+function Bouton({ libelle, onPress, desactive, occupe, variante = "principal", icone }: { libelle: string; onPress: () => void; desactive?: boolean; occupe?: boolean; variante?: "principal" | "secondaire"; icone?: React.ReactNode }) {
   const inactif = !!desactive || !!occupe;
   return (
     <Pressable
@@ -675,7 +834,14 @@ function Bouton({ libelle, onPress, desactive, occupe, variante = "principal" }:
       accessibilityLabel={libelle}
       accessibilityState={{ disabled: inactif, busy: !!occupe }}
     >
-      {occupe ? <ActivityIndicator color={variante === "secondaire" ? couleurs.bleu : "#fff"} /> : <Text style={[styles.boutonTexte, variante === "secondaire" && styles.boutonTexteSecondaire]}>{libelle}</Text>}
+      {occupe ? (
+        <ActivityIndicator color={variante === "secondaire" ? couleurs.bleu : "#fff"} />
+      ) : (
+        <View style={styles.boutonContenu}>
+          {icone}
+          <Text style={[styles.boutonTexte, variante === "secondaire" && styles.boutonTexteSecondaire]}>{libelle}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -692,12 +858,13 @@ function LignePaiement({ paiement: p }: { paiement: PaiementAbonnementVue }) {
   const total = frais !== null && typeof p.total === "number" ? montantAbonnement(p.total, p.devise) : null;
   const detailFrais = frais !== null && total !== null ? `Prix ${montant} + frais ScanLinkPay ${frais} = ${total}` : null;
   return (
-    <View style={styles.ligne} accessible accessibilityLabel={`${dateAbonnement(p.createdAt)}, ${detailFrais ?? montant}, ${p.mois} mois, ${moyen}, ${statut.libelle}`}>
+    <View style={styles.ligne} accessible accessibilityLabel={`${dateAbonnement(p.createdAt)}, ${detailFrais ?? montant}, ${p.mois > 0 ? `${p.mois} mois` : "paiement manuel"}, ${moyen}, ${statut.libelle}`}>
       <View style={{ flex: 1 }}>
         <Text style={styles.ligneMontant}>{total ?? montant}</Text>
         {detailFrais && <Text style={styles.ligneDetail}>{detailFrais}</Text>}
         <Text style={styles.ligneDetail}>
-          {dateAbonnement(p.createdAt)} · {p.mois} mois
+          {dateAbonnement(p.createdAt)}
+          {p.mois > 0 ? ` · ${p.mois} mois` : " · Paiement manuel"}
         </Text>
         <Text style={styles.ligneDetail}>{moyen}</Text>
       </View>
@@ -720,10 +887,10 @@ const styles = StyleSheet.create({
   },
   bloc: { gap: espacements.s3 },
   centre: { alignItems: "center", gap: espacements.s2, paddingVertical: espacements.s3 },
-  etatTitre: { fontSize: 18, fontWeight: "700" },
+  etatTitre: { fontSize: 18, fontWeight: "800", color: couleurs.navy },
   etatDetail: { fontSize: 14, color: couleurs.encre, lineHeight: 20 },
-  faits: { gap: 2, marginTop: espacements.s1 },
-  fait: { fontSize: 13, color: couleurs.encre },
+  faits: { flexDirection: "row", flexWrap: "wrap", gap: espacements.s2 },
+  fait: { flexGrow: 1, gap: 2, paddingVertical: espacements.s2, paddingHorizontal: espacements.s3, borderRadius: rayons.md, backgroundColor: couleurs.surface100, borderWidth: 1, borderColor: couleurs.bordure },
   titrePhase: { fontSize: 18, fontWeight: "700", color: couleurs.navy, textAlign: "center" },
   textePhase: { fontSize: 14, color: couleurs.encre, textAlign: "center", lineHeight: 20 },
   petit: { fontSize: 12, color: couleurs.encreAttenuee, textAlign: "center" },
@@ -774,7 +941,7 @@ const styles = StyleSheet.create({
   },
   formuleChoisie: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
   formuleGrisee: { opacity: 0.6 },
-  formuleEntete: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: espacements.s2 },
+  formuleEntete: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: espacements.s2 },
   formuleNom: { fontSize: 18, fontWeight: "700", color: couleurs.navy },
   formulePrix: { fontSize: 20, fontWeight: "700", color: couleurs.encre },
   formulePrixUnite: { fontSize: 13, fontWeight: "400", color: couleurs.encreAttenuee },
@@ -782,20 +949,11 @@ const styles = StyleSheet.create({
   formuleRaison: { fontSize: 13, fontWeight: "600", color: couleurs.danger },
   inclus: { flexDirection: "row", alignItems: "flex-start", gap: espacements.s2 },
   inclusTexte: { flex: 1, fontSize: 13, color: couleurs.encre },
-  pastilleBleue: { backgroundColor: couleurs.bleu, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
+  pastilleBleue: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: couleurs.bleu, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
   pastilleBleueTexte: { color: "#fff", fontSize: 11, fontWeight: "700" },
   pastilleNeutre: { backgroundColor: couleurs.surface100, borderWidth: 1, borderColor: couleurs.bordure, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
   pastilleNeutreTexte: { color: couleurs.encre, fontSize: 11, fontWeight: "700" },
-  champ: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: couleurs.bordure,
-    borderRadius: rayons.sm,
-    paddingHorizontal: espacements.s3,
-    fontSize: 16,
-    color: couleurs.encre,
-    backgroundColor: couleurs.surface200,
-  },
+  champ: { flex: 1, minHeight: 48, fontSize: 17, letterSpacing: 0.5, color: couleurs.encre },
   champErreur: { borderColor: couleurs.danger },
   recap: { backgroundColor: couleurs.bleuClair, borderRadius: rayons.md, padding: espacements.s3, gap: espacements.s1 },
   recapTitre: { fontSize: 15, fontWeight: "700", color: couleurs.navy },
@@ -830,4 +988,143 @@ const styles = StyleSheet.create({
   ligneDetail: { fontSize: 12, color: couleurs.encreAttenuee },
   statut: { borderRadius: rayons.pill, paddingHorizontal: espacements.s3, paddingVertical: 4 },
   statutTexte: { fontSize: 12, fontWeight: "700" },
+  hero: {
+    backgroundColor: couleurs.surface200,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    borderLeftWidth: 5,
+    padding: espacements.s4,
+    gap: espacements.s3,
+  },
+  heroHaut: { flexDirection: "row", alignItems: "center", gap: espacements.s3 },
+  heroIcone: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  surtitre: { fontSize: 11, fontWeight: "700", letterSpacing: 1, color: couleurs.encreAttenuee },
+  heroCompte: {
+    alignItems: "center",
+    minWidth: 58,
+    paddingVertical: espacements.s1,
+    paddingHorizontal: espacements.s2,
+    borderRadius: rayons.md,
+    backgroundColor: couleurs.surface100,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  heroCompteChiffre: { fontSize: 24, fontWeight: "800", lineHeight: 28 },
+  heroCompteTexte: { fontSize: 11, color: couleurs.encreAttenuee },
+  faitLibelle: { flexDirection: "row", alignItems: "center", gap: 4 },
+  faitLibelleTexte: { fontSize: 11, color: couleurs.encreAttenuee },
+  faitValeur: { fontSize: 13, fontWeight: "700", color: couleurs.navy },
+  astuce: { flexDirection: "row", gap: espacements.s2, backgroundColor: couleurs.succesClair, borderRadius: rayons.md, padding: espacements.s3 },
+  astuceTexte: { flex: 1, fontSize: 13, fontWeight: "600", color: couleurs.succes, lineHeight: 19 },
+  sectionCarte: {
+    backgroundColor: couleurs.surface200,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    padding: espacements.s4,
+    gap: espacements.s3,
+    marginTop: 0,
+  },
+  sectionEntete: { flexDirection: "row", alignItems: "center", gap: espacements.s2 },
+  sectionNumero: { width: 26, height: 26, borderRadius: 13, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
+  sectionNumeroTexte: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  presse: { opacity: 0.85, transform: [{ scale: 0.99 }] },
+  formuleEtiquettes: { flexDirection: "row", flexWrap: "wrap", gap: espacements.s2, marginBottom: 2 },
+  formulePlafondLigne: { flexDirection: "row", alignItems: "center", gap: 6 },
+  formuleInclus: { gap: 6, marginTop: espacements.s2, paddingTop: espacements.s2, borderTopWidth: 1, borderTopColor: couleurs.bordure, borderStyle: "dashed" },
+  grille: { flexDirection: "row", flexWrap: "wrap", gap: espacements.s2 },
+  tuile: {
+    flexBasis: "47%",
+    flexGrow: 1,
+    minHeight: 64,
+    padding: espacements.s3,
+    borderRadius: rayons.md,
+    borderWidth: 2,
+    borderColor: couleurs.bordure,
+    backgroundColor: couleurs.surface100,
+    gap: 2,
+  },
+  tuileActive: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
+  tuileTitre: { fontSize: 14, fontWeight: "800", color: couleurs.navy },
+  tuilePrix: { fontSize: 17, fontWeight: "700", color: couleurs.encre },
+  tuileSous: { fontSize: 11, color: couleurs.encreAttenuee },
+  offert: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", marginTop: 4, backgroundColor: couleurs.succesClair, borderRadius: rayons.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  offertTexte: { fontSize: 11, fontWeight: "700", color: couleurs.succes },
+  segment: { flexDirection: "row", gap: 4, padding: 4, borderRadius: rayons.pill, backgroundColor: couleurs.surface100, borderWidth: 1, borderColor: couleurs.bordure },
+  segmentOption: { flex: 1, minHeight: 44, borderRadius: rayons.pill, alignItems: "center", justifyContent: "center", paddingHorizontal: espacements.s2 },
+  segmentOptionActive: { backgroundColor: couleurs.surface200, elevation: 2, shadowColor: "#0F2742", shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+  segmentTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encreAttenuee, textAlign: "center" },
+  segmentTexteActif: { color: couleurs.navy, fontWeight: "800" },
+  reseau: {
+    flexBasis: "47%",
+    flexGrow: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacements.s2,
+    minHeight: 60,
+    padding: espacements.s2,
+    borderRadius: rayons.md,
+    borderWidth: 2,
+    borderColor: couleurs.bordure,
+    backgroundColor: couleurs.surface100,
+  },
+  reseauActif: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
+  reseauNom: { fontSize: 13, fontWeight: "700", color: couleurs.encre },
+  reseauSous: { fontSize: 11, color: couleurs.encreAttenuee },
+  champBoite: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacements.s2,
+    minHeight: 52,
+    borderWidth: 2,
+    borderColor: couleurs.bordure,
+    borderRadius: rayons.md,
+    paddingHorizontal: espacements.s3,
+    backgroundColor: couleurs.surface100,
+  },
+  erreurLigne: { flexDirection: "row", alignItems: "center", gap: 6 },
+  commande: {
+    backgroundColor: couleurs.surface200,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    padding: espacements.s4,
+    gap: espacements.s2,
+    elevation: 3,
+    shadowColor: "#0F2742",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  total: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", paddingTop: espacements.s2, marginTop: espacements.s1, borderTopWidth: 1, borderTopColor: couleurs.bordure, borderStyle: "dashed" },
+  totalLibelle: { fontSize: 15, fontWeight: "700", color: couleurs.navy },
+  totalMontant: { fontSize: 26, fontWeight: "800", color: couleurs.navy },
+  coche: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: couleurs.bordure, alignItems: "center", justifyContent: "center" },
+  cocheActive: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
+  pulsation: { width: 104, height: 104, alignItems: "center", justifyContent: "center" },
+  pulsationOnde: { position: "absolute", width: 104, height: 104, borderRadius: 52, borderWidth: 3, borderColor: couleurs.bleu },
+  pulsationCentre: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: couleurs.surface100,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+  },
+  progression: { gap: espacements.s2, alignSelf: "center" },
+  etapeProgression: { flexDirection: "row", alignItems: "center", gap: espacements.s2 },
+  etapePoint: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  etapePointTexte: { fontSize: 12, fontWeight: "700" },
+  etapeTexte: { fontSize: 13, fontWeight: "600" },
+  ligneRecap: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: espacements.s3 },
+  ligneRecapLibelle: { fontSize: 13, color: couleurs.encreAttenuee, flexShrink: 1 },
+  ligneRecapValeur: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
+  ligneRecapTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encre, textAlign: "right" },
+  ligneRecapFort: { fontSize: 14, fontWeight: "700", color: couleurs.encre },
+  resultat: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center" },
+  recu: { gap: espacements.s2, backgroundColor: couleurs.surface100, borderRadius: rayons.md, borderWidth: 1, borderColor: couleurs.bordure, padding: espacements.s3 },
+  boutonContenu: { flexDirection: "row", alignItems: "center", gap: espacements.s2 },
 });
