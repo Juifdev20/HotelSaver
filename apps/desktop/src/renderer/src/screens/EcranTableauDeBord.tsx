@@ -203,7 +203,8 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
           valeur={r ? formatMontant(r.total.montantCDF, Devise.CDF) : "…"}
           precision={utilisateur.role === Role.PATRON ? "Chambres et cafétaria" : "Vos encaissements"}
         />
-        {r?.chambres && receptionOuverte && (
+        {/* Détail par source : patron seulement — pour un employé, le total est déjà sa seule source (19/10/2026). */}
+        {utilisateur.role === Role.PATRON && r?.chambres && r?.cafeteria && receptionOuverte && cafeteriaOuverte && (
           <DashboardStat
             icone={<BedDouble size={20} aria-hidden="true" />}
             tone="info"
@@ -212,7 +213,7 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
             precision={formatMontant(r.chambres.montantCDF, Devise.CDF)}
           />
         )}
-        {r?.cafeteria && cafeteriaOuverte && (
+        {utilisateur.role === Role.PATRON && r?.chambres && r?.cafeteria && receptionOuverte && cafeteriaOuverte && (
           <DashboardStat
             icone={<Coffee size={20} aria-hidden="true" />}
             tone="purple"

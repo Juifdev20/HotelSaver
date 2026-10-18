@@ -34,10 +34,10 @@ export class DashboardService {
 
   /**
    * Section 9.3 "Rapports/recettes" : RECEPTIONNISTE et CAFETARIA ne voient
-   * que "leurs" opérations, PATRON voit tout. On scope RECEPTIONNISTE via
-   * Reservation.createdBy (Facture elle-même n'a pas de createdBy — absent
-   * du schéma section 7, voir DECISIONS.md) et CAFETARIA via
-   * VenteCafeteria.createdBy directement.
+   * que "leurs" opérations, PATRON voit tout. RECEPTIONNISTE : les factures
+   * qu'IL a encaissées (Facture.createdBy, 19/10/2026 — avant : l'auteur de la
+   * réservation, qui oubliait les séjours réservés par le patron ou le site) ;
+   * CAFETARIA : VenteCafeteria.createdBy.
    *
    * Jamais de total fusionné entre USD et CDF, ni entre chambres et cafétaria
    * pour un rôle non-PATRON (section 9.4) — chaque source reste distincte.
@@ -54,7 +54,7 @@ export class DashboardService {
               hotelId: currentUser.hotelId,
               createdAt: { gte },
               annuleLe: null,
-              reservation: currentUser.role === Role.PATRON ? undefined : { createdBy: currentUser.userId },
+              createdBy: currentUser.role === Role.PATRON ? undefined : currentUser.userId,
             },
             select: { montantTotalUSD: true, montantTotalCDF: true },
           })
@@ -143,7 +143,7 @@ export class DashboardService {
           hotelId,
           createdAt: plage,
           annuleLe: null,
-          reservation: estPatron ? undefined : { createdBy: currentUser.userId },
+          createdBy: estPatron ? undefined : currentUser.userId,
         },
         select: { montantTotalUSD: true, montantTotalCDF: true },
       }),
@@ -218,7 +218,7 @@ export class DashboardService {
       ? await this.prisma.facture.findMany({
           where: {
             hotelId: currentUser.hotelId,
-            reservation: currentUser.role === Role.PATRON ? undefined : { createdBy: currentUser.userId },
+            createdBy: currentUser.role === Role.PATRON ? undefined : currentUser.userId,
           },
           include: { reservation: { include: { chambre: true, client: true } } },
           orderBy: { createdAt: "desc" },

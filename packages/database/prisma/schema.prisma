@@ -541,6 +541,9 @@ model Facture {
   imprimeLe             DateTime?
   annuleLe              DateTime?
   motifAnnulation       String?
+  /// Qui a encaissé (Utilisateur.id) : la recette d'un réceptionniste = ses encaissements, quel que soit l'auteur de la
+  /// réservation (patron, site). Null seulement pour une facture d'avant le 19/10/2026 non reprise.
+  createdBy             String?
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
   syncVersion           Int          @default(1)
@@ -548,6 +551,7 @@ model Facture {
   @@unique([hotelId, numeroRecu])
   @@index([hotelId])
   @@index([hotelId, numeroProvisoire])
+  @@index([hotelId, createdBy])
 }
 
 model Produit {

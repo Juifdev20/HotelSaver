@@ -685,26 +685,29 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
         pied={
           venteEncaissee ? (
           <>
-            <View style={styles.carteTotal}>
-              <Text style={styles.labelTotal}>Reçu {venteEncaissee.numeroRecu}</Text>
-              {Number(venteEncaissee.montantTotalUSD) > 0 && (
-                <Text style={styles.montantTotal}>{formatMontant(venteEncaissee.montantTotalUSD, Devise.USD)}</Text>
-              )}
-              {Number(venteEncaissee.montantTotalCDF) > 0 && (
-                <Text style={styles.montantTotal}>{formatMontant(venteEncaissee.montantTotalCDF, Devise.CDF)}</Text>
+            {/* Pied compact (19/10/2026) : total et monnaie sur une ligne, pour laisser le plus de place au reçu. Le numéro et la
+                mention « provisoire » sont déjà imprimés sur le reçu lui-même. */}
+            <View style={styles.resumePied}>
+              <View style={styles.resumeColonne}>
+                <Text style={styles.labelTotal}>Total{estRecuProvisoire(venteEncaissee.numeroRecu) ? " · provisoire" : ""}</Text>
+                {Number(venteEncaissee.montantTotalUSD) > 0 && (
+                  <Text style={styles.montantPied}>{formatMontant(venteEncaissee.montantTotalUSD, Devise.USD)}</Text>
+                )}
+                {Number(venteEncaissee.montantTotalCDF) > 0 && (
+                  <Text style={styles.montantPied}>{formatMontant(venteEncaissee.montantTotalCDF, Devise.CDF)}</Text>
+                )}
+              </View>
+              {resumeReglement && (
+                <View
+                  style={[styles.resumeColonne, styles.resumeMonnaie]}
+                  accessible
+                  accessibilityLabel={`Remis par le client : ${resumeReglement.remis}. Monnaie à rendre : ${resumeReglement.monnaie}.`}
+                >
+                  <Text style={styles.sousLabelPied}>Remis : {resumeReglement.remis}</Text>
+                  <Text style={styles.monnaieARendre}>À rendre : {resumeReglement.monnaie}</Text>
+                </View>
               )}
             </View>
-            {resumeReglement && (
-              <View style={styles.carteMonnaie} accessible accessibilityLabel={`Remis par le client : ${resumeReglement.remis}. Monnaie à rendre : ${resumeReglement.monnaie}.`}>
-                <Text style={styles.sousLabel}>Remis par le client : {resumeReglement.remis}</Text>
-                <Text style={styles.monnaieARendre}>Monnaie à rendre : {resumeReglement.monnaie}</Text>
-              </View>
-            )}
-            {estRecuProvisoire(venteEncaissee.numeroRecu) && (
-              <Text style={styles.avertissement} accessibilityLabel="Reçu provisoire">
-                Provisoire : numéro définitif à la synchronisation (le reçu reste valable).
-              </Text>
-            )}
             {messageImpression && (
               <Text
                 style={messageImpression.reussie ? styles.confirmation : styles.erreurFormulaire}
@@ -1046,6 +1049,11 @@ const styles = StyleSheet.create({
   confirmation: { color: couleurs.succes, fontSize: 13, textAlign: "center" },
   bouton: { minHeight: 44, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center", marginTop: espacements.s2 },
   rangeePied: { flexDirection: "row", gap: espacements.s3 },
+  resumePied: { flexDirection: "row", gap: espacements.s3, alignItems: "flex-start" },
+  resumeColonne: { flex: 1, gap: 2 },
+  resumeMonnaie: { alignItems: "flex-end" },
+  montantPied: { fontSize: 18, fontWeight: "800", color: couleurs.navy },
+  sousLabelPied: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },
   boutonPied: { flex: 1, marginTop: 0, minHeight: 48 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });

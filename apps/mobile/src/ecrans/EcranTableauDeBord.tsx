@@ -1,5 +1,6 @@
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import type { ClientApi } from "@hotel-chicago/api-client";
@@ -38,6 +39,7 @@ import { LIBELLE_ROLE } from "../navigation";
 import { useNotifications } from "../notifications/ContexteNotifications";
 import { useDonnee } from "../hooks/useDonnee";
 import { useRemboursementsAFaire } from "../hooks/useRemboursementsAFaire";
+import { useSyncEtat } from "../hooks/useSyncEtat";
 import { fonctionOuverte } from "../fonctions";
 import { formaterLubumbashi, heureCourte } from "../dates";
 
@@ -131,12 +133,39 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
   const voitRemboursements = utilisateur.role === Role.PATRON && receptionOuverte;
   const { ouvrirEcran, ouvrirRemboursements } = useNotifications();
   const remboursements = useRemboursementsAFaire(client, voitRemboursements);
-  const sourcesRecette = receptionOuverte && cafeteriaOuverte ? "Chambres et cafétaria" : receptionOuverte ? "Chambres" : cafeteriaOuverte ? "Cafétaria" : undefined;
+  // Le serveur ne compte que les encaissements du rôle (réception : ses factures ; cafétaria : ses ventes) — le libellé le dit
+  // (19/10/2026 : « Chambres et cafétaria » s'affichait aussi à la réception, qui croyait voir la cafétaria mélangée).
+  const estPatron = utilisateur.role === Role.PATRON;
+  const sourcesRecette = !estPatron
+    ? utilisateur.role === Role.RECEPTIONNISTE
+      ? "Vos encaissements · chambres"
+      : "Vos encaissements · cafétaria"
+    : receptionOuverte && cafeteriaOuverte
+      ? "Chambres et cafétaria"
+      : receptionOuverte
+        ? "Chambres"
+        : cafeteriaOuverte
+          ? "Cafétaria"
+          : undefined;
 
   const recette = useDonnee<RecetteDuJour>(() => client.recetteDuJour(), "recette");
   const occupation = useDonnee<Occupation>(voitChambres ? () => client.occupation() : null, "occupation");
   const stockBas = useDonnee<Produit[]>(voitStock ? () => client.stockBas() : null, "stock");
   const activite = useDonnee<VentesRecentes>(() => client.ventesRecentes(), "activite");
+
+  // L'onglet Accueil reste monté : sans ceci, la recette restait celle de l'ouverture de l'appli (19/10/2026). On relit à
+  // chaque retour sur l'onglet et après chaque synchronisation (encaissement fait sur un autre poste).
+  const etatSync = useSyncEtat();
+  const toutRecharger = useCallback(() => {
+    recette.recharger();
+    occupation.recharger();
+    stockBas.recharger();
+    activite.recharger();
+  }, [recette.recharger, occupation.recharger, stockBas.recharger, activite.recharger]);
+  useFocusEffect(toutRecharger);
+  useEffect(() => {
+    if (etatSync.derniereSyncReussieLe) toutRecharger();
+  }, [etatSync.derniereSyncReussieLe, toutRecharger]);
 
   const r = recette.donnee;
   const o = occupation.donnee;
@@ -210,7 +239,8 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
             valeur={r ? formatMontant(r.total.montantCDF, Devise.CDF) : "…"}
             precision={sourcesRecette}
           />
-          {receptionOuverte && r?.chambres && (
+          {/* Détail par source : utile au patron seulement (pour un employé, le total EST déjà sa seule source). */}
+          {estPatron && receptionOuverte && cafeteriaOuverte && r?.chambres && (
             <Carte
               icone={<BedDouble size={18} color={couleurs.bleu} />}
               tone={couleurs.bleu}
@@ -221,7 +251,7 @@ export function EcranTableauDeBord({ client, utilisateur, onAllerAuxChambres }: 
               pleineLargeur
             />
           )}
-          {cafeteriaOuverte && r?.cafeteria && (
+          {estPatron && receptionOuverte && cafeteriaOuverte && r?.cafeteria && (
             <Carte
               icone={<Coffee size={18} color={couleurs.violet} />}
               tone={couleurs.violet}

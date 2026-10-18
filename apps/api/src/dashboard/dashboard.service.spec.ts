@@ -34,7 +34,7 @@ describe("DashboardService", () => {
       expect(resultat.cafeteria).toBeUndefined();
       expect(prisma.facture.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ reservation: { createdBy: "u-recep" } }),
+          where: expect.objectContaining({ createdBy: "u-recep" }),
         })
       );
       expect(prisma.venteCafeteria.findMany).not.toHaveBeenCalled();
@@ -63,7 +63,7 @@ describe("DashboardService", () => {
       expect(resultat.cafeteria).toEqual({ montantUSD: 12, montantCDF: 5000 });
       expect(resultat.total).toEqual({ montantUSD: 82, montantCDF: 5000 });
       expect(prisma.facture.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ reservation: undefined }) })
+        expect.objectContaining({ where: expect.objectContaining({ createdBy: undefined }) })
       );
     });
 

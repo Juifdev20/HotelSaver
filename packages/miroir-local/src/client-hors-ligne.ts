@@ -505,11 +505,17 @@ export class ClientHorsLigne extends ClientApi {
   }
 
   /** Factures du jour visibles par l'utilisateur (la réception ne voit que ses propres encaissements). */
+  /** Qui a encaissé : `createdBy` (19/10/2026) ; une facture plus ancienne encore sans ce champ dans le miroir retombe sur
+   * l'auteur de la réservation (même reprise que la migration serveur). */
+  private encaisseePar(f: Doc): unknown {
+    return f.createdBy ?? this.s.obtenir("Reservation", f.reservationId)?.createdBy;
+  }
+
   private facturesVisibles(depuis: string, jusqua?: string): Doc[] {
     const u = this.ctx.utilisateur();
     return this.s.lister("Facture").filter((f) => {
       if (f.annuleLe || String(f.createdAt) < depuis || (jusqua && String(f.createdAt) >= jusqua)) return false;
-      return u.role === "PATRON" || this.s.obtenir("Reservation", f.reservationId)?.createdBy === u.userId;
+      return u.role === "PATRON" || this.encaisseePar(f) === u.userId;
     });
   }
 
@@ -537,7 +543,7 @@ export class ClientHorsLigne extends ClientApi {
     const recents = (l: Doc[]) => l.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, limite);
     const factures =
       u.role !== "CAFETARIA"
-        ? recents(this.s.lister("Facture").filter((f) => u.role === "PATRON" || this.s.obtenir("Reservation", f.reservationId)?.createdBy === u.userId)).map((f) => this.v.facture(f))
+        ? recents(this.s.lister("Facture").filter((f) => u.role === "PATRON" || this.encaisseePar(f) === u.userId)).map((f) => this.v.facture(f))
         : [];
     const ventesCafeteria = u.role !== "RECEPTIONNISTE" ? recents(this.s.lister("VenteCafeteria").filter((x) => u.role === "PATRON" || x.createdBy === u.userId)) : [];
     return { factures, ventesCafeteria } as unknown as VentesRecentes;

@@ -277,7 +277,7 @@ export class SyncService {
         rolesUpdate: [],
         create: async (payload, currentUser) => {
           const dto = await this.valider(CreateFactureDto, payload);
-          const facture = await this.facturesService.create(dto, currentUser.hotelId, { numeroProvisoire: texteCourt(payload.numeroProvisoire) });
+          const facture = await this.facturesService.create(dto, currentUser.hotelId, { numeroProvisoire: texteCourt(payload.numeroProvisoire), createdBy: currentUser.userId });
           return { id: facture.id, syncVersion: facture.syncVersion };
         },
       },

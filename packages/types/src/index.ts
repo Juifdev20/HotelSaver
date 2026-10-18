@@ -433,6 +433,8 @@ export interface Facture {
   imprimeLe: string | null;
   annuleLe: string | null;
   motifAnnulation: string | null;
+  /** Qui a encaissé (Utilisateur.id), 19/10/2026 ; null pour une ancienne facture non reprise. */
+  createdBy?: string | null;
   createdAt: string;
 }
 

@@ -40,7 +40,7 @@ export function FeuilleModale({ visible, onFermer, titre, children, avecDefileme
     ]);
   }
 
-  const contenu = (
+  const entete = (
     <>
       <View style={styles.poignee} />
       {titre && (
@@ -48,6 +48,13 @@ export function FeuilleModale({ visible, onFermer, titre, children, avecDefileme
           {titre}
         </Text>
       )}
+    </>
+  );
+  // Avec un pied (reçu, étiquettes) : l'en-tête reste fixe lui aussi — seul le contenu défile, il ne « coupe » plus le haut de
+  // la feuille en remontant (retour du patron 19/10/2026).
+  const contenu = pied ? children : (
+    <>
+      {entete}
       {children}
     </>
   );
@@ -56,7 +63,8 @@ export function FeuilleModale({ visible, onFermer, titre, children, avecDefileme
     <Modal visible={visible} transparent animationType="fade" onRequestClose={demanderFermeture}>
       <KeyboardAvoidingView style={styles.fond} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <Pressable style={styles.fondPressable} onPress={demanderFermeture} accessible={false}>
-          <Pressable style={styles.feuille} onPress={(e) => e.stopPropagation()} accessible={false}>
+          <Pressable style={[styles.feuille, pied ? styles.feuilleAvecPied : null]} onPress={(e) => e.stopPropagation()} accessible={false}>
+            {pied && <View style={styles.enteteFixe}>{entete}</View>}
             {avecDefilement ? (
               <ScrollView style={styles.zoneDefilante} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.contenuScroll}>
                 {contenu}
@@ -80,6 +88,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: rayons.lg,
     borderTopRightRadius: rayons.lg,
     maxHeight: "85%",
+  },
+  // Le contenu à faire défiler (un reçu) a besoin de place : la feuille monte plus haut quand elle a un pied fixe.
+  feuilleAvecPied: { maxHeight: "94%" },
+  enteteFixe: {
+    paddingHorizontal: espacements.s5,
+    paddingTop: espacements.s3,
+    paddingBottom: espacements.s2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: couleurs.bordure,
   },
   zoneDefilante: { flexShrink: 1 },
   pied: {

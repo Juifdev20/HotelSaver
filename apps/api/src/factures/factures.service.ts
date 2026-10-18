@@ -39,7 +39,8 @@ export class FacturesService {
     return facture;
   }
 
-  async create(dto: CreateFactureDto, hotelId: string, options: { numeroProvisoire?: string } = {}) {
+  /** `createdBy` = qui encaisse : la recette du réceptionniste compte ses encaissements (19/10/2026). */
+  async create(dto: CreateFactureDto, hotelId: string, options: { numeroProvisoire?: string; createdBy?: string } = {}) {
     // « Facturé chambre » ne vaut que pour une consommation de cafétaria ajoutée au séjour : la facture du séjour elle-même est
     // toujours encaissée, sinon elle serait enregistrée comme réglée sans qu'aucun argent n'ait été reçu.
     if (dto.modePaiement === "FACTURE_CHAMBRE") {
@@ -117,6 +118,7 @@ export class FacturesService {
             montantMonnaieRendue: encaissement.montantMonnaieRendue,
             numeroRecu,
             numeroProvisoire: options.numeroProvisoire,
+            createdBy: options.createdBy,
           },
           include: { reservation: { include: { chambre: true, client: true } } },
         });

@@ -3782,3 +3782,23 @@ mobile « Comptes » restait monté et ne se rechargeait qu'après une synchroni
   Composants `FeuilleEtiquettes` (mobile) et `CarteEtiquettes` (bureau) ; le Menu patron garde son propre écran d'étiquettes,
   lié à son formulaire (impression automatique à l'enregistrement).
 - **Vérifié sur Test** (API locale, « Caisse Test ») : ENTREE 201, PERTE et AJUSTEMENT 403 avec le message ; patron : AJUSTEMENT 201.
+
+
+## Tableau de bord de la réception : libellés justes, mise à jour, recette = ses encaissements (19/10/2026)
+
+- **Libellés** : les cartes de recette affichaient « Chambres et cafétaria » à TOUS les rôles ; la réception croyait voir la
+  cafétaria mélangée (le serveur ne la lui comptait pourtant pas). Mobile : « Vos encaissements · chambres » / « · cafétaria »
+  pour un employé ; les cartes « Dont chambres / cafétaria » sont réservées au patron (pour un employé elles répétaient le total).
+- **Mise à jour** : l'onglet Accueil (mobile) reste monté ; il ne relisait rien après l'ouverture. Il se recharge maintenant à
+  chaque retour sur l'onglet (`useFocusEffect`) et après chaque synchronisation réussie (`derniereSyncReussieLe`).
+- **Recette du réceptionniste** : jusqu'ici, les factures des réservations QU'IL AVAIT CRÉÉES (Reservation.createdBy) — un séjour
+  réservé par le patron ou le site puis encaissé par lui n'apparaissait pas. Décision du patron : sa recette = ce qu'il a
+  ENCAISSÉ. Nouvelle colonne `Facture.createdBy` (migration `20261019120000_facture_encaissee_par`, historique repris de
+  l'auteur de la réservation), renseignée par `FacturesService.create` (route et synchronisation, toujours l'utilisateur
+  connecté, jamais le client) et par `Ecritures.creerFacture` hors ligne ; filtres du tableau de bord (jour, mois, activité
+  récente) et du miroir local (`encaisseePar`, repli sur l'auteur de la réservation pour une vieille facture).
+- **Rappel fuseau** : la journée compte à l'heure de Lubumbashi ; sur un téléphone réglé sur Kinshasa, elle bascule à 23:00.
+- **Aperçu du reçu (mobile), suite** : la poignée et le titre défilaient avec le reçu (le haut paraissait coupé) et le pied
+  prenait la moitié de la feuille. Avec un `pied`, `FeuilleModale` garde maintenant l'en-tête FIXE et monte à 94 % de l'écran ;
+  le pied cafétaria tient sur une ligne (total à gauche, « À rendre » à droite) — numéro et mention provisoire sont sur le reçu.
+- **Applications 1.0.2** (versionCode 3) : ces corrections du tableau de bord et du reçu.

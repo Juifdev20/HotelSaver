@@ -359,6 +359,7 @@ export class Ecritures {
       tauxChangeApplique: encaissement.tauxChangeApplique !== undefined ? String(encaissement.tauxChangeApplique) : null,
       deviseMonnaieRendue: encaissement.deviseMonnaieRendue ?? null, montantMonnaieRendue: encaissement.montantMonnaieRendue !== undefined ? String(encaissement.montantMonnaieRendue) : null,
       numeroRecu: numeros[0], numeroProvisoire: numeros[0], imprimeLe: null, annuleLe: null, motifAnnulation: null,
+      createdBy: this.ctx.utilisateur().userId, // qui encaisse (comme le serveur, 19/10/2026)
     });
     await this.agir(
       [this.ecrire("Facture", facture), ecriture],

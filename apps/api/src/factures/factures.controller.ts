@@ -36,7 +36,7 @@ export class FacturesController {
   @Operationnel()
   @Post()
   create(@Body() dto: CreateFactureDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
-    return this.facturesService.create(dto, currentUser.hotelId);
+    return this.facturesService.create(dto, currentUser.hotelId, { createdBy: currentUser.userId });
   }
 
   @Post(":id/annuler")
