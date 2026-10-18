@@ -217,6 +217,8 @@ export interface VentesRecentes {
 export enum StatutCompte {
   OUVERT = "OUVERT",
   FERME = "FERME",
+  /** Créé par erreur et annulé, jamais encaissé (19/10/2026). */
+  ANNULE = "ANNULE",
 }
 
 /** Doit rester synchronisé avec l'enum `ModePaiement` du schéma Prisma. */
@@ -335,6 +337,10 @@ export interface CompteCafeteria {
   ouvertPar: string;
   ouvertLe: string;
   fermeLe: string | null;
+  /** Compte annulé (créé par erreur) : quand, par qui (Utilisateur.id), pourquoi. */
+  annuleLe?: string | null;
+  annulePar?: string | null;
+  motifAnnulation?: string | null;
   syncVersion: number;
   sousComptes: SousCompte[];
   ventes: VenteCafeteria[];
@@ -716,6 +722,7 @@ export const TYPES_NOTIFICATION = [
   "RECAP_QUOTIDIEN",
   "LICENCE_BIENTOT_EXPIREE",
   "SUPPRESSION_ESSAI_PROCHE",
+  "COMPTE_CAFETERIA_ANNULE",
   "LICENCE_SUSPENDUE",
   "RAPPORT_A_GENERER",
   "RAPPORT_DISPONIBLE",
@@ -746,6 +753,7 @@ export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification>
   ACOMPTE_MODIFIE: "securite",
   LICENCE_BIENTOT_EXPIREE: "securite",
   SUPPRESSION_ESSAI_PROCHE: "securite",
+  COMPTE_CAFETERIA_ANNULE: "securite",
   LICENCE_SUSPENDUE: "securite",
   ABONNEMENT_RENOUVELE: "securite",
   ACOMPTE_PAYE_EN_LIGNE: "reservations",

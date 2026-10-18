@@ -28,6 +28,9 @@ export interface EcranAjoutConsommationProps {
   onAjoute: () => void;
   /** « Vente rapide » : la caméra s'ouvre dès l'arrivée sur l'écran. */
   scannerAuDemarrage?: boolean;
+  /** « Vente rapide » sans compte (19/10/2026) : appelé UNE fois, à la validation du panier, pour créer le compte « Comptoir »
+   * et sa personne. Revenir en arrière sans valider ne crée donc rien. */
+  preparerCompte?: () => Promise<{ compteId: string; sousCompteId: string }>;
 }
 
 /** Retour tactile à la caissière (sans dépendance) : court = ajouté,
@@ -69,8 +72,10 @@ export function EcranAjoutConsommation({
   onRetour,
   onAjoute,
   scannerAuDemarrage = false,
+  preparerCompte,
 }: EcranAjoutConsommationProps) {
   const { client } = useSession();
+  const cibleCreee = useRef<{ compteId: string; sousCompteId: string } | null>(null);
   const etatSync = useSyncEtat();
   const insets = useSafeAreaInsets();
   const [recherche, setRecherche] = useState("");
@@ -214,10 +219,13 @@ export function EcranAjoutConsommation({
     setEnEnvoi(true);
     setErreur(null);
     try {
+      // Compte créé au premier panier validé (vente rapide), et une seule fois même si un nouvel essai suit une erreur.
+      if (preparerCompte && !cibleCreee.current) cibleCreee.current = await preparerCompte();
+      const cible = cibleCreee.current ?? { compteId: compte.id, sousCompteId: personne.id };
       for (const [produitId, quantite] of Object.entries(panier)) {
         const produit = produitsParId.get(produitId);
         if (!produit) continue;
-        await client.ajouterLigne(compte.id, { sousCompteId: personne.id, produitId: produit.id, quantite });
+        await client.ajouterLigne(cible.compteId, { sousCompteId: cible.sousCompteId, produitId: produit.id, quantite });
         // Déjà enregistrée : en cas d'échec d'une ligne suivante, un nouvel essai ne la double pas.
         setPanier((courant) => {
           const suivant = { ...courant };

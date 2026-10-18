@@ -34,6 +34,8 @@ enum StatutChambre {
 enum StatutCompte {
   OUVERT
   FERME
+  /// Créé par erreur et annulé (19/10/2026) : jamais encaissé, articles remis en stock ; gardé pour la trace (qui, quand, motif).
+  ANNULE
 }
 
 enum ModePaiement {
@@ -632,6 +634,10 @@ model CompteCafeteria {
   ouvertPar     String // Utilisateur.id
   ouvertLe      DateTime         @default(now())
   fermeLe       DateTime?
+  /// Annulation d'un compte créé par erreur (aucune part encaissée), avec son auteur (Utilisateur.id) et un motif facultatif.
+  annuleLe        DateTime?
+  annulePar       String?
+  motifAnnulation String?
   sousComptes   SousCompte[]
   ventes        VenteCafeteria[]
   updatedAt     DateTime         @updatedAt

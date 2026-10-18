@@ -7,3 +7,4 @@ export * from "./mobile-money";
 export * from "./abonnement";
 export * from "./abonnement-texte";
 export * from "./chambre-prise";
+export * from "./compte-cafeteria";

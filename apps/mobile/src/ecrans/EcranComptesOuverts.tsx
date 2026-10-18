@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { CompteCafeteria, Devise, StatutCompte } from "@hotel-chicago/types";
 import { ClipboardList } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -55,6 +56,10 @@ export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOu
   useEffect(() => {
     if (etatSync.dernierePousseeLe) rechargerMiroir();
   }, [etatSync.dernierePousseeLe, rechargerMiroir]);
+
+  // L'onglet reste monté entre deux visites : on relit la base locale à CHAQUE retour (19/10/2026). Un compte encaissé ou annulé
+  // disparaît ainsi tout de suite, même hors ligne, sans attendre la prochaine synchronisation.
+  useFocusEffect(useCallback(() => rechargerMiroir(), [rechargerMiroir]));
 
   async function actualiser() {
     setRafraichissement(true);

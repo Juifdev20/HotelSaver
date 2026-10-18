@@ -28,7 +28,7 @@ export type EntitePush = (typeof ENTITES_PUSH)[number];
  * « ordre »), sont rejouables sans effet double, et le serveur applique ses règles habituelles : un ordre devenu
  * impossible (réservation annulée entre-temps) est refusé avec son motif, jamais forcé.
  */
-export const COMMANDES_PUSH = ["ActionReservation", "ActionLigne"] as const;
+export const COMMANDES_PUSH = ["ActionReservation", "ActionLigne", "ActionCompte"] as const;
 export type CommandePush = (typeof COMMANDES_PUSH)[number];
 
 /** Tout ce que POST /sync/push accepte. */

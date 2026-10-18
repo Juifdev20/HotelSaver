@@ -22,6 +22,9 @@ export interface EcranAjoutConsommationProps {
   onAjoute: () => void;
   /** « Vente rapide » : la webcam s'ouvre dès l'arrivée (la douchette marche toujours). */
   scannerAuDemarrage?: boolean;
+  /** « Vente rapide » sans compte (19/10/2026) : appelé UNE fois, à la validation du panier, pour créer le compte « Comptoir »
+   * et sa personne. Revenir en arrière sans valider ne crée donc rien. */
+  preparerCompte?: () => Promise<{ compteId: string; sousCompteId: string }>;
 }
 
 const NB_POPULAIRES = 6;
@@ -48,7 +51,9 @@ export function EcranAjoutConsommation({
   onRetour,
   onAjoute,
   scannerAuDemarrage = false,
+  preparerCompte,
 }: EcranAjoutConsommationProps) {
+  const cibleCreee = useRef<{ compteId: string; sousCompteId: string } | null>(null);
   const [recherche, setRecherche] = useState("");
   // Scan (08/10/2026) : douchette (écoute globale du clavier), webcam, code inconnu à associer.
   const [webcamOuverte, setWebcamOuverte] = useState(scannerAuDemarrage);
@@ -169,8 +174,11 @@ export function EcranAjoutConsommation({
     setErreur(null);
     const restants = { ...panier };
     try {
+      // Compte créé au premier panier validé (vente rapide), une seule fois même si un nouvel essai suit une erreur.
+      if (preparerCompte && !cibleCreee.current) cibleCreee.current = await preparerCompte();
+      const cible = cibleCreee.current ?? { compteId: compte.id, sousCompteId: personne.id };
       for (const { produit, quantite } of entreesPanier) {
-        await client.ajouterLigne(compte.id, { sousCompteId: personne.id, produitId: produit.id, quantite });
+        await client.ajouterLigne(cible.compteId, { sousCompteId: cible.sousCompteId, produitId: produit.id, quantite });
         delete restants[produit.id];
       }
       onAjoute();

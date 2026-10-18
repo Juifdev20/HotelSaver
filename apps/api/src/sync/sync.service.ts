@@ -101,6 +101,7 @@ const FONCTION_PAR_ENTITE: Partial<Record<TypeOperationPush, string>> = {
   SousCompte: "CAFETERIA",
   LigneCommande: "CAFETERIA",
   VenteCafeteria: "CAFETERIA",
+  ActionCompte: "CAFETERIA",
 };
 
 const ouverte = (currentUser: UtilisateurAuthentifie, entite: string): boolean => {
@@ -122,7 +123,7 @@ const FILTRE_LECTURE: Partial<Record<EntitePull, (user: UtilisateurAuthentifie) 
 /** Opérations du quotidien (séparation des tâches) : la synchronisation applique la même règle que les routes
  * HTTP marquées @Operationnel — sinon le patron les contournerait en passant par l'écriture hors ligne. */
 const ENTITES_OPERATIONNELLES: ReadonlySet<TypeOperationPush> = new Set<TypeOperationPush>([
-  "Reservation", "CompteCafeteria", "SousCompte", "LigneCommande", "Facture", "VenteCafeteria", "ActionReservation",
+  "Reservation", "CompteCafeteria", "SousCompte", "LigneCommande", "Facture", "VenteCafeteria", "ActionReservation", "ActionCompte",
 ]);
 
 /** Champs du payload qui désignent une autre ligne. Hors ligne, l'appareil ne connaît parfois que l'identifiant LOCAL d'une
@@ -335,6 +336,19 @@ export class SyncService {
           const dto = await this.valider(MajStatutLigneDto, payload);
           const ligne = await this.cafeteriaService.majStatutLigne(ligneId, dto, currentUser.hotelId);
           return { id: ligneId, syncVersion: ligne.syncVersion };
+        },
+      },
+      // Annulation hors ligne d'un compte cafétaria créé par erreur (19/10/2026) : mêmes règles que la route HTTP.
+      ActionCompte: {
+        rolesCreate: [Role.CAFETARIA, Role.PATRON],
+        rolesUpdate: [],
+        create: async (payload, currentUser) => {
+          const compteId = texteCourt(payload.compteId);
+          if (!compteId) throw new BadRequestException("compteId est obligatoire.");
+          if (payload.action !== "ANNULER") throw new BadRequestException("action doit être ANNULER.");
+          const motif = typeof payload.motif === "string" ? payload.motif.trim().slice(0, 300) : null;
+          const compte = await this.cafeteriaService.annulerCompte(compteId, currentUser, motif);
+          return { id: compteId, syncVersion: compte.syncVersion };
         },
       },
     };

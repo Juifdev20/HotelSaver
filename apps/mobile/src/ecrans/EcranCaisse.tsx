@@ -7,8 +7,8 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { useSession } from "../contexteSession";
-import { heureCourte } from "../dates";
 import { messageErreur } from "../messagesErreur";
+import { EcranVenteRapide } from "./EcranVenteRapide";
 
 export interface EcranCaisseProps {
   /** `venteRapide` : ouvrir directement l'ajout de consommations, caméra prête. */
@@ -30,13 +30,10 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
   const [nomPremierSousCompte, setNomPremierSousCompte] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [venteRapide, setVenteRapide] = useState(false);
 
-  /** `venteRapide` (scan au comptoir, 08/10/2026) : compte « Comptoir HH:MM »
-   * créé sans rien saisir, puis ouverture directe de l'ajout avec la caméra. */
-  async function ouvrir(venteRapide = false) {
-    // Heure de Lubumbashi (pas celle du fuseau réglé sur le téléphone).
-    const heure = heureCourte(new Date());
-    const nom = venteRapide ? `Comptoir ${heure}` : tableOuNom.trim();
+  async function ouvrir() {
+    const nom = tableOuNom.trim();
     if (!nom) {
       setErreur("Le nom de la table ou du client est obligatoire.");
       return;
@@ -46,16 +43,29 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
     try {
       const compte = await client.ouvrirCompteCafeteria({
         tableOuNom: nom,
-        nomPremierSousCompte: venteRapide ? "Client" : nomPremierSousCompte.trim() || undefined,
+        nomPremierSousCompte: nomPremierSousCompte.trim() || undefined,
       });
       setTableOuNom("");
       setNomPremierSousCompte("");
-      onCompteOuvert(compte.id, { venteRapide });
+      onCompteOuvert(compte.id);
     } catch (e) {
       setErreur(messageErreur(e, "Le compte n'a pas pu être ouvert. Réessayez."));
     } finally {
       setEnCours(false);
     }
+  }
+
+  // Vente au comptoir (19/10/2026) : caméra tout de suite, compte « Comptoir » créé seulement au panier validé.
+  if (venteRapide) {
+    return (
+      <EcranVenteRapide
+        onRetour={() => setVenteRapide(false)}
+        onCompteCree={(id) => {
+          setVenteRapide(false);
+          onCompteOuvert(id);
+        }}
+      />
+    );
   }
 
   return (
@@ -95,7 +105,7 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
 
           <Pressable
             style={styles.bouton}
-            onPress={() => ouvrir(false)}
+            onPress={() => ouvrir()}
             disabled={enCours}
             accessibilityRole="button"
             accessibilityState={{ disabled: enCours, busy: enCours }}
@@ -107,11 +117,11 @@ export function EcranCaisse({ onCompteOuvert, onRetour }: EcranCaisseProps) {
         <View style={[styles.carte, { marginTop: espacements.s4 }]}>
           <Text style={styles.titreRapide}>Vente au comptoir</Text>
           <Text style={styles.aideRapide}>
-            Scannez directement les articles (caméra ou douchette) : un compte « Comptoir » est ouvert pour vous.
+            Scannez directement les articles (caméra ou douchette). Le compte « Comptoir » n'est créé qu'à la validation du panier.
           </Text>
           <Pressable
             style={[styles.bouton, styles.boutonRapide]}
-            onPress={() => ouvrir(true)}
+            onPress={() => setVenteRapide(true)}
             disabled={enCours}
             accessibilityRole="button"
             accessibilityLabel="Vente rapide : ouvrir un compte comptoir et scanner les articles"

@@ -157,6 +157,16 @@ export const messages = {
     };
   },
 
+  /** Compte cafétaria annulé par un employé (créé par erreur, rien d'encaissé) : le patron le voit passer (19/10/2026). */
+  compteCafeteriaAnnule(p: { tableOuNom: string; par?: string; motif?: string | null; articles: number }): MessageNotification {
+    return {
+      type: "COMPTE_CAFETERIA_ANNULE",
+      titre: "Compte cafétaria annulé",
+      corps: `« ${p.tableOuNom} » a été annulé${p.par ? ` par ${p.par}` : ""}${p.articles > 0 ? ` (${pluriel(p.articles, "article remis", "articles remis")} en stock)` : ""}${p.motif ? ` : ${p.motif}` : "."}`,
+      lien: { ecran: "tableau-de-bord" },
+    };
+  },
+
   licenceSuspendue(): MessageNotification {
     return {
       type: "LICENCE_SUSPENDUE",

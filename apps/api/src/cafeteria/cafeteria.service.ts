@@ -5,6 +5,7 @@ import { PRISMA } from "../prisma/prisma.module";
 import { StockService } from "../stock/stock.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { messages } from "../notifications/messages";
+import { MESSAGE_COMPTE_ANNULE, raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
 import { calculerEncaissement } from "../factures/encaissement.util";
 import { repartirEnParts } from "./partage.util";
 import { OuvrirCompteDto } from "./dto/ouvrir-compte.dto";
@@ -499,6 +500,64 @@ export class CafeteriaService {
     return { articlesRemisEnStock: remis, infoStock: null };
   }
 
+  /**
+   * Annule un compte créé par erreur (19/10/2026) — seulement si RIEN n'y est encaissé (aucune part payée, aucun reçu valide) :
+   * sinon il faut annuler le reçu (annulerVente). Jamais d'effacement : le compte passe ANNULE (trace : qui, quand, motif) et
+   * disparaît des comptes ouverts ; ses articles ARTICLE retournent en stock et les portions des PLATS sont rendues. Compare-and-swap
+   * OUVERT → ANNULE dans la transaction : deux postes ou un double clic ne rendent jamais deux fois le stock. Le patron est prévenu
+   * quand c'est un employé qui annule (comme pour un reçu annulé).
+   */
+  async annulerCompte(compteId: string, currentUser: UtilisateurAuthentifie, motif?: string | null) {
+    const compte = await this.findOneCompte(compteId, currentUser.hotelId);
+    const refus = raisonRefusAnnulationCompte(compte);
+    if (refus) throw new ConflictException(refus);
+    const raison = motif?.trim() || null;
+
+    const parProduit = new Map<string, { nom: string; quantite: number; type: string; portions: number | null }>();
+    for (const ligne of compte.sousComptes.flatMap((sc) => sc.lignes)) {
+      const courant = parProduit.get(ligne.produitId) ?? { nom: ligne.produit.nom, quantite: 0, type: ligne.produit.typeProduit, portions: ligne.produit.portionsDisponibles };
+      courant.quantite += Number(ligne.quantite);
+      parProduit.set(ligne.produitId, courant);
+    }
+
+    const annule = await this.prisma.$transaction(
+      async (tx) => {
+        const { count } = await tx.compteCafeteria.updateMany({
+          where: { id: compteId, hotelId: currentUser.hotelId, statut: "OUVERT" },
+          data: { statut: "ANNULE", annuleLe: new Date(), annulePar: currentUser.userId, motifAnnulation: raison, syncVersion: { increment: 1 } },
+        });
+        if (count === 0) throw new ConflictException(MESSAGE_COMPTE_ANNULE);
+        for (const [produitId, p] of parProduit) {
+          if (p.type === TypeProduit.PLAT) {
+            // Plat « cuisiné à la commande » (portions illimitées) : rien à rendre.
+            if (p.portions == null) continue;
+            await tx.produit.updateMany({ where: { id: produitId, hotelId: currentUser.hotelId }, data: { portionsDisponibles: { increment: p.quantite }, syncVersion: { increment: 1 } } });
+          } else {
+            await this.stockService.remettreEnStock(tx, {
+              hotelId: currentUser.hotelId,
+              produitId,
+              quantite: p.quantite,
+              motif: `Annulation du compte « ${compte.tableOuNom} »`,
+              createdBy: currentUser.userId,
+            });
+          }
+        }
+        return tx.compteCafeteria.findUniqueOrThrow({ where: { id: compteId }, include: INCLUDE_COMPTE_COMPLET });
+      },
+      { timeout: 30_000, maxWait: 10_000 }
+    );
+
+    const articles = [...parProduit.values()].reduce((n, p) => n + p.quantite, 0);
+    if (currentUser.role !== Role.PATRON) {
+      void this.notifications.emettre({
+        hotelId: currentUser.hotelId,
+        roles: [Role.PATRON],
+        ...messages.compteCafeteriaAnnule({ tableOuNom: compte.tableOuNom, par: currentUser.nom, motif: raison, articles }),
+      });
+    }
+    return { ...annule, articlesRemisEnStock: [...parProduit.values()].map((p) => ({ nom: p.nom, quantite: p.quantite })) };
+  }
+
   findAllVentes(hotelId: string, reservationLieeId?: string) {
     return this.prisma.venteCafeteria.findMany({
       take: 500, // Plafond de sécurité : une liste n'est jamais illimitée (déni de service, mémoire).
@@ -512,6 +571,7 @@ export class CafeteriaService {
   // ---------------------------------------------------------------------
 
   private verifierCompteOuvert(compte: { statut: string }) {
+    if (compte.statut === "ANNULE") throw new ConflictException(MESSAGE_COMPTE_ANNULE);
     if (compte.statut !== "OUVERT") {
       throw new ConflictException("Ce compte cafétaria est déjà fermé (encaissé).");
     }

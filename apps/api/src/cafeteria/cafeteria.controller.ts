@@ -10,6 +10,7 @@ import { OuvrirCompteDto } from "./dto/ouvrir-compte.dto";
 import { AjouterSousCompteDto } from "./dto/ajouter-sous-compte.dto";
 import { AjouterLigneDto } from "./dto/ajouter-ligne.dto";
 import { EncaisserCompteDto } from "./dto/encaisser-compte.dto";
+import { AnnulerCompteDto } from "./dto/annuler-compte.dto";
 import { FindComptesQueryDto } from "./dto/find-comptes.query.dto";
 import { AnnulerVenteDto } from "./dto/annuler-vente.dto";
 import { MajStatutLigneDto } from "./dto/maj-statut-ligne.dto";
@@ -82,6 +83,13 @@ export class CafeteriaController {
     @CurrentUser() currentUser: UtilisateurAuthentifie
   ) {
     return this.cafeteriaService.ajouterLigne(id, dto, currentUser);
+  }
+
+  /** Annule un compte créé par erreur : seulement si rien n'y est encaissé ; articles remis en stock (19/10/2026). */
+  @Operationnel()
+  @Post("comptes/:id/annuler")
+  annulerCompte(@Param("id") id: string, @Body() dto: AnnulerCompteDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.annulerCompte(id, currentUser, dto.motif);
   }
 
   @Operationnel()

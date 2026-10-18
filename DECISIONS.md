@@ -3739,3 +3739,24 @@ toujours** : des essais abandonnés pouvaient remplir la base et le stockage pou
   erreur, le script relit l'état sur une nouvelle connexion (« appliquée malgré la coupure de la réponse »). Nouvelle option
   `--marquer <nom>` pour enregistrer à la main une migration déjà présente et vérifiée. Testé sur Test : migration valide
   appliquée et tracée ; migration en erreur entièrement annulée (aucune table, aucune trace).
+
+## 19/10/2026 — Café : comptes annulés, liste à jour, vente rapide sans compte vide
+
+**Problèmes signalés** : « Vente rapide » ouvrait un compte « Comptoir HH:MM » AVANT tout article (revenir en arrière laissait un
+compte vide) ; aucun moyen de supprimer un compte ou une table créés par erreur ; des comptes réglés restaient visibles (l'onglet
+mobile « Comptes » restait monté et ne se rechargeait qu'après une synchronisation ; un compte vide, lui, ne se ferme jamais).
+
+- **Annuler, jamais effacer** : nouveau statut `ANNULE` (+ `annuleLe`, `annulePar`, `motifAnnulation`). Seulement si RIEN n'est
+  encaissé (aucune part payée, aucun reçu valide) — sinon « Une partie de ce compte est déjà encaissée : annulez d'abord le reçu
+  (Ventes). » Les articles ARTICLE retournent en stock (`remettreEnStock`, mouvement « Annulation du compte … »), les portions des
+  PLATS sont rendues ; compare-and-swap OUVERT → ANNULE dans la transaction (double clic, deux postes : le stock n'est rendu qu'une
+  fois). Les lignes restent pour la trace ; le patron est notifié (`COMPTE_CAFETERIA_ANNULE`) quand un employé annule — une
+  caissière ne peut pas faire disparaître une vente sans que ça se voie. Route `POST /cafeteria/comptes/:id/annuler` (@Operationnel).
+- **Hors ligne** : commande de synchronisation `ActionCompte` (`ANNULER`) ; `Ecritures.annulerCompte` applique les mêmes règles et
+  messages (`raisonRefusAnnulationCompte`, `MESSAGE_COMPTE_ANNULE` dans `packages/regles`) et rend le stock local.
+- **Liste à jour** : « Comptes ouverts » (mobile) se relit à chaque retour sur l'onglet (`useFocusEffect`).
+- **Vente rapide** : écran `EcranVenteRapide` (bureau et mobile) — l'ajout s'ouvre caméra / douchette prête SANS compte ; le compte
+  « Comptoir HH:MM » est créé par `preparerCompte` seulement à la validation du panier, puis le détail s'ouvre pour encaisser.
+- **Vérifié sur Test** (API locale, compte cafétaria « Caisse Test ») : 2 Primus ajoutées (48 → 46) puis compte annulé (stock 48,
+  hors des comptes ouverts) ; 2e annulation et ajout sur compte annulé refusés avec le message ; compte vide annulé ; compte encaissé
+  refusé ; stock final cohérent.

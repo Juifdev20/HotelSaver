@@ -6,7 +6,8 @@ import type { ClientApi, DonneesEncaissement, TauxChange } from "@hotel-chicago/
 import { CompteCafeteria, Devise, LigneCommande, MenuDuJour, ModePaiement, Produit, SousCompte, StatutCompte, StatutLigne, LIBELLE_STATUT_LIGNE, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Check, Globe, Plus, UserPlus } from "lucide-react-native";
-import { estRecuProvisoire, lireMontant } from "@hotel-chicago/regles";
+import { estRecuProvisoire, lireMontant, raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
+import { confirmerAction } from "../confirmer";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -303,6 +304,32 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   const compteOuvert = compte?.statut === StatutCompte.OUVERT;
   // Séparation des tâches : le patron (sauf réglage de l'hôtel) consulte le compte mais n'y ajoute ni n'y encaisse rien.
   const operer = peutOperer(utilisateur);
+  // Compte créé par erreur (19/10/2026) : annulable tant que RIEN n'y est encaissé (aucune part payée, aucun reçu valide).
+  const annulable = !!compte && compteOuvert && raisonRefusAnnulationCompte(compte) === null;
+  const articlesDuCompte = compte ? compte.sousComptes.flatMap((sc) => sc.lignes).reduce((n, l) => n + Number(l.quantite), 0) : 0;
+
+  function demanderAnnulation() {
+    if (!compte) return;
+    confirmerAction({
+      titre: `Annuler « ${compte.tableOuNom} » ?`,
+      message:
+        articlesDuCompte > 0
+          ? `Le compte disparaît des comptes ouverts et ${articlesDuCompte} article${articlesDuCompte > 1 ? "s retournent" : " retourne"} en stock. Le patron en est informé.`
+          : "Ce compte vide disparaît des comptes ouverts. Le patron en est informé.",
+      libelleConfirmer: "Annuler le compte",
+      libelleRefuser: "Garder",
+      destructif: true,
+      onConfirmer: async () => {
+        setErreurAction(null);
+        try {
+          await client.annulerCompteCafeteria(compte.id);
+          onRetour();
+        } catch (e) {
+          setErreurAction(messageErreur(e, "Le compte n'a pas pu être annulé. Réessayez."));
+        }
+      },
+    });
+  }
   const cuisineActivee = utilisateur.cuisineActivee === true;
   const { visibles: personnesVisibles, revoyables } = compte
     ? sousComptesVisibles(compte.sousComptes, maintenant, masquees)
@@ -606,6 +633,17 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
               </Pressable>
             </View>
           )}
+          {annulable && operer && (
+            <Pressable
+              style={styles.boutonAnnulerCompte}
+              onPress={demanderAnnulation}
+              accessibilityRole="button"
+              accessibilityLabel={`Annuler le compte ${compte?.tableOuNom ?? ""}, créé par erreur`}
+            >
+              <Text style={styles.boutonAnnulerCompteTexte}>Annuler ce compte</Text>
+              <Text style={styles.aideAnnulerCompte}>Créé par erreur ? Rien n'a encore été encaissé.</Text>
+            </Pressable>
+          )}
         </>
       )}
 
@@ -870,6 +908,9 @@ const styles = StyleSheet.create({
   boutonPersonne: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: couleurs.bleu, borderRadius: rayons.pill, paddingHorizontal: espacements.s3, minHeight: 44 },
   badgePaye: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: couleurs.succesClair, borderRadius: rayons.pill, paddingHorizontal: espacements.s3, height: 30 },
   badgePayeTexte: { color: couleurs.succes, fontWeight: "700", fontSize: 13 },
+  boutonAnnulerCompte: { marginHorizontal: espacements.s4, marginBottom: espacements.s3, minHeight: 52, borderRadius: rayons.sm, borderWidth: 1, borderColor: couleurs.danger, alignItems: "center", justifyContent: "center", paddingVertical: 6 },
+  boutonAnnulerCompteTexte: { color: couleurs.danger, fontWeight: "700", fontSize: 14 },
+  aideAnnulerCompte: { color: couleurs.encreAttenuee, fontSize: 11, marginTop: 1 },
   boutonEncaisserPersonne: { minHeight: 44, borderRadius: rayons.sm, backgroundColor: couleurs.succes, alignItems: "center", justifyContent: "center", marginTop: espacements.s2 },
   boutonToutEncaisser: { flex: 1, minHeight: 56, paddingVertical: 6, borderRadius: rayons.sm, borderWidth: 1, borderColor: couleurs.succes, alignItems: "center", justifyContent: "center" },
   aideToutEncaisser: { color: couleurs.encreAttenuee, fontSize: 11, marginTop: 1 },

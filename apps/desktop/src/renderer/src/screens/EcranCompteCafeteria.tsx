@@ -2,6 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { CompteCafeteria, Devise, MenuDuJour, ModePaiement, Produit, StatutLigne, LIBELLE_STATUT_LIGNE, StatutCompte, ProfilConnecte, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
+import { raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { lireMontant } from "@hotel-chicago/miroir-local";
@@ -295,6 +296,26 @@ export function EcranCompteCafeteria({
   const compteOuvert = compte.statut === StatutCompte.OUVERT;
   // Séparation des tâches : le patron (sauf réglage de l'hôtel) consulte le compte mais n'y ajoute ni n'y encaisse rien.
   const operer = peutOperer(utilisateur);
+  // Compte créé par erreur (19/10/2026) : annulable tant que RIEN n'y est encaissé (aucune part payée, aucun reçu valide).
+  const annulable = compteOuvert && raisonRefusAnnulationCompte(compte) === null;
+
+  async function annulerCeCompte() {
+    const articles = compte!.sousComptes.flatMap((sc) => sc.lignes).reduce((n, l) => n + Number(l.quantite), 0);
+    const message =
+      articles > 0
+        ? `Annuler « ${compte!.tableOuNom} » ? Le compte disparaît des comptes ouverts et ${articles} article${articles > 1 ? "s retournent" : " retourne"} en stock. Le patron en est informé.`
+        : `Annuler « ${compte!.tableOuNom} » ? Ce compte vide disparaît des comptes ouverts. Le patron en est informé.`;
+    if (!window.confirm(message)) return;
+    const motif = window.prompt("Motif de l'annulation (facultatif) :", "");
+    if (motif === null) return;
+    setErreur(null);
+    try {
+      await client.annulerCompteCafeteria(compte!.id, motif);
+      onRetour();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Le compte n'a pas pu être annulé. Réessayez.");
+    }
+  }
   const cuisineActivee = utilisateur.cuisineActivee === true;
   const personnesARegler = compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0);
   const { visibles: personnesVisibles, revoyables } = sousComptesVisibles(compte.sousComptes, maintenant, masquees);
@@ -405,11 +426,20 @@ export function EcranCompteCafeteria({
       <header className="page__entete">
         <div>
           <h1 className="hc-text-display-md page__titre">{compte.tableOuNom}</h1>
-          <p className="hc-text-body page__sous-titre">{compteOuvert ? "Compte ouvert." : "Ce compte est déjà encaissé."}</p>
+          <p className="hc-text-body page__sous-titre">
+            {compteOuvert ? "Compte ouvert." : compte.statut === StatutCompte.ANNULE ? "Ce compte a été annulé." : "Ce compte est déjà encaissé."}
+          </p>
         </div>
-        <Button type="button" variant="secondary" onClick={onRetour}>
-          Retour
-        </Button>
+        <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
+          {annulable && operer && (
+            <Button type="button" variant="danger" onClick={() => void annulerCeCompte()} title="Compte créé par erreur : rien n'a encore été encaissé">
+              Annuler ce compte
+            </Button>
+          )}
+          <Button type="button" variant="secondary" onClick={onRetour}>
+            Retour
+          </Button>
+        </div>
       </header>
 
       {erreur && (

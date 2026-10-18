@@ -333,7 +333,7 @@ export const ENTITES_PUSH = [
 export type EntitePush = (typeof ENTITES_PUSH)[number];
 
 /** Ordres qui font évoluer une ligne existante (check-in, annulation, avancement en cuisine) : jamais lus, seulement envoyés. */
-export const COMMANDES_PUSH = ["ActionReservation", "ActionLigne"] as const;
+export const COMMANDES_PUSH = ["ActionReservation", "ActionLigne", "ActionCompte"] as const;
 export type CommandePush = (typeof COMMANDES_PUSH)[number];
 export type TypeOperationPush = EntitePush | CommandePush;
 export const ACTIONS_RESERVATION = ["CONFIRMER", "ANNULER", "CHECK_IN", "CHECK_OUT"] as const;
@@ -670,6 +670,11 @@ export class ClientApi {
       method: "POST",
       body: JSON.stringify(donnees),
     });
+  }
+
+  /** Annule un compte créé par erreur (rien d'encaissé) ; ses articles retournent en stock (19/10/2026). */
+  async annulerCompteCafeteria(compteId: string, motif?: string | null): Promise<CompteCafeteria> {
+    return this.requete<CompteCafeteria>(`/cafeteria/comptes/${compteId}/annuler`, { method: "POST", body: JSON.stringify({ motif: motif ?? undefined }) });
   }
 
   async encaisserCompte(compteId: string, donnees: DonneesEncaissement): Promise<VenteCafeteria[]> {

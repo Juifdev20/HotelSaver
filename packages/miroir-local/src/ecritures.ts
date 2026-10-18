@@ -8,6 +8,8 @@ import {
   calculerEncaissement,
   MESSAGE_ACOMPTE_TROP_ELEVE,
   messagePlafondEssai,
+  MESSAGE_COMPTE_ANNULE,
+  raisonRefusAnnulationCompte,
   ErreurRegle,
   numeroRecuProvisoire,
   jourCompact,
@@ -367,6 +369,7 @@ export class Ecritures {
   private compteOuvert(compteId: string): Doc {
     const c = this.s.obtenir("CompteCafeteria", compteId);
     if (!c) throw erreur(404, `Aucun compte cafétaria trouvé avec l'identifiant ${compteId}.`);
+    if (c.statut === "ANNULE") throw erreur(409, MESSAGE_COMPTE_ANNULE);
     if (c.statut !== "OUVERT") throw erreur(409, "Ce compte cafétaria est déjà fermé (encaissé).");
     return c;
   }
@@ -428,6 +431,42 @@ export class Ecritures {
       this.creation("LigneCommande", ligne, { compteId: compte.id, sousCompteId: sc.id, produitId: produit.id, quantite }, produitMaj ? [{ entiteType: "Produit", id: produit.id }] : undefined)
     );
     return this.v.ligneAvecProduit(ligne);
+  }
+
+  /** Annule un compte créé par erreur (19/10/2026) : mêmes règles et messages que le serveur (raisonRefusAnnulationCompte). Le
+   * compte passe ANNULE, les articles retournent en stock et les portions des plats sont rendues, dans UNE action locale. */
+  async annulerCompte(compteId: string, motif?: string | null) {
+    const u = this.ctx.utilisateur();
+    exigerRole(u, "CAFETARIA", "PATRON");
+    exigerOperationnel(u);
+    const compte = this.s.obtenir("CompteCafeteria", compteId);
+    if (!compte) throw erreur(404, `Aucun compte cafétaria trouvé avec l'identifiant ${compteId}.`);
+    const sousComptes = this.v.sousComptes(compte.id);
+    const ventes = this.s.lister("VenteCafeteria").filter((v) => v.compteId === compte.id);
+    const refus = raisonRefusAnnulationCompte({ statut: compte.statut, sousComptes, ventes });
+    if (refus) throw erreur(409, refus);
+
+    const parProduit = new Map<string, number>();
+    for (const l of sousComptes.flatMap((sc) => sc.lignes)) parProduit.set(l.produitId, (parProduit.get(l.produitId) ?? 0) + Number(l.quantite));
+    const ecritures: OperationMagasin[] = [];
+    const touche: Operation["touche"] = [{ entiteType: "CompteCafeteria", id: compte.id }];
+    for (const [produitId, quantite] of parProduit) {
+      const p = this.s.obtenir("Produit", produitId);
+      if (!p) continue;
+      if (p.typeProduit === "PLAT") {
+        // Plat « cuisiné à la commande » (portions illimitées) : rien à rendre.
+        if (p.portionsDisponibles == null) continue;
+        ecritures.push(this.ecrire("Produit", this.touche("Produit", { ...p, portionsDisponibles: Number(p.portionsDisponibles) + quantite })));
+      } else {
+        ecritures.push(this.ecrire("Produit", this.touche("Produit", { ...p, stockActuel: String(Number(p.stockActuel) + quantite) })));
+      }
+      touche.push({ entiteType: "Produit", id: produitId });
+    }
+    const raison = texte(motif) || null;
+    const annule = this.touche("CompteCafeteria", { ...compte, statut: "ANNULE", annuleLe: iso(this.ctx.maintenant()), annulePar: u.userId, motifAnnulation: raison });
+    ecritures.unshift(this.ecrire("CompteCafeteria", annule));
+    await this.agir(ecritures, { entiteType: "ActionCompte", localId: uuid(), operation: "CREATE", payload: { compteId: compte.id, action: "ANNULER", motif: raison }, touche });
+    return this.v.compte(annule);
   }
 
   async majStatutLigne(ligneId: string, statut: "EN_PREPARATION" | "PRET" | "SERVI") {

@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Button } from "@hotel-chicago/ui";
 import { ScanBarcode } from "lucide-react";
+import { EcranVenteRapide } from "./EcranVenteRapide";
 
 export interface EcranCaisseProps {
   client: ClientApi;
@@ -22,12 +23,10 @@ export function EcranCaisse({ client, onCompteOuvert }: EcranCaisseProps) {
   const [nomPremierSousCompte, setNomPremierSousCompte] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [venteRapide, setVenteRapide] = useState(false);
 
-  /** `venteRapide` (scan au comptoir, 08/10/2026) : compte « Comptoir HH:MM »
-   * ouvert sans rien saisir, puis ajout direct par douchette ou webcam. */
-  async function ouvrir(venteRapide = false) {
-    const heure = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-    const nom = venteRapide ? `Comptoir ${heure}` : tableOuNom.trim();
+  async function ouvrir() {
+    const nom = tableOuNom.trim();
     if (!nom) {
       setErreur("Le nom de la table ou du client est obligatoire.");
       return;
@@ -37,16 +36,30 @@ export function EcranCaisse({ client, onCompteOuvert }: EcranCaisseProps) {
     try {
       const compte = await client.ouvrirCompteCafeteria({
         tableOuNom: nom,
-        nomPremierSousCompte: venteRapide ? "Client" : nomPremierSousCompte.trim() || undefined,
+        nomPremierSousCompte: nomPremierSousCompte.trim() || undefined,
       });
       setTableOuNom("");
       setNomPremierSousCompte("");
-      onCompteOuvert(compte.id, { venteRapide });
+      onCompteOuvert(compte.id);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
       setEnCours(false);
     }
+  }
+
+  // Vente au comptoir (19/10/2026) : scanner tout de suite, compte « Comptoir » créé seulement au panier validé.
+  if (venteRapide) {
+    return (
+      <EcranVenteRapide
+        client={client}
+        onRetour={() => setVenteRapide(false)}
+        onCompteCree={(id) => {
+          setVenteRapide(false);
+          onCompteOuvert(id);
+        }}
+      />
+    );
   }
 
   return (
@@ -85,7 +98,7 @@ export function EcranCaisse({ client, onCompteOuvert }: EcranCaisseProps) {
           </p>
         )}
 
-        <Button type="button" onClick={() => ouvrir(false)} disabled={enCours} style={{ marginTop: "var(--hc-space-3)" }}>
+        <Button type="button" onClick={() => ouvrir()} disabled={enCours} style={{ marginTop: "var(--hc-space-3)" }}>
           {enCours ? "…" : "Ouvrir le compte"}
         </Button>
       </div>
@@ -93,9 +106,9 @@ export function EcranCaisse({ client, onCompteOuvert }: EcranCaisseProps) {
       <div className="carte-formulaire formulaire">
         <p className="hc-text-body-strong">Vente au comptoir</p>
         <p className="hc-text-body texte-discret">
-          Scannez directement les articles (douchette ou webcam) : un compte « Comptoir » est ouvert pour vous.
+          Scannez directement les articles (douchette ou webcam). Le compte « Comptoir » n'est créé qu'à la validation du panier.
         </p>
-        <Button type="button" onClick={() => ouvrir(true)} disabled={enCours}>
+        <Button type="button" onClick={() => setVenteRapide(true)} disabled={enCours}>
           <ScanBarcode size={16} aria-hidden="true" /> Vente rapide (scanner)
         </Button>
       </div>
