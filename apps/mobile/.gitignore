@@ -42,3 +42,7 @@ yarn-error.*
 
 # Clé du projet Firebase (voir FIREBASE.md)
 /google-services.json
+
+# Clé de signature de la version publiée et son mot de passe (voir plugins/withSignatureRelease.js) : JAMAIS dans Git,
+# à sauvegarder hors du PC — la perdre empêche toute mise à jour de l'application.
+/signature

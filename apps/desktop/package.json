@@ -2,22 +2,23 @@
   "name": "@hotel-chicago/desktop",
   "private": true,
   "productName": "HotelSaver",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Application desktop HotelSaver (Electron) — Réception & administration",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "empaqueter": "node scripts/empaqueter.cjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
     "@hotel-chicago/api-client": "workspace:*",
     "@hotel-chicago/miroir-local": "workspace:*",
     "@hotel-chicago/receipts": "workspace:*",
-    "@hotel-chicago/sync-engine": "workspace:*",
     "@hotel-chicago/regles": "workspace:*",
+    "@hotel-chicago/sync-engine": "workspace:*",
     "@hotel-chicago/types": "workspace:*",
     "@hotel-chicago/ui": "workspace:*",
     "@zxing/browser": "^0.2.1",
@@ -33,6 +34,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react-swc": "^4.3.3",
     "electron": "^32.1.2",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^2.3.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.8"

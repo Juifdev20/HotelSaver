@@ -1,6 +1,7 @@
 import { resolve } from "path";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react-swc";
+import paquet from "./package.json";
 
 /**
  * Politique de sécurité du contenu, ajoutée à la page SEULEMENT dans la version construite (le serveur de développement Vite a besoin de
@@ -28,12 +29,19 @@ const pluginCsp = {
   },
 };
 
+/**
+ * Processus principal et preload : TOUTES les dépendances sont regroupées dans out/ (18/10/2026), seuls `electron` et les modules de
+ * Node restent externes. L'installateur (scripts/empaqueter.cjs) n'embarque donc aucun node_modules — rien de natif à recompiler
+ * (imprimante : node-thermal-printer, JavaScript pur ; copie locale : IndexedDB dans le renderer).
+ */
+const toutRegrouper = externalizeDepsPlugin({ exclude: Object.keys(paquet.dependencies ?? {}) });
+
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [toutRegrouper],
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [toutRegrouper],
   },
   renderer: {
     resolve: {

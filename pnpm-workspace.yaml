@@ -14,6 +14,8 @@ allowBuilds:
   '@prisma/engines': true
   '@swc/core': true
   electron: true
+  # Installateur Squirrel tiré par electron-builder : inutile, le bureau est empaqueté en NSIS.
+  electron-winstaller: false
   esbuild: true
   prisma: true
   protobufjs: false

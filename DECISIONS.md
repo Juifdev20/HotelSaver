@@ -3661,3 +3661,30 @@ alors changer `CORS_ORIGIN`, `SITE_WEB_URL`, `VITE_API_URL`, les URL de redirect
 `TURNSTILE_SECRET` (+ `VITE_TURNSTILE_SITE_KEY` du site), `FIREBASE_SERVICE_ACCOUNT_JSON`, `RENDER_API_KEY` +
 `RENDER_WEB_SERVICE_ID` (domaines personnalisés : l'identifiant du service **hotelsaver-site**, que visent les domaines des
 hôtels), liens des stores (`VITE_URL_*`). L'URL et la clé anon Supabase Prod sont publiques : écrites dans `render.yaml`.
+
+## 18/10/2026 — Installateur Windows et APK Android de production
+
+**Bureau** (`pnpm --filter @hotel-chicago/desktop empaqueter` → `apps/desktop/release/HotelSaver-Setup-1.0.0.exe`, ~81 Mo) :
+electron-builder, cible NSIS (choix du dossier, raccourcis Bureau et menu Démarrer, en français), application 1.0.0
+branchée sur l'API Render et Supabase Prod. Le processus principal et le preload **regroupent toutes leurs dépendances**
+(`externalizeDepsPlugin({ exclude: <toutes les dépendances> })`) : l'installateur n'embarque aucun node_modules (rien de natif —
+imprimante en JavaScript pur, copie locale en IndexedDB). Dossier de préparation hors du dépôt (sinon electron-builder lance
+`pnpm list` dans un dossier qui n'est pas un paquet du workspace). `electron-winstaller` (Squirrel) refusé dans `allowBuilds`.
+Vérifié : l'exe empaqueté démarre, se connecte au patron de Hôtel Test en Prod et affiche ses données. **Non signé** : SmartScreen
+avertit au premier lancement (« Informations complémentaires → Exécuter quand même ») tant qu'il n'y a pas de certificat.
+
+**Android** (`app-release.apk`, ~63 Mo, versionName 1.0.0 / versionCode 1) : signée avec une **clé propre à HotelSaver**
+(`apps/mobile/signature/`, ignorée par Git ; RSA 2048, 10 000 jours) au lieu de la clé de debug publique du gabarit. Le dossier
+`android/` étant regénéré par Expo et ignoré par Git, la configuration passe par deux plugins (`plugins/withSignatureRelease.js`,
+`plugins/withCxxCourt.js`), aussi appliqués au dossier actuel. ARM seulement (arm64-v8a + armeabi-v7a : les téléphones 32 bits
+d'entrée de gamme restent couverts). Pièges rencontrés :
+- `react-android-0.86.3-release.aar` (168 Mo, jamais téléchargé par les builds debug) : la connexion coupait Gradle ; téléchargé
+  à part avec reprise (`curl -C -`), empreinte SHA-1 vérifiée, posé dans `~/.m2` le temps du build puis `mavenLocal` retiré.
+- « ninja: manifest 'build.ninja' still dirty after 100 tries » sur react-native-screens, armeabi-v7a seulement : un fichier
+  prefab atteint **261 caractères** de chemin (257 pour arm64), invisible pour le ninja du SDK. `-Photelsaver.cxxCourt=true`
+  compile le natif de chaque module dans `C:/cx/<module>` (bloc posé AVANT les `apply plugin` du build.gradle racine : le
+  plugin racine de React Native évalue les modules tôt, Gradle refuse ensuite de changer `buildStagingDirectory`).
+- Installer la release sur un téléphone qui a la version debug exige de désinstaller d'abord (signatures différentes).
+
+**⚠️ La clé de signature** (`apps/mobile/signature/hotelsaver-release.keystore` + `keystore.properties`) doit être sauvegardée
+hors du PC : la perdre empêche toute mise à jour de l'application (Play Store compris).

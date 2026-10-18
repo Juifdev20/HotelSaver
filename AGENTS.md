@@ -45,6 +45,14 @@ section pour toute décision non triviale).
 - Tout-en-un : `.\demarrer.ps1` (tunnel USB + API + Metro + Desktop ;
   `-Reset` pour vider le cache Metro).
 - Desktop : `pnpm --filter desktop build` (electron-vite).
+- **Installateur Windows (Prod)** : `pnpm --filter @hotel-chicago/desktop empaqueter` → `apps/desktop/release/HotelSaver-Setup-<version>.exe`
+  (API en ligne + Supabase Prod par défaut, surchargeables par `MAIN_VITE_*`). Tester l'exe depuis le terminal VS Code :
+  retirer `ELECTRON_RUN_AS_NODE` (`env -u ELECTRON_RUN_AS_NODE …`), sinon Electron démarre comme Node et quitte aussitôt.
+- **APK Android publiée (Prod)** : dans `apps/mobile/android`, `EXPO_PUBLIC_API_URL=https://hotelsaver-api.onrender.com`,
+  `EXPO_PUBLIC_SITE_URL`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` (projet Prod) puis
+  `gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a` (téléphones ARM seulement : sans x86 d'émulateur,
+  build bien plus court et APK presque deux fois plus léger) → `app/build/outputs/apk/release/app-release.apk`. Signée avec la clé de `apps/mobile/signature/` (ignorée par Git,
+  **à sauvegarder** — voir `plugins/withSignatureRelease.js`) ; sans elle, la release retombe sur la clé de debug.
 
 Sous Windows : `adb.exe` est dans
 `%LOCALAPPDATA%\Android\Sdk\platform-tools` (pas dans le PATH global) ; le
