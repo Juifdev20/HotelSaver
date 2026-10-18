@@ -3,12 +3,13 @@ import { useState } from "react";
 import { Button, StatusBadge, useTitrePage, type StatusTone } from "@hotel-chicago/ui";
 import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement, PaiementLicenceSuperAdmin } from "@hotel-chicago/api-client";
 import { formaterTelephoneRdc } from "@hotel-chicago/types";
-import type { FormuleAdminVue, HotelAvecValidite, StatutLicence } from "@hotel-chicago/types";
+import type { FormuleAdminVue, HotelAvecValidite, HotelSupprimeVue, StatutLicence } from "@hotel-chicago/types";
 import { AIDE_FORMULES } from "./fonctions";
 import { FormulairePaiement } from "./FormulairePaiement";
 import { FormulaireDomaine } from "./FormulaireDomaine";
 import { FormulairePatron } from "./FormulairePatron";
 import { PaiementsHotel } from "./PaiementsHotel";
+import { HotelsSupprimes } from "./HotelsSupprimes";
 import { DialogueConfirmation } from "./DialogueConfirmation";
 import { EnteteApp, type Onglet } from "./EnteteApp";
 import { badgeAbonnement, dateFin, libelleFormule, type HotelListe } from "./etatHotel";
@@ -39,6 +40,8 @@ export interface EcranHotelsProps {
   /** Paiements d'un hôtel et annulation d'une saisie manuelle (17/10/2026). */
   onListerPaiements: (hotelId: string) => Promise<PaiementLicenceSuperAdmin[]>;
   onAnnulerPaiement: (hotelId: string, paiementId: string, motif: string) => Promise<PaiementLicenceSuperAdmin[]>;
+  /** Hôtels supprimés automatiquement (essais abandonnés, 18/10/2026). */
+  onListerSupprimes: () => Promise<HotelSupprimeVue[]>;
   patronEnCours: boolean;
   erreurPatron: string | null;
   onDeconnexion: () => void;
@@ -116,6 +119,7 @@ export function EcranHotels({
   erreurDomaine,
   onModifierPatron,
   onListerPaiements,
+  onListerSupprimes,
   onAnnulerPaiement,
   patronEnCours,
   erreurPatron,
@@ -126,6 +130,7 @@ export function EcranHotels({
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
   const [hotelPourPaiement, setHotelPourPaiement] = useState<HotelListe | null>(null);
   const [hotelPourHistorique, setHotelPourHistorique] = useState<HotelListe | null>(null);
+  const [voirSupprimes, setVoirSupprimes] = useState(false);
   // Par id, pas par objet : l'hôtel affiché doit refléter les données à
   // jour après chaque action (ajout/vérification/retrait), sans fermer la
   // modale entre chaque étape (voir FormulaireDomaine).
@@ -266,6 +271,12 @@ export function EcranHotels({
         <p>{AIDE_FORMULES}</p>
       </aside>
 
+      <div className="actions-liste">
+        <Button variant="secondary" size="sm" onClick={() => setVoirSupprimes(true)}>
+          Hôtels supprimés
+        </Button>
+      </div>
+
       {chargement && (
         <p role="status" className="chargement">
           {hotels.length === 0 ? "Chargement des hôtels…" : "Actualisation…"}
@@ -357,7 +368,14 @@ export function EcranHotels({
                         </Button>
                       </div>
                     </td>
-                    <td>{dateFin(hotel)}</td>
+                    <td>
+                      {dateFin(hotel)}
+                      {hotel.suppressionLe && (
+                        <span className="suppression-prevue" title="Essai jamais payé : suppression automatique (Réglages de la plateforme)">
+                          Suppression le {new Date(hotel.suppressionLe).toLocaleDateString("fr-FR")}
+                        </span>
+                      )}
+                    </td>
                     <td>
                       {hotel.domainePersonnalise ? (
                         <Button
@@ -484,6 +502,8 @@ export function EcranHotels({
           onFermer={() => setHotelPourPaiement(null)}
         />
       )}
+
+      {voirSupprimes && <HotelsSupprimes charger={onListerSupprimes} onFermer={() => setVoirSupprimes(false)} />}
 
       {hotelPourHistorique && (
         <PaiementsHotel

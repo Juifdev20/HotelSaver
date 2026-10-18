@@ -165,6 +165,42 @@ export class ModifierParametresDto {
   @IsOptional()
   @Matches(/^\+?[0-9 ]{8,20}$/, { message: "Numéro WhatsApp invalide." })
   contactWhatsapp?: string;
+
+  // Protection contre les essais abusifs (18/10/2026).
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: "Le délai avant suppression doit être un nombre entier de jours." })
+  @Min(1, { message: "Le délai avant suppression doit être d'au moins 1 jour." })
+  @Max(365, { message: "Le délai avant suppression ne peut pas dépasser 365 jours." })
+  joursAvantSuppression?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1, { message: "L'essai doit permettre au moins 1 chambre." })
+  @Max(1000)
+  maxChambresEssai?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1, { message: "L'essai doit permettre au moins 1 produit." })
+  @Max(5000)
+  maxProduitsEssai?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  maxPhotosGalerieEssai?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1, { message: "Au moins 1 inscription par jour doit rester possible." })
+  @Max(50)
+  maxInscriptionsParJour?: number;
 }
 
 export class ChangerFormuleHotelDto {

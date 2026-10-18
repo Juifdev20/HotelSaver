@@ -3,6 +3,7 @@ import { SuperAdminAuthentifie } from "@hotel-chicago/types";
 import { SuperAdminAuthGuard } from "../common/guards/super-admin-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { SuperAdminService } from "./super-admin.service";
+import { NettoyageEssaisService } from "./nettoyage-essais.service";
 import { CreerHotelDto } from "./dto/creer-hotel.dto";
 import { ChangerStatutHotelDto } from "./dto/changer-statut-hotel.dto";
 import { EnregistrerPaiementDto } from "./dto/enregistrer-paiement.dto";
@@ -20,12 +21,21 @@ import { UtilisateursService } from "../utilisateurs/utilisateurs.service";
 export class SuperAdminController {
   constructor(
     private readonly superAdminService: SuperAdminService,
-    private readonly utilisateurs: UtilisateursService
+    private readonly utilisateurs: UtilisateursService,
+    private readonly nettoyage: NettoyageEssaisService
   ) {}
 
+  /** Chaque hôtel jamais payé porte sa date de suppression prévue (protection contre les essais abusifs, 18/10/2026). */
   @Get()
-  findAll() {
-    return this.superAdminService.findAllHotels();
+  async findAll() {
+    const [hotels, dates] = await Promise.all([this.superAdminService.findAllHotels(), this.nettoyage.datesSuppression()]);
+    return hotels.map((h) => ({ ...h, suppressionLe: dates.get(h.id) ?? null }));
+  }
+
+  /** Hôtels supprimés automatiquement (essais abandonnés). Déclarée avant les routes « :id ». */
+  @Get("supprimes")
+  hotelsSupprimes() {
+    return this.nettoyage.hotelsSupprimes();
   }
 
   @Post()

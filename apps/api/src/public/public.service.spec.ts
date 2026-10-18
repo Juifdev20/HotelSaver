@@ -23,6 +23,9 @@ function creerPrismaMock() {
     reservation: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     hotelSite: { findUnique: jest.fn().mockResolvedValue({ whatsapp: "+243970000000" }) },
     $transaction: jest.fn().mockResolvedValue([]),
+    // Protection contre les essais abusifs (18/10/2026) : numéro jamais utilisé, aucune inscription récente.
+    inscriptionRecente: { count: jest.fn().mockResolvedValue(0), create: jest.fn() },
+    essaiUtilise: { count: jest.fn().mockResolvedValue(0), upsert: jest.fn() },
     produit: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     client: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     sessionUtilisateur: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, UnauthorizedException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, UnauthorizedException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Prisma, PrismaClient, StatutLigne, TypeProduit } from "@hotel-chicago/database";
 import { StatutChambre } from "@hotel-chicago/database";
 import { CommandeWebCreee, Role, StatutSuiviPublic, SuiviReservationPublic, codeSuivi, normaliserTelephoneRdc } from "@hotel-chicago/types";
@@ -24,6 +24,9 @@ import { FindChambresDisponiblesQueryDto } from "./dto/find-chambres-disponibles
 import { FindHotelPublicQueryDto } from "./dto/find-hotel-public.query.dto";
 import { FindMenuQueryDto } from "./dto/find-menu.query.dto";
 import { InscriptionHotelDto } from "./dto/inscription-hotel.dto";
+import { essaiDejaUtilise, noterInscription, verifierLimiteInscriptions } from "./protection-inscription";
+
+const journal = new Logger("PublicService");
 import { MotDePasseOublieDto } from "./dto/mot-de-passe-oublie.dto";
 import { ReinitialiserMotDePasseDto } from "./dto/reinitialiser-mot-de-passe.dto";
 import { FindTicketCommandeQueryDto } from "./dto/find-ticket-commande.query.dto";
@@ -716,7 +719,7 @@ export class PublicService {
    * creer-utilisateur.js), ici tout doit fonctionner en un seul geste — le
    * propriétaire n'a personne pour créer son premier compte à sa place.
    */
-  async inscrireHotel(dto: InscriptionHotelDto) {
+  async inscrireHotel(dto: InscriptionHotelDto, origine: { ip: string; appareil: string | null } = { ip: "inconnue", appareil: null }) {
     // Noms réservés : un inconnu ne doit pas pouvoir prendre « admin » ou « api » (hameçonnage, confusion avec nos propres adresses).
     if (SOUS_DOMAINES_RESERVES.has(dto.sousDomaine) || dto.sousDomaine.length < 3 || dto.sousDomaine.startsWith("-") || dto.sousDomaine.endsWith("-")) {
       throw new BadRequestException("Ce sous-domaine n'est pas disponible. Choisissez-en un autre (3 caractères minimum).");
@@ -726,6 +729,11 @@ export class PublicService {
     const telephone = telephoneObligatoire(dto.telephoneProprietaire);
     const email = dto.email?.trim().toLowerCase() || null;
     await verifierTelephoneLibre(this.prisma, telephone);
+    // Protection contre les essais abusifs (18/10/2026) : limite du jour par adresse / appareil, puis un essai par numéro à vie —
+    // un numéro qui en a déjà eu un crée son hôtel SANS jours d'essai (il doit payer pour l'ouvrir).
+    const { parametres } = await lireCatalogue(this.prisma);
+    await verifierLimiteInscriptions(this.prisma, origine.ip, origine.appareil, parametres.maxInscriptionsParJour);
+    const sansEssai = await essaiDejaUtilise(this.prisma, telephone);
     const compteAuth = await this.supabaseAdmin.creerCompte({ telephone, email, motDePasse: dto.motDePasse });
     // Un logo mal formé ne doit jamais faire échouer l'inscription :
     // extraireCouleursLogo ne lève jamais, renvoie null au moindre souci
@@ -733,12 +741,15 @@ export class PublicService {
     const couleurBase = dto.logoUrl ? await extraireCouleursLogo(dto.logoUrl) : null;
     const palette = genererPalette(couleurBase);
 
+    let creation: Prisma.HotelGetPayload<{ include: { branding: true } }> | null = null;
     try {
-      return await this.prisma.hotel.create({
+      const hotel = await this.prisma.hotel.create({
         data: {
           nom: dto.nom,
           sousDomaine: dto.sousDomaine,
           statutLicence: "ESSAI",
+          // 0 = ce numéro a déjà eu son essai gratuit : l'hôtel existe mais doit payer pour s'ouvrir.
+          ...(sansEssai && { joursEssai: 0 }),
           // Un seul numéro saisi à l'inscription (15/10/2026) : sans téléphone
           // d'hôtel fourni, celui du patron sert de contact (modifiable ensuite
           // dans « Site de l'hôtel »).
@@ -754,6 +765,8 @@ export class PublicService {
         },
         include: { branding: true },
       });
+      // Hors du try : une fois l'hôtel créé, un échec ici ne doit JAMAIS supprimer le compte de connexion (hôtel sans accès).
+      creation = hotel;
     } catch (error) {
       // Jamais laisser un compte Supabase orphelin (ex. sousDomaine déjà pris) —
       // même principe que les scripts CLI (creer-utilisateur.js).
@@ -766,5 +779,10 @@ export class PublicService {
       }
       throw error;
     }
+    // Empreinte du numéro et trace de l'origine : au mieux. Si la base hoquette ici, l'hôtel reste valide (seule la limite du jour
+    // ou l'essai unique pourrait ne pas compter cette inscription-là).
+    await noterInscription(this.prisma, telephone, origine.ip, origine.appareil).catch((e: Error) => journal.warn(`Trace d'inscription non enregistrée : ${e.message}`));
+    // essaiGratuit : les écrans d'inscription annoncent « payez pour commencer » quand le numéro avait déjà eu un essai.
+    return { ...creation!, essaiGratuit: !sansEssai };
   }
 }

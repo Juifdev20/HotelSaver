@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { actualiserEtatAbonnement } from "@hotel-chicago/regles";
+import { actualiserEtatAbonnement, dateAbonnement } from "@hotel-chicago/regles";
 import { Role } from "@hotel-chicago/types";
 import type { EtatAbonnement, ProfilConnecte } from "@hotel-chicago/types";
 import { Button, useTitrePage } from "@hotel-chicago/ui";
@@ -24,6 +24,10 @@ function titreEtExplication(etat: EtatAbonnement | null): { titre: string; expli
   }
   if (etat?.statut === "SUSPENDU") {
     return { titre: "L'accès de votre hôtel est suspendu", explication: "Vos données sont conservées. Contactez le support HotelSaver pour savoir pourquoi et rouvrir l'accès." };
+  }
+  // Hôtel jamais payé : ses données seront supprimées à cette date (protection contre les essais abusifs, 18/10/2026).
+  if (etat?.suppressionLe) {
+    return { titre: "Votre abonnement a expiré", explication: `Payez votre abonnement pour rouvrir l'application. Sans paiement, les données de votre hôtel seront supprimées le ${dateAbonnement(etat.suppressionLe)}.` };
   }
   return { titre: "Votre abonnement a expiré", explication: "Pas d'inquiétude : vos données sont conservées. Dès que l'abonnement est renouvelé, vous retrouvez l'application exactement comme vous l'avez laissée." };
 }

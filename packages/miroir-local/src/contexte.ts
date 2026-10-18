@@ -1,5 +1,5 @@
 import { ErreurApi } from "@hotel-chicago/api-client";
-import type { Role } from "@hotel-chicago/types";
+import type { PlafondsEssai, Role } from "@hotel-chicago/types";
 import type { StockageDocuments } from "./stockage-documents";
 import type { Vues } from "./vues";
 
@@ -12,6 +12,8 @@ export interface UtilisateurLocal {
   patronPeutOperer?: boolean;
   cuisineActivee?: boolean;
   commandeWebActivee?: boolean;
+  /** État de l'abonnement reçu à la connexion : ses plafonds d'essai valent aussi hors ligne (18/10/2026). */
+  abonnement?: { plafondsEssai?: PlafondsEssai | null } | null;
 }
 
 export interface Contexte {

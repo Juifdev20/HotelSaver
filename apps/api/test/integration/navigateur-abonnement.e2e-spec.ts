@@ -188,7 +188,8 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
   it("(a) essai fini depuis plus de 3 jours : le patron voit « Votre abonnement a expiré » à la place de l'application", async () => {
     await seConnecter(A.auth.patron);
     await expect_(page.getByRole("heading", { name: "Votre abonnement a expiré", level: 1 })).toBeVisible(30_000);
-    await expect_(page.getByTestId("abonnement-bloque")).toContainText("vos données sont conservées");
+    // Hôtel qui n'a jamais payé : la date de suppression de ses données est annoncée (protection contre les essais abusifs, 18/10/2026).
+    await expect_(page.getByTestId("abonnement-bloque")).toContainText("seront supprimées le");
     // Pas d'application derrière : ni barre de navigation, ni tableau de bord.
     await expect_(menu()).toHaveCount(0);
     await expect_(page.getByTestId("abonnement-formulaire")).toBeVisible();

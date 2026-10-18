@@ -1,8 +1,8 @@
 import type { PrismaClient } from "@hotel-chicago/database";
-import { FORMULES, PARAMETRES_PAR_DEFAUT, estFonction, type FormuleAbonnement, type ParametresAbonnement } from "@hotel-chicago/regles";
+import { FORMULES, PARAMETRES_PAR_DEFAUT, PROTECTION_ESSAI_PAR_DEFAUT, estFonction, type FormuleAbonnement, type ParametresAbonnement, type ParametresProtectionEssai } from "@hotel-chicago/regles";
 
 /** Ce que le super-admin règle pour toute la plateforme, en plus des formules. */
-export interface ReglagesPlateforme extends ParametresAbonnement {
+export interface ReglagesPlateforme extends ParametresAbonnement, ParametresProtectionEssai {
   fraisAbonnementPayesParClient: boolean;
   contactTelephone: string;
   contactWhatsapp: string;
@@ -22,7 +22,7 @@ let cache: { le: number; valeur: Catalogue } | null = null;
 const PAR_DEFAUT: Catalogue = {
   formules: FORMULES,
   proposees: FORMULES.map((f) => f.code),
-  parametres: { ...PARAMETRES_PAR_DEFAUT, fraisAbonnementPayesParClient: true, contactTelephone: "+243828497218", contactWhatsapp: "+243828497218" },
+  parametres: { ...PARAMETRES_PAR_DEFAUT, ...PROTECTION_ESSAI_PAR_DEFAUT, fraisAbonnementPayesParClient: true, contactTelephone: "+243828497218", contactWhatsapp: "+243828497218" },
 };
 
 /** À appeler après toute modification faite par le super-admin : l'instance qui a écrit voit le changement tout de suite (les autres, sous 30 s). */
@@ -63,6 +63,11 @@ export async function lireCatalogue(prisma: PrismaClient, maintenant = Date.now(
             fraisAbonnementPayesParClient: reglages.fraisAbonnementPayesParClient,
             contactTelephone: reglages.contactTelephone,
             contactWhatsapp: reglages.contactWhatsapp,
+            joursAvantSuppression: reglages.joursAvantSuppression ?? PROTECTION_ESSAI_PAR_DEFAUT.joursAvantSuppression,
+            maxChambresEssai: reglages.maxChambresEssai ?? PROTECTION_ESSAI_PAR_DEFAUT.maxChambresEssai,
+            maxProduitsEssai: reglages.maxProduitsEssai ?? PROTECTION_ESSAI_PAR_DEFAUT.maxProduitsEssai,
+            maxPhotosGalerieEssai: reglages.maxPhotosGalerieEssai ?? PROTECTION_ESSAI_PAR_DEFAUT.maxPhotosGalerieEssai,
+            maxInscriptionsParJour: reglages.maxInscriptionsParJour ?? PROTECTION_ESSAI_PAR_DEFAUT.maxInscriptionsParJour,
           }
         : PAR_DEFAUT.parametres,
     };

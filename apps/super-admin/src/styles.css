@@ -757,3 +757,32 @@ body {
   gap: 8px;
   margin-top: 10px;
 }
+
+/* Réglages : section « Protection contre les abus » (18/10/2026). */
+.groupe-protection {
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-surface-100);
+}
+.groupe-protection legend {
+  padding: 0 6px;
+}
+.titre-section--petit {
+  font-size: 15px;
+}
+
+/* Hôtels : suppression prévue d'un essai jamais payé, accès à la liste des hôtels supprimés (18/10/2026). */
+.suppression-prevue {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--hc-danger);
+}
+.actions-liste {
+  display: flex;
+  justify-content: flex-end;
+  margin: 8px 0;
+}

@@ -52,6 +52,7 @@ export class AuthController {
         statutLicence: true,
         createdAt: true,
         suspensionManuelle: true,
+        joursEssai: true,
         site: { select: { slogan: true } },
         paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
       },

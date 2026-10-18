@@ -47,6 +47,7 @@ import { BandeauAbonnement } from "./components/BandeauAbonnement";
 import { IndicateurSynchro } from "./hors-ligne/IndicateurSynchro";
 import { creerGestionnaireSession } from "./hors-ligne/session";
 import { ouvrirPersistanceHotel, purgerAncienHotel, nomBaseHotel } from "./hors-ligne/bases-locales";
+import { identifiantAppareil } from "./identifiantAppareil";
 
 type Ecran = "chargement" | "connexion" | "inscription" | "application";
 
@@ -422,7 +423,7 @@ export function App() {
     setErreurInscription(null);
     setInscriptionEnCours(true);
     try {
-      await inscrireHotel({ url: configuration.apiUrl }, dto);
+      await inscrireHotel({ url: configuration.apiUrl, appareil: identifiantAppareil() }, dto);
       if (payerMaintenant) memoriserPayerMaintenant();
       // Compte confirmé d'office depuis le 15/10/2026 : connexion immédiate avec le numéro. L'hôtel existe bien :
       // on n'affiche jamais l'erreur brute de connexion ici.

@@ -6,10 +6,12 @@ import { LicenceSchedulerService } from "./licence-scheduler.service";
 import { RenderDomainsService } from "./render-domains.service";
 import { UtilisateursService } from "../utilisateurs/utilisateurs.service";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
+import { SupabaseStorageService } from "../common/supabase-storage/supabase-storage.service";
+import { NettoyageEssaisService } from "./nettoyage-essais.service";
 
 @Module({
   imports: [PrismaModule],
   controllers: [SuperAdminController],
-  providers: [SuperAdminService, LicenceSchedulerService, RenderDomainsService, UtilisateursService, SupabaseAdminService],
+  providers: [SuperAdminService, LicenceSchedulerService, RenderDomainsService, UtilisateursService, SupabaseAdminService, SupabaseStorageService, NettoyageEssaisService],
 })
 export class SuperAdminModule {}

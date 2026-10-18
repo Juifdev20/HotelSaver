@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, StreamableFile, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Req, StreamableFile, UseGuards } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { CaptchaGuard } from "../common/captcha/captcha.guard";
 import {
@@ -8,6 +8,7 @@ import {
 } from "../common/throttle/throttle.config";
 import { PayerAcompteDto } from "../acompte/dto/paiement-reservation.dto";
 import { PublicService } from "./public.service";
+import { appareilValide } from "./protection-inscription";
 import { CreerCommandeWebDto } from "./dto/creer-commande-web.dto";
 import { CreerDemandeReservationDto } from "./dto/creer-demande-reservation.dto";
 import { FindChambresDisponiblesQueryDto } from "./dto/find-chambres-disponibles.query.dto";
@@ -140,7 +141,8 @@ export class PublicController {
   // limitation de débit, le contrôle des noms réservés et la confirmation par e-mail de Supabase.
   @Throttle(LIMITE_INSCRIPTION)
   @Post("hotels/inscription")
-  inscrireHotel(@Body() dto: InscriptionHotelDto) {
-    return this.publicService.inscrireHotel(dto);
+  inscrireHotel(@Body() dto: InscriptionHotelDto, @Req() requete: { ip?: string; headers: Record<string, unknown> }) {
+    // Adresse réelle derrière Render (trust proxy dans main.ts) + identifiant d'appareil du bureau / mobile : limite d'inscriptions par jour.
+    return this.publicService.inscrireHotel(dto, { ip: requete.ip ?? "inconnue", appareil: appareilValide(requete.headers["x-appareil"]) });
   }
 }

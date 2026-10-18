@@ -95,6 +95,15 @@ build Android exige `JAVA_HOME=C:\Program Files\Java\jdk-21.0.12` et
   `prisma.$on("query", …)` — une lecture simple doit produire **une seule**
   ligne SQL (~250–300 ms depuis Kasindi).
 
+## Essai gratuit et protection contre les abus (18/10/2026)
+
+- Les plafonds de l'essai (chambres, produits, galerie), le délai avant suppression et la limite d'inscriptions par jour vivent dans
+  `ParametresPlateforme` (réglables dans le super-admin). Une nouvelle création soumise à plafond = le contrôle dans le service
+  serveur (via `plafondsEssaiDe`) ET dans `Ecritures` (hors ligne), avec `messagePlafondEssai` de `packages/regles`.
+- Les essais abandonnés sont supprimés par `NettoyageEssaisService` (03:30) ; à la main : dans `apps/api`,
+  `node --require @swc-node/register scripts/nettoyer-essais.ts` (vise la base de `apps/api/.env`). Toute nouvelle table liée à
+  `Hotel` en `Restrict` doit être ajoutée à `supprimerHotel` (enfants d'abord).
+
 ## Secrets
 
 `.env` présents localement dans `apps/api` et `packages/database`, jamais

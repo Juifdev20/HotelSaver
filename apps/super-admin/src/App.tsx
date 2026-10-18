@@ -245,6 +245,12 @@ export default function App() {
     }
   }
 
+  /** Hôtels supprimés automatiquement (essais abandonnés, 18/10/2026). */
+  async function listerHotelsSupprimes() {
+    if (!client) throw new Error("Session expirée : reconnectez-vous.");
+    return client.listerHotelsSupprimes();
+  }
+
   /** Paiements d'un hôtel (annulés compris) et annulation d'une saisie manuelle (17/10/2026). */
   async function listerPaiements(hotelId: string) {
     if (!client) throw new Error("Session expirée : reconnectez-vous.");
@@ -394,6 +400,7 @@ export default function App() {
       erreurDomaine={erreurDomaine}
       onModifierPatron={modifierPatron}
       onListerPaiements={listerPaiements}
+      onListerSupprimes={listerHotelsSupprimes}
       onAnnulerPaiement={annulerPaiement}
       patronEnCours={patronEnCours}
       erreurPatron={erreurPatron}

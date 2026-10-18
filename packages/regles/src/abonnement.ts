@@ -174,23 +174,65 @@ export function nouvelleFinValidite(finActuelle: Date, maintenant: Date, mois: n
   return ajouterMois(base, mois);
 }
 
-/** Fin de validité : le dernier paiement, ou, à défaut, la fin de l'essai (création + 14 jours). */
-export function finValidite(hotel: { createdAt: Date }, dernierPaiement: { periodeCouverteJusquau: Date } | null, joursEssai: number = JOURS_ESSAI): Date {
+/** Jours d'essai d'un hôtel : les siens s'il en a (0 = numéro qui a déjà eu un essai), sinon le réglage de la plateforme. */
+export function joursEssaiDe(hotel: { joursEssai?: number | null }, joursEssaiPlateforme: number = JOURS_ESSAI): number {
+  return typeof hotel.joursEssai === "number" && hotel.joursEssai >= 0 ? hotel.joursEssai : joursEssaiPlateforme;
+}
+
+/** Fin de validité : le dernier paiement, ou, à défaut, la fin de l'essai (création + jours d'essai de l'hôtel). */
+export function finValidite(hotel: { createdAt: Date; joursEssai?: number | null }, dernierPaiement: { periodeCouverteJusquau: Date } | null, joursEssai: number = JOURS_ESSAI): Date {
   if (dernierPaiement) return dernierPaiement.periodeCouverteJusquau;
   const fin = new Date(hotel.createdAt);
-  fin.setDate(fin.getDate() + joursEssai);
+  fin.setDate(fin.getDate() + joursEssaiDe(hotel, joursEssai));
   return fin;
 }
 
+/** Réglages de la protection contre les essais abusifs (18/10/2026), modifiables par le super-admin. */
+export interface ParametresProtectionEssai {
+  joursAvantSuppression: number;
+  maxChambresEssai: number;
+  maxProduitsEssai: number;
+  maxPhotosGalerieEssai: number;
+  maxInscriptionsParJour: number;
+}
+
+export const PROTECTION_ESSAI_PAR_DEFAUT: ParametresProtectionEssai = {
+  joursAvantSuppression: 10,
+  maxChambresEssai: 10,
+  maxProduitsEssai: 50,
+  maxPhotosGalerieEssai: 6,
+  maxInscriptionsParJour: 2,
+};
+
+/** Messages des plafonds de l'essai — les MÊMES côté serveur et hors ligne (packages/miroir-local, voir AGENTS.md). */
+export const messagePlafondEssai = {
+  chambres: (n: number) => `L'essai gratuit est limité à ${n} chambres. Choisissez une formule dans Paramètres → Abonnement pour en ajouter.`,
+  produits: (n: number) => `L'essai gratuit est limité à ${n} produits. Choisissez une formule dans Paramètres → Abonnement pour en ajouter.`,
+  photosGalerie: (n: number) => `L'essai gratuit est limité à ${n} photos dans la galerie. Choisissez une formule dans Paramètres → Abonnement pour en ajouter.`,
+};
+
 export function etatAbonnement(
-  hotel: { createdAt: Date; statutLicence: string; suspensionManuelle?: boolean },
+  hotel: { createdAt: Date; statutLicence: string; suspensionManuelle?: boolean; joursEssai?: number | null },
   dernierPaiement: { periodeCouverteJusquau: Date } | null,
   maintenant: Date,
-  parametres: Partial<Pick<ParametresAbonnement, "joursEssai" | "joursGrace">> = {}
+  parametres: Partial<Pick<ParametresAbonnement, "joursEssai" | "joursGrace"> & ParametresProtectionEssai> = {}
 ): EtatAbonnement {
   const fin = finValidite(hotel, dernierPaiement, parametres.joursEssai);
-  const grace = new Date(fin.getTime() + (parametres.joursGrace ?? JOURS_GRACE_ABONNEMENT) * JOUR_MS);
-  const base = { valideJusquau: fin.toISOString(), graceJusquau: grace.toISOString(), joursRestants: Math.ceil((fin.getTime() - maintenant.getTime()) / JOUR_MS) };
+  // Sans essai (numéro déjà utilisé), pas de délai de grâce non plus : sinon trois jours gratuits quand même.
+  const sansEssai = !dernierPaiement && joursEssaiDe(hotel, parametres.joursEssai) === 0;
+  const grace = new Date(fin.getTime() + (sansEssai ? 0 : (parametres.joursGrace ?? JOURS_GRACE_ABONNEMENT)) * JOUR_MS);
+  const jamaisPaye = !dernierPaiement && hotel.statutLicence !== "ACTIF";
+  const base = {
+    valideJusquau: fin.toISOString(),
+    graceJusquau: grace.toISOString(),
+    joursRestants: Math.ceil((fin.getTime() - maintenant.getTime()) / JOUR_MS),
+    suppressionLe:
+      jamaisPaye && typeof parametres.joursAvantSuppression === "number" ? new Date(grace.getTime() + parametres.joursAvantSuppression * JOUR_MS).toISOString() : null,
+    plafondsEssai:
+      jamaisPaye && typeof parametres.maxChambresEssai === "number"
+        ? { chambres: parametres.maxChambresEssai, produits: parametres.maxProduitsEssai ?? PROTECTION_ESSAI_PAR_DEFAUT.maxProduitsEssai, photosGalerie: parametres.maxPhotosGalerieEssai ?? PROTECTION_ESSAI_PAR_DEFAUT.maxPhotosGalerieEssai }
+        : null,
+  };
 
   if (hotel.statutLicence === "RESILIE") return { ...base, statut: "RESILIE", bloque: true, renouvelable: false, alerte: "RESILIE" };
   // Suspendu à la main — ou suspendu alors que l'échéance n'est pas passée (ne peut venir que d'une main : le cron ne suspend que les échus).

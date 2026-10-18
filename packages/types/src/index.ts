@@ -492,6 +492,8 @@ export enum StatutLicence {
  * graphique (générique ou dérivée d'un logo, voir Phase 5). */
 export interface HotelCree {
   id: string;
+  /** Inscription seulement : false = ce numéro avait déjà eu un essai gratuit — l'hôtel est créé mais doit payer pour s'ouvrir. */
+  essaiGratuit?: boolean;
   nom: string;
   sousDomaine: string;
   statutLicence: StatutLicence;
@@ -694,6 +696,8 @@ export interface HotelAvecValidite extends HotelCree {
   nombreChambres?: number;
   /** Patron de l'hôtel et son numéro de connexion (null : compte antérieur au 15/10/2026). */
   patron: { nom: string; telephone: string | null } | null;
+  /** Hôtel jamais payé : date de suppression automatique prévue (protection contre les essais abusifs). null sinon. */
+  suppressionLe?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -711,6 +715,7 @@ export const TYPES_NOTIFICATION = [
   "DEPART_DEPASSE",
   "RECAP_QUOTIDIEN",
   "LICENCE_BIENTOT_EXPIREE",
+  "SUPPRESSION_ESSAI_PROCHE",
   "LICENCE_SUSPENDUE",
   "RAPPORT_A_GENERER",
   "RAPPORT_DISPONIBLE",
@@ -740,6 +745,7 @@ export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification>
   RECU_ANNULE: "securite",
   ACOMPTE_MODIFIE: "securite",
   LICENCE_BIENTOT_EXPIREE: "securite",
+  SUPPRESSION_ESSAI_PROCHE: "securite",
   LICENCE_SUSPENDUE: "securite",
   ABONNEMENT_RENOUVELE: "securite",
   ACOMPTE_PAYE_EN_LIGNE: "reservations",
@@ -977,6 +983,16 @@ export interface EtatAbonnement {
   renouvelable: boolean;
   /** Message d'alerte à afficher à tous (null = rien à signaler). */
   alerte: "BIENTOT" | "GRACE" | "EXPIRE" | "SUSPENDU" | "RESILIE" | null;
+  /** Hôtel qui n'a jamais payé : date (ISO) à laquelle ses données seront supprimées s'il ne paie pas (18/10/2026). null sinon. */
+  suppressionLe?: string | null;
+  /** Plafonds de l'essai gratuit (hôtel qui n'a jamais payé) ; null une fois une formule payée. Appliqués aussi hors ligne. */
+  plafondsEssai?: PlafondsEssai | null;
+}
+
+export interface PlafondsEssai {
+  chambres: number;
+  produits: number;
+  photosGalerie: number;
 }
 
 export type OperateurMobileMoney = "VODACOM" | "ORANGE" | "AIRTEL" | "AFRICELL";
@@ -1271,6 +1287,22 @@ export interface ParametresPlateformeVue {
   fraisAbonnementPayesParClient: boolean;
   contactTelephone: string;
   contactWhatsapp: string;
+  /** Protection contre les essais abusifs (18/10/2026). */
+  joursAvantSuppression: number;
+  maxChambresEssai: number;
+  maxProduitsEssai: number;
+  maxPhotosGalerieEssai: number;
+  maxInscriptionsParJour: number;
+}
+
+/** Hôtel supprimé automatiquement (essai abandonné), vu par le super-admin. */
+export interface HotelSupprimeVue {
+  id: string;
+  nom: string;
+  sousDomaine: string;
+  creeLe: string;
+  supprimeLe: string;
+  motif: string;
 }
 
 /** GET /public/formules : la page des tarifs du site vitrine. */

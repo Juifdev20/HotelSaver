@@ -137,6 +137,50 @@ export class SupabaseStorageService {
     return `${prefixeUrlHotel(hotelId)}${chemin.split("/")[1]}`;
   }
 
+  /** Chemins de tous les fichiers sous `dossier/` dans un bucket (sous-dossiers compris : rapports = {hotelId}/{mois}/{numero}.pdf). */
+  private async listerFichiers(bucket: string, dossier: string, profondeur = 0): Promise<string[]> {
+    const { cle, url } = this.config();
+    const fichiers: string[] = [];
+    for (let decalage = 0; ; decalage += 1000) {
+      const reponse = await fetch(`${url}/storage/v1/object/list/${bucket}`, {
+        method: "POST",
+        headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ prefix: dossier, limit: 1000, offset: decalage }),
+      });
+      // Bucket jamais créé (aucun envoi encore) : rien à supprimer.
+      if (!reponse.ok) return fichiers;
+      const elements = (await reponse.json()) as { name: string; id: string | null }[];
+      for (const e of elements) {
+        const chemin = `${dossier}/${e.name}`;
+        // Un « dossier » n'a pas d'id dans la réponse de Supabase.
+        if (e.id === null) {
+          if (profondeur < 3) fichiers.push(...(await this.listerFichiers(bucket, chemin, profondeur + 1)));
+        } else fichiers.push(chemin);
+      }
+      if (elements.length < 1000) return fichiers;
+    }
+  }
+
+  /** Supprime TOUS les fichiers d'un hôtel (images publiques et rapports privés) — nettoyage d'un essai abandonné (18/10/2026). */
+  async supprimerDossierHotel(hotelId: string): Promise<number> {
+    const { cle, url } = this.config();
+    let total = 0;
+    for (const bucket of [BUCKET_MEDIA, BUCKET_RAPPORTS]) {
+      const chemins = await this.listerFichiers(bucket, hotelId);
+      for (let i = 0; i < chemins.length; i += 500) {
+        const lot = chemins.slice(i, i + 500);
+        const reponse = await fetch(`${url}/storage/v1/object/${bucket}`, {
+          method: "DELETE",
+          headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ prefixes: lot }),
+        });
+        if (!reponse.ok) throw new InternalServerErrorException(`Suppression des fichiers refusée (${reponse.status}).`);
+        total += lot.length;
+      }
+    }
+    return total;
+  }
+
   /** Supprime un fichier de CET hôtel (l'appartenance est vérifiée par l'appelant). */
   async supprimerImage(hotelId: string, urlPublique: string): Promise<void> {
     const { cle, url } = this.config();

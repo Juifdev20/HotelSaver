@@ -11,7 +11,7 @@ import { BoutonTelechargement } from "./accueil/BoutonTelechargement";
  * suite — se connecter, créer les comptes réception et cafétaria — se passe
  * obligatoirement dans l'application. Cet écran propose de l'ouvrir si elle est déjà
  * installée, sinon de la télécharger. */
-export function EcranSucces({ telephone, payerMaintenant = false }: { telephone: string; payerMaintenant?: boolean }) {
+export function EcranSucces({ telephone, payerMaintenant = false, sansEssai = false }: { telephone: string; payerMaintenant?: boolean; sansEssai?: boolean }) {
   return (
     <MiseEnPageAuth>
       <div className="carte-auth">
@@ -48,7 +48,10 @@ export function EcranSucces({ telephone, payerMaintenant = false }: { telephone:
         {payerMaintenant && (
           <div className="parcours-payer">
             <p>
-              <CreditCard size={18} aria-hidden="true" /> Vous avez choisi de payer tout de suite. Payez votre abonnement ici (Mobile Money), avec le numéro et le mot de passe
+              <CreditCard size={18} aria-hidden="true" />{" "}
+              {sansEssai
+                ? "Ce numéro a déjà bénéficié d'un essai gratuit : votre hôtel est créé, payez l'abonnement pour commencer."
+                : "Vous avez choisi de payer tout de suite."} Payez votre abonnement ici (Mobile Money), avec le numéro et le mot de passe
               que vous venez de créer :
             </p>
             <Link className="bouton-auth" to={`/payer?telephone=${encodeURIComponent(telephone)}`}>

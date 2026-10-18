@@ -97,6 +97,9 @@ model Hotel {
   /// Formule payée en dernier (ESSENTIEL / PRO / PREMIUM, voir packages/regles/src/abonnement.ts). null = essai ou hôtel créé à la main :
   /// aucune limite de formule ne s'applique.
   formule                    String?
+  /// Jours d'essai de CET hôtel (null = réglage `ParametresPlateforme.joursEssai`). 0 = numéro qui a déjà eu un essai :
+  /// l'hôtel est créé mais doit payer pour s'ouvrir (« un essai par numéro, à vie », 18/10/2026).
+  joursEssai                 Int?
   /// true = suspendu À LA MAIN par le super-admin (abus, litige) : l'hôtel ne peut pas se réactiver seul en payant.
   /// false = suspendu automatiquement à l'échéance : le patron peut payer pour rouvrir.
   suspensionManuelle         Boolean       @default(false)
@@ -937,7 +940,46 @@ model ParametresPlateforme {
   fraisAbonnementPayesParClient Boolean  @default(true)
   contactTelephone              String   @default("+243828497218")
   contactWhatsapp               String   @default("+243828497218")
+  /// Protection contre les essais abusifs (18/10/2026), réglable dans le super-admin.
+  /// Jours après la fin de l'essai (délai de grâce compris) avant suppression d'un hôtel qui n'a jamais payé.
+  joursAvantSuppression         Int      @default(10)
+  /// Plafonds pendant l'essai gratuit (une formule payée applique ensuite les siens).
+  maxChambresEssai              Int      @default(10)
+  maxProduitsEssai              Int      @default(50)
+  maxPhotosGalerieEssai         Int      @default(6)
+  /// Hôtels créés au plus par 24 h depuis une même adresse internet ou un même appareil.
+  maxInscriptionsParJour        Int      @default(2)
   updatedAt                     DateTime @updatedAt
+}
+
+/// Un essai gratuit par numéro, à vie : empreinte (SHA-256 salé) du numéro du patron, écrite à chaque inscription et
+/// JAMAIS supprimée, même quand l'hôtel l'est — aucun numéro en clair ne survit à la suppression.
+model EssaiUtilise {
+  telephoneEmpreinte String   @id
+  createdAt          DateTime @default(now())
+}
+
+/// Inscriptions des dernières 24 h (empreintes de l'adresse internet et de l'appareil) pour `maxInscriptionsParJour`.
+/// Lignes de plus de 24 h purgées chaque jour.
+model InscriptionRecente {
+  id                String   @id @default(uuid())
+  ipEmpreinte       String
+  appareilEmpreinte String?
+  createdAt         DateTime @default(now())
+
+  @@index([ipEmpreinte, createdAt])
+  @@index([appareilEmpreinte, createdAt])
+}
+
+/// Trace d'un hôtel supprimé automatiquement (essai abandonné, jamais payé), lue par le super-admin.
+model HotelSupprime {
+  id          String   @id @default(uuid())
+  hotelId     String
+  nom         String
+  sousDomaine String
+  creeLe      DateTime
+  supprimeLe  DateTime @default(now())
+  motif       String
 }
 
 enum MoyenPaiementEnLigne {

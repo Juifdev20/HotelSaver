@@ -31,6 +31,11 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
   const [fraisClient, setFraisClient] = useState(parametres.fraisAbonnementPayesParClient);
   const [telephone, setTelephone] = useState(parametres.contactTelephone);
   const [whatsapp, setWhatsapp] = useState(parametres.contactWhatsapp);
+  const [joursSuppression, setJoursSuppression] = useState(String(parametres.joursAvantSuppression));
+  const [maxChambres, setMaxChambres] = useState(String(parametres.maxChambresEssai));
+  const [maxProduits, setMaxProduits] = useState(String(parametres.maxProduitsEssai));
+  const [maxGalerie, setMaxGalerie] = useState(String(parametres.maxPhotosGalerieEssai));
+  const [maxInscriptions, setMaxInscriptions] = useState(String(parametres.maxInscriptionsParJour));
   const [erreur, setErreur] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
@@ -46,6 +51,11 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
     setFraisClient(parametres.fraisAbonnementPayesParClient);
     setTelephone(parametres.contactTelephone);
     setWhatsapp(parametres.contactWhatsapp);
+    setJoursSuppression(String(parametres.joursAvantSuppression));
+    setMaxChambres(String(parametres.maxChambresEssai));
+    setMaxProduits(String(parametres.maxProduitsEssai));
+    setMaxGalerie(String(parametres.maxPhotosGalerieEssai));
+    setMaxInscriptions(String(parametres.maxInscriptionsParJour));
   }, [parametres]);
 
   async function soumettre(e: React.FormEvent) {
@@ -61,6 +71,16 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
     if (jg === null) return setErreur("Le délai de grâce doit être un nombre entier de jours, de 0 à 30.");
     if (!MOTIF_TELEPHONE.test(telephone.trim())) return setErreur("Numéro de téléphone invalide. Exemple : +243 828 497 218.");
     if (!MOTIF_TELEPHONE.test(whatsapp.trim())) return setErreur("Numéro WhatsApp invalide. Exemple : +243 828 497 218.");
+    const js = entier(joursSuppression, 1, 365);
+    if (js === null) return setErreur("Le délai avant suppression doit être un nombre entier de jours, de 1 à 365.");
+    const mc = entier(maxChambres, 1, 1000);
+    if (mc === null) return setErreur("Le nombre de chambres pendant l'essai doit être un nombre entier de 1 à 1000.");
+    const mp = entier(maxProduits, 1, 5000);
+    if (mp === null) return setErreur("Le nombre de produits pendant l'essai doit être un nombre entier de 1 à 5000.");
+    const mg = entier(maxGalerie, 0, 50);
+    if (mg === null) return setErreur("Le nombre de photos de galerie pendant l'essai doit être un nombre entier de 0 à 50.");
+    const mi = entier(maxInscriptions, 1, 50);
+    if (mi === null) return setErreur("Le nombre d'inscriptions par jour doit être un nombre entier de 1 à 50.");
     setErreur(null);
     setEnCours(true);
     try {
@@ -73,6 +93,11 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
         fraisAbonnementPayesParClient: fraisClient,
         contactTelephone: telephone.trim(),
         contactWhatsapp: whatsapp.trim(),
+        joursAvantSuppression: js,
+        maxChambresEssai: mc,
+        maxProduitsEssai: mp,
+        maxPhotosGalerieEssai: mg,
+        maxInscriptionsParJour: mi,
       });
       setConfirmation("Réglages enregistrés. Les applications les reprennent à leur prochain chargement.");
     } catch (err) {
@@ -118,6 +143,50 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
           <p className="aide-champ">De 0 à 30. L'hôtel travaille encore après l'échéance, avec une alerte.</p>
         </div>
       </div>
+
+      <fieldset className="groupe-protection">
+        <legend className="titre-section titre-section--petit">Protection contre les abus</legend>
+        <p className="aide-champ">
+          Pour que des essais abandonnés ne remplissent pas la base : l'essai gratuit est plafonné, un numéro n'a droit qu'à un seul essai, et un hôtel qui n'a jamais payé est supprimé après le délai ci-dessous (le patron est prévenu 3 jours et 1 jour avant).
+        </p>
+        <div className="grille-formulaire grille-formulaire--4">
+        <div>
+          <label className="label" htmlFor={`${id}-suppression`}>
+            Suppression après (jours)
+          </label>
+          <input id={`${id}-suppression`} className="champ" inputMode="numeric" value={joursSuppression} onChange={(e) => setJoursSuppression(e.target.value)} aria-describedby={`${id}-suppression-aide`} />
+          <p id={`${id}-suppression-aide`} className="aide-champ">De 1 à 365. Compté après la fin de l'essai et du délai de grâce. Un hôtel qui a payé une seule fois n'est jamais supprimé.</p>
+        </div>
+        <div>
+          <label className="label" htmlFor={`${id}-max-chambres`}>
+            Chambres pendant l'essai
+          </label>
+          <input id={`${id}-max-chambres`} className="champ" inputMode="numeric" value={maxChambres} onChange={(e) => setMaxChambres(e.target.value)} aria-describedby={`${id}-max-chambres-aide`} />
+          <p id={`${id}-max-chambres-aide`} className="aide-champ">Plafond tant que l'hôtel n'a pas payé (aussi hors ligne).</p>
+        </div>
+        <div>
+          <label className="label" htmlFor={`${id}-max-produits`}>
+            Produits pendant l'essai
+          </label>
+          <input id={`${id}-max-produits`} className="champ" inputMode="numeric" value={maxProduits} onChange={(e) => setMaxProduits(e.target.value)} aria-describedby={`${id}-max-produits-aide`} />
+          <p id={`${id}-max-produits-aide`} className="aide-champ">Plafond de produits de la cafétaria pendant l'essai.</p>
+        </div>
+        <div>
+          <label className="label" htmlFor={`${id}-max-galerie`}>
+            Photos de galerie pendant l'essai
+          </label>
+          <input id={`${id}-max-galerie`} className="champ" inputMode="numeric" value={maxGalerie} onChange={(e) => setMaxGalerie(e.target.value)} aria-describedby={`${id}-max-galerie-aide`} />
+          <p id={`${id}-max-galerie-aide`} className="aide-champ">Photos du site de l'hôtel (les chambres et produits gardent leurs 2 photos).</p>
+        </div>
+        <div>
+          <label className="label" htmlFor={`${id}-max-inscriptions`}>
+            Inscriptions par jour
+          </label>
+          <input id={`${id}-max-inscriptions`} className="champ" inputMode="numeric" value={maxInscriptions} onChange={(e) => setMaxInscriptions(e.target.value)} aria-describedby={`${id}-max-inscriptions-aide`} />
+          <p id={`${id}-max-inscriptions-aide`} className="aide-champ">Hôtels créés au plus en 24 h depuis une même adresse internet ou un même appareil.</p>
+        </div>
+        </div>
+      </fieldset>
 
       <fieldset className="groupe-cases">
         <legend className="label">Fonctions ouvertes pendant l'essai</legend>

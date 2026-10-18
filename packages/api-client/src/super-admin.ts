@@ -1,4 +1,4 @@
-import type { DonneesFormule, FormuleAdminVue, ParametresPlateformeVue, PaiementAbonnementVue, Devise, HotelAvecValidite, HotelCree, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
+import type { DonneesFormule, FormuleAdminVue, ParametresPlateformeVue, PaiementAbonnementVue, Devise, HotelAvecValidite, HotelCree, HotelSupprimeVue, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
 import { ErreurApi } from "./client";
 
 /** Champs de apps/api/src/super-admin/dto/creer-hotel.dto.ts (logoUrl omis :
@@ -68,6 +68,11 @@ export class ClientSuperAdmin {
 
   async listerHotels(): Promise<HotelAvecValidite[]> {
     return this.requete<HotelAvecValidite[]>("/super-admin/hotels");
+  }
+
+  /** Hôtels supprimés automatiquement (essais abandonnés, jamais payés). */
+  async listerHotelsSupprimes(): Promise<HotelSupprimeVue[]> {
+    return this.requete<HotelSupprimeVue[]>("/super-admin/hotels/supprimes");
   }
 
   /** Paiements d'abonnement en ligne (tous hôtels) : en attente, réussis, échoués. */

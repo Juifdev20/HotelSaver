@@ -49,6 +49,11 @@ export interface ResumeAbonnement {
 const jours = (n: number) => `${n} jour${n > 1 ? "s" : ""}`;
 
 /** La carte « Votre abonnement » : une phrase claire sur la situation. */
+/** Hôtel jamais payé : « … seront supprimées le X » (protection contre les essais abusifs, 18/10/2026). */
+function avisSuppression(etat: EtatAbonnement): string {
+  return etat.suppressionLe ? ` Sans paiement, les données de l'hôtel seront supprimées le ${dateAbonnement(etat.suppressionLe)}.` : "";
+}
+
 export function resumerAbonnement(etat: EtatAbonnement, formule?: string | null): ResumeAbonnement {
   const fin = dateAbonnement(etat.valideJusquau);
   const nomFormule = formule ? ` (formule ${formule.charAt(0)}${formule.slice(1).toLowerCase()})` : "";
@@ -58,10 +63,12 @@ export function resumerAbonnement(etat: EtatAbonnement, formule?: string | null)
     case "SUSPENDU":
       return { niveau: "danger", titre: "Accès suspendu", detail: "L'accès de cet hôtel est suspendu. Contactez le support HotelSaver." };
     case "EXPIRE":
-      return { niveau: "danger", titre: "Abonnement expiré", detail: `Il a pris fin le ${fin}. Renouvelez-le pour rouvrir l'application ; vos données sont conservées.` };
+      return etat.suppressionLe
+        ? { niveau: "danger", titre: "Abonnement expiré", detail: `Il a pris fin le ${fin}. Payez votre abonnement pour rouvrir l'application.${avisSuppression(etat)}` }
+        : { niveau: "danger", titre: "Abonnement expiré", detail: `Il a pris fin le ${fin}. Renouvelez-le pour rouvrir l'application ; vos données sont conservées.` };
     case "EN_GRACE": {
       const restant = Math.max(1, Math.ceil((Date.parse(etat.graceJusquau) - Date.now()) / JOUR_MS));
-      return { niveau: "danger", titre: "Abonnement échu", detail: `Il a pris fin le ${fin}. L'accès sera coupé dans ${jours(restant)} si vous ne renouvelez pas.` };
+      return { niveau: "danger", titre: "Abonnement échu", detail: `Il a pris fin le ${fin}. L'accès sera coupé dans ${jours(restant)} si vous ne renouvelez pas.${avisSuppression(etat)}` };
     }
     case "ESSAI":
       return etat.joursRestants <= 7
@@ -81,7 +88,7 @@ export function bandeauAbonnement(etat: EtatAbonnement | undefined | null, maint
   if (!e.alerte || e.alerte === "SUSPENDU" || e.alerte === "RESILIE") return null; // ceux-là bloquent : écran dédié
   const fin = dateAbonnement(e.valideJusquau);
   if (e.alerte === "BIENTOT") return { niveau: "attention", texte: e.statut === "ESSAI" ? `Essai gratuit : plus que ${jours(Math.max(1, e.joursRestants))}. Choisissez une formule.` : `Abonnement : plus que ${jours(Math.max(1, e.joursRestants))} (jusqu'au ${fin}).` };
-  if (e.alerte === "GRACE") return { niveau: "danger", texte: `Abonnement échu depuis le ${fin} : l'accès sera bientôt coupé. Renouvelez maintenant.` };
+  if (e.alerte === "GRACE") return { niveau: "danger", texte: `Abonnement échu depuis le ${fin} : l'accès sera bientôt coupé. Renouvelez maintenant.${avisSuppression(e)}` };
   return { niveau: "danger", texte: "Abonnement expiré : renouvelez pour rouvrir l'application." };
 }
 

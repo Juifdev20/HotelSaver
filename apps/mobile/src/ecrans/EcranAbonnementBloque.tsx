@@ -3,6 +3,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LogOut } from "lucide-react-native";
 import { Role } from "@hotel-chicago/types";
+import { dateAbonnement } from "@hotel-chicago/regles";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
@@ -44,7 +45,12 @@ export function EcranAbonnementBloque({ onContinuer }: { onContinuer: () => Prom
           <Text style={styles.titre} accessibilityRole="header">
             {titre}
           </Text>
-          <Text style={styles.texte}>Vos données sont conservées. Rien n'est perdu.</Text>
+          {/* Hôtel jamais payé : ses données seront supprimées à cette date (protection contre les essais abusifs, 18/10/2026). */}
+          <Text style={styles.texte}>
+            {utilisateur.abonnement?.suppressionLe
+              ? `Payez votre abonnement pour rouvrir l'application. Sans paiement, les données de votre hôtel seront supprimées le ${dateAbonnement(utilisateur.abonnement.suppressionLe)}.`
+              : "Vos données sont conservées. Rien n'est perdu."}
+          </Text>
           {enAttente > 0 && (
             <Text style={styles.texte}>
               {enAttente === 1

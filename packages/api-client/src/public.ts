@@ -22,6 +22,8 @@ export interface ConfigApiPublique {
   /** Une URL ou plusieurs candidates (câble USB + Wi-Fi) — même basculement
    * sur erreur réseau que ClientApi. */
   url: string | string[];
+  /** Identifiant aléatoire de CET appareil (bureau, mobile), envoyé en X-Appareil : sert à la limite d'inscriptions par jour (18/10/2026). */
+  appareil?: string | null;
 }
 
 async function requetePublique<T>(config: ConfigApiPublique, chemin: string, options: RequestInit = {}): Promise<T> {
@@ -31,7 +33,7 @@ async function requetePublique<T>(config: ConfigApiPublique, chemin: string, opt
     try {
       reponse = await fetch(`${url}${chemin}`, {
         ...options,
-        headers: { "Content-Type": "application/json", ...options.headers },
+        headers: { "Content-Type": "application/json", ...(config.appareil ? { "X-Appareil": config.appareil } : {}), ...options.headers },
       });
       break;
     } catch {

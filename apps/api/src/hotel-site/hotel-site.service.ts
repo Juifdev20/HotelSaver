@@ -4,6 +4,8 @@ import { PRISMA } from "../prisma/prisma.module";
 import { SupabaseStorageService } from "../common/supabase-storage/supabase-storage.service";
 import { verifierUrlsHotel } from "../common/supabase-storage/urls-hotel";
 import { ModifierSiteDto } from "./dto/modifier-site.dto";
+import { messagePlafondEssai } from "@hotel-chicago/regles";
+import { plafondsEssaiDe } from "../common/abonnement/plafonds-essai";
 
 const RESEAUX_AUTORISES = ["facebook", "instagram", "tiktok", "youtube", "x"];
 
@@ -40,6 +42,11 @@ export class HotelSiteService {
 
   async modifier(hotelId: string, dto: ModifierSiteDto) {
     verifierUrlsHotel([dto.couvertureUrl, ...(dto.galerie ?? [])], hotelId);
+    // Essai gratuit : plafond de photos dans la galerie (18/10/2026).
+    if (dto.galerie) {
+      const plafonds = await plafondsEssaiDe(this.prisma, hotelId);
+      if (plafonds && dto.galerie.length > plafonds.photosGalerie) throw new BadRequestException(messagePlafondEssai.photosGalerie(plafonds.photosGalerie));
+    }
 
     if (dto.reseaux) {
       for (const [cle, valeur] of Object.entries(dto.reseaux)) {

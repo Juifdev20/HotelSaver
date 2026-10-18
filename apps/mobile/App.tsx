@@ -41,6 +41,7 @@ import { navigationRef } from "./src/notifications/navigationRef";
 import { retirerAppareil } from "./src/notifications/push";
 import { useVerrouInactivite } from "./src/hooks/useVerrouInactivite";
 import { ecouterFonctionNonIncluse } from "./src/fonctions";
+import { identifiantAppareil } from "./src/stockage/identifiantAppareil";
 
 type Ecran = "chargement" | "selection-profil" | "connexion" | "inscription" | "application";
 
@@ -562,7 +563,7 @@ export default function App() {
     setErreurInscription(null);
     setInscriptionEnCours(true);
     try {
-      await inscrireHotel({ url: candidatsApi() }, dto);
+      await inscrireHotel({ url: candidatsApi(), appareil: await identifiantAppareil() }, dto);
       if (payerMaintenant) await memoriserPayerMaintenant();
       try {
         // Connexion immédiate avec le numéro (compte confirmé d'office depuis

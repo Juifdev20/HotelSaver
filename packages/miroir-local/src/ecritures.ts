@@ -7,6 +7,7 @@ import {
   acompteMaximal,
   calculerEncaissement,
   MESSAGE_ACOMPTE_TROP_ELEVE,
+  messagePlafondEssai,
   ErreurRegle,
   numeroRecuProvisoire,
   jourCompact,
@@ -75,6 +76,9 @@ export class Ecritures {
     const numero = texte(d.numero);
     if (!numero) throw erreur(400, "Le numéro de la chambre est obligatoire.");
     if (this.s.lister("Chambre").some((c) => c.numero === numero)) throw erreur(409, `Une chambre avec le numéro "${numero}" existe déjà.`);
+    // Essai gratuit : même plafond et même message que le serveur (chambres.service.ts).
+    const plafonds = u.abonnement?.plafondsEssai;
+    if (plafonds && this.s.lister("Chambre").length >= plafonds.chambres) throw erreur(400, messagePlafondEssai.chambres(plafonds.chambres));
     const chambre = this.base({ id: uuid(), numero, type: d.type, prixParNuit: String(d.prixParNuit), devise: d.devise, statut: d.statut ?? "LIBRE", photos: d.photos ?? [] });
     await this.agir([this.ecrire("Chambre", chambre)], this.creation("Chambre", chambre, { ...d, numero }));
     return chambre;
@@ -98,7 +102,11 @@ export class Ecritures {
   // =============================================================== Produits & stock
 
   async creerProduit(d: Record<string, any>) {
-    exigerRole(this.ctx.utilisateur(), "PATRON");
+    const u = this.ctx.utilisateur();
+    exigerRole(u, "PATRON");
+    // Essai gratuit : même plafond et même message que le serveur (produits.service.ts).
+    const plafonds = u.abonnement?.plafondsEssai;
+    if (plafonds && this.s.lister("Produit").length >= plafonds.produits) throw erreur(400, messagePlafondEssai.produits(plafonds.produits));
     if (d.codeBarres && this.s.lister("Produit").some((p) => p.codeBarres === d.codeBarres)) throw erreur(409, "Ce code-barres est déjà associé à un autre produit.");
     const produit = this.base({
       id: uuid(), nom: d.nom, categorie: d.categorie, prix: String(d.prix), devise: d.devise, typeProduit: d.typeProduit ?? "ARTICLE", photo: d.photo ?? null,

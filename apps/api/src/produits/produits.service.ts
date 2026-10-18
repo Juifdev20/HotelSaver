@@ -4,6 +4,8 @@ import { PRISMA } from "../prisma/prisma.module";
 import { CreateProduitDto } from "./dto/create-produit.dto";
 import { UpdateProduitDto } from "./dto/update-produit.dto";
 import { FindProduitsQueryDto } from "./dto/find-produits.query.dto";
+import { messagePlafondEssai } from "@hotel-chicago/regles";
+import { plafondsEssaiDe } from "../common/abonnement/plafonds-essai";
 
 @Injectable()
 export class ProduitsService {
@@ -46,6 +48,11 @@ export class ProduitsService {
   }
 
   async create(dto: CreateProduitDto, hotelId: string) {
+    // Essai gratuit : plafond de produits (18/10/2026) — vaut aussi pour les créations hors ligne (sync.service.ts passe par ici).
+    const plafonds = await plafondsEssaiDe(this.prisma, hotelId);
+    if (plafonds && (await this.prisma.produit.count({ where: { hotelId } })) >= plafonds.produits) {
+      throw new BadRequestException(messagePlafondEssai.produits(plafonds.produits));
+    }
     const codeBarres = ProduitsService.normaliserCode(dto.codeBarres);
     if (codeBarres && dto.typeProduit === "PLAT") {
       throw new BadRequestException("Un plat préparé n'a pas de code-barres : réservé aux articles de comptoir.");

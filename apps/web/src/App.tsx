@@ -21,13 +21,17 @@ function EcranInscriptionAvecEtat() {
   /** Numéro du patron qui vient de s'inscrire (identifiant de connexion, 15/10/2026). */
   const [telephoneInscrit, setTelephoneInscrit] = useState<string | null>(null);
   const [veutPayer, setVeutPayer] = useState(false);
+  /** Le numéro avait déjà eu son essai gratuit : l'hôtel est créé, il faut payer pour commencer (18/10/2026). */
+  const [sansEssai, setSansEssai] = useState(false);
 
   async function sInscrire(dto: InscriptionHotelPayload, payerMaintenant: boolean) {
     setErreur(null);
     setEnCours(true);
     try {
-      await inscrireHotel({ url: configuration.apiUrl }, dto);
-      setVeutPayer(payerMaintenant);
+      const hotel = await inscrireHotel({ url: configuration.apiUrl }, dto);
+      const essaiRefuse = hotel.essaiGratuit === false;
+      setSansEssai(essaiRefuse);
+      setVeutPayer(payerMaintenant || essaiRefuse);
       setTelephoneInscrit(dto.telephoneProprietaire);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur lors de l'inscription.");
@@ -36,7 +40,7 @@ function EcranInscriptionAvecEtat() {
     }
   }
 
-  if (telephoneInscrit) return <EcranSucces telephone={telephoneInscrit} payerMaintenant={veutPayer} />;
+  if (telephoneInscrit) return <EcranSucces telephone={telephoneInscrit} payerMaintenant={veutPayer} sansEssai={sansEssai} />;
   return <EcranInscription erreur={erreur} enCours={enCours} onSoumettre={sInscrire} />;
 }
 

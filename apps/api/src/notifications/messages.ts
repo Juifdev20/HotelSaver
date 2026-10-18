@@ -147,6 +147,16 @@ export const messages = {
     };
   },
 
+  /** Essai jamais payé : les données de l'hôtel seront supprimées (protection contre les essais abusifs, 18/10/2026). */
+  suppressionEssaiProche(p: { jours: number; date: string }): MessageNotification {
+    return {
+      type: "SUPPRESSION_ESSAI_PROCHE",
+      titre: "Vos données vont être supprimées",
+      corps: `Votre essai est terminé : sans paiement, les données de votre hôtel seront supprimées dans ${pluriel(p.jours, "jour", "jours")} (le ${p.date}). Payez votre abonnement pour les garder.`,
+      lien: { ecran: "tableau-de-bord" },
+    };
+  },
+
   licenceSuspendue(): MessageNotification {
     return {
       type: "LICENCE_SUSPENDUE",

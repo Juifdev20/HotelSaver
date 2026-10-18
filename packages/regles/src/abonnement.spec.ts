@@ -195,3 +195,52 @@ describe("contact support", () => {
     expect(lienWhatsApp("+243 828 497 218", "Bonjour & merci")).toBe("https://wa.me/243828497218?text=Bonjour%20%26%20merci");
   });
 });
+
+import { PROTECTION_ESSAI_PAR_DEFAUT, joursEssaiDe, messagePlafondEssai } from "./abonnement";
+
+describe("protection contre les essais abusifs (18/10/2026)", () => {
+  const cree = new Date("2026-10-01T10:00:00.000Z");
+  const reglages = { joursEssai: 14, joursGrace: 3, ...PROTECTION_ESSAI_PAR_DEFAUT };
+
+  it("jours d'essai : ceux de l'hôtel s'il en a (0 compris), sinon ceux de la plateforme", () => {
+    expect(joursEssaiDe({ joursEssai: null }, 14)).toBe(14);
+    expect(joursEssaiDe({}, 14)).toBe(14);
+    expect(joursEssaiDe({ joursEssai: 0 }, 14)).toBe(0);
+    expect(joursEssaiDe({ joursEssai: 7 }, 14)).toBe(7);
+  });
+
+  it("numéro qui a déjà eu un essai (0 jour) : bloqué dès la création, sans délai de grâce", () => {
+    const etat = etatAbonnement({ createdAt: cree, statutLicence: "ESSAI", joursEssai: 0 }, null, new Date("2026-10-01T12:00:00.000Z"), reglages);
+    expect(etat.statut).toBe("EXPIRE");
+    expect(etat.bloque).toBe(true);
+    expect(etat.renouvelable).toBe(true);
+    expect(etat.graceJusquau).toBe(etat.valideJusquau);
+  });
+
+  it("essai jamais payé : date de suppression = fin de la grâce + joursAvantSuppression, plafonds fournis", () => {
+    const etat = etatAbonnement({ createdAt: cree, statutLicence: "ESSAI" }, null, new Date("2026-10-05T10:00:00.000Z"), reglages);
+    expect(etat.statut).toBe("ESSAI");
+    // 1er oct. + 14 j d'essai + 3 j de grâce + 10 j = 28 oct.
+    expect(etat.suppressionLe).toBe(new Date("2026-10-28T10:00:00.000Z").toISOString());
+    expect(etat.plafondsEssai).toEqual({ chambres: 10, produits: 50, photosGalerie: 6 });
+  });
+
+  it("hôtel qui a payé ou ACTIF : ni suppression ni plafonds d'essai", () => {
+    const paye = etatAbonnement({ createdAt: cree, statutLicence: "ACTIF" }, { periodeCouverteJusquau: new Date("2026-12-01T00:00:00.000Z") }, new Date("2026-10-05T10:00:00.000Z"), reglages);
+    expect(paye.suppressionLe).toBeNull();
+    expect(paye.plafondsEssai).toBeNull();
+    const actifALaMain = etatAbonnement({ createdAt: cree, statutLicence: "ACTIF" }, null, new Date("2026-10-05T10:00:00.000Z"), reglages);
+    expect(actifALaMain.suppressionLe).toBeNull();
+    expect(actifALaMain.plafondsEssai).toBeNull();
+  });
+
+  it("sans les réglages de protection (anciens appels) : rien de nouveau n'est calculé", () => {
+    const etat = etatAbonnement({ createdAt: cree, statutLicence: "ESSAI" }, null, new Date("2026-10-05T10:00:00.000Z"), { joursEssai: 14 });
+    expect(etat.suppressionLe).toBeNull();
+    expect(etat.plafondsEssai).toBeNull();
+  });
+
+  it("messages des plafonds", () => {
+    expect(messagePlafondEssai.chambres(10)).toBe("L'essai gratuit est limité à 10 chambres. Choisissez une formule dans Paramètres → Abonnement pour en ajouter.");
+  });
+});

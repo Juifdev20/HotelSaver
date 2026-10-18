@@ -3688,3 +3688,37 @@ d'entrée de gamme restent couverts). Pièges rencontrés :
 
 **⚠️ La clé de signature** (`apps/mobile/signature/hotelsaver-release.keystore` + `keystore.properties`) doit être sauvegardée
 hors du PC : la perdre empêche toute mise à jour de l'application (Play Store compris).
+
+## 18/10/2026 — Protection contre les essais abusifs
+
+**Problème** : n'importe qui créait un hôtel en quelques secondes (numéro jamais vérifié), avec un essai de 14 jours **sans aucun
+plafond**, et pouvait recommencer avec un autre numéro. Un essai fini sans paiement restait bloqué mais **gardait ses données pour
+toujours** : des essais abandonnés pouvaient remplir la base et le stockage pour rien.
+
+**Décisions du patron** : garder l'essai gratuit mais le limiter ; supprimer automatiquement les hôtels jamais payés après un délai
+**réglé par le super-admin** ; un essai par numéro, à vie ; une limite d'inscriptions par appareil et par jour.
+
+- **Réglages** (`ParametresPlateforme`, écran « Réglages de la plateforme » → « Protection contre les abus ») : `joursAvantSuppression`
+  (10), `maxChambresEssai` (10), `maxProduitsEssai` (50), `maxPhotosGalerieEssai` (6), `maxInscriptionsParJour` (2).
+- **Plafonds de l'essai** pour un hôtel qui n'a JAMAIS payé (`plafondsEssaiDe`, `apps/api/src/common/abonnement/plafonds-essai.ts`) :
+  chambres, produits, galerie. Un hôtel avec formule, paiement non annulé, ou ACTIF (activé à la main) n'en a pas. Les créations
+  hors ligne passent par les mêmes services côté serveur, et `packages/miroir-local` (`Ecritures`) applique le même plafond avec le
+  même message (`messagePlafondEssai`, `packages/regles`) grâce à `plafondsEssai` transmis dans l'état d'abonnement.
+- **Un essai par numéro, à vie** : table `EssaiUtilise` (empreinte SHA-256 salée du numéro, jamais supprimée, écrite aussi au moment
+  de supprimer un hôtel créé avant la protection). Un numéro déjà utilisé crée son hôtel avec `Hotel.joursEssai = 0` : bloqué dès
+  la création, **sans délai de grâce** (sinon trois jours gratuits quand même), paiement possible ; la réponse d'inscription porte
+  `essaiGratuit: false` et le site envoie directement sur « Payer mon abonnement ».
+- **Limite par jour** : table `InscriptionRecente` (empreintes de l'adresse internet et de l'identifiant d'appareil envoyé par le
+  bureau et le mobile en `X-Appareil`) ; au-delà de `maxInscriptionsParJour` en 24 h → 429. Le sel des empreintes est `EMPREINTE_SEL`
+  s'il existe, sinon la clé service Supabase (rien de plus à configurer).
+- **Nettoyage** (`NettoyageEssaisService`, chaque jour à 03:30, et `apps/api/scripts/nettoyer-essais.ts` pour le lancer à la main) :
+  hôtels sans formule, sans paiement de licence non annulé ni paiement d'abonnement réussi, en ESSAI ou suspendus AUTOMATIQUEMENT ;
+  suppression `joursAvantSuppression` jours après la fin de l'essai + grâce. Rappels au patron à J-3 et J-1
+  (`SUPPRESSION_ESSAI_PROCHE`) ; bandeau, écran « abonnement expiré » et carte d'abonnement annoncent la date au lieu de « vos données
+  sont conservées ». Ordre : fichiers du stockage, puis la base en UNE transaction interactive (délai 60 s : une vingtaine de
+  requêtes à ~250 ms dépassaient les 5 s par défaut de Prisma — vu en vrai, tout était annulé), puis les comptes Supabase Auth ; trace
+  `HotelSupprime` (onglet « Hôtels supprimés » du super-admin, « Suppression le … » dans la liste). Un hôtel en échec (réseau) est
+  repris au passage suivant sans bloquer les autres. Jamais : ACTIF, suspension manuelle, hôtel qui a payé une seule fois.
+- **Vérifié sur Test** (API locale) : 3e inscription du jour → 429 ; 11e chambre refusée avec le message ; état d'abonnement avec
+  date de suppression (18/10 + 14 + 3 + 10 = 14/11) et plafonds ; hôtel vieilli → supprimé par la vraie tâche (hôtel, utilisateur,
+  chambres, compte, trace) ; réinscription avec le même numéro → `essaiGratuit: false`, accès bloqué (402), paiement possible.
