@@ -75,6 +75,34 @@ function TelechargementsDirects() {
   );
 }
 
+/** Version compacte pour le haut de page (hero) : deux badges noirs de la même hauteur que ceux des stores, posés à côté
+ * d'eux — c'est là que le visiteur cherche l'application (18/10/2026). */
+export function BadgesTelechargementDirect() {
+  if (!configuration.urlAndroidApk && !configuration.urlWindows) return null;
+  return (
+    <div className="badges-directs">
+      {configuration.urlAndroidApk && (
+        <a className="badge-direct" href={configuration.urlAndroidApk} rel="noopener" aria-label="Télécharger l'application Android (APK)">
+          <Smartphone size={22} aria-hidden="true" />
+          <span>
+            <small>Télécharger l'APK</small>
+            Android
+          </span>
+        </a>
+      )}
+      {configuration.urlWindows && (
+        <a className="badge-direct" href={configuration.urlWindows} rel="noopener" aria-label="Télécharger l'application Windows">
+          <Monitor size={22} aria-hidden="true" />
+          <span>
+            <small>Télécharger pour</small>
+            Windows
+          </span>
+        </a>
+      )}
+    </div>
+  );
+}
+
 /** Section « Téléchargez notre application mobile » de la page d'accueil. */
 export function SectionApplication() {
   return (

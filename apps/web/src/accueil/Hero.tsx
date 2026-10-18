@@ -2,7 +2,7 @@ import * as React from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { MaquetteTelephone } from "./MaquetteTelephone";
-import { BoutonsStores } from "./Stores";
+import { BadgesTelechargementDirect, BoutonsStores } from "./Stores";
 
 export function Hero() {
   const reduit = useReducedMotion();
@@ -46,6 +46,7 @@ export function Hero() {
           </motion.div>
           <motion.div className="hero__stores" {...entree(0.35)}>
             <BoutonsStores />
+            <BadgesTelechargementDirect />
           </motion.div>
           <motion.ul className="hero__garanties" {...entree(0.4)}>
             <li>Sans carte bancaire</li>
