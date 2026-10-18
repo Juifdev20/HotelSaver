@@ -11,8 +11,10 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { FeuilleModale } from "../composants/FeuilleModale";
 import { SelecteurProduit } from "../composants/SelecteurProduit";
+import { FeuilleEtiquettes } from "../composants/FeuilleEtiquettes";
+import { useSession } from "../contexteSession";
 import { useDonnee } from "../hooks/useDonnee";
-import { lireQuantite } from "@hotel-chicago/regles";
+import { lireQuantite, typesMouvementAutorises } from "@hotel-chicago/regles";
 import { messageErreur } from "../messagesErreur";
 
 export interface EcranStockProps {
@@ -50,6 +52,11 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
   const [motif, setMotif] = useState("");
   const [enEnvoi, setEnEnvoi] = useState(false);
   const [erreurFormulaire, setErreurFormulaire] = useState<string | null>(null);
+  // Caisse : ENTRÉES seulement ; perte et ajustement réservés au patron (même règle que le serveur, 18/10/2026).
+  const { utilisateur } = useSession();
+  const typesPermis = TYPES.filter((t) => typesMouvementAutorises(utilisateur.role).includes(t.valeur));
+  // Après une entrée : feuille « Étiquettes de prix », une par article entré.
+  const [etiquettes, setEtiquettes] = useState<{ produit: Produit; nombre: number; entete?: string } | null>(null);
 
   // Seuls les articles de comptoir ont un stock — les plats sont préparés à
   // la commande et n'apparaissent ni dans les mouvements ni dans la valeur.
@@ -88,6 +95,9 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
       });
       setModaleOuverte(false);
       recharger();
+      if (type === "ENTREE") {
+        setEtiquettes({ produit, nombre: quantiteNombre, entete: `✓ ${quantiteNombre} × ${produit.nom} entré${quantiteNombre > 1 ? "s" : ""} en stock.` });
+      }
     } catch (e) {
       setErreurFormulaire(messageErreur(e, "Le mouvement n'a pas pu être enregistré. Réessayez."));
     } finally {
@@ -156,6 +166,15 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
                   <Text style={styles.quantitePositive}>{formatMontant(String(valeur), p.devise)}</Text>
                 </View>
                 <Text style={styles.type}>{p.categorie} · Stock : {p.stockActuel}</Text>
+                <Pressable
+                  style={styles.boutonEtiquette}
+                  onPress={() => setEtiquettes({ produit: p, nombre: Math.max(1, Math.round(Number(p.stockActuel)) || 1) })}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Étiquettes de prix de ${p.nom}`}
+                >
+                  <Text style={styles.boutonEtiquetteTexte}>Étiquettes</Text>
+                </Pressable>
                 {cout !== null && (
                   <Text style={styles.motif}>Coût acq. : {formatMontant(String(cout), p.devise)}</Text>
                 )}
@@ -216,9 +235,9 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
           </Text>
         </Pressable>
 
-        <Text style={styles.label}>Type</Text>
-        <View style={styles.selecteurType}>
-          {TYPES.map((t) => (
+        {typesPermis.length > 1 && <Text style={styles.label}>Type</Text>}
+        <View style={[styles.selecteurType, typesPermis.length <= 1 && { display: "none" }]}>
+          {typesPermis.map((t) => (
             <Pressable
               key={t.valeur}
               style={[styles.optionType, type === t.valeur && styles.optionTypeActive]}
@@ -280,6 +299,15 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
         }}
       />
 
+      <FeuilleEtiquettes
+        client={client}
+        produit={etiquettes?.produit ?? null}
+        exemplairesParDefaut={etiquettes?.nombre ?? 1}
+        entete={etiquettes?.entete}
+        onFermer={() => setEtiquettes(null)}
+        onProduitMisAJour={() => rechargerProduits()}
+      />
+
       {/* FAB bas-droite — standard Android, sous le pouce. */}
       <BoutonAjouterFlottant onPress={ouvrirFormulaire} accessibilityLabel="Nouveau mouvement" />
     </View>
@@ -287,6 +315,8 @@ export function EcranStock({ client, onRetour }: EcranStockProps) {
 }
 
 const styles = StyleSheet.create({
+  boutonEtiquette: { alignSelf: "flex-start", marginTop: espacements.s1, paddingVertical: 2 },
+  boutonEtiquetteTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 13 },
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
   zoneErreur: { minHeight: 44, justifyContent: "center" },

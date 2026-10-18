@@ -1845,6 +1845,41 @@ button {
   padding: var(--hc-space-1) var(--hc-space-2);
 }
 
+/* Vue « Reçu » après encaissement : le papier défile seul, la carte des montants et
+   « Imprimer le reçu » reste toujours visible (18/10/2026). */
+.vue-recu {
+  display: flex;
+  gap: var(--hc-space-5);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.vue-recu__papier {
+  flex: 0 1 380px;
+  max-height: calc(100vh - 220px);
+  min-height: 200px;
+  overflow-y: auto;
+  padding: 4px 8px 4px 4px;
+}
+
+.vue-recu__papier .apercu-recu {
+  margin-bottom: 0;
+}
+
+.vue-recu__pied {
+  flex: 1 1 300px;
+  position: sticky;
+  top: 0;
+}
+
+/* Fenêtre étroite : la carte passe sous le reçu, le reçu rétrécit pour la laisser à l'écran. */
+@media (max-width: 760px) {
+  .vue-recu__papier {
+    flex-basis: 100%;
+    max-height: calc(100vh - 460px);
+  }
+}
+
 /* Aperçu de reçu : du papier, donc toujours blanc sur noir, même en thème sombre. */
 .apercu-recu {
   width: 100%;

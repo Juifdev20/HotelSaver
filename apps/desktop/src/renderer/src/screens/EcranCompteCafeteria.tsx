@@ -385,13 +385,19 @@ export function EcranCompteCafeteria({
             </h1>
           </div>
         </header>
-        <div className="carte-formulaire">
+        {/* Reçu à gauche, seul à défiler s'il est long ; montants et « Imprimer le reçu » à droite, toujours visibles (18/10/2026). */}
+        <div className="vue-recu">
+        {lignesRecu && (
+          <div className="vue-recu__papier">
+            <ApercuRecu lignes={lignesRecu} />
+          </div>
+        )}
+        <div className="carte-formulaire vue-recu__pied">
           {estRecuProvisoire(venteEncaissee.numeroRecu) && (
             <p className="hc-text-body" role="note">
               {PHRASE_RECU_PROVISOIRE}
             </p>
           )}
-          {lignesRecu && <ApercuRecu lignes={lignesRecu} />}
           {Number(venteEncaissee.montantTotalUSD) > 0 && (
             <p className="hc-text-price">{formatMontant(venteEncaissee.montantTotalUSD, Devise.USD)}</p>
           )}
@@ -416,6 +422,7 @@ export function EcranCompteCafeteria({
               {compteSolde ? "Terminer" : "Retour au compte"}
             </Button>
           </div>
+        </div>
         </div>
       </div>
     );

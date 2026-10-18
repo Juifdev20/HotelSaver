@@ -8,3 +8,4 @@ export * from "./abonnement";
 export * from "./abonnement-texte";
 export * from "./chambre-prise";
 export * from "./compte-cafeteria";
+export * from "./mouvement-stock";

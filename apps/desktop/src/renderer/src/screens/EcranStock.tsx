@@ -4,9 +4,14 @@ import { Devise, MouvementStock, Produit } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { AlertTriangle, ArrowDown, ArrowUp, BarChart2, Package, RefreshCw, Search, X } from "lucide-react";
 import { lireQuantite } from "@hotel-chicago/miroir-local";
+import { typesMouvementAutorises } from "@hotel-chicago/regles";
+import { CarteEtiquettes } from "../components/CarteEtiquettes";
 
 export interface EcranStockProps {
   client: ClientApi;
+  /** Caisse : ENTRÉES seulement ; perte et ajustement réservés au patron (même règle que le serveur, 18/10/2026). */
+  role: string;
+  interfaceImprimante?: string | null;
 }
 
 const TYPES: { valeur: "ENTREE" | "PERTE" | "AJUSTEMENT"; libelle: string }[] = [
@@ -38,7 +43,10 @@ function niveauStock(produit: Produit): "epuise" | "bas" | "ok" {
  *  - Inventaire  : liste de tous les produits avec niveau de stock, seuil et évolution du jour
  *  - Mouvements  : historique complet des entrées / sorties / pertes / ajustements
  */
-export function EcranStock({ client }: EcranStockProps) {
+export function EcranStock({ client, role, interfaceImprimante = null }: EcranStockProps) {
+  const typesPermis = TYPES.filter((t) => typesMouvementAutorises(role).includes(t.valeur));
+  // Après une entrée : étiquettes de prix, une par article entré.
+  const [etiquettes, setEtiquettes] = useState<{ produit: Produit; nombre: number; entete?: string } | null>(null);
   const [vue, setVue]               = useState<Vue>("inventaire");
   const [produits, setProduits]     = useState<Produit[]>([]);
   const [mouvements, setMouvements] = useState<MouvementStock[]>([]);
@@ -90,6 +98,10 @@ export function EcranStock({ client }: EcranStockProps) {
       await client.creerMouvementStock({ produitId, type, quantite: qte, motif: motif.trim() || undefined });
       setFormulaireOuvert(false);
       charger();
+      const produit = produits.find((p) => p.id === produitId);
+      if (type === "ENTREE" && produit) {
+        setEtiquettes({ produit, nombre: qte, entete: `✓ ${qte} × ${produit.nom} entré${qte > 1 ? "s" : ""} en stock. Imprimez leurs étiquettes de prix.` });
+      }
     } catch (e) {
       setErreurForm(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
@@ -154,7 +166,7 @@ export function EcranStock({ client }: EcranStockProps) {
             <RefreshCw size={18} aria-hidden="true" />
           </button>
           <Button type="button" onClick={() => ouvrirFormulaire()}>
-            Nouveau mouvement
+            {typesPermis.length > 1 ? "Nouveau mouvement" : "Entrée en stock"}
           </Button>
         </div>
       </header>
@@ -218,13 +230,15 @@ export function EcranStock({ client }: EcranStockProps) {
             ))}
           </select>
 
+          {typesPermis.length > 1 && (
           <div className="puces" role="group" aria-label="Type de mouvement">
-            {TYPES.map((t) => (
+            {typesPermis.map((t) => (
               <button key={t.valeur} type="button" className="puce" aria-pressed={type === t.valeur} onClick={() => setType(t.valeur)}>
                 {t.libelle}
               </button>
             ))}
           </div>
+          )}
 
           <label className="hc-text-label" htmlFor="champ-quantite-stock">Quantité</label>
           <input id="champ-quantite-stock" type="number" step="0.01" min="0.01" value={quantite} onChange={(e) => setQuantite(e.target.value)} placeholder="0" />
@@ -243,6 +257,18 @@ export function EcranStock({ client }: EcranStockProps) {
             </Button>
           </div>
         </div>
+      )}
+
+      {etiquettes && (
+        <CarteEtiquettes
+          client={client}
+          produit={etiquettes.produit}
+          interfaceImprimante={interfaceImprimante}
+          exemplairesParDefaut={etiquettes.nombre}
+          entete={etiquettes.entete}
+          onFermer={() => setEtiquettes(null)}
+          onProduitMisAJour={charger}
+        />
       )}
 
       {/* ── VUE INVENTAIRE ── */}
@@ -335,7 +361,15 @@ export function EcranStock({ client }: EcranStockProps) {
                             className="lien-action"
                             onClick={() => ouvrirFormulaire(p.id)}
                           >
-                            Mouvement
+                            {typesPermis.length > 1 ? "Mouvement" : "Entrée"}
+                          </button>
+                          {" "}
+                          <button
+                            type="button"
+                            className="lien-action"
+                            onClick={() => setEtiquettes({ produit: p, nombre: Math.max(1, Math.round(stock) || 1) })}
+                          >
+                            Étiquettes
                           </button>
                         </td>
                       </tr>

@@ -3760,3 +3760,25 @@ mobile « Comptes » restait monté et ne se rechargeait qu'après une synchroni
 - **Vérifié sur Test** (API locale, compte cafétaria « Caisse Test ») : 2 Primus ajoutées (48 → 46) puis compte annulé (stock 48,
   hors des comptes ouverts) ; 2e annulation et ajout sur compte annulé refusés avec le message ; compte vide annulé ; compte encaissé
   refusé ; stock final cohérent.
+
+
+## Reçu : bouton d'impression toujours visible ; la caisse ne fait que des entrées de stock (18/10/2026)
+
+- **Reçu après encaissement** : un long reçu repoussait « Imprimer le reçu » hors de l'écran (tout défilait ensemble dans la
+  feuille). `FeuilleModale` (mobile) gagne une prop `pied` : zone fixe sous le contenu défilant. Encaissement cafétaria : le reçu
+  défile SEUL ; total, monnaie à rendre, message d'impression, « Imprimer le reçu » et « Terminer » sont dans le pied. Journal des
+  reçus : « Réimprimer » dans le pied. Bureau : `.vue-recu` — papier à gauche (`max-height` + défilement), carte des montants et
+  boutons à droite, collante ; sous le reçu en fenêtre étroite. Réception (facture créée, réimpression) : pas d'aperçu, contenu
+  court — non concerné ; le patron encaisse par les mêmes écrans.
+- **Droits du stock** : jusqu'ici la caisse pouvait saisir entrée, perte et ajustement (rien côté serveur ne l'empêchait, le
+  patron n'était pas prévenu) — une perte saisie à la caisse pouvait masquer un vol. Décision du patron : CAFETARIA = ENTRÉES
+  seulement ; PERTE / AJUSTEMENT réservés au PATRON. Règle partagée `typesMouvementAutorises` / `raisonRefusMouvementStock`
+  (`packages/regles/src/mouvement-stock.ts`), appliquée par `StockService.create` (403, route ET synchronisation) et
+  `Ecritures.creerMouvementStock` (hors ligne), avec le même message. Les mouvements automatiques (ventes, retours, annulations)
+  ne passent pas par `create`. Écrans Stock : pour la caisse, plus de choix de type (« Entrée en stock »).
+- **Étiquettes à l'entrée** : après une ENTRÉE, la feuille « Étiquettes de prix » (même aperçu `construireEtiquette` que le Menu
+  patron) s'ouvre avec autant d'étiquettes que d'articles entrés ; bouton « Étiquettes » par produit dans le Stock. Article sans
+  code : « Générer un code » (EAN-13 interne, `associerCodeBarres`, seule écriture produit ouverte à la caisse, demande le réseau).
+  Composants `FeuilleEtiquettes` (mobile) et `CarteEtiquettes` (bureau) ; le Menu patron garde son propre écran d'étiquettes,
+  lié à son formulaire (impression automatique à l'enregistrement).
+- **Vérifié sur Test** (API locale, « Caisse Test ») : ENTREE 201, PERTE et AJUSTEMENT 403 avec le message ; patron : AJUSTEMENT 201.

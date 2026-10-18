@@ -316,6 +316,31 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
         titre={pieceOuverte ? `Reçu ${pieceOuverte.numeroRecu}` : "Reçu"}
         modifie={motifAnnulation.trim() !== ""}
         enCours={enAction}
+        pied={
+          // « Réimprimer » hors défilement : toujours visible, même quand le formulaire d'annulation allonge la feuille.
+          pieceOuverte ? (
+            <>
+              {message && (
+                <Text
+                  style={[styles.message, !message.reussi && styles.messageErreur]}
+                  accessibilityRole={message.reussi ? undefined : "alert"}
+                  accessibilityLiveRegion="polite"
+                >
+                  {message.texte}
+                </Text>
+              )}
+              <Pressable
+                style={styles.boutonSecondaire}
+                disabled={enAction}
+                onPress={() => (detailFacture ? reimprimerFacture(detailFacture) : detailVente && reimprimerVente(detailVente))}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: enAction, busy: enAction }}
+              >
+                <Text style={styles.boutonSecondaireTexte}>{enAction ? "…" : "Réimprimer le reçu"}</Text>
+              </Pressable>
+            </>
+          ) : undefined
+        }
       >
         {pieceOuverte && (
           <>
@@ -327,26 +352,6 @@ export function EcranJournalRecus({ onRetour }: EcranJournalRecusProps) {
             )}
             <Text style={styles.totalDetail}>{montants(pieceOuverte.montantTotalUSD, pieceOuverte.montantTotalCDF)}</Text>
             <DetailPaiement recu={pieceOuverte} />
-
-            {message && (
-              <Text
-                style={[styles.message, !message.reussi && styles.messageErreur]}
-                accessibilityRole={message.reussi ? undefined : "alert"}
-                accessibilityLiveRegion="polite"
-              >
-                {message.texte}
-              </Text>
-            )}
-
-            <Pressable
-              style={styles.boutonSecondaire}
-              disabled={enAction}
-              onPress={() => (detailFacture ? reimprimerFacture(detailFacture) : detailVente && reimprimerVente(detailVente))}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: enAction, busy: enAction }}
-            >
-              <Text style={styles.boutonSecondaireTexte}>{enAction ? "…" : "Réimprimer le reçu"}</Text>
-            </Pressable>
 
             {estPatron && !pieceOuverte.annuleLe && (
               <>

@@ -680,7 +680,7 @@ export function App() {
     } else if (page === "menu") {
       contenu = <EcranMenu client={client} utilisateur={utilisateur} interfaceImprimante={configuration.imprimanteInterface} />;
     } else if (page === "stock") {
-      contenu = <EcranStock client={client} />;
+      contenu = <EcranStock client={client} role={utilisateur.role} interfaceImprimante={configuration.imprimanteInterface} />;
     } else if (page === "inventaire") {
       contenu = <EcranInventaire client={client} utilisateur={utilisateur} />;
     } else if (page === "imprimante") {

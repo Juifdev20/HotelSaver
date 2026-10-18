@@ -208,7 +208,7 @@ export class SyncService {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],
         rolesUpdate: [],
         create: async (payload, currentUser) =>
-          this.stockService.create(await this.valider(CreateMouvementDto, payload), currentUser.userId, currentUser.hotelId),
+          this.stockService.create(await this.valider(CreateMouvementDto, payload), currentUser.userId, currentUser.hotelId, currentUser.role),
       },
       CompteCafeteria: {
         rolesCreate: [Role.CAFETARIA, Role.PATRON],

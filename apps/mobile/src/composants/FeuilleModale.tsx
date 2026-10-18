@@ -24,9 +24,12 @@ export interface FeuilleModaleProps {
   modifie?: boolean;
   /** Envoi en cours : le fond et le bouton Retour sont ignorés, la feuille reste ouverte jusqu'à la réponse. */
   enCours?: boolean;
+  /** Zone fixe sous le contenu, hors défilement (ex. « Imprimer le reçu ») : un contenu long (reçu de 20 lignes) défile
+   * seul, ces boutons restent toujours visibles (retour du patron 18/10/2026). */
+  pied?: React.ReactNode;
 }
 
-export function FeuilleModale({ visible, onFermer, titre, children, avecDefilement = true, modifie = false, enCours = false }: FeuilleModaleProps) {
+export function FeuilleModale({ visible, onFermer, titre, children, avecDefilement = true, modifie = false, enCours = false, pied }: FeuilleModaleProps) {
   /** Fermeture « indirecte » (fond, Retour d'Android) : jamais pendant un envoi, avec confirmation si une saisie existe. */
   function demanderFermeture() {
     if (enCours) return;
@@ -55,12 +58,13 @@ export function FeuilleModale({ visible, onFermer, titre, children, avecDefileme
         <Pressable style={styles.fondPressable} onPress={demanderFermeture} accessible={false}>
           <Pressable style={styles.feuille} onPress={(e) => e.stopPropagation()} accessible={false}>
             {avecDefilement ? (
-              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.contenuScroll}>
+              <ScrollView style={styles.zoneDefilante} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.contenuScroll}>
                 {contenu}
               </ScrollView>
             ) : (
-              <View style={styles.contenuScroll}>{contenu}</View>
+              <View style={[styles.zoneDefilante, styles.contenuScroll]}>{contenu}</View>
             )}
+            {pied && <View style={styles.pied}>{pied}</View>}
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
@@ -76,6 +80,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: rayons.lg,
     borderTopRightRadius: rayons.lg,
     maxHeight: "85%",
+  },
+  zoneDefilante: { flexShrink: 1 },
+  pied: {
+    paddingHorizontal: espacements.s5,
+    paddingTop: espacements.s3,
+    paddingBottom: espacements.s5,
+    gap: espacements.s2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: couleurs.bordure,
   },
   contenuScroll: { padding: espacements.s5, gap: espacements.s3 },
   poignee: {

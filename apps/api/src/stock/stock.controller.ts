@@ -30,7 +30,7 @@ export class StockController {
 
   @Post()
   create(@Body() dto: CreateMouvementDto, @CurrentUser() currentUser: UtilisateurAuthentifie) {
-    return this.stockService.create(dto, currentUser.userId, currentUser.hotelId);
+    return this.stockService.create(dto, currentUser.userId, currentUser.hotelId, currentUser.role);
   }
 
   // ── Inventaire physique ────────────────────────────────────────────────────

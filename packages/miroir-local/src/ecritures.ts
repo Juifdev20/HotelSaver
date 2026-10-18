@@ -10,6 +10,7 @@ import {
   messagePlafondEssai,
   MESSAGE_COMPTE_ANNULE,
   raisonRefusAnnulationCompte,
+  raisonRefusMouvementStock,
   ErreurRegle,
   numeroRecuProvisoire,
   jourCompact,
@@ -133,6 +134,8 @@ export class Ecritures {
   async creerMouvementStock(d: { produitId: string; type: "ENTREE" | "PERTE" | "AJUSTEMENT"; quantite: number; motif?: string }) {
     const u = this.ctx.utilisateur();
     exigerRole(u, "CAFETARIA", "PATRON");
+    const refus = raisonRefusMouvementStock(u.role, d.type);
+    if (refus) throw erreur(403, refus);
     const produit = this.v.produit(d.produitId);
     if (!produit) throw erreur(404, `Aucun produit trouvé avec l'identifiant ${d.produitId}.`);
     const quantite = Number(d.quantite);

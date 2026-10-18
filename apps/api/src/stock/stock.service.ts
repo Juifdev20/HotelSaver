@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { raisonRefusMouvementStock } from "@hotel-chicago/regles";
 import { ConflitTransitoireException } from "../common/conflit-transitoire.exception";
 import { Prisma, PrismaClient, Produit } from "@hotel-chicago/database";
 import { Role } from "@hotel-chicago/types";
@@ -41,7 +42,10 @@ export class StockService {
     });
   }
 
-  create(dto: CreateMouvementDto, createdBy: string, hotelId: string) {
+  /** Mouvement saisi à la main : la caisse ne fait que des ENTRÉES, PERTE et AJUSTEMENT sont réservés au patron (18/10/2026). */
+  async create(dto: CreateMouvementDto, createdBy: string, hotelId: string, role: string) {
+    const refus = raisonRefusMouvementStock(role, dto.type);
+    if (refus) throw new ForbiddenException(refus);
     return this.enregistrerMouvement(this.prisma, {
       hotelId,
       produitId: dto.produitId,

@@ -682,10 +682,9 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
         modifie={!venteEncaissee && montantRegle.trim() !== ""}
         enCours={enEnvoi}
         titre={cibleEncaissement === "tout" ? "Tout encaisser" : `Encaisser ${recuCompte?.sousComptes[0]?.nom ?? personnesCibles(cibleEncaissement)[0]?.nom ?? ""}`}
-      >
-        {venteEncaissee ? (
+        pied={
+          venteEncaissee ? (
           <>
-            {lignesRecu && <ApercuRecu lignes={lignesRecu} />}
             <View style={styles.carteTotal}>
               <Text style={styles.labelTotal}>Reçu {venteEncaissee.numeroRecu}</Text>
               {Number(venteEncaissee.montantTotalUSD) > 0 && (
@@ -702,14 +701,9 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
               </View>
             )}
             {estRecuProvisoire(venteEncaissee.numeroRecu) && (
-              <>
-                <View style={styles.badgeProvisoire} accessible accessibilityLabel="Reçu provisoire">
-                  <Text style={styles.badgeProvisoireTexte}>Provisoire</Text>
-                </View>
-                <Text style={styles.avertissement}>
-                  Reçu provisoire : le numéro définitif sera attribué à la synchronisation (le reçu reste valable).
-                </Text>
-              </>
+              <Text style={styles.avertissement} accessibilityLabel="Reçu provisoire">
+                Provisoire : numéro définitif à la synchronisation (le reçu reste valable).
+              </Text>
             )}
             {messageImpression && (
               <Text
@@ -720,20 +714,28 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
                 {messageImpression.texte}
               </Text>
             )}
-            <Pressable
-              style={styles.boutonSecondaire}
-              onPress={imprimerRecuVente}
-              disabled={enImpression}
-              accessibilityRole="button"
-              accessibilityLabel={enImpression ? "Impression en cours" : "Imprimer le reçu"}
-              accessibilityState={{ disabled: enImpression, busy: enImpression }}
-            >
-              <Text style={styles.boutonSecondaireTexte}>{enImpression ? "…" : "Imprimer le reçu"}</Text>
-            </Pressable>
-            <Pressable style={styles.bouton} onPress={terminerEncaissement} accessibilityRole="button">
-              <Text style={styles.boutonTexte}>{compteSolde ? "Terminer" : "Retour au compte"}</Text>
-            </Pressable>
+            <View style={styles.rangeePied}>
+              <Pressable
+                style={[styles.boutonSecondaire, styles.boutonPied]}
+                onPress={imprimerRecuVente}
+                disabled={enImpression}
+                accessibilityRole="button"
+                accessibilityLabel={enImpression ? "Impression en cours" : "Imprimer le reçu"}
+                accessibilityState={{ disabled: enImpression, busy: enImpression }}
+              >
+                <Text style={styles.boutonSecondaireTexte}>{enImpression ? "…" : "Imprimer le reçu"}</Text>
+              </Pressable>
+              <Pressable style={[styles.bouton, styles.boutonPied]} onPress={terminerEncaissement} accessibilityRole="button">
+                <Text style={styles.boutonTexte}>{compteSolde ? "Terminer" : "Retour au compte"}</Text>
+              </Pressable>
+            </View>
           </>
+          ) : undefined
+        }
+      >
+        {venteEncaissee ? (
+          // Seul le reçu défile : total, monnaie et « Imprimer le reçu » restent dans le pied fixe (18/10/2026).
+          lignesRecu ? <ApercuRecu lignes={lignesRecu} /> : null
         ) : (
           <>
             <Text style={styles.label}>Mode de paiement</Text>
@@ -1043,5 +1045,7 @@ const styles = StyleSheet.create({
   badgeProvisoireTexte: { fontSize: 11, fontWeight: "700", color: couleurs.alerte },
   confirmation: { color: couleurs.succes, fontSize: 13, textAlign: "center" },
   bouton: { minHeight: 44, borderRadius: rayons.sm, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center", marginTop: espacements.s2 },
+  rangeePied: { flexDirection: "row", gap: espacements.s3 },
+  boutonPied: { flex: 1, marginTop: 0, minHeight: 48 },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });
