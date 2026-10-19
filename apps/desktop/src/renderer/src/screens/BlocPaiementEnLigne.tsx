@@ -21,9 +21,9 @@ const MAX_CONDITIONS = 1000;
 const EXEMPLE = { prixNuit: 20, nuits: 4 };
 const FORMAT_NUMERO = /^[A-Za-z0-9-]{3,40}$/;
 
-/** Acompte de l'exemple pour un pourcentage donné (arrondi au centime). */
+/** Acompte de l'exemple pour un pourcentage donné, arrondi au dollar supérieur comme le serveur (le Mobile Money refuse les centimes). */
 export function acompteExemple(pourcentage: number): number {
-  return Math.round(EXEMPLE.prixNuit * EXEMPLE.nuits * pourcentage) / 100;
+  return Math.ceil(Math.round(EXEMPLE.prixNuit * EXEMPLE.nuits * pourcentage) / 100 - 1e-9);
 }
 
 function messageErreur(e: unknown): string {

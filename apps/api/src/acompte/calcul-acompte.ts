@@ -12,15 +12,23 @@ export function arrondirDevise(montant: number, devise: "USD" | "CDF", versLeHau
   return (versLeHaut ? Math.ceil(centimes - 1e-6) : Math.round(centimes)) / 100;
 }
 
-/** L'acompte demandé au total : `pourcentage` % du séjour estimé (prix de la nuit × nuits), arrondi vers le haut pour que l'hôtel ne perde jamais un centime. */
-export function objectifAcompte(p: { prixParNuit: number; nuits: number; pourcentage: number; devise: "USD" | "CDF" }): number {
-  if (!(p.pourcentage > 0) || !(p.prixParNuit > 0)) return 0;
-  return arrondirDevise((p.prixParNuit * p.nuits * Math.min(p.pourcentage, 100)) / 100, p.devise, true);
+/** Arrondi à l'unité entière SUPÉRIEURE (dollar ou franc) : le Mobile Money de ScanLinkPay refuse les centimes (« Ce mode de
+ * paiement n'accepte que des montants entiers », constaté en production le 19/10/2026). */
+export function arrondirUniteSuperieure(montant: number): number {
+  return Math.max(0, Math.ceil(arrondirDevise(montant, "USD") - 1e-9));
 }
 
-/** Ce qui reste à payer (jamais négatif), à la précision de la devise. */
-export function resteAPayer(objectif: number, dejaPaye: number, devise: "USD" | "CDF"): number {
-  return arrondirDevise(Math.max(0, objectif - dejaPaye), devise);
+/** L'acompte demandé au total : `pourcentage` % du séjour estimé (prix de la nuit × nuits), arrondi vers le haut à l'unité entière
+ * (payable en Mobile Money, et l'hôtel ne perd jamais rien). */
+export function objectifAcompte(p: { prixParNuit: number; nuits: number; pourcentage: number; devise: "USD" | "CDF" }): number {
+  if (!(p.pourcentage > 0) || !(p.prixParNuit > 0)) return 0;
+  return arrondirUniteSuperieure((p.prixParNuit * p.nuits * Math.min(p.pourcentage, 100)) / 100);
+}
+
+/** Ce qui reste à payer (jamais négatif), en unités entières (un acompte déjà versé avec des centimes laisse un reste payable
+ * en Mobile Money). `devise` reste dans la signature pour les appelants. */
+export function resteAPayer(objectif: number, dejaPaye: number, _devise: "USD" | "CDF"): number {
+  return arrondirUniteSuperieure(Math.max(0, objectif - dejaPaye));
 }
 
 export const versCentimes = (montant: number): number => Math.round(montant * 100);

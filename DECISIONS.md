@@ -3822,3 +3822,14 @@ mobile « Comptes » restait monté et ne se rechargeait qu'après une synchroni
   (`nsis.license`, texte lu sur l'API à la construction, copie du dépôt à défaut, UTF-8 avec BOM) → Pour qui → Dossier →
   Installation → Terminé (« Lancer HotelSaver »). Le texte accepté est copié dans le dossier d'installation.
 - **Applications 1.0.3** (versionCode 4).
+
+
+## Paiement en ligne (19/10/2026) : adresse ScanLinkPay, acomptes en unités entières
+
+- **Adresse** : `LINKPAY_API_URL` avait été saisie sans « /api/v1 » sur Render ; chaque appel recevait « Cannot GET » (lu comme
+  « version trop ancienne »). `LinkPayClient.adresse()` ajoute `/api/v1` s'il manque. Le numéro marchand de la plateforme n'est
+  plus exigé pour tout appel (seulement pour les abonnements) : vérifier le numéro d'un hôtel et ses acomptes n'en dépendent plus.
+- **Montants entiers** : ScanLinkPay (Mobile Money) refuse les centimes — « Ce mode de paiement n'accepte que des montants
+  entiers ». L'acompte (`objectifAcompte`) et le reste à payer (`resteAPayer`) sont arrondis à l'unité SUPÉRIEURE
+  (`arrondirUniteSuperieure`, `apps/api/src/acompte/calcul-acompte.ts`) ; sa commission CUSTOMER_PAID est déjà entière pour une
+  base entière (vérifié). Les prix d'abonnement sont entiers. Ce refus de ScanLinkPay est désormais montré tel quel au client.

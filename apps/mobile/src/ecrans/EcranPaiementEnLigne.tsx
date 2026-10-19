@@ -200,7 +200,8 @@ export function EcranPaiementEnLigne({ client, onRetour }: EcranPaiementEnLigneP
     if (pourcentageNombre === null || !pourcentageValide) return "Entrez un pourcentage entre 0 et 100.";
     if (pourcentageNombre === 0) return "À 0, le paiement de l'acompte en ligne est désactivé : vos clients ne peuvent pas payer sur le site.";
     const total = 20 * 4;
-    const acompte = arrondiCentimes((total * pourcentageNombre) / 100);
+    // Arrondi au dollar supérieur, comme le serveur : le Mobile Money refuse les centimes (19/10/2026).
+    const acompte = Math.ceil(arrondiCentimes((total * pourcentageNombre) / 100) - 1e-9);
     return `Exemple : chambre ${montantAbonnement(20, "USD")} × 4 nuits = ${montantAbonnement(total, "USD")} → acompte ${pourcentageNombre} % = ${montantAbonnement(acompte, "USD")}`;
   })();
 

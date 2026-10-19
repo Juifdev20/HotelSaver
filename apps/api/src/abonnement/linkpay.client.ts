@@ -217,7 +217,7 @@ export class LinkPayClient {
       if (reponse.status === 400 && /should not exist/i.test(message)) {
         this.logger.error(`ScanLinkPay refuse un champ envoyé (${message.slice(0, 120)}) : sa version déployée est trop ancienne — déployez la dernière version de ScanLinkPay.`);
       }
-      const affichable = [400, 403, 404].includes(reponse.status) && /[àâçéèêîôùûï]|ScanLinkPay|num[ée]ro|boutique|t[ée]l[ée]phone/i.test(message) && !/should not exist|must be|Idempotency/i.test(message);
+      const affichable = [400, 403, 404].includes(reponse.status) && /[àâçéèêîôùûï]|ScanLinkPay|num[ée]ro|boutique|t[ée]l[ée]phone|montant|paiement/i.test(message) && !/should not exist|must be|Idempotency/i.test(message);
       if (!affichable) this.logger.warn(`ScanLinkPay a répondu ${reponse.status} à ${methode} ${chemin} : ${message.slice(0, 200)}`);
       throw new ErreurLinkPay(reponse.status, affichable ? message : "Le service de paiement est momentanément indisponible. Réessayez dans un instant.", affichable);
     }
