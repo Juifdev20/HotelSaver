@@ -486,6 +486,15 @@ export interface InscriptionHotelPayload {
   telephoneContact?: string;
   adresse?: string;
   logoUrl?: string;
+  /** Version des conditions d'utilisation acceptée (case cochée) — obligatoire depuis le 19/10/2026. */
+  conditionsVersion?: number;
+}
+
+/** Conditions d'utilisation en vigueur (GET /public/conditions), 19/10/2026. */
+export interface ConditionsUtilisationPubliques {
+  version: number;
+  texte: string;
+  publieLe: string;
 }
 
 /** Doit rester synchronisé avec l'enum `StatutLicence` du schéma Prisma. */

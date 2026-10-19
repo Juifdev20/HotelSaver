@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength } from "class-validator";
+import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength } from "class-validator";
 
 export class InscriptionHotelDto {
   @IsString()
@@ -48,6 +48,12 @@ export class InscriptionHotelDto {
   @IsUrl({}, { message: "logoUrl doit être une URL valide (Supabase Storage)." })
   @MaxLength(500)
   logoUrl?: string;
+
+  /** Version des conditions d'utilisation acceptée (case cochée), 19/10/2026. Contrôlée par le service, avec un message
+   * clair si elle manque (ancienne application sans la case). */
+  @IsOptional()
+  @IsInt({ message: "La version des conditions d'utilisation est invalide." })
+  conditionsVersion?: number;
 
   /** Jeton du widget anti-robot (vérifié par CaptchaGuard, jamais enregistré). */
   @IsOptional()

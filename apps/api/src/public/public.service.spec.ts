@@ -3,6 +3,7 @@ jest.mock("../common/palette/extraire-couleurs-logo");
 import { BadRequestException, ConflictException, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { Prisma } from "@hotel-chicago/database";
 import { PublicService } from "./public.service";
+import { MESSAGE_CONDITIONS_ABSENTES, MESSAGE_CONDITIONS_PERIMEES } from "./conditions";
 import { PALETTE_DEFAUT } from "../common/palette-defaut";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 
@@ -26,6 +27,8 @@ function creerPrismaMock() {
     // Protection contre les essais abusifs (18/10/2026) : numéro jamais utilisé, aucune inscription récente.
     inscriptionRecente: { count: jest.fn().mockResolvedValue(0), create: jest.fn() },
     essaiUtilise: { count: jest.fn().mockResolvedValue(0), upsert: jest.fn() },
+    // Conditions d'utilisation (19/10/2026) : version 1 en vigueur.
+    conditionsUtilisation: { findFirst: jest.fn().mockResolvedValue({ version: 1, texte: "…", publieLe: new Date() }) },
     produit: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
     client: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     sessionUtilisateur: { findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn() },
@@ -576,7 +579,23 @@ describe("PublicService", () => {
       telephoneProprietaire: "0970000000",
       email: "proprietaire@exemple.com",
       motDePasse: "motdepasse123",
+      conditionsVersion: 1,
     };
+
+    it("refuse sans conditions acceptées, ou avec une version dépassée — avant de créer quoi que ce soit", async () => {
+      const { conditionsVersion: _v, ...sansConditions } = dto;
+      await expect(service.inscrireHotel(sansConditions as any)).rejects.toThrow(MESSAGE_CONDITIONS_ABSENTES);
+      prisma.conditionsUtilisation.findFirst.mockResolvedValue({ version: 2, texte: "…", publieLe: new Date() });
+      await expect(service.inscrireHotel(dto as any)).rejects.toThrow(MESSAGE_CONDITIONS_PERIMEES);
+      expect(supabaseAdmin.creerCompte).not.toHaveBeenCalled();
+      expect(prisma.hotel.create).not.toHaveBeenCalled();
+    });
+
+    it("enregistre sur l'hôtel la version acceptée et la date", async () => {
+      prisma.hotel.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "h2", ...data }));
+      await service.inscrireHotel(dto as any);
+      expect(prisma.hotel.create.mock.calls[0][0].data).toMatchObject({ conditionsVersion: 1, conditionsAccepteesLe: expect.any(Date) });
+    });
 
     it("crée le compte Supabase puis l'hôtel en ESSAI avec la palette par défaut et le premier PATRON", async () => {
       prisma.hotel.create.mockImplementation(({ data }: any) => Promise.resolve({ id: "h2", ...data }));

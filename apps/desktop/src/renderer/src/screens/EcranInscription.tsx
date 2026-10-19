@@ -1,9 +1,9 @@
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Building2, Check, Eye, EyeOff, Globe, Lock, MapPin, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTitrePage } from "@hotel-chicago/ui";
-import type { InscriptionHotelPayload } from "@hotel-chicago/types";
+import type { ConditionsUtilisationPubliques, InscriptionHotelPayload } from "@hotel-chicago/types";
 import { ChampTelephone, telephoneDepuisSaisie } from "@hotel-chicago/ui";
 import { MiseEnPageAuth } from "../components/MiseEnPageAuth";
 import logo from "../../../../../../assets/icons/hotelsaver-icone.png";
@@ -15,6 +15,8 @@ export interface EcranInscriptionProps {
   onSoumettre: (dto: InscriptionHotelPayload, payerMaintenant: boolean) => void;
   /** Retour à la connexion (« Avez-vous déjà un compte ? Se connecter »). */
   onRetourConnexion: () => void;
+  /** Conditions d'utilisation en vigueur (GET /public/conditions), à accepter avant l'inscription (19/10/2026). */
+  chargerConditions: () => Promise<ConditionsUtilisationPubliques>;
 }
 
 const REGEX_SOUS_DOMAINE = /^[a-z0-9-]+$/;
@@ -85,7 +87,7 @@ function Champ({ id, libelle, icone: Icone, valeur, onChange, valide, suffixe, t
 /** Même parcours en 2 étapes et même validation que l'inscription mobile
  * (apps/mobile/src/ecrans/EcranInscription.tsx) et web : un utilisateur de
  * l'application s'inscrit DANS l'application, jamais sur le site. */
-export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexion }: EcranInscriptionProps) {
+export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexion, chargerConditions }: EcranInscriptionProps) {
   const [etape, setEtape] = useState<1 | 2>(1);
   const [payerMaintenant, setPayerMaintenant] = useState(false);
   useTitrePage("Créer le compte de mon hôtel");
@@ -100,6 +102,19 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
   const [motDePasse, setMotDePasse] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [erreurLocale, setErreurLocale] = useState<string | null>(null);
+  // Conditions d'utilisation (19/10/2026) : case obligatoire ; la version lue part avec l'inscription.
+  const [conditions, setConditions] = useState<ConditionsUtilisationPubliques | null>(null);
+  const [conditionsAcceptees, setConditionsAcceptees] = useState(false);
+  const [lectureConditions, setLectureConditions] = useState(false);
+  const [erreurConditions, setErreurConditions] = useState<string | null>(null);
+  function lireConditions() {
+    setErreurConditions(null);
+    chargerConditions()
+      .then(setConditions)
+      .catch(() => setErreurConditions("Les conditions d'utilisation n'ont pas pu être chargées : il faut une connexion internet."));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(lireConditions, []);
 
   function changerNom(valeur: string) {
     setNom(valeur);
@@ -125,6 +140,11 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
     if (!telephone) return setErreurLocale("Numéro invalide : 9 chiffres commençant par 8 ou 9 (ex. 970 000 000).");
     if (motDePasse.length < 8) return setErreurLocale("Le mot de passe doit contenir au moins 8 caractères.");
     if (motDePasse !== confirmation) return setErreurLocale("Les deux mots de passe ne correspondent pas.");
+    if (!conditions) {
+      lireConditions();
+      return setErreurLocale(erreurConditions ?? "Chargement des conditions d'utilisation…");
+    }
+    if (!conditionsAcceptees) return setErreurLocale("Cochez la case pour accepter les conditions d'utilisation.");
     setErreurLocale(null);
     onSoumettre({
       nom: nom.trim(),
@@ -133,6 +153,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
       nomProprietaire: nomProprietaire.trim(),
       telephoneProprietaire: telephone,
       motDePasse,
+      conditionsVersion: conditions.version,
     }, payerMaintenant);
   }
 
@@ -221,12 +242,23 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 </label>
               </fieldset>
 
+              <label className="hc-auth__conditions">
+                <input type="checkbox" checked={conditionsAcceptees} onChange={(e) => setConditionsAcceptees(e.target.checked)} />
+                <span>
+                  J'ai lu et j'accepte les{" "}
+                  <button type="button" className="hc-auth__lien-conditions" onClick={() => (conditions ? setLectureConditions(true) : lireConditions())}>
+                    conditions d'utilisation
+                  </button>
+                  {conditions ? ` (version ${conditions.version})` : ""}.
+                </span>
+              </label>
+
               {erreurAffichee && (
                 <p className="hc-auth__erreur" role="alert">
                   {erreurAffichee}
                 </p>
               )}
-              <button type="submit" className="hc-auth__bouton" disabled={enCours}>
+              <button type="submit" className="hc-auth__bouton" disabled={enCours || !conditionsAcceptees}>
                 {enCours ? "Création…" : "Créer mon compte"}
               </button>
               <button
@@ -250,6 +282,32 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
           </p>
         </div>
       </div>
+      {lectureConditions && conditions && (
+        <div className="dialogue-fond" role="presentation" onClick={() => setLectureConditions(false)}>
+          <div className="dialogue dialogue--conditions" role="dialog" aria-modal="true" aria-label="Conditions d'utilisation" onClick={(e) => e.stopPropagation()}>
+            <p className="hc-text-subheading">Conditions d'utilisation</p>
+            <p className="hc-text-caption texte-discret">
+              Version {conditions.version} — {new Date(conditions.publieLe).toLocaleDateString("fr-FR")}
+            </p>
+            <div className="dialogue__texte-legal">{conditions.texte}</div>
+            <div className="dialogue__actions">
+              <button type="button" className="hc-auth__lien-conditions" onClick={() => setLectureConditions(false)}>
+                Fermer
+              </button>
+              <button
+                type="button"
+                className="hc-auth__bouton hc-auth__bouton--compact"
+                onClick={() => {
+                  setConditionsAcceptees(true);
+                  setLectureConditions(false);
+                }}
+              >
+                J'accepte
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </MiseEnPageAuth>
   );
 }

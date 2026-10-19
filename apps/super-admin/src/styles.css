@@ -1,3 +1,71 @@
+/* Conditions d'utilisation (19/10/2026). */
+.conditions-edition {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.conditions-edition__titre {
+  font-weight: 700;
+}
+.conditions-edition__texte {
+  min-height: 420px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+  resize: vertical;
+}
+.conditions-edition__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.conditions-edition__compte {
+  margin-right: auto;
+  font-size: 13px;
+  opacity: 0.7;
+}
+.conditions-historique__titre {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+.conditions-historique {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.conditions-historique li + li {
+  border-top: 1px solid var(--hc-border);
+}
+.conditions-historique__ligne {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.conditions-historique__texte {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0 0 10px;
+}
+
 body {
   margin: 0;
   background: var(--hc-surface-100);

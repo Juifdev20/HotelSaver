@@ -1,0 +1,41 @@
+CONDITIONS GÉNÉRALES D'UTILISATION DE HOTELSAVER
+
+Version 1 — en vigueur au 19 octobre 2026
+
+En installant HotelSaver, en créant un hôtel ou en utilisant l'application (ordinateur, téléphone ou site), vous acceptez les présentes conditions. Si vous ne les acceptez pas, n'installez pas et n'utilisez pas HotelSaver.
+
+1. Objet
+HotelSaver est un service de gestion hôtelière en ligne : chambres, réservations, facturation et reçus, cafétaria, stock, dépenses, rapports et site de réservation de l'hôtel. Il est édité par HotelSaver (ci-après « l'éditeur ») et mis à disposition de l'établissement qui s'inscrit (ci-après « l'hôtel »).
+
+2. Compte et sécurité
+L'hôtel est créé par son responsable (le patron), qui crée ensuite les comptes de ses employés. Chaque utilisateur garde son mot de passe secret et ne le partage pas. Toute action faite avec un compte est réputée faite par son titulaire. En cas de perte ou de vol d'un appareil ou d'un mot de passe, le patron doit désactiver le compte concerné sans attendre.
+
+3. Essai gratuit
+Un hôtel nouvellement inscrit peut bénéficier d'un essai gratuit, limité dans le temps et en volume (nombre de chambres, de produits, de photos). Un même numéro de téléphone ne bénéficie qu'une seule fois de l'essai. Un hôtel qui n'a jamais payé d'abonnement est supprimé automatiquement, avec toutes ses données, après la fin de l'essai et du délai de grâce, augmentés du délai indiqué par l'éditeur. Le nombre d'inscriptions par jour depuis une même connexion ou un même appareil est limité, pour éviter les abus.
+
+4. Abonnement et paiements
+Après l'essai, l'utilisation de HotelSaver suppose un abonnement payé, selon la formule et la durée choisies. Les prix sont affichés dans l'application et sur le site, en dollars américains ou en francs congolais. Les paiements passent par des services de paiement tiers (Mobile Money, ScanLinkPay) dont les frais peuvent s'ajouter au prix. Un abonnement non renouvelé limite l'accès à l'application après le délai de grâce. Les sommes payées pour une période commencée ne sont pas remboursées, sauf erreur de l'éditeur.
+
+5. Données de l'hôtel et de ses clients
+Les données saisies (clients, séjours, ventes, factures, stock, dépenses) appartiennent à l'hôtel. L'hôtel est responsable de leur exactitude et de leur collecte, notamment des informations personnelles de ses clients, qu'il ne doit utiliser que pour sa gestion et conformément à la loi. L'éditeur héberge ces données chez des prestataires spécialisés, les protège par des mesures raisonnables de sécurité et ne les vend ni ne les communique à des tiers, sauf obligation légale. Chaque hôtel ne voit que ses propres données.
+
+6. Fonctionnement hors connexion
+L'application peut continuer à enregistrer des ventes et des factures sans connexion internet. Ces opérations sont conservées sur l'appareil puis envoyées au serveur dès le retour de la connexion ; les reçus faits hors connexion portent un numéro provisoire. Effacer les données de l'appareil ou le désinstaller avant cette synchronisation peut faire perdre les opérations non encore envoyées.
+
+7. Disponibilité
+L'éditeur fait ses meilleurs efforts pour que le service soit disponible en permanence, mais il peut être interrompu pour maintenance, mise à jour ou en raison de pannes indépendantes de sa volonté (réseau, électricité, prestataires). L'éditeur peut faire évoluer l'application et ses fonctions.
+
+8. Responsabilité
+HotelSaver est un outil d'aide à la gestion. L'hôtel reste responsable de ses décisions, de sa caisse, de ses déclarations et du respect des lois qui s'appliquent à son activité. La responsabilité de l'éditeur est limitée aux dommages directs prouvés et, en tout état de cause, au montant payé par l'hôtel pour les trois derniers mois d'abonnement.
+
+9. Utilisation interdite
+Il est interdit d'utiliser HotelSaver pour une activité illégale, de tenter d'accéder aux données d'un autre hôtel, de perturber le service ou de créer des hôtels fictifs pour profiter de l'essai gratuit. L'éditeur peut suspendre ou supprimer un compte en cas de manquement.
+
+10. Résiliation
+L'hôtel peut cesser d'utiliser HotelSaver à tout moment en ne renouvelant pas son abonnement. L'éditeur peut mettre fin au service d'un hôtel qui ne respecte pas les présentes conditions.
+
+11. Modification des conditions
+L'éditeur peut modifier les présentes conditions. Chaque nouvelle version porte un numéro et une date ; elle s'applique aux nouvelles inscriptions dès sa publication.
+
+12. Droit applicable et contact
+Les présentes conditions sont soumises au droit de la République démocratique du Congo. En cas de différend, les parties recherchent d'abord une solution amiable. Pour toute question : +243 828 497 218 (téléphone et WhatsApp).

@@ -60,6 +60,17 @@ export interface DonneesAjoutDomaine {
  * Phase 3 : aussi net de sens de garder ce client séparé que de garder
  * SuperAdminAuthGuard séparé de SupabaseAuthGuard côté API.
  */
+/** Une version des conditions d'utilisation, vue du super-admin. */
+export interface VersionConditionsAdmin {
+  id: string;
+  version: number;
+  texte: string;
+  publieLe: string;
+  publiePar: string | null;
+  /** Hôtels inscrits en acceptant cette version (absent dans la réponse d'une publication). */
+  hotelsAyantAccepte?: number;
+}
+
 export class ClientSuperAdmin {
   constructor(
     private readonly baseUrl: string,
@@ -100,6 +111,16 @@ export class ClientSuperAdmin {
 
   async supprimerFormule(code: string): Promise<void> {
     await this.requete<{ ok: true }>(`/super-admin/formules/${encodeURIComponent(code)}`, { method: "DELETE" });
+  }
+
+  /** Conditions d'utilisation (19/10/2026) : toutes les versions, la plus récente d'abord. */
+  async listerConditions(): Promise<VersionConditionsAdmin[]> {
+    return this.requete<VersionConditionsAdmin[]>("/super-admin/conditions");
+  }
+
+  /** Publie une NOUVELLE version : les inscriptions suivantes devront l'accepter. */
+  async publierConditions(texte: string): Promise<VersionConditionsAdmin> {
+    return this.requete<VersionConditionsAdmin>("/super-admin/conditions", { method: "POST", body: JSON.stringify({ texte }) });
   }
 
   async lireParametresAbonnement(): Promise<ParametresPlateformeVue> {

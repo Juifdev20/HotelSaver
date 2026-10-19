@@ -3802,3 +3802,23 @@ mobile « Comptes » restait monté et ne se rechargeait qu'après une synchroni
   prenait la moitié de la feuille. Avec un `pied`, `FeuilleModale` garde maintenant l'en-tête FIXE et monte à 94 % de l'écran ;
   le pied cafétaria tient sur une ligne (total à gauche, « À rendre » à droite) — numéro et mention provisoire sont sur le reçu.
 - **Applications 1.0.2** (versionCode 3) : ces corrections du tableau de bord et du reçu.
+
+
+## Conditions d'utilisation : acceptées à l'installation et à l'inscription, publiées depuis le super-admin (19/10/2026)
+
+- **Pourquoi** : l'installateur Windows passait directement à « Pour qui installer ? » et la plateforme n'avait aucun texte légal.
+- **Texte versionné** : table `ConditionsUtilisation` (version unique, texte, date, auteur) — migration
+  `20261019150000_conditions_utilisation`, qui insère la version 1 (texte de départ, copie dans
+  `apps/desktop/resources/conditions.txt` ; À FAIRE RELIRE, il se corrige dans le super-admin). Chaque publication crée une
+  nouvelle version, les anciennes restent : `Hotel.conditionsVersion` + `conditionsAccepteesLe` disent ce que chaque hôtel a accepté.
+- **API** : `GET /public/conditions` (dernière version) ; `InscriptionHotelDto.conditionsVersion` contrôlé par
+  `public/conditions.ts` AVANT toute création — absent : « Acceptez les conditions… mettez l'application à jour… » (les
+  applications ≤ 1.0.2 ne peuvent plus inscrire d'hôtel) ; version dépassée : « Les conditions ont changé… ». Super-admin :
+  `GET/POST /super-admin/conditions` (`ConditionsAdminController` ; texte identique refusé, numéro unique contre les doubles clics).
+- **Écrans** : case obligatoire « J'ai lu et j'accepte » + lecture du texte à l'inscription (site, mobile, bureau), le bouton
+  reste inactif sans elle ; page publique `/conditions` du site (lien dans le pied de page) ; onglet « Conditions » du super-admin
+  (édition, publication avec confirmation, historique avec le nombre d'hôtels par version).
+- **Installateur Windows** : Bienvenue (`resources/installer.nsh`, macro `customWelcomePage`, UTF-8 avec BOM) → Conditions
+  (`nsis.license`, texte lu sur l'API à la construction, copie du dépôt à défaut, UTF-8 avec BOM) → Pour qui → Dossier →
+  Installation → Terminé (« Lancer HotelSaver »). Le texte accepté est copié dans le dossier d'installation.
+- **Applications 1.0.3** (versionCode 4).

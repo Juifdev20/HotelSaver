@@ -25,6 +25,7 @@ import { FindHotelPublicQueryDto } from "./dto/find-hotel-public.query.dto";
 import { FindMenuQueryDto } from "./dto/find-menu.query.dto";
 import { InscriptionHotelDto } from "./dto/inscription-hotel.dto";
 import { essaiDejaUtilise, noterInscription, verifierLimiteInscriptions } from "./protection-inscription";
+import { conditionsActuelles, verifierConditionsAcceptees } from "./conditions";
 
 const journal = new Logger("PublicService");
 import { MotDePasseOublieDto } from "./dto/mot-de-passe-oublie.dto";
@@ -120,6 +121,11 @@ export class PublicService {
       throw new NotFoundException(`Aucun hôtel disponible pour "${identifiant}".`);
     }
     return hotel;
+  }
+
+  /** Conditions d'utilisation en vigueur (19/10/2026). */
+  obtenirConditions() {
+    return conditionsActuelles(this.prisma);
   }
 
   /** Page des tarifs du site vitrine : les formules proposées avec leurs prix, tels que le super-admin les a définis. */
@@ -728,6 +734,8 @@ export class PublicService {
     // identifiant ; l'e-mail, optionnel, ne sert qu'à « mot de passe oublié ».
     const telephone = telephoneObligatoire(dto.telephoneProprietaire);
     const email = dto.email?.trim().toLowerCase() || null;
+    // Conditions d'utilisation : la version acceptée doit être la dernière publiée (19/10/2026), avant toute création.
+    const conditionsVersion = await verifierConditionsAcceptees(this.prisma, dto.conditionsVersion);
     await verifierTelephoneLibre(this.prisma, telephone);
     // Protection contre les essais abusifs (18/10/2026) : limite du jour par adresse / appareil, puis un essai par numéro à vie —
     // un numéro qui en a déjà eu un crée son hôtel SANS jours d'essai (il doit payer pour l'ouvrir).
@@ -750,6 +758,8 @@ export class PublicService {
           statutLicence: "ESSAI",
           // 0 = ce numéro a déjà eu son essai gratuit : l'hôtel existe mais doit payer pour s'ouvrir.
           ...(sansEssai && { joursEssai: 0 }),
+          conditionsVersion,
+          conditionsAccepteesLe: new Date(),
           // Un seul numéro saisi à l'inscription (15/10/2026) : sans téléphone
           // d'hôtel fourni, celui du patron sert de contact (modifiable ensuite
           // dans « Site de l'hôtel »).

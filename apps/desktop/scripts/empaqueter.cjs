@@ -31,6 +31,20 @@ const PRODUCTION = {
 const env = { ...process.env };
 for (const [cle, valeur] of Object.entries(PRODUCTION)) env[cle] = process.env[cle] || valeur;
 
+/** Texte des conditions d'utilisation en vigueur (GET /public/conditions), ou la copie du dépôt si l'API ne répond pas. */
+async function lireConditions(urlApi) {
+  try {
+    const reponse = await fetch(`${urlApi}/public/conditions`, { signal: AbortSignal.timeout(60_000) });
+    if (!reponse.ok) throw new Error(`HTTP ${reponse.status}`);
+    const { version, texte } = await reponse.json();
+    console.log(`Conditions d'utilisation : version ${version} (API).`);
+    return texte;
+  } catch (e) {
+    console.warn(`\n⚠ Conditions d'utilisation non lues sur l'API (${e.message}) : copie du dépôt resources/conditions.txt.\n`);
+    return fs.readFileSync(path.join(RACINE, "resources/conditions.txt"), "utf8");
+  }
+}
+
 async function main() {
   console.log(`API : ${env.MAIN_VITE_API_URL}\nSupabase : ${env.MAIN_VITE_SUPABASE_URL}\n`);
   execSync("npx electron-vite build", { cwd: RACINE, env, stdio: "inherit" });
@@ -42,6 +56,11 @@ async function main() {
   fs.mkdirSync(ETAPE, { recursive: true });
   fs.cpSync(path.join(RACINE, "out"), path.join(ETAPE, "out"), { recursive: true });
   fs.cpSync(path.join(RACINE, "resources"), path.join(ETAPE, "resources"), { recursive: true });
+  // Conditions d'utilisation à accepter dans l'installateur (19/10/2026) : la version publiée dans le super-admin, lue sur
+  // l'API au moment de la construction ; à défaut, la copie du dépôt (resources/conditions.txt). UTF-8 avec BOM : sans lui,
+  // NSIS lit le fichier dans la page de code Windows et les accents sont illisibles.
+  const conditions = await lireConditions(env.MAIN_VITE_API_URL);
+  fs.writeFileSync(path.join(ETAPE, "conditions-utilisation.txt"), "﻿" + conditions.replace(/\r?\n/g, "\r\n"));
   fs.writeFileSync(
     path.join(ETAPE, "package.json"),
     JSON.stringify(
@@ -75,8 +94,15 @@ async function main() {
       asar: true,
       directories: { output: SORTIE },
       files: ["out/**/*", "resources/**/*", "package.json"],
+      // Les conditions acceptées restent lisibles dans le dossier d'installation.
+      extraFiles: [{ from: "conditions-utilisation.txt", to: "Conditions d'utilisation.txt" }],
       win: { icon: "resources/icon.ico", artifactName: "HotelSaver-Setup-${version}.${ext}" },
+      // Étapes (19/10/2026) : Bienvenue → Conditions d'utilisation (« J'accepte » obligatoire) → Pour qui → Dossier →
+      // Installation → Terminé (case « Lancer HotelSaver »).
       nsis: {
+        include: "resources/installer.nsh",
+        license: "conditions-utilisation.txt",
+        runAfterFinish: true,
         oneClick: false,
         perMachine: false,
         allowToChangeInstallationDirectory: true,

@@ -32,6 +32,7 @@ export function PiedPage() {
           <a href="#tarifs">Tarifs</a>
           <a href="#faq">FAQ</a>
           <Link to="/inscription">Créer un compte</Link>
+          <Link to="/conditions">Conditions d'utilisation</Link>
         </nav>
         <ContactWhatsApp className="contact-whatsapp--pied" />
         <small>© {new Date().getFullYear()} HotelSaver. Tous droits réservés.</small>

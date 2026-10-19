@@ -38,9 +38,9 @@ export type {
 } from "./client";
 export { connecterAvecMotDePasse, rafraichirSession, connecterViaApi, rafraichirViaApi } from "./supabase-auth";
 export type { ConfigSupabaseAuth, SessionSupabase } from "./supabase-auth";
-export { inscrireHotel, listerChambresDisponibles, listerMenu, creerDemandeReservationPublique, obtenirSuiviReservation, annulerReservationPublique, preEnregistrerReservation, creerCommandeWeb, obtenirInfoPublique, listerHotelsPartenaires, demanderReinitialisationMotDePasse, reinitialiserMotDePasse, obtenirFormulesPubliques, apercuAcompte, payerAcompte, lirePaiementAcompte } from "./public";
+export { inscrireHotel, lireConditionsUtilisation, listerChambresDisponibles, listerMenu, creerDemandeReservationPublique, obtenirSuiviReservation, annulerReservationPublique, preEnregistrerReservation, creerCommandeWeb, obtenirInfoPublique, listerHotelsPartenaires, demanderReinitialisationMotDePasse, reinitialiserMotDePasse, obtenirFormulesPubliques, apercuAcompte, payerAcompte, lirePaiementAcompte } from "./public";
 export type { ConfigApiPublique } from "./public";
 export { ClientSuperAdmin } from "./super-admin";
-export type { DonneesCreationHotel, DonneesEnregistrementPaiement, DonneesAjoutDomaine, PaiementAbonnementSupport, PaiementLicenceSuperAdmin } from "./super-admin";
+export type { DonneesCreationHotel, DonneesEnregistrementPaiement, DonneesAjoutDomaine, PaiementAbonnementSupport, PaiementLicenceSuperAdmin, VersionConditionsAdmin } from "./super-admin";
 export { SuiviPaiement } from "./suivi-paiement";
 export type { EtatSuivi, OptionsSuivi, PaiementSuivi, PhasePaiement, SourcePaiement } from "./suivi-paiement";

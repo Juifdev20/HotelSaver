@@ -1,8 +1,11 @@
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { ArrowRight, Building2, Globe, Lock, MapPin, User } from "lucide-react-native";
-import type { InscriptionHotelPayload } from "@hotel-chicago/types";
+import { ArrowRight, Building2, Check, Globe, Lock, MapPin, User } from "lucide-react-native";
+import { lireConditionsUtilisation } from "@hotel-chicago/api-client";
+import type { ConditionsUtilisationPubliques, InscriptionHotelPayload } from "@hotel-chicago/types";
+import { FeuilleModale } from "../composants/FeuilleModale";
+import { candidatsApi } from "../stockage/configuration";
 import { couleurs, espacements, rayons } from "../tokens";
 import { PageAuth } from "../composants/PageAuth";
 import { ChampAuth } from "../composants/ChampAuth";
@@ -38,6 +41,19 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
   const [motDePasse, setMotDePasse] = useState("");
   const [confirmationMotDePasse, setConfirmationMotDePasse] = useState("");
   const [erreurLocale, setErreurLocale] = useState<string | null>(null);
+  // Conditions d'utilisation (19/10/2026) : case obligatoire ; la version lue part avec l'inscription.
+  const [conditions, setConditions] = useState<ConditionsUtilisationPubliques | null>(null);
+  const [conditionsAcceptees, setConditionsAcceptees] = useState(false);
+  const [lectureConditions, setLectureConditions] = useState(false);
+  const [erreurConditions, setErreurConditions] = useState<string | null>(null);
+
+  function chargerConditions() {
+    setErreurConditions(null);
+    lireConditionsUtilisation({ url: candidatsApi() })
+      .then(setConditions)
+      .catch(() => setErreurConditions("Les conditions d'utilisation n'ont pas pu être chargées : il faut une connexion internet."));
+  }
+  useEffect(chargerConditions, []);
 
   function validerEtape1(): string | null {
     if (!nom.trim()) return "Le nom de l'hôtel est obligatoire.";
@@ -59,6 +75,11 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
     if (!telephone) return setErreurLocale("Numéro invalide : 9 chiffres commençant par 8 ou 9 (ex. 970 000 000).");
     if (motDePasse.length < 8) return setErreurLocale("Le mot de passe doit contenir au moins 8 caractères.");
     if (motDePasse !== confirmationMotDePasse) return setErreurLocale("Les deux mots de passe ne correspondent pas.");
+    if (!conditions) {
+      chargerConditions();
+      return setErreurLocale(erreurConditions ?? "Chargement des conditions d'utilisation…");
+    }
+    if (!conditionsAcceptees) return setErreurLocale("Cochez la case pour accepter les conditions d'utilisation.");
 
     setErreurLocale(null);
     onSoumettre({
@@ -68,6 +89,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
       nomProprietaire: nomProprietaire.trim(),
       telephoneProprietaire: telephone,
       motDePasse,
+      conditionsVersion: conditions.version,
     }, payerMaintenant);
   }
 
@@ -197,6 +219,25 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
                 ))}
               </View>
 
+              <View style={styles.ligneConditions}>
+                <Pressable
+                  style={styles.zoneCase}
+                  onPress={() => setConditionsAcceptees((v) => !v)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: conditionsAcceptees }}
+                  accessibilityLabel="J'ai lu et j'accepte les conditions d'utilisation"
+                  hitSlop={6}
+                >
+                  <View style={[styles.case, conditionsAcceptees && styles.caseCochee]}>
+                    {conditionsAcceptees && <Check size={14} color="#fff" strokeWidth={3} />}
+                  </View>
+                  <Text style={styles.texteConditions}>J'ai lu et j'accepte les conditions d'utilisation</Text>
+                </Pressable>
+                <Pressable onPress={() => (conditions ? setLectureConditions(true) : chargerConditions())} accessibilityRole="button" hitSlop={8}>
+                  <Text style={styles.lienLire}>Lire</Text>
+                </Pressable>
+              </View>
+
               {erreurAffichee && (
                 <Text style={styles.erreur} accessibilityRole="alert">
                   {erreurAffichee}
@@ -204,9 +245,9 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
               )}
 
               <Pressable
-                style={[styles.bouton, enCours && styles.boutonDesactive]}
+                style={[styles.bouton, (enCours || !conditionsAcceptees) && styles.boutonDesactive]}
                 onPress={soumettre}
-                disabled={enCours}
+                disabled={enCours || !conditionsAcceptees}
                 accessibilityRole="button"
                 accessibilityLabel={enCours ? "Création du compte en cours" : "Créer mon compte"}
                 accessibilityState={{ disabled: enCours, busy: enCours }}
@@ -221,6 +262,33 @@ export function EcranInscription({ erreur, enCours, onSoumettre, onRetourConnexi
               Vous avez déjà un compte ?{"  "}<Text style={styles.lien}>Se connecter</Text>
             </Text>
           </Pressable>
+
+          <FeuilleModale
+            visible={lectureConditions}
+            onFermer={() => setLectureConditions(false)}
+            titre="Conditions d'utilisation"
+            pied={
+              <Pressable
+                style={styles.bouton}
+                onPress={() => {
+                  setConditionsAcceptees(true);
+                  setLectureConditions(false);
+                }}
+                accessibilityRole="button"
+              >
+                <Text style={styles.boutonTexte}>J'accepte</Text>
+              </Pressable>
+            }
+          >
+            {conditions && (
+              <>
+                <Text style={styles.versionLegale}>
+                  Version {conditions.version} — {new Date(conditions.publieLe).toLocaleDateString("fr-FR")}
+                </Text>
+                <Text style={styles.texteLegal}>{conditions.texte}</Text>
+              </>
+            )}
+          </FeuilleModale>
     </PageAuth>
   );
 }
@@ -261,6 +329,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   boutonDesactive: { opacity: 0.6 },
+  ligneConditions: { flexDirection: "row", alignItems: "center", gap: espacements.s2, marginVertical: espacements.s2 },
+  zoneCase: { flex: 1, flexDirection: "row", alignItems: "center", gap: espacements.s2 },
+  case: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
+  caseCochee: { backgroundColor: couleurs.bleu },
+  texteConditions: { flex: 1, fontSize: 14, color: couleurs.encre },
+  lienLire: { color: couleurs.bleu, fontWeight: "700", fontSize: 14, textDecorationLine: "underline" },
+  texteLegal: { fontSize: 14, lineHeight: 21, color: couleurs.encre },
+  versionLegale: { fontSize: 12, color: couleurs.encreAttenuee },
   boutonTexte: { color: "#fff", fontWeight: "700", fontSize: 16 },
   // Collé sous le bouton principal : tout tient à l'écran sans défiler.
   lienConnexion: { marginTop: 6, alignItems: "center", justifyContent: "center", height: 30 },

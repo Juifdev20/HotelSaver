@@ -12,6 +12,7 @@ import type {
   HotelPartenairePublic,
   InfoHotelPublique,
   InscriptionHotelPayload,
+  ConditionsUtilisationPubliques,
   PreEnregistrementPayload,
   Produit,
   SuiviReservationPublic,
@@ -63,6 +64,11 @@ export function inscrireHotel(config: ConfigApiPublique, dto: InscriptionHotelPa
 
 /** GET /public/chambres-disponibles (Phase 9 : sousDomaine obligatoire pour
  * résoudre le bon hôtel, voir DECISIONS.md). */
+/** GET /public/conditions : conditions d'utilisation en vigueur, à faire accepter avant l'inscription (19/10/2026). */
+export function lireConditionsUtilisation(config: ConfigApiPublique): Promise<ConditionsUtilisationPubliques> {
+  return requetePublique(config, "/public/conditions");
+}
+
 export function listerChambresDisponibles(
   config: ConfigApiPublique,
   sousDomaine: string,

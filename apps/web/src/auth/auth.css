@@ -548,3 +548,48 @@
 .ouvrir-app .badges-stores {
   justify-content: center;
 }
+
+/* Conditions d'utilisation (19/10/2026) : case obligatoire à l'inscription + page publique /conditions. */
+.case-conditions {
+  display: flex;
+  gap: var(--hc-space-2);
+  align-items: flex-start;
+  margin: var(--hc-space-3) 0;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.case-conditions input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.page-conditions {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: var(--hc-space-6) 16px;
+  background: var(--hc-surface-200);
+  min-height: 100vh;
+}
+
+.page-conditions__retour {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--hc-space-4);
+}
+
+.page-conditions__version {
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.page-conditions__texte {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}

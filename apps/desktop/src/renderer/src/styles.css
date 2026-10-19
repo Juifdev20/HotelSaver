@@ -2192,3 +2192,48 @@ button {
   height: 48px;
   border-radius: var(--hc-radius-md);
 }
+
+/* Conditions d'utilisation à l'inscription (19/10/2026) : case obligatoire + fenêtre de lecture. */
+.hc-auth__conditions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 14px 0 4px;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.hc-auth__conditions input {
+  margin-top: 3px;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.hc-auth__lien-conditions {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--hc-blue);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.hc-auth__bouton--compact {
+  width: auto;
+  margin-top: 0;
+  padding-inline: 24px;
+}
+.dialogue--conditions {
+  width: min(720px, 100%);
+  max-height: 88vh;
+  overflow: hidden;
+}
+.dialogue__texte-legal {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.55;
+  padding-right: 6px;
+}

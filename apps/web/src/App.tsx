@@ -8,6 +8,7 @@ import { configuration } from "./config";
 import { resoudreSousDomaine } from "./resoudreSousDomaine";
 import { appliquerPalette } from "./appliquerPalette";
 import { EcranInscription } from "./EcranInscription";
+import { EcranConditions } from "./EcranConditions";
 import { EcranSucces } from "./EcranSucces";
 import { EcranPayerAbonnement } from "./payer/EcranPayerAbonnement";
 import { EcranConnexionWeb, EcranMotDePasseOublie, EcranReinitialisation } from "./auth/EcransMotDePasse";
@@ -64,6 +65,7 @@ function SiteMarketing() {
       <Routes>
         <Route path="/" element={<EcranAccueil />} />
         <Route path="/inscription" element={<EcranInscriptionAvecEtat />} />
+        <Route path="/conditions" element={<EcranConditions />} />
         <Route path="/connexion" element={<EcranConnexionWeb />} />
         <Route path="/payer" element={<EcranPayerAbonnement />} />
         <Route path="/mot-de-passe-oublie" element={<EcranMotDePasseOublie />} />

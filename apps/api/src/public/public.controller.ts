@@ -44,6 +44,12 @@ export class PublicController {
     return this.publicService.obtenirInfoPublique(query);
   }
 
+  /** Conditions d'utilisation en vigueur (site, applications, construction de l'installateur Windows). */
+  @Get("conditions")
+  conditions() {
+    return this.publicService.obtenirConditions();
+  }
+
   @Get("formules")
   formules() {
     return this.publicService.obtenirFormules();

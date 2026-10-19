@@ -102,6 +102,9 @@ model Hotel {
   /// Jours d'essai de CET hôtel (null = réglage `ParametresPlateforme.joursEssai`). 0 = numéro qui a déjà eu un essai :
   /// l'hôtel est créé mais doit payer pour s'ouvrir (« un essai par numéro, à vie », 18/10/2026).
   joursEssai                 Int?
+  /// Conditions d'utilisation acceptées à l'inscription (19/10/2026) : numéro de version (ConditionsUtilisation.version) et date.
+  conditionsVersion          Int?
+  conditionsAccepteesLe      DateTime?
   /// true = suspendu À LA MAIN par le super-admin (abus, litige) : l'hôtel ne peut pas se réactiver seul en payant.
   /// false = suspendu automatiquement à l'échéance : le patron peut payer pour rouvrir.
   suspensionManuelle         Boolean       @default(false)
@@ -982,6 +985,17 @@ model InscriptionRecente {
 }
 
 /// Trace d'un hôtel supprimé automatiquement (essai abandonné, jamais payé), lue par le super-admin.
+/// Conditions d'utilisation (19/10/2026) : chaque publication depuis le super-admin crée une version ; les anciennes restent,
+/// pour savoir ce qu'un hôtel a accepté (Hotel.conditionsVersion).
+model ConditionsUtilisation {
+  id        String   @id @default(uuid())
+  version   Int      @unique
+  texte     String
+  publieLe  DateTime @default(now())
+  /// Utilisateur.id du super-admin ("migration" pour la version 1).
+  publiePar String?
+}
+
 model HotelSupprime {
   id          String   @id @default(uuid())
   hotelId     String

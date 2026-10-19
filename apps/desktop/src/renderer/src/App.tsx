@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ErreurApi, demanderReinitialisationMotDePasse, inscrireHotel } from "@hotel-chicago/api-client";
+import { ErreurApi, demanderReinitialisationMotDePasse, inscrireHotel, lireConditionsUtilisation } from "@hotel-chicago/api-client";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { ouvrirMiroir, supprimerBaseIndexedDb, type GestionnaireSession, type Miroir } from "@hotel-chicago/miroir-local";
 import type { EtatSync } from "@hotel-chicago/sync-engine";
@@ -768,6 +768,7 @@ export function App() {
         erreur={erreurInscription}
         enCours={inscriptionEnCours}
         onSoumettre={sInscrire}
+        chargerConditions={() => (configuration ? lireConditionsUtilisation({ url: configuration.apiUrl }) : Promise.reject(new Error("configuration")))}
         onRetourConnexion={() => {
           setErreurInscription(null);
           setEcran("connexion");

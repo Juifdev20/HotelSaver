@@ -9,6 +9,7 @@ import { EcranConnexion } from "./EcranConnexion";
 import { EcranHotels } from "./EcranHotels";
 import { EcranPaiements } from "./EcranPaiements";
 import { EcranAbonnements } from "./EcranAbonnements";
+import { EcranConditions } from "./EcranConditions";
 import type { Onglet } from "./EnteteApp";
 import type { HotelListe } from "./etatHotel";
 
@@ -358,6 +359,10 @@ export default function App() {
         onDeconnexion={seDeconnecter}
       />
     );
+  }
+
+  if (onglet === "conditions" && client) {
+    return <EcranConditions client={client} onChangerOnglet={setOnglet} onDeconnexion={seDeconnecter} />;
   }
 
   if (onglet === "abonnements") {

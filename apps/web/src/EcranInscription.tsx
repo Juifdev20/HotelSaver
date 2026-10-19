@@ -6,6 +6,7 @@ import type { InscriptionHotelPayload } from "@hotel-chicago/types";
 import { ChampTelephone, telephoneDepuisSaisie } from "@hotel-chicago/ui";
 import { MiseEnPageAuth, Etapes } from "./auth/MiseEnPageAuth";
 import { ChampAuth } from "./auth/ChampAuth";
+import { useConditions } from "./conditions";
 
 export interface EcranInscriptionProps {
   erreur: string | null;
@@ -43,6 +44,9 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
   const [confirmationMotDePasse, setConfirmationMotDePasse] = useState("");
   const [payerMaintenant, setPayerMaintenant] = useState(false);
   const [erreurLocale, setErreurLocale] = useState<string | null>(null);
+  // Conditions d'utilisation (19/10/2026) : case obligatoire ; la version lue part avec l'inscription.
+  const { conditions, erreur: erreurConditions } = useConditions();
+  const [conditionsAcceptees, setConditionsAcceptees] = useState(false);
 
   function changerNom(valeur: string) {
     setNom(valeur);
@@ -72,6 +76,8 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
     if (!telephone) return setErreurLocale("Numéro invalide : 9 chiffres commençant par 8 ou 9 (ex. 970 000 000).");
     if (motDePasse.length < 8) return setErreurLocale("Le mot de passe doit contenir au moins 8 caractères.");
     if (motDePasse !== confirmationMotDePasse) return setErreurLocale("Les deux mots de passe ne correspondent pas.");
+    if (!conditions) return setErreurLocale(erreurConditions ?? "Chargement des conditions d'utilisation…");
+    if (!conditionsAcceptees) return setErreurLocale("Cochez la case pour accepter les conditions d'utilisation.");
 
     setErreurLocale(null);
     onSoumettre({
@@ -81,6 +87,7 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
       nomProprietaire: nomProprietaire.trim(),
       telephoneProprietaire: telephone,
       motDePasse,
+      conditionsVersion: conditions.version,
     }, payerMaintenant);
   }
 
@@ -159,13 +166,24 @@ export function EcranInscription({ erreur, enCours, onSoumettre }: EcranInscript
               </label>
             </fieldset>
 
+            <label className="case-conditions">
+              <input type="checkbox" checked={conditionsAcceptees} onChange={(e) => setConditionsAcceptees(e.target.checked)} />
+              <span>
+                J'ai lu et j'accepte les{" "}
+                <a href="/conditions" target="_blank" rel="noopener">
+                  conditions d'utilisation
+                </a>
+                {conditions ? ` (version ${conditions.version})` : ""}.
+              </span>
+            </label>
+
             {erreurAffichee && (
               <p className="auth-erreur" role="alert">
                 {erreurAffichee}
               </p>
             )}
 
-            <button type="submit" className="bouton-auth" disabled={enCours}>
+            <button type="submit" className="bouton-auth" disabled={enCours || !conditionsAcceptees}>
               {enCours ? "Création…" : "Créer mon compte"}
             </button>
             <button
