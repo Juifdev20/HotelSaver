@@ -102,7 +102,9 @@ export class LinkPayClient {
       this.logger.error("LINKPAY_API_URL doit être une adresse https:// (http:// n'est toléré qu'en local) : paiement en ligne désactivé.");
       return null;
     }
-    return brut;
+    // Adresse saisie sans le préfixe de l'API (« https://linkpayapi.onrender.com ») : ScanLinkPay répond alors « Cannot GET »
+    // à chaque appel (constaté en production le 19/10/2026) — on ajoute /api/v1, la seule version existante.
+    return /\/api\/v\d+$/i.test(brut) ? brut : `${brut}/api/v1`;
   }
 
   private numeroMarchand(): string | null {
@@ -188,7 +190,9 @@ export class LinkPayClient {
 
   private async appeler(methode: "GET" | "POST", chemin: string, corps?: Record<string, unknown>, entetes: Record<string, string> = {}): Promise<Record<string, any> | null> {
     const base = this.adresse();
-    if (!base || !this.numeroMarchand()) throw new ErreurLinkPay(503, "Le paiement en ligne n'est pas configuré sur ce serveur.");
+    // Seule l'adresse est exigée ici (19/10/2026) : le numéro marchand de la PLATEFORME ne sert qu'aux abonnements (vérifié par
+    // creerDemande via marchandPlateforme) — l'exiger pour tout appel bloquait aussi les acomptes des hôtels (vers LEUR numéro).
+    if (!base) throw new ErreurLinkPay(503, "Le paiement en ligne n'est pas configuré sur ce serveur.");
     let reponse: Response;
     try {
       reponse = await fetch(`${base}${chemin}`, {

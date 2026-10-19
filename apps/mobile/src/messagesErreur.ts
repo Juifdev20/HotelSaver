@@ -33,7 +33,10 @@ export function messageErreur(erreur: unknown, parDefaut = "Une erreur est surve
   // « Erreur 500 sur /chemin. » (message de repli de l'api-client quand le serveur n'a rien dit d'utile)
   const generique = /^Erreur (\d{3}) sur /.exec(message);
   const code = generique ? Number(generique[1]) : undefined;
-  if (code !== undefined || (statut !== undefined && statut >= 500)) {
+  // Un 503 du serveur porte souvent une phrase écrite pour l'utilisateur (« ScanLinkPay ne répond pas… ») : on la garde
+  // (19/10/2026) ; seul un message absent, générique ou technique est remplacé.
+  const phraseServeur = code === undefined && /[àâçéèêëîïôùûüœ]/i.test(message) && !MOTIFS_TECHNIQUES.test(message);
+  if (code !== undefined || (statut !== undefined && statut >= 500 && !phraseServeur)) {
     const s = code ?? statut!;
     if (s >= 500) return "Le serveur a rencontré un problème. Réessayez dans un instant ; si cela continue, prévenez le patron.";
     return PAR_STATUT[s] ?? parDefaut;
