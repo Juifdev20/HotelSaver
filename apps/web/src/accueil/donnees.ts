@@ -142,3 +142,15 @@ export const FAQ = [
       "Oui, à tout moment : vous choisissez une autre formule à votre prochain paiement. Payer d'avance ne fait perdre aucun jour. Les plafonds sont de 15 chambres pour Essentiel, 40 pour Pro, et sans limite pour Premium.",
   },
 ];
+
+/** Le fondateur, affiché dans la section « Le créateur » de l'accueil. La photo est le fichier `apps/web/public/fondateur.jpg`
+ * (remplacer le fichier suffit, rien d'autre à toucher). Les textes sont à relire et à corriger ici. */
+export const FONDATEUR = {
+  nom: "Prénom Nom",
+  titre: "Fondateur, CEO et développeur",
+  photo: "/fondateur.jpg",
+  paragraphes: [
+    "Je suis le fondateur et le développeur de HotelSaver. J'ai créé cette application pour que chaque hôtel puisse gérer sa réception et sa cafétaria simplement, même sans internet, avec des prix en dollars et en francs congolais.",
+    "Je la fais évoluer avec les retours des patrons et du personnel des hôtels. Une question, une idée, un problème : écrivez-moi directement.",
+  ],
+};

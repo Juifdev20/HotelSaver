@@ -5,6 +5,7 @@ import { Link, useLocation } from "react-router-dom";
 const LIENS = [
   { ancre: "fonctionnalites", libelle: "Fonctionnalités" },
   { ancre: "application", libelle: "Application" },
+  { ancre: "createur", libelle: "Le créateur" },
   { ancre: "hotels", libelle: "Hôtels" },
   { ancre: "tarifs", libelle: "Tarifs" },
   { ancre: "faq", libelle: "FAQ" },

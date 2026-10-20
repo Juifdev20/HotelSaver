@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Hero } from "./accueil/Hero";
 import { BlocsDetail, Chiffres, Etapes, Fonctionnalites } from "./accueil/Sections";
+import { Fondateur } from "./accueil/Fondateur";
 import { SectionApplication } from "./accueil/Stores";
 import { HotelsPartenaires } from "./accueil/HotelsPartenaires";
 import { Tarifs } from "./accueil/Tarifs";
@@ -16,6 +17,7 @@ export function EcranAccueil() {
       <Fonctionnalites />
       <BlocsDetail />
       <Etapes />
+      <Fondateur />
       <SectionApplication />
       <HotelsPartenaires />
       <Tarifs />
