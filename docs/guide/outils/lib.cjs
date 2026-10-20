@@ -87,4 +87,18 @@ async function inventaire(page) {
   });
 }
 
-module.exports = { HOTE, SORTIE, navigateur, contexte, connecter, entrer, aller, fermerTiroir, photo, inventaire };
+/**
+ * Position exacte d'un élément sur la capture, en fractions (0 à 1) : { x, y, l, h } — à recopier dans `reperes` du guide.
+ * Mesurer juste avant `photo()` (même défilement). `complet` = la capture est en pleine page (fullPage:true).
+ *   const r = await mesurer(page, page.getByRole("button", { name: "Se connecter" }));
+ */
+async function mesurer(page, locator, { complet = false } = {}) {
+  const b = await locator.first().boundingBox();
+  if (!b) return null;
+  const vue = page.viewportSize();
+  const hauteur = complet ? await page.evaluate(() => document.documentElement.scrollHeight) : vue.height;
+  const arrondi = (v) => Math.round(v * 1000) / 1000;
+  return { x: arrondi(b.x / vue.width), y: arrondi(b.y / hauteur), l: arrondi(b.width / vue.width), h: arrondi(b.height / hauteur) };
+}
+
+module.exports = { mesurer,  HOTE, SORTIE, navigateur, contexte, connecter, entrer, aller, fermerTiroir, photo, inventaire };

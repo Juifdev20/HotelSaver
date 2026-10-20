@@ -152,16 +152,16 @@ h1.titre-page, h2.titre-page { font-size: 27px; line-height: 1.15; font-weight: 
 /* ---------- Texte, listes, encadrés, tableaux ---------- */
 .bloc { margin-top: 18px; }
 .bloc h3 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; color: var(--brand); margin-bottom: 8px; }
-.bloc p { font-size: 13px; color: #33415A; margin-bottom: 8px; }
+.bloc p { font-size: 13.6px; line-height: 1.65; color: #33415A; margin-bottom: 8px; }
 .liste { list-style: none; display: grid; gap: 9px; margin: 6px 0 4px; }
-.liste li { display: flex; gap: 11px; font-size: 13px; color: #33415A; align-items: flex-start; }
+.liste li { display: flex; gap: 11px; font-size: 13.6px; color: #33415A; align-items: flex-start; }
 .liste li > .ico { margin-top: 1px; color: var(--bleu); }
 .liste--num { counter-reset: n; }
 .liste--num li::before { counter-increment: n; content: counter(n); flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--pale); color: var(--bleu); font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: -1px; }
 .encadre { display: flex; gap: 14px; padding: 15px 18px 15px 16px; border-radius: 16px; margin-top: 16px; border-left: 5px solid var(--bleu); background: var(--pale); }
 .encadre > .ico { margin-top: 1px; color: var(--bleu); }
 .encadre b { display: block; font-size: 12.8px; font-weight: 800; color: var(--brand); margin-bottom: 2px; }
-.encadre span { font-size: 12.4px; color: #33415A; line-height: 1.55; display: block; }
+.encadre span { font-size: 12.9px; color: #33415A; line-height: 1.55; display: block; }
 .encadre--attention { background: var(--danger-fond); border-left-color: var(--danger); }
 .encadre--attention > .ico, .encadre--attention b { color: var(--danger); }
 .encadre--conseil { background: var(--ok-fond); border-left-color: var(--ok); }
@@ -170,7 +170,7 @@ h1.titre-page, h2.titre-page { font-size: 27px; line-height: 1.15; font-weight: 
 .page--bleu .encadre b, .page--bleu .encadre > .ico { color: #fff; }
 .page--bleu .encadre span { color: rgba(255, 255, 255, 0.9); }
 
-table.tableau { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 14px; font-size: 12px; border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px var(--trait); }
+table.tableau { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 14px; font-size: 12.6px; border-radius: 14px; overflow: hidden; box-shadow: 0 0 0 1px var(--trait); }
 .tableau th { background: var(--brand); color: #fff; text-align: left; padding: 10px 14px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
 .tableau td { padding: 10px 14px; border-top: 1px solid var(--trait); color: #33415A; vertical-align: top; }
 .tableau tr:nth-child(even) td { background: var(--pale2); }
@@ -206,3 +206,12 @@ table.tableau { width: 100%; border-collapse: separate; border-spacing: 0; margi
 .fin__contact .ico { color: var(--or); margin-bottom: 10px; }
 .fin__contact b { display: block; font-size: 13px; margin-bottom: 3px; }
 .fin__contact span { font-size: 11.5px; color: rgba(255, 255, 255, 0.82); word-break: break-word; }
+
+/* Parcours : étapes reliées par un trait vertical */
+.parcours { list-style: none; margin: 10px 0 4px; }
+.parcours li { position: relative; display: flex; gap: 18px; padding-bottom: 22px; }
+.parcours li::before { content: ""; position: absolute; left: 17px; top: 40px; bottom: 4px; width: 2px; background: linear-gradient(var(--bleu), #BFD6FF); border-radius: 2px; }
+.parcours li:last-child::before { display: none; }
+.parcours i { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--bleu); color: #fff; font-style: normal; font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(23, 105, 224, 0.3); }
+.parcours b { display: block; font-size: 15px; line-height: 1.25; font-weight: 800; color: var(--brand); margin-top: 6px; }
+.parcours span { display: block; margin-top: 3px; font-size: 13px; line-height: 1.55; color: #44526B; }

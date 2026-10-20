@@ -14,7 +14,7 @@ export function verifierBaseJetable(): void {
   const url = process.env.DATABASE_URL ?? "";
   const local = /@(localhost|127\.0\.0\.1)(:\d+)?\//.test(url) || /[?&]host=\//.test(url);
   const nom = /\/([A-Za-z0-9_]+)(\?|$)/.exec(url)?.[1] ?? "";
-  if (!local || !(/_t$/.test(nom) || /test/i.test(nom)) || /supabase|pooler/i.test(url)) {
+  if (!local || !(/_t\d*$/.test(nom) || /test/i.test(nom)) || /supabase|pooler/i.test(url)) {
     throw new Error(
       `Refus : ces tests vident la base. DATABASE_URL doit viser une base LOCALE jetable (nom en « _t » ou « test »), pas « ${url.replace(/:\/\/.*@/, "://***@")} ».`,
     );

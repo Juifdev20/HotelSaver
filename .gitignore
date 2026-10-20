@@ -67,3 +67,5 @@ GoogleService-Info.plist
 # Guide utilisateur : images et fichiers de travail régénérables (voir docs/guide/README.md)
 docs/guide/captures/
 docs/guide/sortie/
+dist-guide/
+dist-test/

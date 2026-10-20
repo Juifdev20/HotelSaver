@@ -41,7 +41,7 @@ function reperesHtml(reperes = [], largeur, hauteur) {
       r.point
         ? `<div class="repere repere--point" style="left:${(r.x * largeur).toFixed(1)}px;top:${(r.y * hauteur).toFixed(1)}px"><b>${t(r.n)}</b></div>`
         : (
-        `<div class="repere" style="left:${(r.x * largeur).toFixed(1)}px;top:${(r.y * hauteur).toFixed(1)}px;width:${(r.l * largeur).toFixed(1)}px;height:${(r.h * hauteur).toFixed(1)}px"><b>${t(r.n)}</b></div>`
+        `<div class="repere" style="left:${(r.x * largeur).toFixed(1)}px;top:${(r.y * hauteur).toFixed(1)}px;width:${(r.l * largeur).toFixed(1)}px;height:${(r.h * hauteur).toFixed(1)}px">${r.n != null ? `<b>${t(r.n)}</b>` : ""}</div>`
       )
     )
     .join("");
@@ -54,13 +54,17 @@ export function telephone(image, largeurEcran, { reperes = [] } = {}) {
   return `<div class="tel" style="width:${largeurEcran + 18}px"><div class="tel__ilot"></div><div class="tel__ecran" style="width:${largeurEcran}px;height:${hauteur.toFixed(1)}px"><img src="${url(image)}" style="top:0" alt="">${reperesHtml(reperes, largeurEcran, hauteur)}</div></div>`;
 }
 
-/** Extrait d'écran (une tranche de la capture, de y0 à y1 en fraction de la hauteur) dans une carte flottante. */
-export function extrait(image, largeur, y0, y1, { reperes = [] } = {}) {
+/**
+ * Extrait d'écran dans une carte flottante : la tranche de la capture de y0 à y1 (fractions de la hauteur) et, si besoin,
+ * de x0 à x1 (fractions de la largeur) ; `largeur` = largeur visible de la carte en px.
+ */
+export function extrait(image, largeur, y0, y1, { reperes = [], x0 = 0, x1 = 1 } = {}) {
   const d = dimensions(image);
-  const hTotale = (largeur * d.h) / d.l;
+  const complete = largeur / (x1 - x0);
+  const hTotale = (complete * d.h) / d.l;
   const hVue = (y1 - y0) * hTotale;
-  const reperesRel = reperes.map((r) => ({ ...r, y: (r.y - y0) / (y1 - y0), h: r.h / (y1 - y0) }));
-  return `<div class="vue" style="width:${largeur}px;height:${hVue.toFixed(1)}px"><img src="${url(image)}" style="top:${(-y0 * hTotale).toFixed(1)}px" alt="">${reperesHtml(reperesRel, largeur, hVue)}</div>`;
+  const reperesRel = reperes.map((r) => ({ ...r, x: (r.x - x0) / (x1 - x0), l: (r.l ?? 0) / (x1 - x0), y: (r.y - y0) / (y1 - y0), h: (r.h ?? 0) / (y1 - y0) }));
+  return `<div class="vue" style="width:${largeur}px;height:${hVue.toFixed(1)}px"><img src="${url(image)}" style="top:${(-y0 * hTotale).toFixed(1)}px;left:${(-x0 * complete).toFixed(1)}px;width:${complete.toFixed(1)}px" alt="">${reperesHtml(reperesRel, largeur, hVue)}</div>`;
 }
 
 /* ------------------------------------------------------------------ pages de contenu */
@@ -74,10 +78,10 @@ function enteteTitre({ surtitre, titre, chapo }) {
 
 /**
  * Étapes numérotées, chacune avec son visuel. Chaque étape :
- * { titre, texte, action?, image, vue?: [y0, y1], reperes?: [{x, y, l, h, n}] } (coordonnées en fractions de la capture).
- * `vue` absent = le haut de l'écran dans un téléphone ; `vue` présent = extrait de l'écran.
+ * { titre, texte, action?, image, vue?: [y0, y1], zone?: [x0, y0, x1, y1], reperes?: [{x, y, l, h, n}] } (coordonnées en fractions de la capture).
+ * ni `vue` ni `zone` = le haut de l'écran dans un téléphone ; `vue` (tranche en hauteur) ou `zone` (rectangle) = extrait de l'écran dans une carte.
  */
-export function etapes({ surtitre, titre, chapo, etapes: liste, depart = 1 }) {
+export function etapes({ surtitre, titre, chapo, etapes: liste, depart = 1, apres = [] }) {
   const n = liste.length;
   const hauteurEtape = titre ? (n >= 3 ? 246 : 300) : n >= 3 ? 280 : 330;
   const lignes = liste
@@ -85,13 +89,13 @@ export function etapes({ surtitre, titre, chapo, etapes: liste, depart = 1 }) {
       const inverse = i % 2 === 1;
       const H = hauteurEtape;
       let visuel;
-      if (e.vue) {
+      if (e.vue || e.zone) {
         const d = dimensions(e.image);
         const ratio = d.h / d.l;
         const largeurMax = 258;
-        const [y0, y1] = e.vue;
-        const largeur = Math.min(largeurMax, (H - 44) / ((y1 - y0) * ratio));
-        visuel = `<div class="etape__visuel etape__visuel--detail" style="height:${H}px">${extrait(e.image, Math.round(largeur), y0, y1, { reperes: e.reperes })}</div>`;
+        const [x0, y0, x1, y1] = e.zone ?? [0, e.vue[0], 1, e.vue[1]];
+        const largeur = Math.min(largeurMax, ((H - 44) * (x1 - x0)) / ((y1 - y0) * ratio));
+        visuel = `<div class="etape__visuel etape__visuel--detail" style="height:${H}px">${extrait(e.image, Math.round(largeur), y0, y1, { reperes: e.reperes, x0, x1 })}</div>`;
       } else {
         visuel = `<div class="etape__visuel" style="height:${H}px"><div style="margin-top:24px">${telephone(e.image, 186, { reperes: e.reperes })}</div></div>`;
       }
@@ -100,7 +104,7 @@ export function etapes({ surtitre, titre, chapo, etapes: liste, depart = 1 }) {
       }</div>${visuel}</div>`;
     })
     .join("");
-  return contenu(`${titre || surtitre ? `<div style="margin-bottom:22px">${enteteTitre({ surtitre, titre, chapo })}</div>` : ""}${lignes}`);
+  return contenu(`${titre || surtitre ? `<div style="margin-bottom:22px">${enteteTitre({ surtitre, titre, chapo })}</div>` : ""}${lignes}${apres.map(bloc).join("")}`);
 }
 
 /**
@@ -152,13 +156,14 @@ export function encadre(type, titre, corps) {
   return `<div class="encadre${type === "attention" ? " encadre--attention" : type === "conseil" ? " encadre--conseil" : ""}">${icone(nom, 22)}<div><b>${t(titre)}</b><span>${t(corps)}</span></div></div>`;
 }
 
-/** Un bloc de texte : { h }, { p }, { liste }, { numerotee }, { encadre }, { tableau }, { cartes }, { ruban }, { html }. */
+/** Un bloc de texte : { h }, { p }, { liste }, { numerotee }, { parcours: [{ titre, texte }] } (étapes reliées par un trait), { encadre }, { tableau }, { cartes }, { ruban }, { html }. */
 export function bloc(b) {
   const sortie = [];
   if (b.h) sortie.push(`<h3>${t(b.h)}</h3>`);
   if (b.p) sortie.push(...[].concat(b.p).map((x) => `<p>${t(x)}</p>`));
   if (b.liste) sortie.push(`<ul class="liste">${b.liste.map((x) => `<li>${icone(x.icone ?? "coche", 18, 2.4)}<span>${t(x.texte ?? x)}</span></li>`).join("")}</ul>`);
   if (b.numerotee) sortie.push(`<ol class="liste liste--num">${b.numerotee.map((x) => `<li><span>${t(x)}</span></li>`).join("")}</ol>`);
+  if (b.parcours) sortie.push(`<ol class="parcours">${b.parcours.map((x, i) => `<li><i>${i + 1}</i><div><b>${t(x.titre)}</b>${x.texte ? `<span>${t(x.texte)}</span>` : ""}</div></li>`).join("")}</ol>`);
   if (b.encadre) sortie.push(encadre(b.encadre.type ?? "info", b.encadre.titre, b.encadre.texte));
   if (b.tableau) {
     const { entetes, lignes } = b.tableau;
