@@ -102,7 +102,17 @@ export function Fondateur() {
                     {initiales(FONDATEUR.nom)}
                   </span>
                 ) : (
-                  <img src={FONDATEUR.photo} alt={`${FONDATEUR.nom}, ${FONDATEUR.titre} de HotelSaver`} width={1985} height={1902} loading="lazy" decoding="async" onError={() => setPhotoCassee(true)} />
+                  <img
+                    src={FONDATEUR.photo}
+                    srcSet={FONDATEUR.photoTailles}
+                    sizes="(min-width: 860px) 300px, 190px"
+                    alt={`${FONDATEUR.nom}, ${FONDATEUR.titre} de HotelSaver`}
+                    width={1985}
+                    height={1902}
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setPhotoCassee(true)}
+                  />
                 )}
               </div>
             </motion.div>

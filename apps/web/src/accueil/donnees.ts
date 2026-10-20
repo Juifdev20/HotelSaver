@@ -151,6 +151,8 @@ export const FONDATEUR = {
   prenom: "Dieudonné",
   titre: "Fondateur, CEO et développeur",
   photo: "/fondateur.jpg",
+  /** Le navigateur choisit la taille la plus proche de l'affichage : réduire un fichier de 1985 px à 190 px en direct donne une image bruitée. */
+  photoTailles: "/fondateur-480.jpg 480w, /fondateur-960.jpg 960w, /fondateur.jpg 1985w",
   paragraphes: [
     "Je suis le fondateur et le développeur de HotelSaver. J'ai créé cette application pour que chaque hôtel puisse gérer sa réception et sa cafétaria simplement, même sans internet, avec des prix en dollars et en francs congolais.",
     "Je la fais évoluer avec les retours des patrons et du personnel des hôtels. Une question, une idée, un problème : écrivez-moi directement.",
