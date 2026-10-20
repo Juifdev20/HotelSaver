@@ -303,7 +303,7 @@ SECTIONS.menu = async ({ page }) => {
 SECTIONS.stock = async ({ page }) => {
   await m.aller(page, "Stock");
   await snap(page, "55-stock", { onglets: page.getByRole("tab", { name: "Mouvements" }), fab: SEL.nouveauMouvement(page) });
-  await page.getByRole("tab", { name: "Valeur stock" }).click();
+  await page.getByRole("tab", { name: /^Valeur/ }).click();
   await page.waitForTimeout(900);
   await snap(page, "55b-stock-valeur", { etiquettes: page.getByRole("button", { name: /^Étiquettes de prix de/ }).first() });
   await page.getByRole("tab", { name: "Mouvements" }).click();
@@ -313,7 +313,7 @@ SECTIONS.stock = async ({ page }) => {
   await page.getByRole("button", { name: /Choisir un produit/ }).click();
   await page.waitForTimeout(900);
   await snap(page, "56b-stock-choix-produit");
-  await page.getByText("Fanta 33 cl").first().click();
+  await page.getByText("Fanta 33 cl", { exact: true }).last().click();
   await page.waitForTimeout(600);
   await page.getByRole("textbox", { name: "Quantité" }).fill("24");
   await page.getByRole("textbox", { name: /Motif du mouvement/ }).fill("Livraison du fournisseur");

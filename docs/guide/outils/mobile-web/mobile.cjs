@@ -125,13 +125,12 @@ async function aller(page, libelle) {
   else {
     await page.getByRole("tab", { name: "Plus", exact: true }).click();
     await page.waitForTimeout(500);
-    // « Plus » garde l'entrée ouverte précédemment : on revient à sa liste si besoin.
-    let entree = page.getByRole("button", { name: libelle, exact: true });
-    if (!(await entree.count())) {
-      await retour(page);
-      entree = page.getByRole("button", { name: libelle, exact: true });
-    }
-    await entree.first().click({ timeout: 6000 });
+    // « Plus » garde l'écran ouvert précédemment, parfois sur plusieurs niveaux : on remonte jusqu'à sa liste.
+    // Le nom d'une entrée peut porter un compteur (« Synchronisation, 2 à vérifier ») : on compare le début du nom.
+    const nom = new RegExp(`^${libelle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(,|$)`);
+    const entree = page.getByRole("button", { name: nom }).first();
+    for (let i = 0; i < 4 && !(await entree.isVisible().catch(() => false)); i++) await retour(page);
+    await entree.click({ timeout: 6000 });
   }
   await attendreChargement(page);
 }

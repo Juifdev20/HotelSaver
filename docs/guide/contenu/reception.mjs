@@ -23,6 +23,10 @@ function mesure(nom, cle) {
 }
 /** Cadre numéroté autour d'un élément de la capture. */
 const cadre = (nom, cle, n, marge = 0.008) => {
+  if (!MESURES[nom]?.[cle]) {
+    manquants.add(`${nom}/${cle}`);
+    return null; // pas de cadre plutôt qu'un cadre au mauvais endroit
+  }
   const m = mesure(nom, cle);
   return { x: Math.max(0, m.x - marge), y: Math.max(0, m.y - marge / 2), l: m.l + 2 * marge, h: m.h + marge, n };
 };
@@ -58,7 +62,7 @@ function sur(nom, cle, n, { haut = 0.8, marge = 0.008 } = {}) {
     y1 = 1;
     y0 = Math.max(0, 1 - hauteur);
   }
-  return { image: img(nom), zone: [0, y0, 1, y1], reperes: [cadre(nom, cle, n, marge)] };
+  return { image: img(nom), zone: [0, y0, 1, y1], reperes: [cadre(nom, cle, n, marge)].filter(Boolean) };
 }
 
 const pageEtapes = etapes;
@@ -147,7 +151,7 @@ const chapitres = [
             action: "Appuyez sur un onglet",
             image: img("accueil"),
             zone: [0, 0.9, 1, 1],
-            reperes: [cadre("accueil", "barre", 1, 0.004)],
+            reperes: [cadre("accueil", "barre", 1, 0.004)].filter(Boolean),
           },
           {
             titre: "Le menu « Plus »",

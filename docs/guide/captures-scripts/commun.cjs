@@ -4,8 +4,12 @@
  *  - le site compilé et servi sur le port 4398 :
  *      cd apps/web && VITE_API_URL=http://127.0.0.1:<API> ./node_modules/.bin/vite build --outDir dist-guide
  *      ./node_modules/.bin/vite preview --outDir dist-guide --port 4398
+ *  - pour l'écran de connexion : l'application MOBILE dans le navigateur (outils/mobile-web/demarrer.sh 40400 …, GUIDE_PORT_BASE=40400).
  */
+const { join } = require("node:path");
+process.env.GUIDE_SORTIE = process.env.GUIDE_SORTIE ?? join(__dirname, "../captures/brut");
 const L = require("../outils/lib.cjs");
+const m = require("../outils/mobile-web/mobile.cjs");
 const SITE = "http://127.0.0.1:4398/";
 
 (async () => {
@@ -28,29 +32,18 @@ const SITE = "http://127.0.0.1:4398/";
   await p2.waitForTimeout(3000);
   await L.photo(p2, "commun-site-bureau");
 
-  // ---- Connexion
-  const ctx = await L.contexte(nav);
-  const page = await ctx.newPage();
-  await page.goto(L.HOTE.site);
-  await page.waitForTimeout(2000);
-  await L.photo(page, "commun-connexion");
-  await page.getByLabel("Mot de passe").fill("monmotdepasse");
-  await page.getByRole("button", { name: /Afficher la saisie/ }).click().catch(() => {});
+  // ---- Connexion : l'application mobile
+  const ctx = await m.contexte(nav, { heure: "9:41" });
+  const page = await m.ouvrir(ctx);
+  await m.photo(page, "commun-connexion");
+  await page.getByPlaceholder("Numéro de téléphone").fill("970000000");
+  await page.getByRole("textbox", { name: "Mot de passe *" }).fill("monmotdepasse");
+  await page.getByRole("button", { name: /^Afficher mot de passe/ }).click().catch(() => {});
   await page.waitForTimeout(400);
-  await L.photo(page, "commun-connexion-mdp-visible");
+  await m.photo(page, "commun-connexion-mdp-visible");
   await page.getByRole("button", { name: "Mot de passe oublié ?" }).click();
-  await page.waitForTimeout(900);
-  await L.photo(page, "commun-oubli");
-  await page.getByRole("button", { name: /Retour à la connexion/ }).click();
-  await page.waitForTimeout(600);
-  await page.getByRole("button", { name: /Ancien compte/ }).click();
-  await page.waitForTimeout(500);
-  await L.photo(page, "commun-connexion-email");
-  await page.getByLabel("Adresse e-mail").fill("gl-recep@exemple.test");
-  await page.getByLabel("Mot de passe").fill("mauvais");
-  await page.getByRole("button", { name: "Se connecter", exact: true }).click();
-  await page.waitForTimeout(2500);
-  await L.photo(page, "commun-connexion-erreur");
+  await page.waitForTimeout(1200);
+  await m.photo(page, "commun-oubli");
   await nav.close();
 })().catch((e) => {
   console.error(e);
