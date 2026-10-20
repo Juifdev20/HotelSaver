@@ -59,11 +59,6 @@ async function haut(page) {
   await page.waitForTimeout(300);
 }
 
-async function taille(page, hauteur) {
-  await page.setViewportSize({ width: 390, height: hauteur });
-  await page.waitForTimeout(700);
-}
-
 /**
  * Ouvre un onglet du bas ou une entrée de « Plus » en remontant les écrans ouverts dedans (fiche, sous-écran…).
  * `repere(page)` (facultatif) : élément visible seulement sur la liste de l'onglet, pour savoir quand s'arrêter de remonter.
@@ -121,4 +116,4 @@ async function contexteVers(nav, base, options = {}) {
   return ctx;
 }
 
-module.exports = { m, boite, union, unionDe, centrer, decaler, haut, taille, aller, appareil, contexteVers };
+module.exports = { m, boite, union, unionDe, centrer, decaler, haut, aller, appareil, contexteVers };

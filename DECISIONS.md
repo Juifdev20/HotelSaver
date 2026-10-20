@@ -3860,3 +3860,14 @@ mobile « Comptes » restait monté et ne se rechargeait qu'après une synchroni
   Chromium recopie une capture à chaque recadrage : fusionner les doublons ne gagnerait que ~10 %, non fait.
   `--images-originales` garde les PNG (impression).
 - **Applications 1.0.4** (versionCode 5) : entrée « Guide d'utilisation » sur le mobile et le bureau.
+
+
+## Écran Synchronisation : changements décrits en clair, sur le mobile comme sur le bureau (20/10/2026)
+
+- **Pourquoi** : sur le téléphone, « Vous avez essayé » montrait les données brutes (`chambreId : 98e3…`, `acompte : undefined`,
+  `client : [object Object]`). Le bureau avait déjà un traducteur (`libelles-sync.ts`), le mobile non.
+- **Commun** : le traducteur vit maintenant dans `packages/sync-engine/src/libelles.ts` (`decrireChangement`, `messageLisible`), utilisé
+  par les deux applications. Champs absents cachés ; identifiants traduits en nom quand on les connaît (`noms` : id → numéro de
+  chambre, nom du client, lus dans la copie locale, donc hors ligne aussi), cachés sinon ; objet imbriqué → son nom.
+- **Captures du guide** : toutes à la taille d'un vrai téléphone (390 × 844) ; un écran trop long est montré en plusieurs images
+  (liste « Plus » de la cafétaria : haut et bas), au lieu d'un écran artificiellement allongé.

@@ -17,6 +17,7 @@
 const { spawnSync } = require("node:child_process");
 const { existsSync, readFileSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
+process.env.GUIDE_SORTIE = process.env.GUIDE_SORTIE ?? join(__dirname, "../captures/brut");
 const m = require("../outils/mobile-web/mobile.cjs");
 
 const BASE = Number(process.env.GUIDE_PORT_BASE ?? 40200);
@@ -124,26 +125,29 @@ async function snap(page, nom, mesures = {}, opts = {}) {
   await m.photo(page, `cafetaria-${nom}`, opts);
 }
 
-async function taille(page, hauteur) {
-  await page.setViewportSize({ width: 390, height: hauteur });
-  await page.waitForTimeout(700);
-}
 
 /* ------------------------------------------------------------------ sections */
 const SECTIONS = {};
 
+// Toutes les captures ont la taille d'un vrai téléphone (390 × 844) : un écran trop long est montré en plusieurs images.
 SECTIONS.accueil = async ({ page }) => {
-  await taille(page, 960);
-  await snap(page, "04-accueil", { menuCompte: SEL.menuCompte(page), cloche: SEL.cloche(page) });
-  await taille(page, 844);
+  await snap(page, "04-accueil", {
+    menuCompte: SEL.menuCompte(page),
+    cloche: SEL.cloche(page),
+    encaissements: page.getByText(/^en dollars$/i).first(),
+    stock: page.getByText("Stock bas", { exact: true }).first(),
+    activite: page.getByText("Activité récente", { exact: true }).first(),
+  });
   await SEL.menuCompte(page).click();
   await page.waitForTimeout(900);
   await snap(page, "06-menu-compte");
   await m.fermerTiroir(page);
-  await taille(page, 1250);
   await m.aller(page, "Plus");
-  await snap(page, "05-plus");
-  await taille(page, 844);
+  const section = (t) => page.getByText(t, { exact: true }).first();
+  await snap(page, "05-plus", { cafetaria: section("Cafétaria"), recus: section("Reçus") });
+  await section("Appareil").evaluate((e) => e.scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(500);
+  await snap(page, "05b-plus-bas", { abonnement: section("Abonnement"), appareil: section("Appareil") });
 };
 
 SECTIONS.imprimante = async ({ page }) => {
@@ -294,10 +298,18 @@ SECTIONS.cuisine = async ({ page }) => {
 };
 
 SECTIONS.menu = async ({ page }) => {
-  await taille(page, 1150);
   await m.aller(page, "Menu");
-  await snap(page, "50-menu", { carte: page.getByText("Primus 72 cl", { exact: true }).first(), etiquette: page.getByRole("button", { name: /^Imprimer l'étiquette de Primus/ }) });
-  await taille(page, 844);
+  // Un article (Primus) et un plat (Capitaine grillé) ensemble à l'écran.
+  await page.getByText("Primus 72 cl", { exact: true }).first().evaluate((e) => e.scrollIntoView({ block: "start" }));
+  await page.waitForTimeout(500);
+  await snap(page, "50-menu", {
+    carte: page.getByText("Primus 72 cl", { exact: true }).first(),
+    prix: page.getByText("3.00 $", { exact: true }).first(),
+    stock: page.getByText(/^Stock : /).last(),
+    etiquette: page.getByRole("button", { name: /^Imprimer l'étiquette de Primus/ }),
+    plat: page.getByText("Capitaine grillé", { exact: true }).first(),
+    pastilles: page.getByText("Site", { exact: true }).first(),
+  });
 };
 
 SECTIONS.stock = async ({ page }) => {

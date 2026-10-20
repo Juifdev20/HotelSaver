@@ -1,6 +1,6 @@
 /**
- * Textes lisibles pour l'écran Synchronisation : un conflit ou une action refusée est décrit avec les NOMS de champs en français
- * (« Prix par nuit : 50 »), jamais en JSON brut.
+ * Textes lisibles pour l'écran Synchronisation (bureau ET mobile) : un conflit ou une action refusée est décrit avec les NOMS de
+ * champs en français (« Prix par nuit : 50 »), jamais en JSON brut, ni identifiant technique, ni « undefined ».
  */
 
 const LIBELLE_CHAMP: Record<string, string> = {
@@ -45,10 +45,18 @@ const LIBELLE_CHAMP: Record<string, string> = {
   reponseReception: "Réponse de la réception",
   date: "Date",
   departement: "Département",
+  installerImmediatement: "Arrivée immédiate (check-in)",
+  client: "Client",
+  chambreId: "Chambre",
+  clientId: "Client",
+  produitId: "Produit",
 };
 
 /** Champs purement techniques : jamais montrés à l'utilisateur. */
 const CHAMPS_TECHNIQUES = new Set(["id", "hotelId", "syncVersion", "updatedAt", "createdAt", "localId", "remoteId", "baseSyncVersion"]);
+
+/** Un identifiant (chambreId, clientLocalId…) n'est montré que traduit en nom (« Chambre 105 ») ; sinon il est caché. */
+const estIdentifiant = (cle: string) => /(Id|LocalId)$/.test(cle);
 
 const LIBELLE_VALEUR: Record<string, string> = {
   CASH: "Espèces",
@@ -89,15 +97,23 @@ function libelleValeur(valeur: unknown): string {
     return valeur;
   }
   if (Array.isArray(valeur)) return valeur.length === 0 ? "(vide)" : `${valeur.length} élément${valeur.length > 1 ? "s" : ""}`;
+  // Objet imbriqué (ex. le nouveau client d'une réservation) : son nom suffit.
+  const nom = (valeur as { nom?: unknown }).nom;
+  if (typeof nom === "string" && nom) return nom;
   return "(détail technique)";
 }
 
-/** « Prix par nuit : 50 · Statut : Libre » — vide si aucun champ lisible. */
-export function decrireChangement(changement: unknown): string {
+/**
+ * « Chambre : 105 · Date d'arrivée : 20/10/2026 · Client : Benjamin Paluku » — vide si aucun champ lisible.
+ * `noms` traduit un identifiant en libellé (id de chambre → « 105 », id de client → son nom) ; un identifiant inconnu est caché.
+ * Un champ absent (undefined) n'est pas montré.
+ */
+export function decrireChangement(changement: unknown, noms: Record<string, string> = {}): string {
   if (!changement || typeof changement !== "object") return "";
   return Object.entries(changement as Record<string, unknown>)
-    .filter(([cle, valeur]) => !CHAMPS_TECHNIQUES.has(cle) && typeof valeur !== "function")
-    .map(([cle, valeur]) => `${libelleChamp(cle)} : ${libelleValeur(valeur)}`)
+    .filter(([cle, valeur]) => !CHAMPS_TECHNIQUES.has(cle) && valeur !== undefined && typeof valeur !== "function")
+    .filter(([cle, valeur]) => !estIdentifiant(cle) || (typeof valeur === "string" && noms[valeur] !== undefined))
+    .map(([cle, valeur]) => `${libelleChamp(cle)} : ${estIdentifiant(cle) ? noms[valeur as string] : libelleValeur(valeur)}`)
     .join(" · ");
 }
 

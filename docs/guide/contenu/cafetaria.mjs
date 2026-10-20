@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { annote, encadre, etapes, texte } from "../modele.mjs";
 
 /**
@@ -6,6 +7,20 @@ import { annote, encadre, etapes, texte } from "../modele.mjs";
  * fractions de la capture : ils sont regroupés dans R pour être recalés d'un seul endroit quand les captures changent.
  */
 const C = "captures/brut/cafetaria-";
+
+/* Positions mesurées par le script de captures (captures-scripts/cafetaria-reperes.json) : refaire les captures refait les repères. */
+const MESURES = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL("../captures-scripts/cafetaria-reperes.json", import.meta.url), "utf8"));
+  } catch {
+    return {};
+  }
+})();
+/** Bulle posée sur un élément mesuré (fx, fy : position dans l'élément) ; absente si l'élément n'a pas été mesuré. */
+const bulle = (image, cle, n, titre, texteBulle, cote, fx = 0.5, fy = 0.5) => {
+  const r = MESURES[`cafetaria-${image}`]?.[cle];
+  return r ? { n, titre, texte: texteBulle, x: r.x + r.l * fx, y: r.y + r.h * fy, cote } : null;
+};
 
 /* Repères et zones (à recaler après chaque nouvelle série de captures). */
 const R = {
@@ -35,12 +50,12 @@ export default {
           chapo: "L'accueil résume votre journée. Il se met à jour tout seul.",
           image: C + "04-accueil.png",
           marques: [
-            { n: 1, titre: "Menu de votre compte", texte: "Touchez votre photo : vous voyez votre nom, l'hôtel et le bouton « Se déconnecter ».", x: 0.07, y: 0.045, cote: "g" },
-            { n: 2, titre: "Notifications", texte: "La cloche prévient d'une commande du site ou d'un stock bas. Son petit point de couleur indique si tout est envoyé.", x: 0.92, y: 0.045, cote: "d" },
-            { n: 3, titre: "Vos encaissements", texte: "Le total encaissé aujourd'hui, en dollars et en francs. Il ne compte que vos ventes de cafétaria.", x: 0.27, y: 0.43, cote: "g" },
-            { n: 4, titre: "Stock bas", texte: "Les produits presque finis. « Voir tout » ouvre le stock.", x: 0.2, y: 0.64, cote: "d" },
-            { n: 5, titre: "Activité récente", texte: "Vos dernières ventes, avec le numéro de reçu.", x: 0.2, y: 0.87, cote: "g" },
-          ],
+            bulle("04-accueil", "menuCompte", 1, "Menu de votre compte", "Touchez votre photo : vous voyez votre nom, l'hôtel et le bouton « Se déconnecter ».", "g"),
+            bulle("04-accueil", "cloche", 2, "Notifications", "La cloche prévient d'une commande du site ou d'un stock bas. Son petit point de couleur indique si tout est envoyé.", "d"),
+            bulle("04-accueil", "encaissements", 3, "Vos encaissements", "Le total encaissé aujourd'hui, en dollars et en francs. Il ne compte que vos ventes de cafétaria.", "g"),
+            bulle("04-accueil", "stock", 4, "Stock bas", "Les produits presque finis. « Voir tout » ouvre le stock.", "d"),
+            bulle("04-accueil", "activite", 5, "Activité récente", "Vos dernières ventes, avec le numéro de reçu.", "g"),
+          ].filter(Boolean),
         }),
         annote({
           surtitre: "Les rubriques",
@@ -48,12 +63,20 @@ export default {
           chapo: "Cinq boutons en bas : Accueil, Caisse, Comptes, Dépenses et Plus.",
           image: C + "05-plus.png",
           marques: [
-            { n: 1, titre: "Cafétaria", texte: "Retrait commande, Cuisine, Menu, Stock et Inventaire.", x: 0.2, y: 0.23, cote: "g" },
-            { n: 2, titre: "Reçus", texte: "Journal des reçus et Rapports mensuels.", x: 0.25, y: 0.64, cote: "d" },
-            { n: 3, titre: "Appareil", texte: "Paramètres, Imprimante et Synchronisation.", x: 0.2, y: 0.78, cote: "g" },
-          ],
-          largeurEcran: 270,
+            bulle("05-plus", "cafetaria", 1, "Cafétaria", "Retrait commande, Cuisine, Menu, Stock et Inventaire.", "g", 0.3),
+            bulle("05-plus", "recus", 2, "Reçus", "Journal des reçus et Rapports mensuels.", "d", 0.3),
+          ].filter(Boolean),
           bas: encadre("info", "« Plus » ouvre toutes les autres rubriques", "L'entrée « Cuisine » n'apparaît que si le patron a activé le suivi des commandes en cuisine. « Dépenses » a son propre bouton en bas de l'écran."),
+        }),
+        annote({
+          surtitre: "Les rubriques",
+          titre: "Le bas de « Plus »",
+          chapo: "Faites défiler « Plus » vers le bas : l'abonnement et les réglages de ce téléphone.",
+          image: C + "05b-plus-bas.png",
+          marques: [
+            bulle("05b-plus-bas", "abonnement", 1, "Abonnement", "L'état de l'abonnement de l'hôtel. C'est le patron qui le paie.", "g", 0.3),
+            bulle("05b-plus-bas", "appareil", 2, "Appareil", "Paramètres, Imprimante et Synchronisation : les réglages de ce téléphone.", "d", 0.3),
+          ].filter(Boolean),
         }),
         texte({
           surtitre: "Vos droits",
@@ -363,11 +386,11 @@ export default {
           chapo: "Dans « Plus », ouvrez « Menu » : vous voyez tout ce qui est en vente.",
           image: C + "50-menu.png",
           marques: [
-            { n: 1, titre: "Nom et pastilles", texte: "« Plat » pour un plat, « Site » s'il se commande sur le site, « Inactif » s'il n'est plus vendu.", x: 0.2, y: 0.23, cote: "g" },
-            { n: 2, titre: "Catégorie et prix", texte: "Le prix est dans sa devise, en dollars ou en francs.", x: 0.45, y: 0.3, cote: "d" },
-            { n: 3, titre: "Stock ou portions", texte: "« Stock : 47 » pour un article. Pour un plat : « Préparé à la commande » ou « Portions : 12 ».", x: 0.75, y: 0.36, cote: "d" },
-            { n: 4, titre: "Étiquette", texte: "Sur un article à code-barres, « Étiquette » imprime l'étiquette de prix.", x: 0.35, y: 0.45, cote: "g" },
-          ],
+            bulle("50-menu", "pastilles", 1, "Nom et pastilles", "« Plat » pour un plat, « Site » s'il se commande sur le site, « Inactif » s'il n'est plus vendu.", "d"),
+            bulle("50-menu", "prix", 2, "Catégorie et prix", "Le prix est dans sa devise, en dollars ou en francs.", "g"),
+            bulle("50-menu", "stock", 3, "Stock ou portions", "« Stock : 47 » pour un article. Pour un plat : « Préparé à la commande » ou « Portions : 12 ».", "d"),
+            bulle("50-menu", "etiquette", 4, "Étiquette", "Sur un article à code-barres, « Étiquette » imprime l'étiquette de prix.", "g"),
+          ].filter(Boolean),
           bas: encadre("info", "« Seul le Patron peut modifier le menu. »", "Créer un produit, changer un prix, ajouter une photo : demandez au patron. Les plats du jour qu'il choisit apparaissent en haut de la caisse, sous « Menu du jour ».") + encadre("attention", "Épuisé ou stock bas", "À la caisse, un produit « Épuisé » n'a pas de bouton « + ». « Stock bas · 4 » veut dire qu'il en reste peu. Pour un plat à portions : « Reste 12 portions »."),
         }),
       ],

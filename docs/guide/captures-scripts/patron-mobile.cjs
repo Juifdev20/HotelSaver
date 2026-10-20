@@ -14,7 +14,7 @@ const { join } = require("node:path");
 const http = require("node:http");
 process.env.GUIDE_SORTIE = process.env.GUIDE_SORTIE ?? join(__dirname, "../captures/brut");
 process.env.GUIDE_TELEPHONES = process.env.GUIDE_TELEPHONES ?? "1";
-const { m, boite, unionDe, centrer, decaler, haut, taille, aller, appareil, contexteVers } = require("./mobile-outils.cjs");
+const { m, unionDe, centrer, decaler, haut, aller, appareil, contexteVers } = require("./mobile-outils.cjs");
 const O = require("./patron-outils.cjs"); // sql() et etatReception() sur la base hotel_t
 
 const BASE = Number(process.env.GUIDE_PORT_BASE ?? 40000);
@@ -67,7 +67,6 @@ PARTIES.inscription = async (nav) => {
   const conf = page.getByRole("textbox", { name: /^Confirmer/ }).first();
   await mdp.fill("motdepasse-test");
   await conf.fill("motdepasse-test");
-  await taille(page, 1500);
   await haut(page);
   const essai = page.getByRole("radio", { name: /Essai gratuit/ }).first();
   const conditions = page.getByRole("checkbox").first();
@@ -80,7 +79,6 @@ PARTIES.inscription = async (nav) => {
     conditions: [conditions, {}],
     creer: bouton(page, /^Créer mon compte/),
   });
-  await taille(page, 844);
   const lire = bouton(page, /conditions d'utilisation|^Lire/);
   await centrer(lire);
   await lire.click();
@@ -376,10 +374,8 @@ PARTIES.rapports = async (nav) => {
 PARTIES.abonnement = async (nav) => {
   const { ctx, page } = await session(nav);
   await allerA(page, "Abonnement");
-  await taille(page, 900);
   const etat = page.getByText(/^Votre abonnement$/i).first();
   await cap(page, "patron-40-abonnement-essai", { carte: [etat, { carte: true }] });
-  await taille(page, 844);
   const formules = ["Essentiel", "Pro", "Premium"].map((f) => page.getByRole("radio", { name: new RegExp(`^Formule ${f},`) }).first());
   await centrer(texte(page, "Choisissez votre formule"), "start");
   await cap(page, "patron-41-formules", { formules: unionDe(page, [formules[0], formules[1]]) });

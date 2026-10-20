@@ -4,7 +4,7 @@ import { AlertTriangle, CloudOff, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@hotel-chicago/ui";
 import type { Miroir } from "@hotel-chicago/miroir-local";
 import { useConfirmation } from "../components/DialogueConfirmation";
-import { decrireChangement, messageLisible } from "../components/libelles-sync";
+import { decrireChangement, messageLisible } from "@hotel-chicago/sync-engine";
 import { SEUIL_ECHEC_DEFINITIF, resumerEtatSync, type ConflitSync, type EtatSync, type LigneFileAttente } from "@hotel-chicago/sync-engine";
 
 export interface EcranSynchronisationProps {

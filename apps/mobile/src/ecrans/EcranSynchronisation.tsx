@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ConflitSync, LigneFileAttente } from "@hotel-chicago/sync-engine";
-import { SEUIL_ECHEC_DEFINITIF, resumerEtatSync, type NiveauSync } from "@hotel-chicago/sync-engine";
+import { SEUIL_ECHEC_DEFINITIF, decrireChangement, resumerEtatSync, type NiveauSync } from "@hotel-chicago/sync-engine";
 import { CloudOff, RefreshCw } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -40,14 +40,6 @@ const couleursNiveau: Record<NiveauSync, string> = {
 };
 // (teintes foncées : ce sont des couleurs de TEXTE, contraste ≥ 4,5:1)
 
-function resumerChamps(donnees: unknown): string {
-  if (!donnees || typeof donnees !== "object") return String(donnees);
-  return Object.entries(donnees as Record<string, unknown>)
-    .filter(([cle]) => !["id", "updatedAt", "createdAt", "syncVersion"].includes(cle))
-    .map(([cle, valeur]) => `${cle} : ${valeur}`)
-    .join(" · ");
-}
-
 function formaterHeure(horodatage: string | null): string {
   if (!horodatage) return "Jamais";
   return heureCourte(horodatage);
@@ -60,13 +52,25 @@ function formaterHeure(horodatage: string | null): string {
  * l'acte simplement dans la base locale pour éviter un `baseSyncVersion`
  * périmé au prochain essai). */
 export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
-  const { moteurSync, miroir } = useSession();
+  const { moteurSync, miroir, client } = useSession();
   const etat = useSyncEtat();
   const resume = resumerEtatSync(etat);
   const [conflits, setConflits] = useState<ConflitSync[]>([]);
   const [actionsEchouees, setActionsEchouees] = useState<LigneFileAttente[]>([]);
   const [enResolution, setEnResolution] = useState<string | null>(null);
   const [erreurAction, setErreurAction] = useState<string | null>(null);
+  // Identifiants → noms (numéro de chambre, nom du client), lus dans la copie locale : jamais d'identifiant brut à l'écran.
+  const [noms, setNoms] = useState<Record<string, string>>({});
+  const resumerChamps = (donnees: unknown) => decrireChangement(donnees, noms) || "—";
+
+  useEffect(() => {
+    (async () => {
+      const table: Record<string, string> = {};
+      for (const ch of await client.listerChambres().catch(() => [])) table[ch.id] = ch.numero;
+      for (const cl of await client.listerClients().catch(() => [])) table[cl.id] = cl.nom;
+      setNoms(table);
+    })();
+  }, [client]);
 
   async function rechargerConflits() {
     setConflits(await moteurSync.listerConflits());

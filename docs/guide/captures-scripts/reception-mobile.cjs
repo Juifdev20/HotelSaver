@@ -105,10 +105,6 @@ async function centrer(loc, bloc = "center") {
   await loc.page().waitForTimeout(500);
 }
 
-async function taille(page, hauteur) {
-  await page.setViewportSize({ width: 390, height: hauteur });
-  await page.waitForTimeout(700);
-}
 
 const bouton = (p, nom) => p.getByRole("button", { name: nom }).first();
 const exact = (p, nom) => p.getByRole("button", { name: nom, exact: true }).first();
@@ -187,7 +183,6 @@ async function haut(page) {
 
   if (tout) {
   /* ---- 2. Accueil, Plus, notifications */
-  await taille(page, 1060);
   await cap(page, "accueil", {
     avatar: bouton(page, "Menu du compte"),
     cloche: bouton(page, /^Notifications/),
@@ -196,7 +191,6 @@ async function haut(page) {
     occupation: [texte(page, "Taux d'occupation"), { carte: true }],
     barre: onglets(page),
   });
-  await taille(page, 844);
   await aller(page, "Plus");
   await cap(page, "plus");
   await bouton(page, /^Notifications/).click();
@@ -291,14 +285,12 @@ async function haut(page) {
   /* ---- 6. Arrivées et départs, check-in */
   await aller(page, "Arrivées et départs");
   await haut(page);
-  await taille(page, 900);
   await cap(page, "arrivees", {
     titre: page.getByText(/séjours?|réservations?/i).first(),
     vues: vues(page),
     arrivee: bouton(page, /^Patrick Ilunga/),
     depart: bouton(page, /^Grâce Kabasele/),
   });
-  await taille(page, 844);
   await bouton(page, /^Patrick Ilunga/).click();
   await m.attendreChargement(page);
   await centrer(exact(page, "Check-in"));
