@@ -54,4 +54,18 @@ async function defiler(page, locator, decalage = 90) {
   await page.waitForTimeout(500);
 }
 
-module.exports = { ...L, sql, TELEPHONES, pageConnexion, seConnecter, ouvrirSession, aller, haut, defiler };
+const fs = require("node:fs");
+const path = require("node:path");
+const FICHIER_REPERES = path.join(L.SORTIE, "patron-reperes.json");
+
+/** Mesure un élément (fractions de la capture) et le range dans patron-reperes.json sous « capture/nom » : à recopier dans `reperes` du guide. */
+async function mes(page, capture, nom, locator, options) {
+  const r = await L.mesurer(page, locator, options);
+  const tout = fs.existsSync(FICHIER_REPERES) ? JSON.parse(fs.readFileSync(FICHIER_REPERES, "utf8")) : {};
+  tout[capture] = tout[capture] ?? {};
+  tout[capture][nom] = r;
+  fs.writeFileSync(FICHIER_REPERES, JSON.stringify(tout, null, 1));
+  return r;
+}
+
+module.exports = { mes, ...L, sql, TELEPHONES, pageConnexion, seConnecter, ouvrirSession, aller, haut, defiler };
