@@ -5,10 +5,10 @@
  *   node docs/guide/construire.mjs --role patron         → sortie/Guide-HotelSaver-patron.pdf (commun + patron)
  *   node docs/guide/construire.mjs --apercu              → aussi une image PNG par page dans sortie/apercu-<nom> (pour relire)
  */
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { LOGO, RACINE, chapitre, couverture, pageFinale, sommaire } from "./modele.mjs";
 
 const args = process.argv.slice(2);
@@ -18,6 +18,7 @@ const option = (nom) => {
 };
 const roleDemande = option("role");
 const apercu = args.includes("--apercu");
+const imagesOriginales = args.includes("--images-originales");
 
 const MODULES = ["commun", "patron", "reception", "cafetaria"];
 const parties = [];
@@ -85,9 +86,36 @@ const SORTIE = join(RACINE, "sortie");
 mkdirSync(SORTIE, { recursive: true });
 const base = roleUnique ? `Guide-HotelSaver-${roleUnique.id}` : "Guide-HotelSaver-complet";
 const fichierHtml = join(SORTIE, `${base}.html`);
-writeFileSync(fichierHtml, html);
+writeFileSync(fichierHtml, imagesOriginales ? html : await alleger(html));
 
 const requireApi = createRequire(join(RACINE, "../../apps/api/package.json"));
+
+/**
+ * PDF léger (lu sur téléphone, en données mobiles) : chaque image est remplacée par une copie allégée, faite une fois et gardée dans
+ * sortie/images/ — le logo du pied de page (affiché à 14-40 px) réduit à 96 px, les captures en JPEG de bonne qualité à la même
+ * définition, la photo de couverture réduite. Les fichiers d'origine ne sont pas touchés ; `--images-originales` les garde.
+ */
+async function alleger(html) {
+  const sharp = createRequire(join(RACINE, "../../apps/api/package.json"))("sharp"); // fonction appelée avant la déclaration de requireApi
+  const dossier = join(RACINE, "sortie", "images");
+  mkdirSync(dossier, { recursive: true });
+  const copies = new Map();
+  for (const [, adresse] of html.matchAll(/src="(file:\/\/[^"]+)"/g)) {
+    if (copies.has(adresse)) continue;
+    const source = fileURLToPath(adresse);
+    const nom = source.split(/[\\/]/).pop().replace(/\.(png|jpe?g)$/i, "");
+    const estLogo = /logo-hotelsaver/.test(nom);
+    const cible = join(dossier, `${nom}${estLogo ? ".png" : ".jpg"}`);
+    if (!existsSync(cible) || statSync(cible).mtimeMs < statSync(source).mtimeMs) {
+      const image = sharp(source);
+      if (estLogo) await image.resize(96).png({ compressionLevel: 9 }).toFile(cible);
+      else if (/hotel-chambre/.test(nom)) await image.resize({ width: 1000, withoutEnlargement: true }).jpeg({ quality: 78, mozjpeg: true }).toFile(cible);
+      else await image.flatten({ background: "#ffffff" }).resize({ width: 600, withoutEnlargement: true }).jpeg({ quality: 75, mozjpeg: true, chromaSubsampling: "4:2:0" }).toFile(cible);
+    }
+    copies.set(adresse, pathToFileURL(cible).href);
+  }
+  return html.replace(/src="(file:\/\/[^"]+)"/g, (_, adresse) => `src="${copies.get(adresse)}"`);
+}
 const { chromium } = requireApi("playwright-core");
 const navigateur = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium", args: ["--no-sandbox", "--allow-file-access-from-files"] });
 const page = await navigateur.newPage();

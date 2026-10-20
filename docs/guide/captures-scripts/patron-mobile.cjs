@@ -291,7 +291,11 @@ async function receptionSuite(nav) {
   await cap(page, "patron-57-journal", { encaissements: [texte(page, "Encaissements du jour"), { carte: true }] });
 
   await allerA(page, "Remboursements");
-  await cap(page, "patron-58-remboursements", { onglets: unionDe(page, ["À faire", "Historique"].map((n) => page.getByRole("tab", { name: n, exact: true }))) });
+  // L'onglet porte un compteur (« À faire (1) ») : début du nom seulement.
+  await cap(page, "patron-58-remboursements", {
+    onglets: page.getByRole("tab", { name: /^À faire/ }).first(),
+    carte: [page.getByText("Daniel Tshimanga").first(), { carte: true }],
+  });
   const rembourse = bouton(page, /^J'ai remboursé/);
   await centrer(rembourse, "end");
   await cap(page, "patron-58b-remboursement-carte", {
@@ -306,9 +310,10 @@ async function receptionSuite(nav) {
   console.log((await m.inventaire(page)).join("\n"));
   const modes = page.getByText(/Comment avez-vous remboursé/).first();
   await centrer(modes, "start");
+  // Pas de case à cocher sur le téléphone : on valide avec « Enregistrer le remboursement ».
   await cap(page, "patron-59-remboursement-confirmer", {
-    modes: [modes, {}],
-    case: [page.getByRole("checkbox").first(), {}],
+    modes: unionDe(page, [modes, page.getByRole("button", { name: /^Autre moyen/ }).first()]),
+    enregistrer: bouton(page, /^Enregistrer le remboursement/),
   });
   await m.fermerTiroir(page);
   await ctx.close();

@@ -3855,3 +3855,8 @@ mobile « Comptes » restait monté et ne se rechargeait qu'après une synchroni
   seul à publier, 401 sans connexion ou compte désactivé, 403 hors rôle, dernière version, fichier non reçu refusé).
 - **Pied de page du PDF** : logo + « Copyright © 2026 HotelSaver. Tous droits réservés. » sur toutes les pages sauf la couverture ;
   une page trop pleine est réduite à la fabrication pour ne jamais passer sous le pied (`construire.mjs`).
+- **PDF allégés** (lus en données mobiles) : `construire.mjs` remplace chaque image par une copie allégée (captures en JPEG 600 px,
+  qualité 75 ; logo du pied réduit à 96 px, il était répété ~100 fois à 100 Ko). Complet 32 → 18 Mo, guides par rôle 12-15 → ~7 Mo.
+  Chromium recopie une capture à chaque recadrage : fusionner les doublons ne gagnerait que ~10 %, non fait.
+  `--images-originales` garde les PNG (impression).
+- **Applications 1.0.4** (versionCode 5) : entrée « Guide d'utilisation » sur le mobile et le bureau.

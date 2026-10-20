@@ -354,11 +354,11 @@ export default {
           etapes: [
             {
               titre: "Ouvrez « Chambres »",
-              texte: "Chaque carte montre le numéro, le type, l'état et le prix par nuit. Les filtres « Libres », « Occupées », « Réservées » et « Nettoyage » trient la liste.",
+              texte: "Chaque carte montre le numéro, le type, l'état et le prix par nuit. Tirez la liste vers le bas pour la mettre à jour.",
               action: "Appuyez sur « Chambres » dans la barre du bas",
               image: C + "patron-51-chambres.png",
-              zone: zn("patron-51-chambres", ["nouvelle", "filtres", "premiere"], { my: 0.02 }),
-              reperes: rps(rp("patron-51-chambres", "filtres", 1)),
+              zone: zn("patron-51-chambres", ["premiere"], { my: 0.02 }),
+              reperes: rps(rp("patron-51-chambres", "premiere", 1)),
             },
             {
               titre: "Appuyez sur « + », remplissez, enregistrez",
@@ -856,8 +856,7 @@ export default {
           largeurEcran: 250,
           marques: [
             { n: 1, titre: "Nouvelle chambre", texte: "Le bouton « + » (patron seulement) ajoute une chambre.", ...pt("patron-51-chambres", "nouvelle", 0.2, 0.5), cote: "g" },
-            { n: 2, titre: "Filtres d'état", texte: "Toutes, Libres, Occupées, Réservées, Nettoyage : touchez un filtre pour trier.", ...pt("patron-51-chambres", "filtres", 0.5, 0.5), cote: "d" },
-            { n: 3, titre: "Une carte de chambre", texte: "Numéro, type, état et prix par nuit. Appuyez dessus pour ouvrir ses actions.", ...pt("patron-51-chambres", "premiere", 0.5, 0.5), cote: "g" },
+            { n: 2, titre: "Une carte de chambre", texte: "Numéro, type, état et prix par nuit. Appuyez dessus pour ouvrir ses actions.", ...pt("patron-51-chambres", "premiere", 0.5, 0.5), cote: "d" },
           ],
           bas: `<table class="tableau" style="margin-top:0"><thead><tr><th>État</th><th>Ce que cela veut dire</th></tr></thead><tbody><tr><td>Libre</td><td>Prête à être louée ou réservée.</td></tr><tr><td>Réservée</td><td>Une réservation confirmée l'attend.</td></tr><tr><td>Occupée</td><td>Un client est dans la chambre.</td></tr><tr><td>Nettoyage</td><td>Le client est parti : la chambre est à préparer.</td></tr></tbody></table>`,
         }),
@@ -970,8 +969,8 @@ export default {
               texte: "Le montant proposé est tout l'acompte ; vous pouvez en rendre moins. Choisissez « Comment avez-vous remboursé ? » : Compte ScanLinkPay, Mobile Money, Espèces ou Autre moyen. Ajoutez la référence.",
               action: "Appuyez sur « Enregistrer le remboursement »",
               image: C + "patron-59-remboursement-confirmer.png",
-              zone: zn("patron-59-remboursement-confirmer", ["modes", "case"], { my: 0.05 }),
-              reperes: rps(rp("patron-59-remboursement-confirmer", "modes", 1, 0.01, 0.004), rp("patron-59-remboursement-confirmer", "case", 2, 0.01, 0.004)),
+              zone: zn("patron-59-remboursement-confirmer", ["modes", "enregistrer"], { my: 0.03 }),
+              reperes: rps(rp("patron-59-remboursement-confirmer", "modes", 1, 0.01, 0.004), rp("patron-59-remboursement-confirmer", "enregistrer", 2, 0.01, 0.004)),
             },
             {
               titre: "Confirmez",

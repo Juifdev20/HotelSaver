@@ -14,10 +14,10 @@
   },
   "fin": {
     "titre": "Une question ? Nous sommes là.",
-    "texte": "Ce guide évolue avec l'application. Retrouvez toujours la dernière version dans votre espace, sur le site HotelSaver.",
+    "texte": "Ce guide évolue avec l'application. Retrouvez toujours la dernière version dans l'application, rubrique « Guide d'utilisation » (dans « Plus » sur le téléphone), ou sur le site HotelSaver, page « Guide ».",
     "contacts": [
       { "icone": "appel", "titre": "WhatsApp", "texte": "+243 828 497 218" },
-      { "icone": "globe", "titre": "Site web", "texte": "Rubrique « Guide » après connexion" },
+      { "icone": "globe", "titre": "Guide en ligne", "texte": "Page « Guide » du site, après connexion" },
       { "icone": "telecharger", "titre": "Téléchargement", "texte": "Application Android (APK) et Windows sur le site" }
     ]
   }

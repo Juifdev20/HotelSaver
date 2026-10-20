@@ -835,7 +835,7 @@ const chapitres = [
             titre: "Actions échouées",
             texte: "Une action refusée (par exemple une chambre prise entre-temps) est listée avec l'erreur du serveur. Appuyez sur « Retirer cette action », puis refaites-la avec une autre chambre.",
             action: "Appuyez sur « Retirer cette action »",
-            ...sur("synchro-conflit", "retirer", 3),
+            ...sur("synchro-echec", "retirer", 3),
           },
         ],
       }),

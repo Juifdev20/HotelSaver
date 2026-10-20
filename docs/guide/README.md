@@ -10,7 +10,12 @@ icônes SVG utiles seulement (`icones.mjs`).
 node docs/guide/construire.mjs                    # guide complet  -> docs/guide/sortie/Guide-HotelSaver-complet.pdf
 node docs/guide/construire.mjs --role patron      # commun + patron  (reception, cafetaria de même)
 node docs/guide/construire.mjs --apercu           # + une image PNG par page (sortie/apercu-<nom>/) pour relire
+node docs/guide/construire.mjs --images-originales  # captures d'origine (PNG), PDF ~2× plus lourd (impression)
 ```
+
+Par défaut, les images sont allégées pour une lecture sur téléphone (copies dans `sortie/images/`, refaites si la capture change) :
+captures en JPEG 600 px de large (qualité 75), logo du pied de page réduit. Guide complet ≈ 18 Mo au lieu de 32 Mo ; guides par rôle ≈ 7 Mo.
+Une fois fabriqués, les PDF se publient dans le super-admin (onglet « Guides »).
 
 Le PDF est un assemblage de pages fabriquées par `modele.mjs` (couverture, étapes avec téléphone, écran annoté, texte, encadrés…)
 et habillées par `guide.css`. Le contenu vit dans `contenu/commun.mjs`, `patron.mjs`, `reception.mjs`, `cafetaria.mjs`

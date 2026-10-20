@@ -396,9 +396,11 @@ async function haut(page) {
   await cap(page, "clients", { recherche });
   await bouton(page, /^Grâce Kabasele/).click();
   await m.attendreChargement(page);
-  const sejours = texte(page, "Séjours");
+  // Le titre porte un compteur (« Séjours (1) ») ; on entoure le titre et la liste des séjours.
+  const sejours = page.getByText(/^Séjours/i).first();
+  const premierSejour = page.getByText(/^Ch\. \d+/).first();
   if (await sejours.count()) await centrer(sejours);
-  await cap(page, "client-fiche", { sejours: [sejours, { carte: true }] });
+  await cap(page, "client-fiche", { sejours: async () => union([await boite(page, sejours), await boite(page, premierSejour, { carte: true })]) });
   await exact(page, "Compléter la fiche").click();
   await page.waitForTimeout(900);
   const enregistrer = bouton(page, /^Enregistrer/);
@@ -515,12 +517,22 @@ async function haut(page) {
   await exact(page, "Synchroniser maintenant").click().catch(() => {});
   await page.waitForTimeout(4000);
   // L'action refusée peut attendre un second passage avant d'apparaître dans « Actions échouées ».
-  for (let i = 0; i < 3 && !(await bouton(page, "Retirer cette action").count()); i++) {
+  for (let i = 0; i < 3 && !(await bouton(page, /^Retirer l.action/).count()); i++) {
     await exact(page, "Synchroniser maintenant").click().catch(() => {});
     await page.waitForTimeout(5000);
   }
   await taille(page, 1300);
-  await cap(page, "synchro-conflit", { garder: bouton(page, "Garder la version du serveur"), retirer: bouton(page, "Retirer cette action") });
+  await cap(page, "synchro-conflit", { garder: bouton(page, "Garder la version du serveur") });
+  // L'action refusée n'apparaît qu'une fois le conflit réglé : on garde la version du serveur, puis on resynchronise.
+  await bouton(page, "Garder la version du serveur").click().catch(() => {});
+  await page.waitForTimeout(1500);
+  for (let i = 0; i < 4 && !(await bouton(page, /^Retirer l.action/).count()); i++) {
+    await exact(page, "Synchroniser maintenant").click().catch(() => {});
+    await page.waitForTimeout(5000);
+  }
+  await bouton(page, /^Retirer l.action/).waitFor({ timeout: 30000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  await cap(page, "synchro-echec", { retirer: bouton(page, /^Retirer l.action/) });
   await taille(page, 844);
 
   await nav.close();
