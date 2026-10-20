@@ -1,0 +1,24 @@
+{
+  "titre": "HotelSaver",
+  "version": "Édition 1.0",
+  "date": "Octobre 2026",
+  "couverture": {
+    "titre": "Guide d'utilisation",
+    "motEnBleu": "complet",
+    "sous": "Gérez votre hôtel, de la réception à la cafétaria, simplement et même sans internet.",
+    "roles": [
+      { "icone": "cle", "libelle": "Patron" },
+      { "icone": "lit", "libelle": "Réception" },
+      { "icone": "cafe", "libelle": "Cafétaria" }
+    ]
+  },
+  "fin": {
+    "titre": "Une question ? Nous sommes là.",
+    "texte": "Ce guide évolue avec l'application. Retrouvez toujours la dernière version dans votre espace, sur le site HotelSaver.",
+    "contacts": [
+      { "icone": "appel", "titre": "WhatsApp", "texte": "+243 828 497 218" },
+      { "icone": "globe", "titre": "Site web", "texte": "Rubrique « Guide » après connexion" },
+      { "icone": "telecharger", "titre": "Téléchargement", "texte": "Application Android (APK) et Windows sur le site" }
+    ]
+  }
+}
