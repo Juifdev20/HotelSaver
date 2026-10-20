@@ -1165,7 +1165,7 @@ html {
 
 /* ---------- Bureau ---------- */
 /* Barre complète seulement quand ses dix liens tiennent sur une ligne ; en dessous, le menu ☰ (comme sur téléphone). */
-@media (min-width: 1260px) {
+@media (min-width: 1024px) {
   .marketing-nav__liens {
     display: flex;
     gap: var(--hc-space-4);
@@ -1465,7 +1465,8 @@ html {
   text-decoration: none;
   font-weight: 600;
   font-size: 15px;
-  padding: 8px 4px;
+  /* Pas de marge sur les côtés : même espacement que les autres liens de la barre. */
+  padding: 8px 0;
 }
 
 .marketing-nav__connexion:hover {

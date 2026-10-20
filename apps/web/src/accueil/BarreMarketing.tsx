@@ -5,7 +5,7 @@ import { Link, useLocation } from "react-router-dom";
 const LIENS = [
   { ancre: "fonctionnalites", libelle: "Fonctionnalités" },
   { ancre: "application", libelle: "Application" },
-  { ancre: "createur", libelle: "Le créateur" },
+  { ancre: "createur", libelle: "Créateur" },
   { ancre: "hotels", libelle: "Hôtels" },
   { ancre: "tarifs", libelle: "Tarifs" },
   { ancre: "faq", libelle: "FAQ" },
@@ -42,14 +42,14 @@ export function BarreMarketing() {
               {l.libelle}
             </a>
           ))}
-          <Link to="/payer" className="marketing-nav__connexion" onClick={() => setOuvert(false)}>
-            Payer mon abonnement
+          <Link to="/payer" className="marketing-nav__connexion" aria-label="Payer mon abonnement" onClick={() => setOuvert(false)}>
+            Payer
           </Link>
           <Link to="/guide" className="marketing-nav__connexion" onClick={() => setOuvert(false)}>
             Guide
           </Link>
           <Link to="/connexion" className="marketing-nav__connexion" onClick={() => setOuvert(false)}>
-            Se connecter
+            Connexion
           </Link>
           <Link to="/inscription" className="bouton-marketing bouton-marketing--primaire" onClick={() => setOuvert(false)}>
             Essai gratuit
