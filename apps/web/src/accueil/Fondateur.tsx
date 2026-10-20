@@ -6,9 +6,10 @@ import { FONDATEUR } from "./donnees";
 import { useFormulesPubliques } from "./useFormules";
 
 function initiales(nom: string): string {
+  // Les titres (« Ir. », « Dr », « Prof. ») ne comptent pas dans les initiales.
   return nom
     .split(/\s+/)
-    .filter(Boolean)
+    .filter((mot) => mot && !/^(ir|dr|prof|me|mr|mme)\.?$/i.test(mot))
     .slice(0, 2)
     .map((mot) => mot[0]!.toUpperCase())
     .join("");
@@ -131,7 +132,7 @@ export function Fondateur() {
                 variants={MONTEE}
                 whileHover={reduit ? undefined : { scale: 1.04 }}
                 whileTap={reduit ? undefined : { scale: 0.97 }}
-                href={lienWhatsApp(numero, `Bonjour ${FONDATEUR.nom.split(" ")[0]}, j'ai une question sur HotelSaver`)}
+                href={lienWhatsApp(numero, `Bonjour ${FONDATEUR.prenom}, j'ai une question sur HotelSaver`)}
                 target="_blank"
                 rel="noopener noreferrer"
               >

@@ -146,7 +146,9 @@ export const FAQ = [
 /** Le fondateur, affiché dans la section « Le créateur » de l'accueil. La photo est le fichier `apps/web/public/fondateur.jpg`
  * (remplacer le fichier suffit, rien d'autre à toucher). Les textes sont à relire et à corriger ici. */
 export const FONDATEUR = {
-  nom: "Prénom Nom",
+  nom: "Ir. Dieudonné Merci Jean",
+  /** Prénom d'usage (message WhatsApp : « Bonjour Dieudonné, … »). */
+  prenom: "Dieudonné",
   titre: "Fondateur, CEO et développeur",
   photo: "/fondateur.jpg",
   paragraphes: [
