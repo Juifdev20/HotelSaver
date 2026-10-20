@@ -26,7 +26,7 @@ createServer((req, res) => {
   req.on("end", () => {
     const corps = morceaux.length ? JSON.parse(Buffer.concat(morceaux).toString()) : {};
     const envoyer = (code, json) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(json)); };
-    const url = req.url ?? "";
+    const url = (req.url ?? "").replace(/^\/api\/v1/, "");
     if (url === "/__succes" || url === "/__echec") {
       const dernier = [...paiements.values()].pop();
       if (dernier) dernier.statut = url === "/__succes" ? "SUCCESS" : "FAILED";

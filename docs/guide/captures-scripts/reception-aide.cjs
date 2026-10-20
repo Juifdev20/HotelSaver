@@ -9,6 +9,10 @@ const { chromium } = createRequire(join(__dirname, "../../../apps/api/package.js
 const FICHIER_REPERES = join(L.SORTIE, "reception-reperes.json");
 const reperes = existsSync(FICHIER_REPERES) ? JSON.parse(readFileSync(FICHIER_REPERES, "utf8")) : {};
 async function noter(page, image, cle, locator, options) {
+  if ((await locator.count()) === 0) {
+    console.log(`  !! repère introuvable : ${image}/${cle}`);
+    return null;
+  }
   const m = await L.mesurer(page, locator, options);
   reperes[image] = { ...(reperes[image] ?? {}), [cle]: m };
   writeFileSync(FICHIER_REPERES, JSON.stringify(reperes, null, 1));

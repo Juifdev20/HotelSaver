@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HotelSaver (mobile, navigateur)</title>
+<style>
+  html, body { height: 100%; margin: 0; overscroll-behavior: none; font-family: Roboto, sans-serif; background: #dfe3ea; }
+  /* Cadre téléphone : plein écran dans un viewport de téléphone (captures Playwright 390 x 844) ; centré 390 x 844 sur un grand écran. */
+  #cadre { position: relative; width: 100%; height: 100%; overflow: hidden; background: #fff; }
+  @media (min-width: 520px) {
+    body { display: flex; align-items: center; justify-content: center; }
+    #cadre { width: 390px; height: 844px; max-height: 100%; border-radius: 28px; box-shadow: 0 10px 40px rgba(15, 39, 66, .25); }
+  }
+  #root { position: absolute; inset: 0; display: flex; }
+  /* Barre d'état et barre de gestes Android simulées (le système, pas l'application, les dessine) ; ?barre=0 les retire. */
+  #barre-etat, #barre-gestes { position: absolute; left: 0; right: 0; z-index: 99990; pointer-events: none; color: #1b1b1f; font-family: Roboto, sans-serif; }
+  #barre-etat { top: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px 0 24px; font-size: 13px; font-weight: 500; }
+  #barre-etat svg { height: 13px; fill: currentColor; margin-left: 5px; }
+  #barre-etat .droite { display: flex; align-items: center; }
+  #barre-gestes { bottom: 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; }
+  #barre-gestes i { width: 120px; height: 4px; border-radius: 2px; background: currentColor; opacity: .85; }
+  #barre-etat.claire, #barre-gestes.claire { color: #fff; }
+  html[data-sans-barre] #barre-etat, html[data-sans-barre] #barre-gestes { display: none; }
+</style>
+<script>
+  // Roboto (police d'Android) sous tous les noms de la pile « System » de react-native-web : sans cela, Chromium choisit une autre police du poste.
+  (function () {
+    var css = ["Roboto", "-apple-system", "BlinkMacSystemFont", "Segoe UI"].map(function (n) {
+      return '@font-face{font-family:"' + n + '";font-weight:100 900;src:url(fonts/roboto-variable.woff2) format("woff2")}';
+    }).join("");
+    document.head.appendChild(Object.assign(document.createElement("style"), { textContent: css }));
+  })();
+</script>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    window.__HS_INSETS__ = { top: Number(q.get("haut") ?? 28), bottom: Number(q.get("bas") ?? 16), left: 0, right: 0 };
+    if (q.get("barre") === "0") { document.documentElement.setAttribute("data-sans-barre", ""); window.__HS_INSETS__.top = Number(q.get("haut") ?? 28); }
+    // Icônes de la barre d'état / pilule de gestes : claires sur fond sombre, sombres sur fond clair (comme le fait Android).
+    function fond(x, y) {
+      var pile = document.elementsFromPoint(x, y);
+      for (var i = 0; i < pile.length; i++) {
+        if (pile[i].closest && pile[i].closest("#barre-etat, #barre-gestes")) continue;
+        var m = /rgba?\(([^)]+)\)/.exec(getComputedStyle(pile[i]).backgroundColor);
+        if (!m) continue;
+        var v = m[1].split(",").map(Number);
+        if (v.length < 4 || v[3] > 0.5) return v;
+      }
+      return [255, 255, 255];
+    }
+    function ajuster() {
+      [["barre-etat", 40, window.__HS_INSETS__.top / 2], ["barre-gestes", innerWidth / 2, innerHeight - 4]].forEach(function (t) {
+        var el = document.getElementById(t[0]);
+        if (!el) return;
+        var c = fond(Math.min(t[1], innerWidth - 1), Math.max(1, t[2]));
+        el.classList.toggle("claire", (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) < 140);
+      });
+    }
+    // Heure de la barre d'état : celle du navigateur (fuseau Africa/Lubumbashi dans les captures), ou ?heure=9:41 pour la figer.
+    function horloge() {
+      var f = q.get("heure"), d = new Date();
+      document.getElementById("heure").textContent = f || (d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0"));
+    }
+    window.addEventListener("load", function () { setInterval(ajuster, 250); setInterval(horloge, 1000); horloge(); });
+  })();
+</script>
+</head>
+<body>
+<div id="cadre">
+  <div id="root"></div>
+  <div id="barre-etat" aria-hidden="true">
+    <span id="heure">9:41</span>
+    <span class="droite">
+      <svg viewBox="0 0 24 16"><path d="M1 13h3v2H1zM6 10h3v5H6zM11 7h3v8h-3zM16 3h3v12h-3z"/></svg>
+      <svg viewBox="0 0 22 16"><path d="M11 3C7.6 3 4.5 4.3 2.2 6.4L0.8 5C3.5 2.5 7.1 1 11 1s7.5 1.5 10.2 4l-1.4 1.4C17.5 4.3 14.4 3 11 3zm0 4c-2.3 0-4.4.9-6 2.3L3.6 7.9C5.6 6.1 8.2 5 11 5s5.4 1.100 7.400 2.900L17 9.300C15.400 7.900 13.300 7 11 7zm0 4c-1.200 0-2.300.4-3.200 1.200L11 15.500l3.200-3.300C13.300 11.400 12.200 11 11 11z"/></svg>
+      <svg viewBox="0 0 26 16"><path d="M3 3h17a2 2 0 012 2v6a2 2 0 01-2 2H3a2 2 0 01-2-2V5a2 2 0 012-2zm0 1.500a.5.5 0 00-.5.5v6a.5.5 0 00.5.5h17a.5.5 0 00.5-.5V5a.5.5 0 00-.5-.5zM4 5.500h13v5H4zM23 6h1.500v4H23z"/></svg>
+    </span>
+  </div>
+  <div id="barre-gestes" aria-hidden="true"><i></i></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

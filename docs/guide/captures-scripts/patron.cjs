@@ -17,6 +17,11 @@ async function inscription(nav) {
   const ctx = await O.contexte(nav);
   const page = await O.pageConnexion(ctx);
   await O.photo(page, "patron-01-connexion"); ok("connexion");
+  await O.mes(page, "patron-01-connexion", "telephone", page.getByPlaceholder("970 000 000"));
+  await O.mes(page, "patron-01-connexion", "motdepasse", page.getByPlaceholder("Votre mot de passe"));
+  await O.mes(page, "patron-01-connexion", "connecter", page.getByRole("button", { name: "Se connecter", exact: true }));
+  await O.mes(page, "patron-01-connexion", "creer", page.getByRole("button", { name: "Créez votre hôtel" }));
+  await O.mes(page, "patron-01-connexion", "oubli", page.getByRole("button", { name: "Mot de passe oublié ?" }));
 
   await page.getByRole("button", { name: "Créez votre hôtel" }).click();
   await page.waitForTimeout(1200);
@@ -24,6 +29,10 @@ async function inscription(nav) {
   await page.getByLabel("Adresse (optionnelle)").fill("Avenue de la Paix, Goma");
   await page.getByLabel("Adresse (optionnelle)").blur();
   await O.photo(page, "patron-02-inscription-1"); ok("inscription 1");
+  await O.mes(page, "patron-02-inscription-1", "nom", page.getByLabel("Nom de l'hôtel *"));
+  await O.mes(page, "patron-02-inscription-1", "sousdomaine", page.getByLabel("Sous-domaine *"));
+  await O.mes(page, "patron-02-inscription-1", "adresse", page.getByLabel("Adresse (optionnelle)"));
+  await O.mes(page, "patron-02-inscription-1", "continuer", page.getByRole("button", { name: "Continuer" }));
 
   await page.getByRole("button", { name: "Continuer" }).click();
   await page.waitForTimeout(800);
@@ -32,10 +41,21 @@ async function inscription(nav) {
   await page.getByLabel("Mot de passe *", { exact: true }).fill("motdepasse-test");
   await page.getByLabel("Confirmer le mot de passe *").fill("motdepasse-test");
   await O.photo(page, "patron-03-inscription-2", { fullPage: true }); ok("inscription 2");
+  const c3 = "patron-03-inscription-2";
+  const pl = { complet: true };
+  await O.mes(page, c3, "nom", page.getByLabel("Votre nom *"), pl);
+  await O.mes(page, c3, "telephone", page.getByPlaceholder("970 000 000"), pl);
+  await O.mes(page, c3, "mdp", page.getByLabel("Mot de passe *", { exact: true }), pl);
+  await O.mes(page, c3, "confirmation", page.getByLabel("Confirmer le mot de passe *"), pl);
+  await O.mes(page, c3, "demarrage", page.locator("fieldset.hc-auth__demarrage"), pl);
+  await O.mes(page, c3, "essai", page.getByText("Essai gratuit").first(), pl);
+  await O.mes(page, c3, "conditions", page.locator("label.hc-auth__conditions"), pl);
+  await O.mes(page, c3, "creer", page.getByRole("button", { name: "Créer mon compte" }), pl);
 
   await page.getByRole("button", { name: "conditions d'utilisation" }).click();
   await page.waitForTimeout(1000);
   await O.photo(page, "patron-04-conditions"); ok("conditions");
+  await O.mes(page, "patron-04-conditions", "accepte", page.getByRole("button", { name: "J'accepte" }));
   await page.getByRole("button", { name: "J'accepte" }).click();
   await page.waitForTimeout(500);
   await page.getByText("Payer mon abonnement maintenant").scrollIntoViewIfNeeded();
@@ -49,9 +69,12 @@ async function inscription(nav) {
   await p2.waitForTimeout(800);
   await p2.getByPlaceholder("970 000 000").fill("970000001");
   await O.photo(p2, "patron-06-oubli"); ok("oubli");
+  await O.mes(p2, "patron-06-oubli", "telephone", p2.getByPlaceholder("970 000 000"));
+  await O.mes(p2, "patron-06-oubli", "continuer", p2.getByRole("button", { name: "Continuer" }));
   await p2.getByRole("button", { name: "Continuer" }).click();
   await p2.waitForTimeout(1500);
   await O.photo(p2, "patron-07-oubli-envoye"); ok("oubli envoyé");
+  await O.mes(p2, "patron-07-oubli-envoye", "retour", p2.getByRole("button", { name: "Retour à la connexion" }));
   await c2.close();
 }
 
@@ -186,11 +209,45 @@ async function reglages(nav) {
   ok("paiement en ligne");
 }
 
+async function divers(nav) {
+  const ctx = await O.contexte(nav);
+  const page = await O.ouvrirSession(ctx, "patron");
+  await O.aller(page, "Chambres");
+  await page.getByRole("button", { name: "Nouvelle chambre" }).click();
+  await page.waitForTimeout(700);
+  await page.getByLabel("Numéro", { exact: true }).fill("203");
+  await page.getByLabel("Type", { exact: true }).fill("Suite");
+  await page.getByLabel("Prix par nuit").fill("120");
+  await page.waitForTimeout(300);
+  await O.photo(page, "patron-52c-chambre-formulaire", { fullPage: true });
+  const cf = "patron-52c-chambre-formulaire";
+  await O.mes(page, cf, "numero", page.getByLabel("Numéro", { exact: true }), { complet: true });
+  await O.mes(page, cf, "type", page.getByLabel("Type", { exact: true }), { complet: true });
+  await O.mes(page, cf, "prix", page.getByLabel("Prix par nuit"), { complet: true });
+  await O.mes(page, cf, "devise", page.getByRole("group", { name: "Devise" }), { complet: true });
+  await O.mes(page, cf, "enregistrer", page.getByRole("button", { name: "Enregistrer" }), { complet: true });
+  ok("chambre");
+  await O.aller(page, "Site de l'hôtel");
+  await O.photo(page, "patron-30-site");
+  await O.mes(page, "patron-30-site", "enregistrer", page.getByRole("button", { name: "Enregistrer", exact: true }));
+  await O.mes(page, "patron-30-site", "nom", page.locator("#site-nom"));
+  await O.mes(page, "patron-30-site", "slogan", page.locator("#site-slogan"));
+  const dec = async (nom, loc, d = 120) => { await loc.first().scrollIntoViewIfNeeded(); await page.evaluate((x) => window.scrollBy(0, -x), d); await page.waitForTimeout(500); await O.photo(page, nom); };
+  await dec("patron-31-site-photos", page.getByRole("heading", { name: "Photos" }));
+  await dec("patron-32-site-services", page.getByRole("heading", { name: "Services proposés" }));
+  await O.mes(page, "patron-32-site-services", "puces", page.getByRole("group", { name: "Ajouter un service" }));
+  await dec("patron-33-site-contact", page.getByRole("heading", { name: "Contact et horaires" }));
+  await O.mes(page, "patron-33-site-contact", "horaires", page.locator(".ligne-horaires"));
+  ok("site");
+  await ctx.close();
+}
+
 (async () => {
   const nav = await O.navigateur();
   try {
     if (veut("inscription")) { console.log("inscription"); await inscription(nav); }
     if (veut("accueil")) { console.log("accueil"); await accueil(nav); }
+    if (veut("divers")) { console.log("divers"); await divers(nav); }
     if (veut("reglages")) { console.log("reglages"); await reglages(nav); }
   } finally {
     await nav.close();

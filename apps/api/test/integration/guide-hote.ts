@@ -36,13 +36,18 @@ async function semer() {
   });
   const hotelId: string = hotel.id;
   const comptes = {
-    patron: { nom: "Joël Kambale", role: "PATRON", auth: "gl-patron" },
-    recep: { nom: "Aline Masika", role: "RECEPTIONNISTE", auth: "gl-recep" },
-    caf: { nom: "Sylvie Katungu", role: "CAFETARIA", auth: "gl-caf" },
+    patron: { nom: "Joël Kambale", role: "PATRON", auth: "gl-patron", tel: "+243970000001" },
+    recep: { nom: "Aline Masika", role: "RECEPTIONNISTE", auth: "gl-recep", tel: "+243970000002" },
+    caf: { nom: "Sylvie Katungu", role: "CAFETARIA", auth: "gl-caf", tel: "+243970000003" },
   };
   const u: Record<string, any> = {};
+  // GUIDE_TELEPHONES=1 : les comptes ont aussi un numéro (connexion « par numéro » de l'application mobile : 970 000 001 / 002 / 003) ; le
+  // relais de connexion le traduit en l'e-mail gl-<rôle>@exemple.test. Sans cette variable : comptes sans numéro, comme avant (captures du bureau).
+  const avecTelephones = process.env.GUIDE_TELEPHONES === "1";
   for (const [cle, c] of Object.entries(comptes)) {
-    u[cle] = await p.utilisateur.create({ data: { hotelId, nom: c.nom, role: c.role, supabaseAuthId: c.auth, email: `${c.auth}@exemple.test` } });
+    u[cle] = await p.utilisateur.create({
+      data: { hotelId, nom: c.nom, role: c.role, supabaseAuthId: c.auth, email: `${c.auth}@exemple.test`, ...(avecTelephones ? { telephone: c.tel } : {}) },
+    });
   }
   await p.tauxChange.create({ data: { hotelId, cdfParUsd: 2800, definiPar: u.patron.id } });
 

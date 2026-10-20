@@ -1,0 +1,13 @@
+{
+  "name": "guide-mobile-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Harnais : l'application mobile HotelSaver (apps/mobile) compilée pour le web, pour les captures du guide",
+  "dependencies": {
+    "@fontsource-variable/roboto": "^5.2.5",
+    "esbuild": "^0.25.12",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-native-web": "^0.21.2"
+  }
+}
