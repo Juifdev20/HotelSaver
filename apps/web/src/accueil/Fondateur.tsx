@@ -121,8 +121,12 @@ export function Fondateur() {
             <motion.p className="createur__fonction" variants={MONTEE}>
               {FONDATEUR.titre}
             </motion.p>
-            {FONDATEUR.paragraphes.map((p) => (
-              <motion.p key={p} className="createur__paragraphe" variants={MONTEE}>
+            {FONDATEUR.paragraphes.map((p, i) => (
+              <motion.p
+                key={p}
+                className={i === 0 ? "createur__paragraphe" : "createur__paragraphe createur__paragraphe--suite"}
+                variants={MONTEE}
+              >
                 {p}
               </motion.p>
             ))}
@@ -136,7 +140,7 @@ export function Fondateur() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Écrivez-moi sur WhatsApp {formaterTelephone(numero)}
+                Écrivez-moi sur WhatsApp<span className="createur__numero"> {formaterTelephone(numero)}</span>
                 <span className="createur__fleche" aria-hidden="true">
                   →
                 </span>
