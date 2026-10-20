@@ -521,7 +521,8 @@ async function haut(page) {
     await exact(page, "Synchroniser maintenant").click().catch(() => {});
     await page.waitForTimeout(5000);
   }
-  await taille(page, 1300);
+  // Taille d'un vrai téléphone : on fait défiler jusqu'à l'élément au lieu d'allonger l'écran.
+  await centrer(bouton(page, "Garder la version du serveur"));
   await cap(page, "synchro-conflit", { garder: bouton(page, "Garder la version du serveur") });
   // L'action refusée n'apparaît qu'une fois le conflit réglé : on garde la version du serveur, puis on resynchronise.
   await bouton(page, "Garder la version du serveur").click().catch(() => {});
@@ -532,8 +533,8 @@ async function haut(page) {
   }
   await bouton(page, /^Retirer l.action/).waitFor({ timeout: 30000 }).catch(() => {});
   await page.waitForTimeout(800);
+  await centrer(bouton(page, /^Retirer l.action/));
   await cap(page, "synchro-echec", { retirer: bouton(page, /^Retirer l.action/) });
-  await taille(page, 844);
 
   await nav.close();
   console.log("terminé");
