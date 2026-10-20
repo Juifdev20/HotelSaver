@@ -205,7 +205,7 @@ export function chapitre({ numero, titre, role, icone: nomIcone, points = [] }) 
   return plein(
     `<div class="page chapitre">${formes("chapitre")}<div class="chapitre__geant">${String(numero).padStart(2, "0")}</div><div class="chapitre__role">${icone(nomIcone ?? "utilisateur", 16, 2)}${t(role)}</div><div class="chapitre__pastille"><i>${numero}</i><h2>${t(titre)}</h2></div>${
       points.length ? `<div class="chapitre__liste"><p>Dans ce chapitre</p><ul>${points.map((x) => `<li>${icone("coche", 18, 2.6)}<span>${t(x)}</span></li>`).join("")}</ul></div>` : ""
-    }</div>`
+    }{{PIED}}</div>`
   );
 }
 
@@ -224,6 +224,6 @@ export function sommaire(entrees) {
 export function pageFinale({ titre, texte: corps, contacts }) {
   const cartes = contacts.map((c) => `<div class="fin__contact">${icone(c.icone, 24)}<b>${t(c.titre)}</b><span>${t(c.texte)}</span></div>`).join("");
   return plein(
-    `<div class="page fin">${formes("chapitre")}<div class="fin__centre"><img src="${LOGO}" alt=""><h2>${t(titre)}</h2><p>${t(corps)}</p><div class="fin__contacts">${cartes}</div></div></div>`
+    `<div class="page fin">${formes("chapitre")}<div class="fin__centre"><img src="${LOGO}" alt=""><h2>${t(titre)}</h2><p>${t(corps)}</p><div class="fin__contacts">${cartes}</div></div>{{PIED}}</div>`
   );
 }

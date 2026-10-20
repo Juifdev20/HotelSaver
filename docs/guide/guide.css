@@ -43,7 +43,13 @@ strong { font-weight: 700; color: inherit; }
 .pied__num { width: 30px; height: 30px; border-radius: 50%; background: var(--bleu); color: #fff; font-weight: 800; font-size: 11px; display: flex; align-items: center; justify-content: center; }
 .pied__ligne { flex: 1; height: 1px; background: var(--trait); margin: 0 14px; }
 .pied__guide { font-weight: 600; letter-spacing: 0.04em; }
-.page--bleu .pied { color: rgba(255, 255, 255, 0.7); }
+.pied__droits { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--trait); }
+.pied__droits img { width: 14px; height: 14px; border-radius: 4px; }
+.page--bleu .pied, .chapitre .pied, .fin .pied { color: rgba(255, 255, 255, 0.7); }
+.chapitre .pied__ligne, .fin .pied__ligne, .chapitre .pied__droits, .fin .pied__droits { border-color: rgba(255, 255, 255, 0.25); }
+.chapitre .pied__ligne, .fin .pied__ligne { background: rgba(255, 255, 255, 0.25); }
+.chapitre .pied__num, .fin .pied__num { background: #fff; color: var(--brand); }
+.page--bleu .pied__droits { border-color: rgba(255, 255, 255, 0.25); }
 .page--bleu .pied__ligne { background: rgba(255, 255, 255, 0.25); }
 .page--bleu .pied__num { background: #fff; color: var(--brand); }
 

@@ -55,22 +55,25 @@ const total = premierePageContenu - 1 + pages.length + 1; // + page finale
 
 /* ---- 2. Habillage : en-tête, pied de page, numéro ---- */
 const entete = (chap, libelle) => `<div class="entete"><div class="entete__marque"><img src="${LOGO}" alt="">HotelSaver</div><div class="entete__chap"><i></i>${chap}</div></div>`;
-const pied = (n, libelle, variante) => `<div class="pied"><span class="pied__num">${n}</span><span class="pied__ligne"></span><span class="pied__guide">${libelle}</span></div>`;
+/** Pied de page : numéro, trait, nom du guide, puis logo et mention de droits (toutes les pages sauf la couverture). */
+const DROITS = "Copyright © 2026 HotelSaver. Tous droits réservés.";
+const pied = (n, libelle) =>
+  `<div class="pied"><span class="pied__num">${n}</span><span class="pied__ligne"></span><span class="pied__guide">${libelle}</span><span class="pied__droits"><img src="${LOGO}" alt="">${DROITS}</span></div>`;
 const echappe = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
 const rendu = pages.map((e, i) => {
   const n = premierePageContenu + i;
-  if (e.page.kind === "plein") return e.page.html.replace("{{PIED}}", "");
+  if (e.page.kind === "plein") return e.page.html.replace("{{PIED}}", pied(n, echappe(e.partie.guide)));
   const classe = e.page.variante === "pale" ? " page--pale" : e.page.variante === "bleu" ? " page--bleu" : "";
-  return `<div class="page${classe}">${entete(echappe(e.chap), e.partie.libelle)}<div class="corps">${e.page.corps}</div>${pied(n, echappe(`${e.partie.guide} · ${meta.titre}`), e.page.variante)}</div>`;
+  return `<div class="page${classe}">${entete(echappe(e.chap), e.partie.libelle)}<div class="corps">${e.page.corps}</div>${pied(n, echappe(e.partie.guide))}</div>`;
 });
-const pageFin = pageFinale(meta.fin).html;
+const pageFin = pageFinale(meta.fin).html.replace("{{PIED}}", pied(premierePageContenu + pages.length, echappe(titreGuide)));
 
 /* ---- 3. Sommaire (avec numéros de page) ---- */
 const lignes = lignesPartie.map((l) => (l.partie ? l : { numero: l.numero, titre: l.titre, page: premierePageContenu + l.debut }));
 const blocsSommaire = [];
 for (let i = 0; i < lignes.length; i += 19) blocsSommaire.push(lignes.slice(i, i + 19));
-const htmlSommaire = blocsSommaire.map((bloc, k) => sommaire(bloc).html.replace("{{PIED}}", pied(2 + k, echappe(`${titreGuide} · ${meta.titre}`), "pale"))).join("");
+const htmlSommaire = blocsSommaire.map((bloc, k) => sommaire(bloc).html.replace("{{PIED}}", pied(2 + k, echappe(titreGuide)))).join("");
 
 const htmlCouverture = couverture({ ...meta.couverture, titre: roleUnique ? roleUnique.guide : meta.couverture.titre, version: meta.version, date: meta.date }).html;
 
@@ -90,6 +93,32 @@ const navigateur = await chromium.launch({ executablePath: process.env.CHROMIUM_
 const page = await navigateur.newPage();
 await page.goto(pathToFileURL(fichierHtml).href, { waitUntil: "load" });
 await page.evaluate(() => document.fonts.ready);
+// Une page trop pleine passerait sous le pied (texte coupé, mention de droits recouverte) : son contenu est réduit juste assez pour tenir.
+const ajustees = await page.evaluate(() => {
+  const liste = [];
+  document.querySelectorAll(".page").forEach((pg, i) => {
+    const corps = pg.querySelector(".corps");
+    const pied = pg.querySelector(".pied");
+    if (!corps || !pied) return;
+    const limite = pied.getBoundingClientRect().top - 8;
+    const haut = corps.getBoundingClientRect().top;
+    let bas = 0;
+    corps.querySelectorAll("*").forEach((e) => {
+      const b = e.getBoundingClientRect();
+      if (!b.height || getComputedStyle(e).visibility === "hidden") return;
+      let visible = b.bottom;
+      for (let a = e.parentElement; a && a !== pg; a = a.parentElement) if (getComputedStyle(a).overflow !== "visible") visible = Math.min(visible, a.getBoundingClientRect().bottom);
+      bas = Math.max(bas, visible);
+    });
+    if (bas <= limite) return;
+    const r = (limite - haut) / (bas - haut);
+    corps.style.transformOrigin = "top center";
+    corps.style.transform = `scale(${r.toFixed(3)})`;
+    liste.push(`p${i + 1}×${r.toFixed(2)}`);
+  });
+  return liste;
+});
+if (ajustees.length) console.log(`pages réduites pour tenir au-dessus du pied : ${ajustees.join(" ")}`);
 await page.pdf({ path: join(SORTIE, `${base}.pdf`), preferCSSPageSize: true, printBackground: true });
 if (apercu) {
   const dossier = join(SORTIE, `apercu-${base}`);
