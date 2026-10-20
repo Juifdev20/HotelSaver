@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { annote, bloc, etapes, texte } from "../modele.mjs";
+import { annote, bloc, dimensions, etapes, texte } from "../modele.mjs";
 
 const C = "captures/brut/reception-";
 const img = (nom) => `${C}${nom}.png`;
@@ -34,12 +34,32 @@ const visee = (nom, cle, n, titre, texteLegende, cote, dx = 0.5, dy = 0.5) => {
 /** Rectangle de zoom (fractions) autour d'un ou plusieurs éléments, avec une marge. */
 const zoneAutour = (nom, cles, marge = 0.03) => {
   const ms = cles.map((c) => mesure(nom, c));
-  const x0 = Math.max(0, Math.min(...ms.map((m) => m.x)) - marge);
-  const x1 = Math.min(1, Math.max(...ms.map((m) => m.x + m.l)) + marge);
+  // pleine largeur : un champ coupé sur les côtés se lit mal
+  const x0 = 0;
+  const x1 = 1;
   const y0 = Math.max(0, Math.min(...ms.map((m) => m.y)) - marge);
   const y1 = Math.min(1, Math.max(...ms.map((m) => m.y + m.h)) + marge);
   return [x0, y0, x1, y1];
 };
+
+/**
+ * Étape centrée sur un élément de la capture : zoom (pleine largeur) autour de l'élément, avec son cadre numéroté.
+ * `haut` = rapport hauteur/largeur de la vue (0,8 par défaut).
+ */
+function sur(nom, cle, n, { haut = 0.8, marge = 0.008 } = {}) {
+  const m = mesure(nom, cle);
+  const d = dimensions(img(nom));
+  const f = Math.min(1, (d.l / d.h) * haut);
+  const hauteur = Math.max(f, m.h + 0.06);
+  const centre = m.y + m.h / 2;
+  let y0 = Math.max(0, centre - hauteur / 2);
+  let y1 = y0 + hauteur;
+  if (y1 > 1) {
+    y1 = 1;
+    y0 = Math.max(0, 1 - hauteur);
+  }
+  return { image: img(nom), zone: [0, y0, 1, y1], reperes: [cadre(nom, cle, n, marge)] };
+}
 
 const pageEtapes = etapes;
 
@@ -64,25 +84,19 @@ const chapitres = [
             titre: "Tapez votre numéro",
             texte: "Le code du pays (+243) est déjà écrit. Tapez les 9 chiffres de votre numéro : ils commencent par 8 ou 9, par exemple 970 000 000.",
             action: "Appuyez sur « Numéro de téléphone »",
-            image: img("connexion-remplie"),
-            zone: zoneAutour("connexion-remplie", ["numero", "motdepasse"], 0.04),
-            reperes: [cadre("connexion-remplie", "numero", 1)],
+            ...sur("connexion-remplie", "numero", 1),
           },
           {
             titre: "Tapez votre mot de passe",
             texte: "Appuyez sur l'œil pour voir ce que vous tapez. Faites attention aux majuscules et aux minuscules.",
             action: "Appuyez sur « Mot de passe »",
-            image: img("connexion-remplie"),
-            zone: zoneAutour("connexion-remplie", ["numero", "motdepasse"], 0.04),
-            reperes: [cadre("connexion-remplie", "motdepasse", 2)],
+            ...sur("connexion-remplie", "motdepasse", 2),
           },
           {
             titre: "Entrez dans l'application",
             texte: "Vous arrivez sur l'écran d'accueil. Si un message rouge apparaît, relisez votre numéro et votre mot de passe.",
             action: "Appuyez sur « Se connecter »",
-            image: img("connexion-remplie"),
-            zone: zoneAutour("connexion-remplie", ["motdepasse", "bouton"], 0.04),
-            reperes: [cadre("connexion-remplie", "bouton", 3)],
+            ...sur("connexion-remplie", "bouton", 3),
           },
         ],
       }),
@@ -95,17 +109,13 @@ const chapitres = [
             titre: "Ouvrez « Mot de passe oublié ? »",
             texte: "Ce lien se trouve sous le champ du mot de passe, sur l'écran de connexion.",
             action: "Appuyez sur « Mot de passe oublié ? »",
-            image: img("connexion-vide"),
-            zone: zoneAutour("connexion-vide", ["oublie"], 0.12),
-            reperes: [cadre("connexion-vide", "oublie", 1)],
+            ...sur("connexion-vide", "oublie", 1),
           },
           {
             titre: "Demandez le lien",
             texte: "Tapez le numéro de votre compte, puis appuyez sur « Continuer ». Si une adresse e-mail est liée à votre compte, vous recevez un lien pour choisir un nouveau mot de passe.",
             action: "Appuyez sur « Continuer »",
-            image: img("oubli"),
-            zone: zoneAutour("oubli", ["continuer"], 0.16),
-            reperes: [cadre("oubli", "continuer", 2)],
+            ...sur("oubli", "continuer", 2),
           },
         ],
         apres: [
@@ -213,8 +223,7 @@ const chapitres = [
             titre: "Touchez la chambre",
             texte: "Appuyez sur la carte de la chambre dans l'onglet Chambres.",
             action: "Appuyez sur la carte de la chambre",
-            image: img("chambres"),
-            reperes: [cadre("chambres", "carte", 1)],
+            ...sur("chambres", "carte", 1),
           },
           {
             titre: "Choisissez le nouvel état",
@@ -225,8 +234,7 @@ const chapitres = [
           {
             titre: "Vérifiez",
             texte: "La carte change tout de suite. Le changement part au serveur dès qu'il y a du réseau, même si vous étiez hors ligne.",
-            image: img("chambre-modifiee"),
-            reperes: [cadre("chambre-modifiee", "etat", 3)],
+            ...sur("chambre-modifiee", "etat", 3),
           },
         ],
       }),
@@ -274,22 +282,19 @@ const chapitres = [
             titre: "Ouvrez une nouvelle réservation",
             texte: "Dans l'onglet Réserv., le bouton rond « + » est en bas à droite de l'écran.",
             action: "Appuyez sur « + » (Nouvelle réservation)",
-            image: img("reservations"),
-            reperes: [cadre("reservations", "nouvelle", 1)],
+            ...sur("reservations", "nouvelle", 1),
           },
           {
             titre: "Choisissez les dates",
             texte: "« Arrivée » montre la date d'aujourd'hui. Pour une autre date, écrivez-la (JJ/MM/AAAA) ou choisissez-la dans le calendrier. Avec « - » et « + », réglez le nombre de nuits (de 1 à 60).",
             action: "Appuyez sur « Arrivée », puis sur « + » pour les nuits",
-            image: img("nouvelle-sejour"),
-            reperes: [cadre("nouvelle-sejour", "sejour", 2)],
+            ...sur("nouvelle-sejour", "sejour", 2),
           },
           {
             titre: "Choisissez la chambre",
             texte: "La liste donne le numéro, le type et le prix par nuit. Une chambre déjà prise sur ces dates est grisée avec « déjà réservée » : on ne peut pas la choisir.",
             action: "Appuyez sur la chambre voulue",
-            image: img("nouvelle-chambre"),
-            reperes: [cadre("nouvelle-chambre", "chambre", 3)],
+            ...sur("nouvelle-chambre", "chambre", 3),
           },
         ],
       }),
@@ -302,22 +307,19 @@ const chapitres = [
             titre: "Nouveau client",
             texte: "Appuyez sur « Nouveau client ». Seul le nom est obligatoire. Le téléphone et l'e-mail servent à joindre le client.",
             action: "Remplissez « Nom (obligatoire) »",
-            image: img("nouvelle-client"),
-            reperes: [cadre("nouvelle-client", "nom", 1)],
+            ...sur("nouvelle-client", "nom", 1),
           },
           {
             titre: "Pièce d'identité",
             texte: "Notez le type de pièce (CNI, passeport, permis…) et son numéro. Ces deux champs sont facultatifs, mais utiles pour le registre.",
             action: "Remplissez « Type de pièce » et « N° de pièce »",
-            image: img("nouvelle-piece"),
-            reperes: [cadre("nouvelle-piece", "piece", 2)],
+            ...sur("nouvelle-piece", "piece", 2),
           },
           {
             titre: "Client déjà connu",
             texte: "Appuyez sur « Client existant ». Tapez un nom ou un téléphone dans « Rechercher », puis touchez le client dans la liste. Au-delà de 30 résultats, précisez la recherche.",
             action: "Appuyez sur « Client existant »",
-            image: img("nouvelle-existant"),
-            reperes: [cadre("nouvelle-existant", "mode", 3)],
+            ...sur("nouvelle-existant", "mode", 3),
           },
         ],
       }),
@@ -330,22 +332,19 @@ const chapitres = [
             titre: "L'acompte",
             texte: "Si le client verse un acompte, tapez-le dans « Acompte versé », dans la devise de la chambre. L'application affiche « Total séjour » et « Reste à payer à l'arrivée ».",
             action: "Remplissez « Acompte versé »",
-            image: img("nouvelle-acompte"),
-            reperes: [cadre("nouvelle-acompte", "acompte", 1)],
+            ...sur("nouvelle-acompte", "acompte", 1),
           },
           {
             titre: "Demandes et arrivée immédiate",
             texte: "Notez les « Demandes spéciales » (lit bébé, étage élevé…). Si le client est déjà devant vous, cochez « Le client est déjà là — enregistrer l'arrivée tout de suite (check-in) ».",
             action: "Cochez la case si le client est là",
-            image: img("nouvelle-fin"),
-            reperes: [cadre("nouvelle-fin", "case", 2)],
+            ...sur("nouvelle-fin", "case", 2),
           },
           {
             titre: "Créez la réservation",
             texte: "La fiche de la réservation s'ouvre avec son statut. Elle est enregistrée même sans internet.",
             action: "Appuyez sur « Créer la réservation »",
-            image: img("reservation-creee"),
-            reperes: [cadre("reservation-creee", "statut", 3)],
+            ...sur("reservation-creee", "statut", 3),
           },
         ],
       }),
@@ -393,23 +392,19 @@ const chapitres = [
             titre: "Ouvrez le planning",
             texte: "Vous le trouvez aussi dans « Plus », « Planning ».",
             action: "Appuyez sur « Planning »",
-            image: img("reservations"),
-            reperes: [cadre("reservations", "vues", 1)],
+            ...sur("reservations", "vues", 1),
           },
           {
             titre: "Lisez les couleurs",
             texte: "Les 7 jours commencent aujourd'hui. Barre bleue : confirmée. Barre verte : en cours. Barre orange : en attente. Touchez une barre pour ouvrir la réservation.",
             action: "Appuyez sur une barre colorée",
-            image: img("planning"),
-            vue: [0.22, 0.9],
-            reperes: [cadre("planning", "barre", 2)],
+            ...sur("planning", "barre", 2),
           },
           {
             titre: "Réservez une case vide",
             texte: "Touchez le « + » d'une case vide : le formulaire s'ouvre avec la chambre et la date d'arrivée déjà remplies.",
             action: "Appuyez sur « + » dans une case",
-            image: img("nouvelle-sejour"),
-            reperes: [cadre("nouvelle-sejour", "sejour", 3)],
+            ...sur("nouvelle-sejour", "sejour", 3),
           },
         ],
       }),
@@ -447,22 +442,18 @@ const chapitres = [
             titre: "Ouvrez la réservation",
             texte: "Dans la vue « Aujourd'hui », touchez la ligne du client. Vérifiez le nom, les dates et l'acompte.",
             action: "Appuyez sur la ligne du client",
-            image: img("arrivees"),
-            reperes: [cadre("arrivees", "arrivee", 1)],
+            ...sur("arrivees", "arrivee", 1),
           },
           {
             titre: "Appuyez sur « Check-in »",
             texte: "Seule une réservation « Confirmée » peut faire un check-in. Si elle est « En attente », appuyez d'abord sur « Confirmer la demande ».",
             action: "Appuyez sur « Check-in »",
-            image: img("reservation-detail"),
-            vue: [0.55, 1],
-            reperes: [cadre("reservation-detail", "checkin", 2)],
+            ...sur("reservation-detail", "checkin", 2),
           },
           {
             titre: "Vérifiez",
             texte: "Le statut passe à « En cours » et la ligne « Arrivé le … à … » donne l'heure réelle. La chambre devient « Occupée ».",
-            image: img("checkin-fait"),
-            reperes: [cadre("checkin-fait", "statut", 3)],
+            ...sur("checkin-fait", "statut", 3),
           },
         ],
       }),
@@ -487,9 +478,7 @@ const chapitres = [
             titre: "Le lien de suivi",
             texte: "« Partager le lien de suivi » envoie au client sa page « Ma réservation », où il peut se pré-enregistrer. « Répondre au client » écrit un message visible sur cette page.",
             action: "Appuyez sur « Partager le lien de suivi »",
-            image: img("reservation-detail"),
-            vue: [0.38, 0.78],
-            reperes: [cadre("reservation-detail", "suivi", 3)],
+            ...sur("reservation-detail", "suivi", 3),
           },
         ],
       }),
@@ -516,22 +505,18 @@ const chapitres = [
             titre: "Ouvrez le séjour",
             texte: "Dans Réserv., vue « En cours » (ou « Aujourd'hui »), touchez le client qui part. Un séjour doit avoir fait son check-in avant d'être facturé.",
             action: "Appuyez sur « Facturer et check-out »",
-            image: img("checkin-fait"),
-            vue: [0.55, 1],
-            reperes: [cadre("checkin-fait", "facturer", 1)],
+            ...sur("checkin-fait", "facturer", 1),
           },
           {
             titre: "Vérifiez la note",
             texte: "L'écran « Facturation » montre le prix de la chambre, l'acompte déjà versé (retiré du total) et le « Total à payer ».",
-            image: img("facturer-detail"),
-            reperes: [cadre("facturer-detail", "total", 2)],
+            ...sur("facturer-detail", "total", 2),
           },
           {
             titre: "Choisissez le mode de paiement",
             texte: "Deux choix : « Espèces » ou « Mobile money ». Une facture de séjour ne se règle pas autrement.",
             action: "Appuyez sur « Espèces » ou « Mobile money »",
-            image: img("facturer-mode"),
-            reperes: [cadre("facturer-mode", "mode", 3)],
+            ...sur("facturer-mode", "mode", 3),
           },
         ],
       }),
@@ -544,21 +529,18 @@ const chapitres = [
             titre: "La devise remise",
             texte: "Dans « Détail du règlement (optionnel) », choisissez la devise que le client vous donne : USD ou CDF. L'application écrit « Dû : 378 000 FC (1 $ = 2 800 FC) ».",
             action: "Appuyez sur « CDF »",
-            image: img("facturer-croise"),
-            reperes: [cadre("facturer-croise", "devise", 1)],
+            ...sur("facturer-croise", "devise", 1),
           },
           {
             titre: "Le montant remis",
             texte: "Tapez ce que le client vous donne, par exemple 400000. Si c'est trop peu, l'application écrit « Montant insuffisant : il faut … ».",
             action: "Remplissez « Montant remis »",
-            image: img("facturer-croise"),
-            reperes: [cadre("facturer-croise", "montant", 2)],
+            ...sur("facturer-croise", "montant", 2),
           },
           {
             titre: "La monnaie à rendre",
             texte: "Choisissez la devise de la monnaie sous « Rendre la monnaie en ». L'application affiche « Monnaie à rendre : 22 000 FC ». Rendez exactement ce montant.",
-            image: img("facturer-croise"),
-            reperes: [cadre("facturer-croise", "monnaie", 3)],
+            ...sur("facturer-croise", "monnaie", 3),
           },
         ],
       }),
@@ -571,21 +553,18 @@ const chapitres = [
             titre: "Validez",
             texte: "Appuyez sur « Facturer et check-out ». Une fenêtre résume : « Confirmer 135.00 $ en espèces ? » avec le nom du client et la chambre. Confirmez avec le même bouton.",
             action: "Appuyez sur « Facturer et check-out »",
-            image: img("facturer-mode"),
-            reperes: [cadre("facturer-mode", "valider", 1)],
+            ...sur("facturer-mode", "valider", 1),
           },
           {
             titre: "Lisez le numéro du reçu",
             texte: "L'écran « Facture créée » montre le total et le numéro du reçu. Ce numéro commence par TEMP- avec la pastille « Provisoire » : c'est normal, le numéro définitif (REC-…) arrive à la synchronisation. La chambre passe à « Nettoyage ».",
-            image: img("facture-creee"),
-            reperes: [cadre("facture-creee", "numero", 2)],
+            ...sur("facture-creee", "numero", 2),
           },
           {
             titre: "Imprimez le reçu",
             texte: "L'imprimante Bluetooth doit être appairée (Plus, Imprimante). Après l'envoi, vérifiez que le ticket est bien sorti ; sinon, recommencez.",
             action: "Appuyez sur « Imprimer le reçu »",
-            image: img("facture-creee"),
-            reperes: [cadre("facture-creee", "imprimer", 3)],
+            ...sur("facture-creee", "imprimer", 3),
           },
         ],
       }),
@@ -620,23 +599,19 @@ const chapitres = [
             titre: "Ouvrez la réservation",
             texte: "Le bouton « Annuler la réservation » existe pour les réservations En attente, Confirmée ou En cours.",
             action: "Appuyez sur « Annuler la réservation »",
-            image: img("reservation-detail"),
-            vue: [0.55, 1],
-            reperes: [cadre("reservation-detail", "annuler", 1)],
+            ...sur("reservation-detail", "annuler", 1),
           },
           {
             titre: "Écrivez le motif",
             texte: "Appuyez sur « Client non présenté » pour ce motif courant, ou écrivez le vôtre. Sans motif : « Le motif d'annulation est obligatoire. »",
             action: "Remplissez « Motif d'annulation »",
-            image: img("annuler"),
-            reperes: [cadre("annuler", "motif", 2)],
+            ...sur("annuler", "motif", 2),
           },
           {
             titre: "Confirmez",
             texte: "Le séjour passe à « Annulée » et le motif reste visible sur la fiche. Le patron est prévenu. Si le client était déjà arrivé, remettez la chambre dans le bon état (onglet Chambres).",
             action: "Appuyez sur « Confirmer l'annulation »",
-            image: img("annuler"),
-            reperes: [cadre("annuler", "confirmer", 3)],
+            ...sur("annuler", "confirmer", 3),
           },
         ],
       }),
@@ -648,14 +623,12 @@ const chapitres = [
           {
             titre: "Repérez « Payé en ligne »",
             texte: "Dans la liste, une pastille verte « Payé en ligne » est sous la réservation. L'argent est déjà dans le compte ScanLinkPay de l'hôtel : ne l'encaissez pas une seconde fois.",
-            image: img("paye-en-ligne-liste"),
-            reperes: [cadre("paye-en-ligne-liste", "badge", 1)],
+            ...sur("paye-en-ligne-liste", "badge", 1),
           },
           {
             titre: "Lisez le détail",
             texte: "Sur la fiche, le bloc « Acompte payé en ligne par le client » donne le montant, la date, le moyen de paiement et la référence.",
-            image: img("paye-en-ligne-detail"),
-            reperes: [cadre("paye-en-ligne-detail", "bloc", 2)],
+            ...sur("paye-en-ligne-detail", "bloc", 2),
           },
         ],
         apres: [
@@ -683,23 +656,19 @@ const chapitres = [
             titre: "Cherchez un client",
             texte: "Ouvrez « Plus », puis « Clients ». Tapez un nom ou un numéro de téléphone dans « Rechercher par nom ou téléphone ».",
             action: "Remplissez « Rechercher »",
-            image: img("clients"),
-            reperes: [cadre("clients", "recherche", 1)],
+            ...sur("clients", "recherche", 1),
           },
           {
             titre: "Ouvrez la fiche",
             texte: "La fiche montre le téléphone, l'e-mail, la pièce d'identité, les notes et « Séjours » : toutes ses réservations avec chambre, dates et statut.",
             action: "Appuyez sur le nom du client",
-            image: img("client-fiche"),
-            vue: [0, 0.6],
-            reperes: [cadre("client-fiche", "sejours", 2)],
+            ...sur("client-fiche", "sejours", 2),
           },
           {
             titre: "Complétez la fiche",
             texte: "Changez le nom, le téléphone, l'e-mail, le type et le numéro de pièce, ou les « Notes (suivi interne) » (VIP, habitudes…). Puis « Enregistrer » : cela marche aussi sans internet.",
             action: "Appuyez sur « Compléter la fiche »",
-            image: img("client-modifier"),
-            reperes: [cadre("client-modifier", "enregistrer", 3)],
+            ...sur("client-modifier", "enregistrer", 3),
           },
         ],
       }),
@@ -737,22 +706,19 @@ const chapitres = [
             titre: "Ouvrez Dépenses",
             texte: "Choisissez la période : « Aujourd'hui », « Ce mois » ou « Mois dernier ». Le « Total » en haut compte les dépenses de la période. Le bouton « PDF » demande une connexion.",
             action: "Appuyez sur l'onglet « Dépenses »",
-            image: img("depenses"),
-            reperes: [cadre("depenses", "pdf", 1)],
+            ...sur("depenses", "pdf", 1),
           },
           {
             titre: "Ajoutez la dépense",
             texte: "Écrivez la date (pas dans le futur), le motif (3 caractères au moins), le montant et la devise USD ou CDF. Puis « Enregistrer ».",
             action: "Appuyez sur « + » (Nouvelle dépense)",
-            image: img("depense-nouvelle"),
-            reperes: [cadre("depense-nouvelle", "motif", 2)],
+            ...sur("depense-nouvelle", "motif", 2),
           },
           {
             titre: "Corrigez ou annulez",
             texte: "Touchez une ligne pour la corriger. « Annuler cette dépense » la barre : elle reste visible, ne compte plus dans les totaux, et c'est définitif.",
             action: "Appuyez sur la ligne de la dépense",
-            image: img("depense-corriger"),
-            reperes: [cadre("depense-corriger", "annuler", 3)],
+            ...sur("depense-corriger", "annuler", 3),
           },
         ],
       }),
@@ -765,22 +731,19 @@ const chapitres = [
             titre: "Le journal des reçus",
             texte: "« Plus », « Journal des reçus » : tous les séjours encaissés, avec numéro, date et montant. « Réglé » ou « Annulé » est écrit sur chaque reçu.",
             action: "Appuyez sur « Journal des reçus »",
-            image: img("recus"),
-            reperes: [cadre("recus", "carte", 1)],
+            ...sur("recus", "carte", 1),
           },
           {
             titre: "Le détail d'un reçu",
             texte: "Touchez un reçu : mode de paiement, montant remis, taux appliqué, monnaie rendue. « Réimprimer le reçu » sort une copie.",
             action: "Appuyez sur « Réimprimer le reçu »",
-            image: img("recu-detail"),
-            reperes: [cadre("recu-detail", "reimprimer", 2)],
+            ...sur("recu-detail", "reimprimer", 2),
           },
           {
             titre: "Le rapport mensuel",
             texte: "« Plus », « Rapports mensuels ». Choisissez le mois (le mois écoulé est proposé), puis « Générer le rapport ». Ouvrez le PDF et vérifiez « Concordant ». Une connexion est nécessaire.",
             action: "Appuyez sur « Générer le rapport »",
-            image: img("rapports"),
-            reperes: [cadre("rapports", "generer", 3)],
+            ...sur("rapports", "generer", 3),
           },
         ],
       }),
@@ -833,20 +796,17 @@ const chapitres = [
           {
             titre: "Repérez le bandeau",
             texte: "« Hors ligne » en gris. Si des actions attendent, le nombre est écrit : « 2 actions à envoyer ».",
-            image: img("hl-bandeau"),
-            reperes: [cadre("hl-bandeau", "bandeau", 1)],
+            ...sur("hl-bandeau", "bandeau", 1),
           },
           {
             titre: "Encaissez comme d'habitude",
             texte: "La facture marche. Le reçu a un numéro TEMP-… et la pastille « Provisoire ». Donnez-le au client : il reste valable. Sans réseau, il garde ce numéro jusqu'à la synchronisation.",
-            image: img("recu-provisoire"),
-            reperes: [cadre("recu-provisoire", "numero", 2)],
+            ...sur("recu-provisoire", "numero", 2),
           },
           {
             titre: "Au retour du réseau",
             texte: "Le bandeau « actions à envoyer » reste un instant, puis le point de la cloche redevient vert. Le reçu reçoit son vrai numéro REC-….",
-            image: img("hl-retour"),
-            reperes: [cadre("hl-retour", "bandeau", 3)],
+            ...sur("hl-retour", "bandeau", 3),
           },
         ],
       }),
@@ -859,22 +819,19 @@ const chapitres = [
             titre: "Ouvrez Synchronisation",
             texte: "Dans « Plus », rubrique « Appareil ». Vous voyez « En ligne » ou « Hors ligne », « En attente d'envoi » et la « Dernière synchro ». « Synchroniser maintenant » force l'envoi.",
             action: "Appuyez sur « Synchroniser maintenant »",
-            image: img("synchro"),
-            reperes: [cadre("synchro", "synchroniser", 1)],
+            ...sur("synchro", "synchroniser", 1),
           },
           {
             titre: "Conflits à vérifier",
             texte: "L'écran montre « Vous avez essayé » et « État actuel du serveur ». Le serveur a raison : appuyez sur « Garder la version du serveur ».",
             action: "Appuyez sur « Garder la version du serveur »",
-            image: img("synchro-conflit"),
-            reperes: [cadre("synchro-conflit", "garder", 2)],
+            ...sur("synchro-conflit", "garder", 2),
           },
           {
             titre: "Actions échouées",
             texte: "Une action refusée (par exemple une chambre prise entre-temps) est listée avec l'erreur du serveur. Appuyez sur « Retirer cette action », puis refaites-la avec une autre chambre.",
             action: "Appuyez sur « Retirer cette action »",
-            image: img("synchro-conflit"),
-            reperes: [cadre("synchro-conflit", "retirer", 3)],
+            ...sur("synchro-conflit", "retirer", 3),
           },
         ],
       }),

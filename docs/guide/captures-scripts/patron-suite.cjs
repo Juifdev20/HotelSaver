@@ -105,6 +105,7 @@ async function abonnement(nav) {
   await page.getByTestId("parametres-abonnement").getByRole("button", { name: "Gérer" }).click();
   await page.waitForTimeout(2500);
   await essai("abonnement essai", async () => {
+    await O.haut(page);
     await O.photo(page, "patron-40-abonnement-essai");
     await O.mes(page, "patron-40-abonnement-essai", "carte", page.getByTestId("abonnement-etat"));
   });

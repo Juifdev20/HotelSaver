@@ -18,7 +18,11 @@ const REP = (() => {
     return {};
   }
 })();
-const mesure = (capture, nom) => REP[capture]?.[nom] ?? null;
+const mesure = (capture, nom) => {
+  const r = REP[capture]?.[nom];
+  // Une mesure hors de la capture (élément sous la ligne de flottaison) est inutilisable : on l'ignore.
+  return r && r.y >= 0 && r.y + r.h <= 1.001 && r.x >= 0 && r.x + r.l <= 1.001 ? r : null;
+};
 const borne = (v) => Math.min(1, Math.max(0, v));
 
 /** Cadre doré (numéroté) autour d'un élément mesuré ; null si la mesure manque. */
@@ -140,7 +144,6 @@ export default {
               reperes: rps(rp("patron-03-inscription-2", "conditions", 1, 0.01, 0.003), rp("patron-03-inscription-2", "creer", 2, 0.01, 0.003)),
             },
           ],
-          apres: [info("Si la connexion automatique échoue", "L'écran de connexion affiche « Compte créé ! Connectez-vous avec votre numéro et votre mot de passe. » L'hôtel existe bien : connectez-vous normalement.")],
         }),
         texte({
           surtitre: "Essai gratuit",
@@ -164,6 +167,18 @@ export default {
             { p: "Quand un plafond est atteint, l'application l'écrit clairement, par exemple : « L'essai gratuit est limité à 10 chambres. Choisissez une formule dans Paramètres → Abonnement pour en ajouter. » Ces plafonds peuvent évoluer : le message de l'application fait toujours foi." },
             important("Sans paiement, l'hôtel est supprimé", "Un hôtel qui n'a jamais payé est supprimé, avec toutes ses données, 10 jours après la fin de l'essai et du délai de grâce de 3 jours. L'écran « Abonnement » affiche la date exacte. Payez avant."),
             conseil("Payer pendant l'essai ne fait perdre aucun jour", "Les jours d'essai restants s'ajoutent à la période payée. Exemple : 3 jours d'essai restants et 1 mois payé donnent 1 mois et 3 jours."),
+            { h: "Ce qui se passe à la fin de l'essai" },
+            {
+              tableau: {
+                entetes: ["Moment", "Ce que vous voyez"],
+                lignes: [
+                  ["7 derniers jours", "Bandeau orange « Essai gratuit : plus que N jours. Choisissez une formule. »"],
+                  ["Après le 14e jour", "3 jours de grâce : tout marche, bandeau rouge « l'accès sera bientôt coupé »."],
+                  ["Après la grâce", "Écran « Votre abonnement a expiré » : payez pour rouvrir. Sans paiement, les données sont supprimées 10 jours plus tard."],
+                ],
+              },
+            },
+            info("Si la connexion automatique échoue", "Après « Créer mon compte », l'écran de connexion peut afficher « Compte créé ! Connectez-vous avec votre numéro et votre mot de passe. » L'hôtel existe bien : connectez-vous normalement."),
           ],
         }),
         texte({
@@ -217,10 +232,10 @@ export default {
           image: C + "patron-10-accueil.png",
           marques: [
             { n: 1, titre: "Notifications", texte: "La cloche montre les alertes non lues. Un point de couleur indique l'état de la synchronisation.", ...pt("patron-10-accueil", "cloche", 0.5, 0.5), cote: "d" },
-            { n: 2, titre: "Bienvenue", texte: "Votre nom, votre rôle (Patron) et le nom de l'hôtel.", ...pt("patron-10-accueil", "bonjour", 0.3, 0.5), cote: "g" },
+            { n: 2, titre: "Bienvenue", texte: "Votre nom, votre rôle (Patron) et le nom de l'hôtel.", ...pt("patron-10-accueil", "bonjour", 0.92, 0.5), cote: "g" },
             { n: 3, titre: "Hôtel, date et heure", texte: "Le nom de l'hôtel, la date du jour et l'heure.", ...pt("patron-10-accueil", "hero", 0.7, 0.5), cote: "d" },
-            { n: 4, titre: "En dollars, en francs", texte: "L'argent encaissé aujourd'hui, dans chaque monnaie. Les deux ne sont jamais additionnés.", ...pt("patron-10-accueil", "dollars", 0.5, 0.5), cote: "g" },
-            { n: 5, titre: "Barre du bas", texte: "Accueil, Chambres, Réserv. et Plus : tout le reste se trouve dans « Plus ».", ...pt("patron-10-accueil", "barre", 0.85, 0.5), cote: "d" },
+            { n: 4, titre: "En dollars, en francs", texte: "L'argent encaissé aujourd'hui, dans chaque monnaie. Les deux ne sont jamais additionnés.", ...pt("patron-10-accueil", "dollars", 0.88, 0.12), cote: "g" },
+            { n: 5, titre: "Barre du bas", texte: "Accueil, Chambres, Réserv. et Plus : tout le reste se trouve dans « Plus ».", ...pt("patron-10-accueil", "barre", 0.62, 0.12), cote: "d" },
           ],
         }),
         annote({
@@ -288,14 +303,8 @@ export default {
             },
           ],
           apres: [
-            { h: "Le menu du compte" },
-            {
-              parcours: [
-                { titre: "Appuyez sur votre photo ronde, en haut à droite", texte: "La feuille « Mon compte » affiche votre nom, votre rôle et le nom de l'hôtel." },
-                { titre: "« Changer de profil »", texte: "Ferme votre session, garde votre profil sur ce téléphone et ouvre l'écran « Qui utilise HotelSaver sur cet appareil ? ». Le mot de passe est redemandé." },
-                { titre: "« Se déconnecter »", texte: "Confirmez avec « Se déconnecter » dans « Voulez-vous vraiment vous déconnecter ? »." },
-              ],
-            },
+            info("Le menu du compte", "Appuyez sur votre photo ronde, en haut à droite : « Mon compte » affiche votre nom, votre rôle et le nom de l'hôtel. « Changer de profil » ferme votre session et ouvre « Qui utilise HotelSaver sur cet appareil ? » : le mot de passe est redemandé."),
+            conseil("Se déconnecter", "Dans « Mon compte », appuyez sur « Se déconnecter », puis confirmez : « Voulez-vous vraiment vous déconnecter ? »."),
           ],
         }),
         texte({
@@ -352,20 +361,12 @@ export default {
               reperes: rps(rp("patron-51-chambres", "filtres", 1)),
             },
             {
-              titre: "Appuyez sur « + »",
-              texte: "La feuille « Nouvelle chambre » s'ouvre. Écrivez le numéro, le type (Standard, Confort, Suite…) et le prix par nuit, puis choisissez la devise : USD ou CDF.",
-              action: "Appuyez sur le bouton « + » (Nouvelle chambre)",
+              titre: "Appuyez sur « + », remplissez, enregistrez",
+              texte: "La feuille « Nouvelle chambre » s'ouvre : numéro, type (Standard, Confort, Suite…), prix par nuit, photos (visibles sur le site) et devise USD ou CDF. Pour modifier plus tard : appuyez sur la chambre, puis sur « Modifier la chambre (numéro, type, prix) ».",
+              action: "Appuyez sur le bouton « + », puis sur « Enregistrer »",
               image: C + "patron-52c-chambre-formulaire.png",
-              zone: zn("patron-52c-chambre-formulaire", ["numero", "devise"], { my: 0.02 }),
-              reperes: rps(rp("patron-52c-chambre-formulaire", "numero", 1, 0.012, 0.002), rp("patron-52c-chambre-formulaire", "type", 2, 0.012, 0.002), rp("patron-52c-chambre-formulaire", "prix", 3, 0.012, 0.002), rp("patron-52c-chambre-formulaire", "devise", 4, 0.012, 0.002)),
-            },
-            {
-              titre: "Enregistrez",
-              texte: "Ajoutez des photos si vous voulez : elles s'affichent sur le site de l'hôtel. Pour modifier une chambre plus tard, appuyez sur elle puis sur « Modifier la chambre (numéro, type, prix) ».",
-              action: "Appuyez sur « Enregistrer »",
-              image: C + "patron-52c-chambre-formulaire.png",
-              zone: zn("patron-52c-chambre-formulaire", ["devise", "enregistrer"], { my: 0.03 }),
-              reperes: rps(rp("patron-52c-chambre-formulaire", "enregistrer", 1, 0.012, 0.003)),
+              zone: zn("patron-52c-chambre-formulaire", ["numero", "enregistrer"], { my: 0.02 }),
+              reperes: rps(rp("patron-52c-chambre-formulaire", "numero", 1, 0.012, 0.002), rp("patron-52c-chambre-formulaire", "type", 2, 0.012, 0.002), rp("patron-52c-chambre-formulaire", "prix", 3, 0.012, 0.002), rp("patron-52c-chambre-formulaire", "devise", 4, 0.012, 0.002), rp("patron-52c-chambre-formulaire", "enregistrer", 5, 0.012, 0.003)),
             },
           ],
           apres: [important("Les plafonds de chambres", "Essai gratuit : 10 chambres. Formule Essentiel : 15. Formule Pro : 40. Formule Premium : illimité. Au-delà, l'application refuse l'ajout et vous propose de choisir une formule.")],
@@ -383,16 +384,9 @@ export default {
               zone: [0, 0.05, 1, 0.5],
             },
             {
-              titre: "Écrivez le nouveau taux",
-              texte: "Tapez le nombre de francs pour 1 dollar, par exemple 2800. Le champ s'appelle « Nouveau taux (CDF pour 1 USD) ».",
-              action: "Remplissez « Nouveau taux »",
-              image: C + "patron-23-taux.png",
-              zone: [0, 0.5, 1, 0.9],
-            },
-            {
-              titre: "Confirmez",
-              texte: "L'application demande « Confirmer le nouveau taux ? ». Appuyez sur « Enregistrer le taux ». L'historique garde les anciens taux.",
-              action: "Appuyez sur « Enregistrer », puis « Enregistrer le taux »",
+              titre: "Écrivez le nouveau taux et confirmez",
+              texte: "Tapez le nombre de francs pour 1 dollar, par exemple 2800, dans « Nouveau taux (CDF pour 1 USD) ». L'application demande « Confirmer le nouveau taux ? » : appuyez sur « Enregistrer le taux ». L'historique garde les anciens taux.",
+              action: "Appuyez sur « Enregistrer », puis sur « Enregistrer le taux »",
               image: C + "patron-24-taux-enregistre.png",
               zone: zn("patron-24-taux-enregistre", ["champ"], { mx: 0.04, my: 0.09 }),
               reperes: rps(rp("patron-24-taux-enregistre", "champ", 1)),
@@ -484,9 +478,6 @@ export default {
               reperes: rps(rp("patron-29-paiement-enregistre", "bouton", 1), rp("patron-29-paiement-enregistre", "ok", 2)),
             },
           ],
-          apres: [
-            important("À savoir", "Pour demander un acompte, enregistrez d'abord le numéro ScanLinkPay : sans lui, le pourcentage est refusé. Ce paiement fait partie des formules Pro et Premium ; sinon l'écran propose « Voir les formules »."),
-          ],
         }),
         texte({
           surtitre: "Acomptes en ligne",
@@ -512,6 +503,7 @@ export default {
                 ],
               },
             },
+            important("À savoir", "Pour demander un acompte, enregistrez d'abord le numéro ScanLinkPay : sans lui, le pourcentage est refusé. Ce paiement fait partie des formules Pro et Premium ; avec une autre formule, l'écran propose « Voir les formules »."),
           ],
         }),
         etapes({
@@ -521,23 +513,15 @@ export default {
           etapes: [
             {
               titre: "Ouvrez « Site de l'hôtel »",
-              texte: "Dans « Plus », section « Administration ». Écrivez le nom, le slogan et le texte de présentation : situation, ambiance, ce qui rend l'hôtel unique.",
+              texte: "Dans « Plus », section « Administration ». Écrivez le nom, le slogan et le texte de présentation : situation, ambiance, ce qui rend l'hôtel unique. Ajoutez ensuite une photo de couverture et la galerie.",
               action: "Appuyez sur « Plus », puis sur « Site de l'hôtel »",
               image: C + "patron-30-site.png",
               zone: zn("patron-30-site", ["nom", "slogan"], { my: 0.06 }),
               reperes: rps(rp("patron-30-site", "nom", 1), rp("patron-30-site", "slogan", 2)),
             },
             {
-              titre: "Ajoutez des photos et des services",
-              texte: "Une photo de couverture, une galerie, puis les services : Restaurant, Piscine, Wi-Fi, Parking, Navette, Petit-déjeuner. Les photos des chambres se règlent dans « Chambres ».",
-              action: "Appuyez sur les photos, puis sur un service pour l'ajouter",
-              image: C + "patron-32-site-services.png",
-              zone: zn("patron-32-site-services", ["puces"], { mx: 0.04, my: 0.18 }),
-              reperes: rps(rp("patron-32-site-services", "puces", 1)),
-            },
-            {
-              titre: "Complétez le contact, puis enregistrez",
-              texte: "Adresse, téléphone, WhatsApp (avec l'indicatif), e-mail, lien Google Maps, heures d'arrivée et de départ, réseaux sociaux. Puis « Enregistrer ».",
+              titre: "Services, contact, puis « Enregistrer »",
+              texte: "Ajoutez les services (Restaurant, Piscine, Wi-Fi, Parking, Navette, Petit-déjeuner), puis l'adresse, le téléphone, WhatsApp avec l'indicatif, l'e-mail, le lien Google Maps, les heures d'arrivée et de départ et les réseaux sociaux.",
               action: "Appuyez sur « Enregistrer »",
               image: C + "patron-33-site-contact.png",
               zone: zn("patron-33-site-contact", ["horaires"], { mx: 0.04, my: 0.2 }),
@@ -545,6 +529,7 @@ export default {
             },
           ],
           apres: [
+            info("Les photos des chambres", "Elles se règlent dans « Chambres » (« Photos de la chambre »), pas dans « Site de l'hôtel »."),
             info("Votre propre nom de domaine", "Avec la formule Premium, le site peut aussi s'afficher sur votre propre adresse (par exemple votre-hotel.com). Cette mise en place se fait avec l'aide d'HotelSaver : contactez le support."),
           ],
         }),
@@ -575,16 +560,8 @@ export default {
               reperes: rps(rp("patron-35-utilisateurs", "nouveau", 1)),
             },
             {
-              titre: "Remplissez la fiche",
-              texte: "Nom, numéro de téléphone (il sert à se connecter), e-mail (facultatif) et mot de passe de 8 caractères au moins.",
-              action: "Remplissez « Nom », « Numéro de téléphone », « Mot de passe »",
-              image: C + "patron-36-nouveau-compte.png",
-              zone: zn("patron-36-nouveau-compte", ["nom", "mdp"], { my: 0.025 }),
-              reperes: rps(rp("patron-36-nouveau-compte", "nom", 1, 0.012, 0.002), rp("patron-36-nouveau-compte", "telephone", 2, 0.012, 0.002), rp("patron-36-nouveau-compte", "email", 3, 0.012, 0.002), rp("patron-36-nouveau-compte", "mdp", 4, 0.012, 0.002)),
-            },
-            {
-              titre: "Choisissez le rôle",
-              texte: "« Réceptionniste », « Cafétaria » ou « Patron ». Un rôle déjà pris est grisé avec « déjà créé ». Appuyez sur « Créer le compte ».",
+              titre: "Remplissez la fiche, choisissez le rôle",
+              texte: "Nom, numéro de téléphone (il sert à se connecter), e-mail (facultatif), mot de passe de 8 caractères au moins. Puis le rôle : « Réceptionniste », « Cafétaria » ou « Patron » (un rôle déjà pris est grisé). Enfin « Créer le compte ».",
               action: "Appuyez sur un rôle, puis sur « Créer le compte »",
               image: C + "patron-36b-nouveau-compte-role.png",
               zone: zn("patron-36b-nouveau-compte-role", ["roles", "creer"], { my: 0.04 }),
@@ -592,7 +569,7 @@ export default {
             },
           ],
           apres: [
-            important("Un seul compte par rôle", "Chaque hôtel a au plus un compte Réceptionniste, un compte Cafétaria et un compte Patron. Si vous essayez d'en créer un deuxième, l'application répond « Cet hôtel a déjà un compte Réceptionniste. Un seul compte par rôle est autorisé — modifiez le compte existant pour le transmettre à un nouvel employé. »"),
+            important("Un seul compte par rôle", "Chaque hôtel a au plus un compte Réceptionniste, un compte Cafétaria et un compte Patron. Si vous en créez un deuxième, l'application répond « Cet hôtel a déjà un compte Réceptionniste. Un seul compte par rôle est autorisé — modifiez le compte existant pour le transmettre à un nouvel employé. »"),
           ],
         }),
         etapes({
@@ -623,9 +600,6 @@ export default {
               vue: [0.3, 0.68],
             },
           ],
-          apres: [
-            conseil("Quand un employé part", "Désactivez son compte le jour même, ou changez son mot de passe pour le donner à son remplaçant. Vous ne pouvez pas désactiver votre propre compte."),
-          ],
         }),
         texte({
           surtitre: "Droits",
@@ -654,6 +628,7 @@ export default {
               },
             },
             info("Lire le tableau", "« Si il opère » veut dire : seulement si « Le patron peut aussi opérer » est activé dans « Paramètres ». Le personnel voit l'état de l'abonnement mais ne peut pas le payer : « Seul le patron peut renouveler l'abonnement. »"),
+            conseil("Quand un employé part", "Désactivez son compte le jour même, ou changez son mot de passe pour le donner à son remplaçant. Vous ne pouvez pas désactiver votre propre compte."),
           ],
         }),
       ],
@@ -710,6 +685,7 @@ export default {
             },
             { p: "Vous payez en dollars (USD) ou en francs congolais (FC). Le prix en francs est calculé par HotelSaver à partir du prix en dollars. ScanLinkPay peut ajouter ses frais : l'écran les montre avant que vous payiez, par exemple « Prix 177 $ + frais ScanLinkPay 3,54 $ = 180,54 $ à payer »." },
             important("Une formule trop petite est refusée", "Si l'hôtel a plus de chambres que la formule n'en accepte, la formule est grisée avec le message « Votre hôtel a N chambres : cette formule en accepte M au maximum. »"),
+            conseil("Vous payez pendant l'essai ?", "Aucun jour n'est perdu : l'écran le rappelle avec « Si vous payez pendant l'essai, aucun jour d'essai n'est perdu : ils s'ajoutent à votre abonnement. »"),
           ],
         }),
         etapes({
@@ -741,7 +717,6 @@ export default {
               vue: [0.5, 0.85],
             },
           ],
-          apres: [conseil("Vous payez pendant l'essai ?", "Aucun jour n'est perdu : l'écran le rappelle avec « Si vous payez pendant l'essai, aucun jour d'essai n'est perdu : ils s'ajoutent à votre abonnement. »")],
         }),
         etapes({
           surtitre: "Payer",
@@ -781,7 +756,7 @@ export default {
           etapes: [
             {
               titre: "Entrez votre code secret",
-              texte: "L'écran dit « Confirmez le paiement sur votre téléphone… ». Une demande arrive sur le numéro choisi : validez-la avec votre code secret (PIN). Un chronomètre « Attente » tourne.",
+              texte: "L'écran dit « Confirmez le paiement sur votre téléphone… ». Une demande arrive sur le numéro choisi : validez-la avec votre code secret (PIN). Un chronomètre « Attente » tourne. Vous pouvez fermer l'écran : l'abonnement s'active tout seul.",
               action: "Validez la demande sur votre téléphone",
               image: C + "patron-45-attente.png",
               zone: zn("patron-45-attente", ["attente"], { mx: 0.02, my: 0.0, minH: 0.3 }),
@@ -789,30 +764,21 @@ export default {
             },
             {
               titre: "Lisez « Merci ! »",
-              texte: "Quand le paiement est confirmé, l'application affiche « Abonnement actif jusqu'au … » avec le montant payé, le réseau utilisé et la date de fin.",
+              texte: "Le paiement est confirmé : « Abonnement actif jusqu'au … », avec le montant payé, le réseau utilisé et la date de fin. Plus bas, « Paiements précédents » garde l'historique.",
               action: "Appuyez sur « Continuer »",
               image: C + "patron-46-succes.png",
               zone: zn("patron-46-succes", ["succes"], { mx: 0.02, my: 0.0, minH: 0.3 }),
               reperes: rps(rp("patron-46-succes", "succes", 1, 0.006, 0.002)),
             },
-            {
-              titre: "Retrouvez vos paiements",
-              texte: "Plus bas, « Paiements précédents » liste chaque paiement, réussi ou non, avec le réseau et le numéro masqué.",
-              action: "Faites défiler l'écran « Abonnement »",
-              image: C + "patron-48-historique.png",
-              zone: zn("patron-48-historique", ["historique"], { mx: 0.02, my: 0.0, minH: 0.3 }),
-              reperes: rps(rp("patron-48-historique", "historique", 1, 0.006, 0.002)),
-            },
           ],
           apres: [
-            { h: "Si quelque chose ne va pas" },
             {
               tableau: {
                 entetes: ["Ce que vous voyez", "Que faire"],
                 lignes: [
-                  ["« Rien ne s'affiche ? Vérifiez : » (la confirmation tarde)", "Solde Mobile Money suffisant, réseau du téléphone, code secret (PIN) bien saisi, bon numéro."],
-                  ["« Le paiement n'a pas abouti »", "Si l'argent n'a pas quitté votre compte, vous n'avez rien payé : appuyez sur « Réessayer »."],
-                  ["Vous avez fermé l'écran avant de confirmer", "Pas de souci : l'abonnement s'active tout seul dès que le paiement est confirmé, même en retard."],
+                  ["« Rien ne s'affiche ? Vérifiez : »", "Solde Mobile Money suffisant, réseau du téléphone, code secret (PIN) bien saisi, bon numéro."],
+                  ["« Le paiement n'a pas abouti »", "Si l'argent n'a pas quitté votre compte, vous n'avez rien payé : « Réessayer »."],
+                  ["Écran fermé avant de confirmer", "Pas de souci : l'abonnement s'active dès que le paiement est confirmé, même en retard."],
                 ],
               },
             },
@@ -821,32 +787,25 @@ export default {
         etapes({
           surtitre: "Échéance",
           titre: "Abonnement échu, accès coupé, renouvellement",
-          chapo: "Ce que voit votre équipe, étape par étape, quand la date de fin approche puis passe.",
+          chapo: "Sept jours avant la fin, un bandeau orange prévient. Voici ce qui se passe ensuite.",
           etapes: [
             {
-              titre: "Sept jours avant : bandeau orange",
-              texte: "« Abonnement : plus que N jours ». Tout le monde le voit, et le patron reçoit l'alerte « Abonnement bientôt expiré ». Tout fonctionne.",
-              action: "Renouvelez dès maintenant",
-              image: C + "patron-47-abonnement-actif.png",
-              vue: [0.06, 0.42],
-            },
-            {
               titre: "Après la date : 3 jours de grâce",
-              texte: "Bandeau rouge : « Abonnement échu depuis le … : l'accès sera bientôt coupé. Renouvelez maintenant. » Tout fonctionne encore.",
+              texte: "Bandeau rouge : « Abonnement échu depuis le … : l'accès sera bientôt coupé. Renouvelez maintenant. » Tout fonctionne encore. Appuyez sur le bandeau pour ouvrir l'abonnement.",
               action: "Appuyez sur « Voir l'abonnement »",
               image: C + "patron-49-echu.png",
               zone: [0, 0, 1, 0.3],
             },
             {
               titre: "Ensuite : « Votre abonnement a expiré »",
-              texte: "L'application est remplacée par cet écran pour tout le monde. Le patron peut payer ici. Les autres lisent « Demandez au patron de renouveler ». Les données sont conservées.",
+              texte: "L'application est remplacée par cet écran pour tout le monde. Le patron peut payer ici ; les autres lisent « Demandez au patron de renouveler ». Les données sont conservées.",
               action: "Payez, puis appuyez sur « Continuer »",
               image: C + "patron-50-bloque.png",
               vue: [0.0, 0.14],
             },
           ],
           apres: [
-            info("Après le paiement", "L'accès rouvre tout de suite, sans redémarrer. Ce qui était en attente d'envoi sur les téléphones part automatiquement. Payer en retard repart de la date du paiement ; payer d'avance ajoute la nouvelle période à la fin de l'actuelle."),
+            info("Après le paiement", "L'accès rouvre tout de suite, sans redémarrer, et les actions en attente sur les téléphones partent toutes seules. Payer en retard repart de la date du paiement ; payer d'avance ajoute la nouvelle période à la fin de l'actuelle."),
             important("Accès suspendu ou résilié", "Si HotelSaver a suspendu ou résilié l'hôtel, l'écran dit « L'accès de votre hôtel est suspendu » ou « L'abonnement de votre hôtel est résilié ». Payer en ligne est alors refusé : contactez le support au +243 828 497 218."),
           ],
         }),
@@ -864,16 +823,8 @@ export default {
               reperes: rps(rp("patron-90-web-connexion", "telephone", 1), rp("patron-90-web-connexion", "motdepasse", 2), rp("patron-90-web-connexion", "continuer", 3)),
             },
             {
-              titre: "Choisissez formule, durée et monnaie",
-              texte: "Mêmes choix que dans l'application : formule, « Pour combien de temps ? », « Dans quelle monnaie ? ». Les prix et les frais sont les mêmes.",
-              action: "Appuyez sur votre formule et votre durée",
-              image: C + "patron-93-web-duree.png",
-              zone: zn("patron-93-web-duree", ["titre", "monnaie"], { mx: 0.02, my: 0.1, minH: 0.3 }),
-              reperes: rps(rp("patron-93-web-duree", "titre", 1, 0.01, 0.004), rp("patron-93-web-duree", "monnaie", 2, 0.01, 0.004)),
-            },
-            {
-              titre: "Réseau, numéro, puis « Payer »",
-              texte: "Choisissez le réseau Mobile Money, écrivez le numéro, vérifiez le « Récapitulatif » et appuyez sur « Payer ». Validez avec votre code secret.",
+              titre: "Formule, durée, monnaie, réseau, « Payer »",
+              texte: "Mêmes choix que dans l'application : formule, « Pour combien de temps ? », « Dans quelle monnaie ? », réseau Mobile Money et numéro. Vérifiez le « Récapitulatif », appuyez sur « Payer » et validez avec votre code secret.",
               action: "Appuyez sur « Payer … »",
               image: C + "patron-95-web-recap.png",
               zone: zn("patron-95-web-recap", ["recap", "payer"], { mx: 0.04, my: 0.08, minH: 0.3 }),
@@ -881,7 +832,7 @@ export default {
             },
           ],
           apres: [
-            info("Quand utiliser le site ?", "Si votre téléphone n'a plus de place pour l'application, ou si vous préférez un ordinateur. Dans certaines versions de l'application téléphone, le bouton « Payer sur le site HotelSaver » ouvre cette page dans le navigateur. Le support est joignable aussi sur WhatsApp au +243 828 497 218."),
+            info("Quand utiliser le site ?", "Si le téléphone n'a plus de place, ou si vous préférez un ordinateur. Dans certaines versions de l'application, le bouton « Payer sur le site HotelSaver » ouvre cette page. Le support répond aussi sur WhatsApp au +243 828 497 218."),
           ],
         }),
       ],
@@ -902,6 +853,7 @@ export default {
           titre: "L'état de chaque chambre",
           chapo: "Onglet « Chambres » : une carte par chambre, avec son état, son type et son prix par nuit.",
           image: C + "patron-51-chambres.png",
+          largeurEcran: 250,
           marques: [
             { n: 1, titre: "Nouvelle chambre", texte: "Le bouton « + » (patron seulement) ajoute une chambre.", ...pt("patron-51-chambres", "nouvelle", 0.2, 0.5), cote: "g" },
             { n: 2, titre: "Filtres d'état", texte: "Toutes, Libres, Occupées, Réservées, Nettoyage : touchez un filtre pour trier.", ...pt("patron-51-chambres", "filtres", 0.5, 0.5), cote: "d" },
@@ -915,23 +867,16 @@ export default {
           chapo: "Onglet « Réserv. » : cinq vues en haut de l'écran pour trouver la bonne réservation.",
           etapes: [
             {
-              titre: "Choisissez une vue",
-              texte: "« Aujourd'hui » (arrivées et départs du jour), « À venir », « En cours » (clients présents), « Historique » (séjours terminés ou annulés) et « Planning ».",
+              titre: "Choisissez une vue, lisez la carte",
+              texte: "« Aujourd'hui » (arrivées et départs du jour), « À venir », « En cours » (clients présents), « Historique » (terminés ou annulés), « Planning ». Chaque carte donne le client, l'état (En attente, Confirmée, En cours, Terminée, Annulée), la chambre, les dates et le prix par nuit.",
               action: "Appuyez sur « Réserv. », puis sur une vue",
               image: C + "patron-52-reservations.png",
               zone: zn("patron-52-reservations", ["segments"], { mx: 0.3, my: 0.16 }),
               reperes: rps(rp("patron-52-reservations", "segments", 1)),
             },
             {
-              titre: "Lisez la carte",
-              texte: "Chaque carte donne le client, l'état (En attente, Confirmée, En cours, Terminée, Annulée), la chambre, les dates et le prix par nuit. « site public » indique une demande venue du site.",
-              action: "Appuyez sur une carte pour l'ouvrir",
-              image: C + "patron-52b-reservations-liste.png",
-              vue: [0.05, 0.4],
-            },
-            {
               titre: "Ouvrez la fiche",
-              texte: "La fiche montre le séjour, l'acompte, le client, le suivi en ligne et les actions. Un patron qui n'opère pas peut « Annuler la réservation » ; la confirmation et le check-in sont pour le personnel.",
+              texte: "La fiche montre le séjour, l'acompte, le client, le suivi en ligne et les actions. « site public » sur une carte indique une demande venue du site. Un patron qui n'opère pas peut « Annuler la réservation ».",
               action: "Appuyez sur une réservation",
               image: C + "patron-54-detail.png",
               zone: [0, 0.0, 1, 0.3],
@@ -975,8 +920,8 @@ export default {
           chapo: "Deux repères vous évitent les erreurs : « Payé en ligne » et « Chambre déjà réservée ».",
           etapes: [
             {
-              titre: "« Payé en ligne »",
-              texte: "Un repère vert apparaît dans la liste. Il devient « Payé en ligne · à rembourser ? » si la réservation est annulée, puis « remboursé » ou « conservé ». Sans internet, il n'apparaît pas, mais l'acompte reste affiché.",
+              titre: "« Payé en ligne » dans la liste",
+              texte: "Un repère vert apparaît sur la carte. Il devient « Payé en ligne · à rembourser ? » si la réservation est annulée, puis « remboursé » ou « conservé ». Sans internet, il n'apparaît pas, mais l'acompte reste affiché.",
               action: "Regardez la liste « Réserv. »",
               image: C + "patron-52b-reservations-liste.png",
               vue: [0.05, 0.4],
@@ -989,16 +934,10 @@ export default {
               zone: zn("patron-54-detail", ["payeEnLigne"], { mx: 0.04, my: 0.04, minH: 0.2 }),
               reperes: rps(rp("patron-54-detail", "payeEnLigne", 1, 0.008, 0.002)),
             },
-            {
-              titre: "« Chambre déjà réservée »",
-              texte: "Une demande du site pour une chambre déjà prise porte ce repère rouge. « Confirmer la demande » est grisé : la réception propose une autre chambre ou d'autres dates, ou refuse.",
-              action: "Faites défiler la liste des réservations",
-              image: C + "patron-52b-reservations-liste.png",
-              vue: [0.05, 0.4],
-            },
           ],
           apres: [
-            info("Une chambre réservée ne se réserve pas deux fois", "Sur le site, une chambre réservée reste visible avec « Déjà réservée », sans bouton pour la demander. Pendant qu'un client confirme son paiement, la chambre lui est retenue 10 minutes : les autres la voient « Réservation en cours »."),
+            important("« Chambre déjà réservée par un autre client »", "Une demande du site pour une chambre déjà prise porte ce repère rouge, et « Confirmer la demande » est grisé. La réception propose une autre chambre ou d'autres dates, ou refuse la demande."),
+            info("Une chambre réservée ne se réserve pas deux fois", "Sur le site, elle reste visible avec « Déjà réservée », sans bouton. Pendant qu'un client confirme son paiement, elle lui est retenue 10 minutes : les autres la voient « Réservation en cours »."),
           ],
         }),
         annote({
@@ -1008,8 +947,8 @@ export default {
           image: C + "patron-58b-remboursement-carte.png",
           marques: [
             { n: 1, titre: "Où envoyer l'argent", texte: "Le numéro ScanLinkPay du client, sinon son téléphone. « Copier » le copie.", ...pt("patron-58b-remboursement-carte", "destination", 0.5, 0.4), cote: "g" },
-            { n: 2, titre: "« J'ai remboursé »", texte: "À utiliser après avoir envoyé l'argent au client. Vous pouvez rendre moins que l'acompte.", ...pt("patron-58b-remboursement-carte", "rembourse", 0.5, 0.5), cote: "d" },
-            { n: 3, titre: "« Conserver l'acompte »", texte: "Le client n'est pas remboursé : l'acompte reste à l'hôtel, selon vos conditions.", ...pt("patron-58b-remboursement-carte", "conserver", 0.5, 0.5), cote: "g" },
+            { n: 2, titre: "« J'ai remboursé »", texte: "À utiliser après avoir envoyé l'argent au client. Vous pouvez rendre moins que l'acompte.", ...pt("patron-58b-remboursement-carte", "rembourse", 0.95, 0.5), cote: "d" },
+            { n: 3, titre: "« Conserver l'acompte »", texte: "Le client n'est pas remboursé : l'acompte reste à l'hôtel, selon vos conditions.", ...pt("patron-58b-remboursement-carte", "conserver", 0.95, 0.5), cote: "d" },
           ],
           bas: `<div class="encadre encadre--attention"><svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg><div><b>HotelSaver ne rend jamais l'argent tout seul</b><span>Vous envoyez l'argent vous-même (compte ScanLinkPay du client, Mobile Money ou espèces), puis vous le marquez ici.</span></div></div>`,
         }),
@@ -1043,9 +982,6 @@ export default {
               reperes: rps(rp("patron-58b-remboursement-carte", "rembourse", 1), rp("patron-58b-remboursement-carte", "conserver", 2)),
             },
           ],
-          apres: [
-            info("Une décision ne se prend qu'une fois", "Chaque remboursement est tracé et ne peut pas être décidé deux fois. Si quelqu'un l'a déjà fait, l'application l'écrit et met la liste à jour. Il faut une connexion internet pour voir et décider."),
-          ],
         }),
         texte({
           surtitre: "Remboursements",
@@ -1070,6 +1006,20 @@ export default {
               ],
             },
             conseil("Écrivez des conditions claires", "Vos « Conditions d'annulation et de remboursement » sont lues par le client avant de payer. Plus elles sont précises, plus vos décisions sont simples à expliquer."),
+            info("Une décision ne se prend qu'une fois", "Chaque remboursement est tracé et ne peut pas être décidé deux fois. Si quelqu'un l'a déjà fait, l'application l'écrit et met la liste à jour. Il faut une connexion internet pour voir et décider."),
+            { h: "Les raisons possibles d'un remboursement" },
+            {
+              tableau: {
+                entetes: ["Raison affichée", "Situation"],
+                lignes: [
+                  ["Le client a annulé", "Il a annulé depuis son lien « Ma réservation »."],
+                  ["L'hôtel a annulé", "La réception ou le patron a annulé la réservation."],
+                  ["Client non présenté", "Le client ne s'est pas présenté (motif « Client non présenté »)."],
+                  ["Chambre indisponible", "La chambre n'était plus disponible au moment du paiement."],
+                  ["Autre raison", "Tout autre cas."],
+                ],
+              },
+            },
           ],
         }),
       ],
@@ -1099,17 +1049,10 @@ export default {
             },
             {
               titre: "Ajoutez ou modifiez un produit",
-              texte: "Appuyez sur « + » (Nouveau produit), ou sur un produit pour le modifier. Choisissez le type : « Article comptoir » (stocké : bière, sucre…) ou « Plat préparé » (cuisiné, publiable sur le site).",
-              action: "Appuyez sur « + », puis remplissez la fiche",
+              texte: "Appuyez sur « + » (Nouveau produit) ou sur un produit. Type : « Article comptoir » (stocké : bière, sucre…) ou « Plat préparé » (cuisiné). Puis prix et devise, seuil d'alerte, prix d'achat, code-barres ; pour un plat : photo, portions, description et « Visible et commandable sur le site ». « Actif à la vente » retire un produit sans le supprimer.",
+              action: "Appuyez sur « + », remplissez, puis « Enregistrer »",
               image: C + "patron-66-produit.png",
               vue: [0.05, 0.35],
-            },
-            {
-              titre: "Fixez les options",
-              texte: "Prix et devise, seuil d'alerte, prix d'achat (pour la marge), code-barres. Pour un plat : photo, portions disponibles, description, et « Visible et commandable sur le site ». « Actif à la vente » retire un produit sans le supprimer.",
-              action: "Appuyez sur « Enregistrer »",
-              image: C + "patron-66-produit.png",
-              vue: [0.4, 0.75],
             },
           ],
           apres: [
@@ -1130,17 +1073,10 @@ export default {
             },
             {
               titre: "Enregistrez un mouvement",
-              texte: "Appuyez sur « + » (Nouveau mouvement). Choisissez le produit, le type, la quantité et, si vous voulez, un motif (par exemple « livraison fournisseur »).",
+              texte: "Appuyez sur « + » (Nouveau mouvement) : produit, type, quantité, motif facultatif (par exemple « livraison fournisseur »). Le personnel ne saisit que des « Entrée » ; « Perte » (casse) et « Ajustement » (correction, avec un nombre négatif pour retirer) sont réservés au patron.",
               action: "Appuyez sur « + », puis sur « Enregistrer »",
               image: C + "patron-68-mouvement.png",
               vue: [0.1, 0.5],
-            },
-            {
-              titre: "Retenez la règle du patron",
-              texte: "Le personnel ne peut saisir que des « Entrée ». « Perte » (casse) et « Ajustement » (correction, avec un nombre négatif pour retirer) sont réservés au patron.",
-              action: "Choisissez « Perte » ou « Ajustement »",
-              image: C + "patron-68-mouvement.png",
-              vue: [0.3, 0.7],
             },
           ],
           apres: [
@@ -1161,18 +1097,11 @@ export default {
               reperes: rps(rp("patron-69-inventaire", "lancer", 1)),
             },
             {
-              titre: "Saisissez le stock compté",
-              texte: "Pour chaque produit, écrivez « Stock physique compté ». S'il y a un écart avec le stock théorique, une note est obligatoire. « Retour » garde votre comptage.",
+              titre: "Saisissez, validez, lisez le résultat",
+              texte: "Pour chaque produit, écrivez « Stock physique compté » ; un écart demande une note. « Valider l'inventaire » affiche « Inventaire enregistré » : produits, écarts, manquants, surplus. « Télécharger le PDF » le garde ; « Historique » liste les anciens.",
               action: "Appuyez sur « Valider l'inventaire »",
               image: C + "patron-70-inventaire-saisie.png",
               vue: [0.1, 0.5],
-            },
-            {
-              titre: "Lisez le résultat",
-              texte: "« Inventaire enregistré » donne le nombre de produits, d'écarts, de manquants et de surplus. « Télécharger le PDF » le garde ; « Historique » liste les anciens inventaires, avec « Ouvrir le PDF ».",
-              action: "Appuyez sur « Télécharger le PDF »",
-              image: C + "patron-70-inventaire-saisie.png",
-              vue: [0.5, 0.9],
             },
           ],
           apres: [conseil("Un bon moment pour compter", "Faites l'inventaire en fin de mois, avant de générer les rapports : les chiffres du stock sont alors justes.")],
@@ -1197,6 +1126,19 @@ export default {
                 { titre: "Publiez les plats", texte: "Dans « Menu », cochez « Visible et commandable sur le site » sur chaque plat." },
                 { titre: "La cafétaria est prévenue", texte: "L'alerte « Nouvelle commande depuis le site web » arrive ; la commande se retrouve dans « Comptes ouverts »." },
               ],
+            },
+            { h: "Ce que le patron peut faire à la cafétaria" },
+            {
+              tableau: {
+                entetes: ["Action", "Patron"],
+                lignes: [
+                  ["Consulter les comptes ouverts, le menu, le stock, l'inventaire", "Oui"],
+                  ["Ouvrir un compte, encaisser à la caisse", "Seulement si « Le patron peut aussi opérer » est activé"],
+                  ["Créer ou modifier un produit du menu", "Oui : seul le patron"],
+                  ["Enregistrer une perte ou un ajustement de stock", "Oui : seul le patron"],
+                  ["Annuler un reçu de cafétaria (avec motif)", "Oui : seul le patron"],
+                ],
+              },
             },
           ],
         }),
@@ -1228,17 +1170,10 @@ export default {
             },
             {
               titre: "Le journal des reçus",
-              texte: "Deux onglets : « Séjours » (factures de chambres) et « Cafétaria » (ventes). Chaque ligne donne le numéro de reçu, la date, le montant et le mode de paiement. Appuyez sur une ligne pour le détail.",
-              action: "Appuyez sur « Plus », puis sur « Journal des reçus »",
+              texte: "Onglets « Séjours » et « Cafétaria » : numéro de reçu, date, montant, mode de paiement. Seul le patron annule un reçu : « Motif d'annulation (obligatoire) », puis « Annuler le reçu ». Pour une vente, « Remettre les articles en stock » est proposé. L'annulation est définitive et demande une connexion.",
+              action: "Appuyez sur « Plus », « Journal des reçus », puis sur un reçu",
               image: C + "patron-77-recus.png",
               vue: [0.1, 0.5],
-            },
-            {
-              titre: "Annulez un reçu, avec un motif",
-              texte: "Seul le patron annule un reçu : écrivez le « Motif d'annulation (obligatoire) », puis « Annuler le reçu » et confirmez. Pour une vente de cafétaria, « Remettre les articles en stock » est proposé. L'annulation est définitive et demande une connexion.",
-              action: "Appuyez sur le reçu, puis sur « Annuler ce reçu »",
-              image: C + "patron-77-recus.png",
-              vue: [0.4, 0.8],
             },
           ],
           apres: [
@@ -1264,18 +1199,11 @@ export default {
           etapes: [
             {
               titre: "Ouvrez « Dépenses »",
-              texte: "Dans « Plus », section « Reçus ». Le titre dit « Réception et Cafétaria ». Choisissez la période : « Aujourd'hui », « Ce mois » ou « Mois dernier ».",
+              texte: "Dans « Plus », section « Reçus ». Le titre dit « Réception et Cafétaria ». Choisissez la période : « Aujourd'hui », « Ce mois » ou « Mois dernier ». Chaque ligne donne la date, le service, le motif, le montant et qui l'a saisie.",
               action: "Appuyez sur « Plus », puis sur « Dépenses »",
               image: C + "patron-76-depenses.png",
               zone: zn("patron-76-depenses", ["pdf", "filtres"], { mx: 0.04, my: 0.06 }),
               reperes: rps(rp("patron-76-depenses", "filtres", 1)),
-            },
-            {
-              titre: "Lisez les lignes",
-              texte: "Chaque dépense donne la date, le service (Réception ou Cafétaria), le motif, le montant et qui l'a saisie. Une dépense annulée est barrée.",
-              action: "Faites défiler la liste",
-              image: C + "patron-76-depenses.png",
-              vue: [0.4, 0.8],
             },
             {
               titre: "Téléchargez le PDF",
@@ -1334,6 +1262,14 @@ export default {
             },
             important("14 jours sans contact", "Si le téléphone reste 14 jours sans joindre le serveur, il demande de se reconnecter à internet avant de rouvrir la session. Vos données et vos actions non envoyées restent sur le téléphone."),
             info("L'écran « Synchronisation »", "« Synchroniser maintenant » force l'envoi. Une action refusée par le serveur se relit puis se retire avec « Retirer l'action ». Un conflit se tranche avec « Garder la version du serveur » : votre changement est alors perdu."),
+            { h: "Quand le réseau revient" },
+            {
+              parcours: [
+                { titre: "L'application le retrouve toute seule", texte: "Elle vérifie le serveur régulièrement et au retour de la connexion." },
+                { titre: "Les actions partent dans l'ordre", texte: "Chaque action gardée sur le téléphone est envoyée. L'indicateur passe de « N actions à envoyer » à « À jour »." },
+                { titre: "Vous contrôlez si besoin", texte: "Dans « Synchronisation » : « Dernière synchro », « En attente d'envoi », « Aucun conflit », « Aucune action bloquée »." },
+              ],
+            },
           ],
         }),
         texte({
@@ -1350,6 +1286,17 @@ export default {
             },
             important("Les rapports et les reçus provisoires", "Un rapport mensuel qui contient encore des reçus provisoires est marqué « Provisoire ». Laissez le téléphone synchroniser, puis régénérez le rapport."),
             conseil("Avant d'effacer un téléphone", "Ne désinstallez pas l'application et n'appuyez pas sur « Effacer les données de cet appareil » tant que des actions restent « à envoyer » : elles seraient perdues."),
+            { h: "Les trois familles de numéros" },
+            {
+              tableau: {
+                entetes: ["Numéro", "Sens"],
+                lignes: [
+                  ["REC-20261019-0001", "Reçu définitif d'un séjour (chambre)."],
+                  ["CAF-20261020-0001", "Reçu définitif d'une vente de cafétaria."],
+                  ["TEMP-FQWV-20261020-001", "Reçu provisoire fait sans internet : il sera remplacé par un numéro définitif."],
+                ],
+              },
+            },
           ],
         }),
         etapes({
@@ -1362,25 +1309,18 @@ export default {
               texte: "Écrivez le « Mot de passe actuel », le « Nouveau mot de passe » (8 caractères au moins), puis confirmez-le. Vos autres appareils devront se reconnecter.",
               action: "Appuyez sur « Changer le mot de passe »",
               image: C + "patron-21-securite.png",
-              vue: [0.1, 0.6],
+              vue: [0.4, 0.95],
             },
             {
               titre: "Verrouillez après une absence",
-              texte: "« Redemander le mot de passe après une absence » : choisissez « Jamais », « 5 min », « 15 min » ou « 1 h ». L'application vous ramène alors à l'écran des profils.",
+              texte: "« Redemander le mot de passe après une absence » : « Jamais », « 5 min », « 15 min » ou « 1 h ». L'application vous ramène alors à l'écran des profils. Sur un téléphone partagé, utilisez aussi « Changer de profil » dans « Mon compte ».",
               action: "Appuyez sur un délai",
               image: C + "patron-21-securite.png",
-              vue: [0.35, 0.8],
-            },
-            {
-              titre: "Quittez proprement",
-              texte: "Sur un téléphone partagé, appuyez sur votre photo, puis sur « Changer de profil » : votre session se ferme. Le mot de passe est toujours demandé quand le patron ouvre ou change de profil.",
-              action: "Appuyez sur votre photo, puis sur « Changer de profil »",
-              image: C + "patron-14-synchronisation.png",
-              vue: [0.0, 0.2],
+              vue: [0.1, 0.6],
             },
           ],
           apres: [
-            important("Votre mot de passe est personnel", "Ne le donnez à personne, même à un employé. Si un téléphone est perdu ou volé, désactivez le compte concerné tout de suite dans « Utilisateurs »."),
+            important("Votre mot de passe est personnel", "Ne le donnez à personne, même à un employé. Le mot de passe du patron est toujours demandé à l'ouverture de l'application. Si un téléphone est perdu ou volé, désactivez le compte concerné tout de suite dans « Utilisateurs »."),
           ],
         }),
         texte({
