@@ -5,6 +5,9 @@ export const BUCKET_MEDIA = "hotel-media";
 /** Bucket PRIVÉ des rapports mensuels PDF — lecture uniquement par URL signée. */
 export const BUCKET_RAPPORTS = "rapports";
 
+/** Bucket PRIVÉ des guides d'utilisation PDF (20/10/2026) — lecture uniquement par URL signée, après contrôle du rôle. */
+export const BUCKET_GUIDES = "guides";
+
 /** Début de toute URL publique d'un fichier appartenant à cet hôtel. Les
  * fichiers sont rangés sous `<hotelId>/…` dans le bucket, ce qui permet de
  * vérifier l'appartenance d'une URL sans table de médias. */

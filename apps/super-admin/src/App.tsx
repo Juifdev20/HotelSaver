@@ -10,6 +10,7 @@ import { EcranHotels } from "./EcranHotels";
 import { EcranPaiements } from "./EcranPaiements";
 import { EcranAbonnements } from "./EcranAbonnements";
 import { EcranConditions } from "./EcranConditions";
+import { EcranGuides } from "./EcranGuides";
 import type { Onglet } from "./EnteteApp";
 import type { HotelListe } from "./etatHotel";
 
@@ -361,6 +362,9 @@ export default function App() {
     );
   }
 
+  if (onglet === "guides" && client) {
+    return <EcranGuides client={client} onChangerOnglet={setOnglet} onDeconnexion={seDeconnecter} />;
+  }
   if (onglet === "conditions" && client) {
     return <EcranConditions client={client} onChangerOnglet={setOnglet} onDeconnexion={seDeconnecter} />;
   }

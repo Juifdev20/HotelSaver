@@ -1,3 +1,67 @@
+/* Guides d'utilisation PDF (20/10/2026). */
+.guides {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.guides__edition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+}
+.guides__edition input {
+  max-width: 420px;
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 400;
+  border: 1px solid var(--hc-border);
+  border-radius: 8px;
+}
+.guides__liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.guides__ligne {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--hc-border);
+}
+.guides__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.guides__info strong {
+  font-size: 15px;
+}
+.guides__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.guides__fichier {
+  position: relative;
+  padding: 9px 14px;
+  border: 1px dashed var(--hc-border);
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.guides__fichier input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 /* Conditions d'utilisation (19/10/2026). */
 .conditions-edition {
   display: flex;

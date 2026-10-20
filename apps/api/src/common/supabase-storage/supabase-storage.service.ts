@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { BUCKET_MEDIA, BUCKET_RAPPORTS, NOM_FICHIER_VALIDE, prefixeUrlHotel } from "./urls-hotel";
+import { BUCKET_GUIDES, BUCKET_MEDIA, BUCKET_RAPPORTS, NOM_FICHIER_VALIDE, prefixeUrlHotel } from "./urls-hotel";
 
 /**
  * Stockage via l'API Storage de Supabase (clé service_role), comme
@@ -9,12 +9,14 @@ import { BUCKET_MEDIA, BUCKET_RAPPORTS, NOM_FICHIER_VALIDE, prefixeUrlHotel } fr
  * - `hotel-media` : public, images WebP ≤ 2 Mo, un dossier par hôtel ;
  * - `rapports` : PRIVÉ, PDF mensuels des départements — lecture uniquement
  *   par URL signée délivrée après contrôle du hotelId du JWT (voir
- *   RapportsController), jamais d'URL publique.
+ *   RapportsController), jamais d'URL publique ;
+ * - `guides` : PRIVÉ, guides d'utilisation PDF — déposés par le super-admin, lus par URL signée après contrôle du rôle.
  */
 @Injectable()
 export class SupabaseStorageService {
   private bucketPret = false;
   private bucketRapportsPret = false;
+  private bucketGuidesPret = false;
 
   private config() {
     const cle = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -118,6 +120,83 @@ export class SupabaseStorageService {
       throw new InternalServerErrorException("Réponse de signature sans URL.");
     }
     return `${url}/storage/v1${corps.signedURL}`;
+  }
+
+  private async assurerBucketGuides(): Promise<void> {
+    if (this.bucketGuidesPret) return;
+    const { cle, url } = this.config();
+    const reponse = await fetch(`${url}/storage/v1/bucket`, {
+      method: "POST",
+      headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: BUCKET_GUIDES,
+        name: BUCKET_GUIDES,
+        // PRIVÉ : le guide est réservé aux clients connectés.
+        public: false,
+        file_size_limit: 50 * 1024 * 1024,
+        allowed_mime_types: ["application/pdf"],
+      }),
+    });
+    if (!reponse.ok && reponse.status !== 409) {
+      const corps = await reponse.text().catch(() => "");
+      if (!/already exists|Duplicate/i.test(corps)) {
+        throw new InternalServerErrorException(`Création du bucket guides refusée (${reponse.status}).`);
+      }
+    }
+    this.bucketGuidesPret = true;
+  }
+
+  /**
+   * Adresse d'envoi à usage unique (2 h, Supabase) pour déposer un guide PDF sous `chemin` : le super-admin envoie le fichier
+   * DIRECTEMENT au stockage (PUT), sans le faire transiter par l'API (fichiers de plusieurs dizaines de Mo).
+   */
+  async urlEnvoiGuide(chemin: string): Promise<string> {
+    await this.assurerBucketGuides();
+    const { cle, url } = this.config();
+    const reponse = await fetch(`${url}/storage/v1/object/upload/sign/${BUCKET_GUIDES}/${chemin}`, {
+      method: "POST",
+      headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!reponse.ok) {
+      const corps = await reponse.text().catch(() => "");
+      throw new InternalServerErrorException(`Préparation de l'envoi refusée (${reponse.status}) : ${corps.slice(0, 200)}`);
+    }
+    const corps = (await reponse.json()) as { url?: string };
+    if (!corps.url) throw new InternalServerErrorException("Réponse de préparation sans adresse d'envoi.");
+    return `${url}/storage/v1${corps.url}`;
+  }
+
+  /** Taille (octets) d'un guide déposé, ou null s'il n'existe pas. */
+  async tailleGuide(chemin: string): Promise<number | null> {
+    const { cle, url } = this.config();
+    const i = chemin.lastIndexOf("/");
+    const reponse = await fetch(`${url}/storage/v1/object/list/${BUCKET_GUIDES}`, {
+      method: "POST",
+      headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prefix: chemin.slice(0, i), search: chemin.slice(i + 1), limit: 10 }),
+    });
+    if (!reponse.ok) return null;
+    const elements = (await reponse.json()) as { name: string; metadata?: { size?: number } | null }[];
+    const fichier = elements.find((e) => e.name === chemin.slice(i + 1));
+    return fichier ? (fichier.metadata?.size ?? 0) : null;
+  }
+
+  /** URL signée à durée courte pour ouvrir un guide du bucket privé. `nom` : nom du fichier proposé au téléchargement. */
+  async urlSigneeGuide(chemin: string, secondes: number, nom: string): Promise<string> {
+    const { cle, url } = this.config();
+    const reponse = await fetch(`${url}/storage/v1/object/sign/${BUCKET_GUIDES}/${chemin}`, {
+      method: "POST",
+      headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ expiresIn: secondes }),
+    });
+    if (!reponse.ok) {
+      const corps = await reponse.text().catch(() => "");
+      throw new InternalServerErrorException(`Signature du lien refusée (${reponse.status}) : ${corps.slice(0, 200)}`);
+    }
+    const corps = (await reponse.json()) as { signedURL?: string };
+    if (!corps.signedURL) throw new InternalServerErrorException("Réponse de signature sans URL.");
+    return `${url}/storage/v1${corps.signedURL}&download=${encodeURIComponent(nom)}`;
   }
 
   /** Enregistre un WebP et renvoie son URL publique. */

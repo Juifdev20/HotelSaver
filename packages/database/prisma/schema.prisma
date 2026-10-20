@@ -996,6 +996,31 @@ model ConditionsUtilisation {
   publiePar String?
 }
 
+/// Guide d'utilisation PDF (20/10/2026) : une ligne par publication depuis le super-admin. Le fichier est dans le bucket
+/// PRIVÉ « guides » ; les comptes connectés l'ouvrent par une URL signée de 5 minutes, selon leur rôle (voir DECISIONS.md).
+model GuideUtilisation {
+  id        String    @id @default(uuid())
+  guide     TypeGuide
+  version   Int
+  /// Chemin dans le bucket « guides » : <guide>/<uuid>.pdf
+  fichier   String
+  taille    Int
+  /// Libellé libre affiché aux utilisateurs, ex. « Édition 1.0 — octobre 2026 ».
+  edition   String?
+  publieLe  DateTime  @default(now())
+  /// Id du super-admin qui a publié.
+  publiePar String?
+
+  @@unique([guide, version])
+}
+
+enum TypeGuide {
+  COMPLET
+  PATRON
+  RECEPTION
+  CAFETERIA
+}
+
 model HotelSupprime {
   id          String   @id @default(uuid())
   hotelId     String

@@ -24,6 +24,7 @@ export type IdPage =
   | "site-hotel"
   | "rapports"
   | "depenses"
+  | "guides"
   | "synchronisation";
 
 export interface EntreeNavigation {
@@ -88,6 +89,11 @@ export const SECTIONS: SectionNavigation[] = [
   {
     titre: "Mon hôtel",
     entrees: [{ id: "site-hotel", libelle: "Site de l'hôtel", libelleCourt: "Site", roles: [Role.PATRON], disponible: true }],
+  },
+  {
+    titre: "Aide",
+    // Guide PDF (20/10/2026) : le serveur ne donne à chaque rôle que le guide de son poste (le patron, tous).
+    entrees: [{ id: "guides", libelle: "Guide d'utilisation", libelleCourt: "Guide", roles: TOUS, disponible: true }],
   },
   // Pas de section "Administration" séparée : Utilisateurs et Taux de change
   // (PATRON uniquement) vivent dans l'écran Paramètres pour garder la barre

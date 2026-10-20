@@ -25,6 +25,7 @@ import { HotelSiteModule } from "./hotel-site/hotel-site.module";
 import { ReglagesHotelModule } from "./reglages-hotel/reglages-hotel.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { RapportsModule } from "./rapports/rapports.module";
+import { GuidesModule } from "./guides/guides.module";
 import { DepensesModule } from "./depenses/depenses.module";
 import { AbonnementModule } from "./abonnement/abonnement.module";
 import { AcompteModule } from "./acompte/acompte.module";
@@ -60,6 +61,7 @@ import { AcompteModule } from "./acompte/acompte.module";
     ReglagesHotelModule,
     NotificationsModule,
     RapportsModule,
+    GuidesModule,
     DepensesModule,
     AbonnementModule,
     AcompteModule,

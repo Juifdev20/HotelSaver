@@ -71,6 +71,18 @@ export interface VersionConditionsAdmin {
   hotelsAyantAccepte?: number;
 }
 
+/** Une version publiée d'un guide d'utilisation PDF, vue du super-admin. */
+export interface VersionGuideAdmin {
+  id: string;
+  guide: "COMPLET" | "PATRON" | "RECEPTION" | "CAFETERIA";
+  version: number;
+  fichier: string;
+  taille: number;
+  edition: string | null;
+  publieLe: string;
+  publiePar: string | null;
+}
+
 export class ClientSuperAdmin {
   constructor(
     private readonly baseUrl: string,
@@ -121,6 +133,33 @@ export class ClientSuperAdmin {
   /** Publie une NOUVELLE version : les inscriptions suivantes devront l'accepter. */
   async publierConditions(texte: string): Promise<VersionConditionsAdmin> {
     return this.requete<VersionConditionsAdmin>("/super-admin/conditions", { method: "POST", body: JSON.stringify({ texte }) });
+  }
+
+  /** Guides d'utilisation PDF (20/10/2026) : toutes les versions publiées. */
+  async listerGuides(): Promise<VersionGuideAdmin[]> {
+    return this.requete<VersionGuideAdmin[]>("/super-admin/guides");
+  }
+
+  /**
+   * Publie une nouvelle version d'un guide : le serveur donne une adresse d'envoi à usage unique, le PDF y est déposé
+   * DIRECTEMENT (sans passer par l'API, fichiers de plusieurs dizaines de Mo), puis la version est enregistrée.
+   */
+  async publierGuide(guide: VersionGuideAdmin["guide"], fichier: Blob, edition?: string): Promise<VersionGuideAdmin> {
+    const { chemin, urlEnvoi } = await this.requete<{ chemin: string; urlEnvoi: string }>("/super-admin/guides/envoi", {
+      method: "POST",
+      body: JSON.stringify({ guide }),
+    });
+    const envoi = await fetch(urlEnvoi, { method: "PUT", headers: { "Content-Type": "application/pdf", "x-upsert": "false" }, body: fichier });
+    if (!envoi.ok) {
+      const detail = await envoi.text().catch(() => "");
+      throw new Error(`Envoi du PDF refusé par le stockage (${envoi.status})${/size|large/i.test(detail) ? " : fichier trop lourd (50 Mo au plus)." : "."}`);
+    }
+    return this.requete<VersionGuideAdmin>("/super-admin/guides", { method: "POST", body: JSON.stringify({ guide, chemin, edition }) });
+  }
+
+  /** Lien de contrôle (5 minutes) vers une version publiée. */
+  async lienGuide(id: string): Promise<{ url: string }> {
+    return this.requete<{ url: string }>(`/super-admin/guides/${encodeURIComponent(id)}/lien`);
   }
 
   async lireParametresAbonnement(): Promise<ParametresPlateformeVue> {

@@ -27,6 +27,8 @@ import {
   ProfilConnecte,
   RapportMensuel,
   DepartementRapport,
+  GuideDisponible,
+  TypeGuide,
   CreerDepense,
   Depense,
   FiltresDepenses,
@@ -592,6 +594,16 @@ export class ClientApi {
    * ou `shell.openExternal` côté desktop. */
   async urlRapport(id: string): Promise<{ url: string }> {
     return this.requete<{ url: string }>(`/rapports/${id}/telecharger`);
+  }
+
+  /** Guides d'utilisation PDF permis à ce compte (le patron tous, le personnel celui de son poste). */
+  async listerGuides(): Promise<GuideDisponible[]> {
+    return this.requete<GuideDisponible[]>("/guides");
+  }
+
+  /** Lien signé de 5 minutes vers la dernière version d'un guide (à ouvrir tout de suite). */
+  async lienGuide(guide: TypeGuide): Promise<{ url: string; expireDans: number }> {
+    return this.requete<{ url: string; expireDans: number }>(`/guides/${guide}/lien`);
   }
 
   // ---------------------------------------------------------------------

@@ -845,6 +845,34 @@ export function sousComptesVisibles<T extends { id: string; payeLe?: string | nu
 // ---------------------------------------------------------------------------
 
 export type DepartementRapport = "CAFETERIA" | "RECEPTION";
+
+/** Guide d'utilisation PDF (20/10/2026). Doit rester synchronisé avec l'enum `TypeGuide` du schéma Prisma. */
+export type TypeGuide = "COMPLET" | "PATRON" | "RECEPTION" | "CAFETERIA";
+
+/** Guides que chaque rôle peut ouvrir : le patron tous, le personnel celui de son poste. */
+export const GUIDES_PAR_ROLE: Record<Role, TypeGuide[]> = {
+  [Role.PATRON]: ["COMPLET", "PATRON", "RECEPTION", "CAFETERIA"],
+  [Role.RECEPTIONNISTE]: ["RECEPTION"],
+  [Role.CAFETARIA]: ["CAFETERIA"],
+};
+
+export const LIBELLE_GUIDE: Record<TypeGuide, string> = {
+  COMPLET: "Guide complet",
+  PATRON: "Guide du patron",
+  RECEPTION: "Guide du réceptionniste",
+  CAFETERIA: "Guide de la cafétaria",
+};
+
+/** GET /guides — dernière version publiée de chaque guide permis au compte. */
+export interface GuideDisponible {
+  guide: TypeGuide;
+  libelle: string;
+  version: number;
+  edition: string | null;
+  /** Taille du PDF en octets. */
+  taille: number;
+  publieLe: string;
+}
 export type StatutRapport = "ACTIF" | "REMPLACE";
 
 /** Une ligne de GET /rapports — le PDF lui-même vit dans le stockage privé,

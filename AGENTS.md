@@ -57,6 +57,9 @@ section pour toute décision non triviale).
   l'APK et l'exe, puis release GitHub `vX.Y.Z` (cochée « Latest ») avec les fichiers versionnés ET deux copies au nom fixe
   `HotelSaver.apk` et `HotelSaver-Setup.exe` : le site pointe sur `releases/latest/download/<nom fixe>` (`render.yaml`,
   `apps/web/src/config.ts`) — rien à redéployer côté site.
+- **Guide d'utilisation (PDF)** : fabriqué dans `docs/guide` (voir son README : captures de l'application MOBILE, `node docs/guide/construire.mjs`
+  et `--role patron|reception|cafetaria`), puis déposé dans le super-admin (onglet « Guides », une version par dépôt). Les PDF restent privés
+  (bucket `guides`) ; les comptes les ouvrent après connexion, selon leur rôle, par un lien de 5 minutes (site `/guide`, mobile, bureau).
 - **Conditions d'utilisation** : le texte se publie dans le super-admin (onglet « Conditions », une version par publication) ;
   l'inscription exige la dernière version (`conditionsVersion`), et `empaqueter` la lit sur l'API pour la page « J'accepte »
   de l'installateur (copie de secours : `apps/desktop/resources/conditions.txt`).

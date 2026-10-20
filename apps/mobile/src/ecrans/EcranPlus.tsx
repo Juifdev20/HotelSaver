@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   ArrowLeftRight,
+  BookOpen,
   BookOpenCheck,
   CalendarDays,
   ChefHat,
@@ -61,6 +62,7 @@ import { EcranRetraitCommande } from "./EcranRetraitCommande";
 import { EcranAbonnement } from "./EcranAbonnement";
 import { EcranRemboursements } from "./EcranRemboursements";
 import { EcranPaiementEnLigne } from "./EcranPaiementEnLigne";
+import { EcranGuides } from "./EcranGuides";
 
 
 type VuePlus =
@@ -73,6 +75,7 @@ type VuePlus =
   /** Écran fermé par la formule de l'hôtel (notification, lien) : explique et mène aux formules. */
   | { id: "fonction-non-incluse"; fonction: CodeFonction }
   | { id: "imprimante" }
+  | { id: "guides" }
   | { id: "menu" }
   | { id: "stock" }
   | { id: "comptes-ouverts" }
@@ -289,6 +292,9 @@ export function EcranPlus() {
   if (vue.id === "journal-recus") {
     return <EcranJournalRecus onRetour={() => setVue(VUE_LISTE)} />;
   }
+  if (vue.id === "guides") {
+    return <EcranGuides onRetour={() => setVue(VUE_LISTE)} />;
+  }
   if (vue.id === "rapports") {
     return <EcranRapports onRetour={() => setVue(VUE_LISTE)} />;
   }
@@ -391,6 +397,7 @@ export function EcranPlus() {
           <Text style={styles.titreSection}>Appareil</Text>
           <LigneMenu icone={Settings} libelle="Paramètres" onPress={() => setVue({ id: "parametres" })} />
           <LigneMenu icone={Printer} libelle="Imprimante" onPress={() => setVue({ id: "imprimante" })} />
+          <LigneMenu icone={BookOpen} libelle="Guide d'utilisation" onPress={() => setVue({ id: "guides" })} />
           <LigneMenu
             icone={RefreshCw}
             libelle="Synchronisation"

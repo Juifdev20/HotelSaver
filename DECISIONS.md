@@ -3833,3 +3833,25 @@ mobile « Comptes » restait monté et ne se rechargeait qu'après une synchroni
   entiers ». L'acompte (`objectifAcompte`) et le reste à payer (`resteAPayer`) sont arrondis à l'unité SUPÉRIEURE
   (`arrondirUniteSuperieure`, `apps/api/src/acompte/calcul-acompte.ts`) ; sa commission CUSTOMER_PAID est déjà entière pour une
   base entière (vérifié). Les prix d'abonnement sont entiers. Ce refus de ScanLinkPay est désormais montré tel quel au client.
+
+
+## Guide d'utilisation : PDF privés, ouverts après connexion selon le rôle (20/10/2026)
+
+- **Pourquoi** : le guide (docs/guide, captures de l'application mobile) annonçait une rubrique « Guide » après connexion qui
+  n'existait pas ; il ne doit pas être public.
+- **Fichiers** : bucket Supabase **privé** `guides` (PDF, 50 Mo au plus), créé au premier envoi. Jamais d'URL publique, rien sur
+  GitHub ni dans les fichiers du site. Table `GuideUtilisation` (guide COMPLET/PATRON/RECEPTION/CAFETERIA, version unique par
+  guide, chemin, taille, édition, auteur) — migration `20261020180000_guides_utilisation`.
+- **Publication** (onglet « Guides » du super-admin) : `POST /super-admin/guides/envoi` donne un chemin choisi par le serveur
+  (`<guide>/<uuid>.pdf`) et une adresse d'envoi Supabase à usage unique ; le navigateur y dépose le PDF directement (30 Mo ne
+  transitent pas par l'API Render) ; `POST /super-admin/guides` vérifie que le fichier est arrivé (taille lue dans le stockage) et
+  crée la version suivante. Chaque dépôt est une nouvelle version, aussitôt proposée.
+- **Lecture** : `GET /guides` et `GET /guides/:guide/lien` derrière `SupabaseAuthGuard` (compte connecté ET actif). Droits
+  `GUIDES_PAR_ROLE` (packages/types) : patron les 4, réception le sien, cafétaria le sien ; un autre guide = 403. Le lien est une
+  URL signée de **5 minutes** : partagé, il ne sert plus ensuite. Pas de filigrane nominatif (choix du 20/10).
+- **Écrans** : site `/guide` (connexion numéro + mot de passe, jeton en mémoire comme `/payer`, lien « Guide » dans la barre),
+  mobile « Plus › Appareil › Guide d'utilisation », bureau « Aide › Guide d'utilisation ».
+- **Tests** : `guides.service.spec.ts` (droits, chemins refusés) ; `test/integration/guides.e2e-spec.ts` (vraies routes : super-admin
+  seul à publier, 401 sans connexion ou compte désactivé, 403 hors rôle, dernière version, fichier non reçu refusé).
+- **Pied de page du PDF** : logo + « Copyright © 2026 HotelSaver. Tous droits réservés. » sur toutes les pages sauf la couverture ;
+  une page trop pleine est réduite à la fabrication pour ne jamais passer sous le pied (`construire.mjs`).

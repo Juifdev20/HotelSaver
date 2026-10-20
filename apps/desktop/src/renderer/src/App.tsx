@@ -36,6 +36,7 @@ import { EcranMenu } from "./screens/EcranMenu";
 import { EcranStock } from "./screens/EcranStock";
 import { EcranInventaire } from "./screens/EcranInventaire";
 import { EcranRapports } from "./screens/EcranRapports";
+import { EcranGuides } from "./screens/EcranGuides";
 import { EcranDepenses } from "./screens/EcranDepenses";
 import { EcranBientot } from "./screens/EcranBientot";
 import { EcranSynchronisation } from "./screens/EcranSynchronisation";
@@ -695,6 +696,8 @@ export function App() {
       contenu = <EcranSiteHotel client={client} />;
     } else if (page === "rapports") {
       contenu = <EcranRapports client={client} utilisateur={utilisateur} />;
+    } else if (page === "guides") {
+      contenu = <EcranGuides client={client} />;
     } else if (page === "depenses") {
       contenu = <EcranDepenses client={client} utilisateur={utilisateur} />;
     } else if (page === "utilisateurs") {

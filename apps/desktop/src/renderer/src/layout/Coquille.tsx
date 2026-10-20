@@ -5,6 +5,7 @@ import {
   ArrowLeftRight,
   Bell,
   BedDouble,
+  BookOpen,
   BookOpenCheck,
   CalendarDays,
   ChefHat,
@@ -79,6 +80,7 @@ const ICONES: Record<IdPage, LucideIcon> = {
   "site-hotel": Globe,
   rapports: FileText,
   depenses: Wallet,
+  guides: BookOpen,
   synchronisation: RefreshCw,
 };
 

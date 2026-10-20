@@ -36,7 +36,7 @@ export interface JeuHotel {
 const PALETTE = { claire: { primary: "#123456" }, sombre: { primary: "#654321" } };
 const TABLES = [
   "NotificationLue", "AppareilPush", "Notification", "InventairePhysiqueItem", "InventairePhysique", "MenuDuJourItem", "MenuDuJour",
-  "RapportMensuel", "Depense", "VenteCafeteria", "LigneCommande", "SousCompte", "CompteCafeteria", "MouvementStock", "Facture",
+  "RapportMensuel", "GuideUtilisation", "Depense", "VenteCafeteria", "LigneCommande", "SousCompte", "CompteCafeteria", "MouvementStock", "Facture",
   "Reservation", "Client", "Chambre", "Produit", "TauxChange", "Remboursement", "PaiementReservation", "PaiementAbonnement", "PaiementLicence", "HotelSite", "HotelBranding", "Utilisateur", "SuperAdmin", "Hotel",
 ];
 
