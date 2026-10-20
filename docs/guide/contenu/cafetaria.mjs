@@ -119,7 +119,7 @@ export default {
           etapes: [
             { titre: "Touchez la personne", texte: "Touchez sa carte ou « Ajouter ». La page « Ajouter pour Papa Joseph » s'ouvre avec le menu du jour, les plus vendus et tous les produits.", action: "Appuyez sur « Ajouter »", image: C + "13-ajout-liste.png" },
             { titre: "Choisissez les produits", texte: "Appuyez sur « + » pour ajouter, « − » pour retirer. Cherchez un produit avec « Rechercher un produit » ou filtrez par catégorie : Tous, Boissons, Plats.", action: "Appuyez sur « + » à droite du produit", image: C + "14-ajout-panier.png" },
-            { titre: "Validez la sélection", texte: "Le bouton du bas résume la sélection, par exemple « Ajouter à Papa Joseph · 3 articles ». Les articles entrent dans le compte.", action: "Appuyez sur « Ajouter à Papa Joseph »", image: C + "15-ajout-valider.png" },
+            { titre: "Validez la sélection", texte: "Le bouton du bas résume la sélection, par exemple « Ajouter à Papa Joseph · 3 articles ». Les articles entrent dans le compte.", action: "Appuyez sur « Ajouter à Papa Joseph »", image: C + "14-ajout-panier.png", vue: [0.55, 1] },
           ],
         }),
         annote({
@@ -140,7 +140,7 @@ export default {
           titre: "Un compte, plusieurs personnes",
           chapo: "Chaque personne a sa propre note et paie sa part quand elle part.",
           etapes: [
-            { titre: "Ajoutez une personne", texte: "Appuyez sur « Ajouter une personne », écrivez le nom, par exemple Mama Grâce, puis validez avec « Ajouter ».", action: "Appuyez sur « Ajouter une personne »", image: C + "17-personne-ajoutee.png" },
+            { titre: "Ajoutez une personne", texte: "Appuyez sur « Ajouter une personne », écrivez le nom, par exemple Mama Grâce, puis validez avec « Ajouter ».", action: "Appuyez sur « Ajouter une personne »", image: C + "17-ajouter-personne.png" },
             { titre: "Ajoutez ses articles", texte: "Touchez la carte de cette personne et choisissez ses produits, comme pour la première.", action: "Appuyez sur la carte de la personne", image: C + "18-deux-personnes.png", vue: [0.15, 0.6] },
             { titre: "Réglez à votre rythme", texte: "Chacun paie sa part avec « Encaisser » et son nom. Si une seule personne règle pour tous, appuyez sur « Tout encaisser ». Une personne payée porte « Payé » et disparaît après une minute ; « Afficher » la ramène.", action: "Appuyez sur « Encaisser » + le nom", image: C + "21-personne-payee.png" },
           ],
@@ -456,7 +456,7 @@ export default {
           chapo: "Quand tous les articles sont comptés, vous validez. Un PDF est préparé pour le patron.",
           etapes: [
             { titre: "Validez", texte: "Appuyez sur « Valider ». Le téléphone demande « Enregistrer l'inventaire » et rappelle le nombre d'écarts. L'inventaire est enregistré définitivement.", action: "Appuyez sur « Enregistrer l'inventaire »", image: C + "62-inventaire-confirmation.png" },
-            { titre: "Lisez le résultat", texte: "Vous voyez le nombre de produits, d'écarts, de manquants et de surplus. « Télécharger le PDF » ouvre le rapport.", action: "Appuyez sur « Télécharger le PDF »", image: C + "62-inventaire-resultat.png" },
+            { titre: "Lisez le résultat", texte: "Vous voyez le nombre de produits, d'écarts, de manquants et de surplus. « Télécharger le PDF » ouvre le rapport.", action: "Appuyez sur « Télécharger le PDF »", image: C + "62r-inventaire-resultat.png" },
           ],
           apres: [
             { encadre: { type: "info", titre: "Retrouver un ancien inventaire", texte: "L'onglet « Historique » liste les inventaires, avec le nombre d'écarts et le lien « Ouvrir le PDF »." } },
