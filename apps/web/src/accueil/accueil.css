@@ -108,6 +108,8 @@ html {
 }
 
 .marketing-nav__marque {
+  flex: none;
+  margin-right: var(--hc-space-4);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -126,6 +128,10 @@ html {
   display: none;
   align-items: center;
   gap: var(--hc-space-5);
+}
+
+.marketing-nav__liens a {
+  white-space: nowrap;
 }
 
 .marketing-nav__liens a:not(.bouton-marketing) {
@@ -1158,15 +1164,19 @@ html {
 }
 
 /* ---------- Bureau ---------- */
-@media (min-width: 960px) {
+/* Barre complète seulement quand ses dix liens tiennent sur une ligne ; en dessous, le menu ☰ (comme sur téléphone). */
+@media (min-width: 1260px) {
   .marketing-nav__liens {
     display: flex;
+    gap: var(--hc-space-4);
   }
 
   .marketing-nav__burger {
     display: none;
   }
+}
 
+@media (min-width: 960px) {
   .hero {
     padding-top: 150px;
     padding-bottom: 96px;

@@ -118,6 +118,8 @@
 /* ---------- Introduction + connexion ---------- */
 .pay-intro {
   display: grid;
+  /* Une colonne bornée à l'écran : sans elle, la colonne prend la largeur de son contenu et la carte déborde sur téléphone. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--hc-space-5);
   align-items: center;
   padding-top: var(--hc-space-3);
