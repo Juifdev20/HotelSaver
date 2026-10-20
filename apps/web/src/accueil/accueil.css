@@ -1639,7 +1639,7 @@ html {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  padding: 96px var(--hc-space-4);
+  padding: 56px var(--hc-space-4);
   color: #fff;
   background: linear-gradient(150deg, #0a1a2e 0%, #0f2742 28%, #123f8f 70%, #1769e0 100%);
   background-size: 160% 160%;
@@ -1744,17 +1744,17 @@ html {
 
 .createur__titre {
   max-width: 720px;
-  margin: 0 auto var(--hc-space-7, 56px);
-  font-size: clamp(26px, 4vw, 40px);
+  margin: 0 auto var(--hc-space-5);
+  font-size: clamp(22px, 4vw, 40px);
   line-height: 1.2;
   color: #fff;
 }
 
 .createur__carte {
   display: grid;
-  gap: var(--hc-space-6);
+  gap: var(--hc-space-4);
   align-items: center;
-  padding: var(--hc-space-6) var(--hc-space-5);
+  padding: var(--hc-space-5) var(--hc-space-4);
   text-align: left;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 28px;
@@ -1768,7 +1768,7 @@ html {
 .createur__scene {
   position: relative;
   justify-self: center;
-  width: min(300px, 72vw);
+  width: min(300px, 40vw, 168px);
   aspect-ratio: 1;
   display: flex;
   align-items: center;
@@ -1839,7 +1839,7 @@ html {
 }
 
 .createur__initiales {
-  font-size: 72px;
+  font-size: clamp(40px, 12vw, 72px);
   font-weight: 800;
   color: #fff;
   text-shadow: 0 4px 24px rgba(147, 197, 253, 0.7);
@@ -1907,15 +1907,16 @@ html {
 }
 
 .createur__fonction {
-  margin: 8px 0 var(--hc-space-4);
-  font-size: 17px;
+  margin: 4px 0 var(--hc-space-3);
+  font-size: 15px;
   font-weight: 700;
   color: #bfdbfe;
 }
 
 .createur__paragraphe {
-  margin: 0 0 var(--hc-space-3);
-  line-height: 1.7;
+  margin: 0 0 var(--hc-space-2);
+  font-size: 14.5px;
+  line-height: 1.55;
   color: rgba(255, 255, 255, 0.88);
 }
 
@@ -1923,8 +1924,9 @@ html {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-top: var(--hc-space-3);
-  padding: 14px 24px;
+  margin-top: var(--hc-space-2);
+  padding: 12px 20px;
+  font-size: 14px;
   border-radius: 999px;
   background: #fff;
   color: #0f2742;
@@ -1962,10 +1964,56 @@ html {
   }
 }
 
+/* Téléphone : pastilles plus petites et collées à la photo, pour ne pas déborder de l'écran. */
+.createur__puce {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+.createur__puce--ceo {
+  right: -14%;
+}
+.createur__puce--dev {
+  left: -18%;
+}
+
 @media (min-width: 860px) {
+  .createur {
+    padding: 96px var(--hc-space-4);
+  }
+  .createur__titre {
+    margin-bottom: var(--hc-space-7, 56px);
+  }
   .createur__carte {
     grid-template-columns: 340px 1fr;
+    gap: var(--hc-space-6);
     padding: var(--hc-space-7, 56px) var(--hc-space-6);
+  }
+  .createur__scene {
+    width: min(300px, 100%);
+  }
+  .createur__fonction {
+    margin: 8px 0 var(--hc-space-4);
+    font-size: 17px;
+  }
+  .createur__paragraphe {
+    margin-bottom: var(--hc-space-3);
+    font-size: 16px;
+    line-height: 1.7;
+  }
+  .createur__contact {
+    margin-top: var(--hc-space-3);
+    padding: 14px 24px;
+    font-size: 16px;
+  }
+  .createur__puce {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+  .createur__puce--ceo {
+    right: -6%;
+  }
+  .createur__puce--dev {
+    left: -8%;
   }
 }
 
