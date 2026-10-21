@@ -69,3 +69,6 @@ docs/guide/captures/
 docs/guide/sortie/
 dist-guide/
 dist-test/
+
+# Cahier de tests : fichiers fabriqués (voir docs/cahier-tests/README.md)
+docs/cahier-tests/sortie/
