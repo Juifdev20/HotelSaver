@@ -119,5 +119,6 @@ build Android exige `JAVA_HOME=C:\Program Files\Java\jdk-21.0.12` et
 ## Secrets
 
 `.env` présents localement dans `apps/api` et `packages/database`, jamais
-commités (`.gitignore`). Ne jamais les afficher en clair ; la clé Supabase
+commités (`.gitignore`). Après une réinstallation de la machine : `docs/RECONSTRUIRE-ENV.md` et
+`node scripts/verifier-env.mjs` (vérifie les `.env` et la clé de signature sans afficher aucune valeur). Ne jamais les afficher en clair ; la clé Supabase
 **anon** est publique par conception et embarquée côté client.
