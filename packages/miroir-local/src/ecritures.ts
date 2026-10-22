@@ -5,6 +5,7 @@
  */
 import {
   acompteMaximal,
+  refusModificationSejour,
   calculerEncaissement,
   MESSAGE_ACOMPTE_TROP_ELEVE,
   messagePlafondEssai,
@@ -228,6 +229,16 @@ export class Ecritures {
     const arrivee = d.dateArrivee ? new Date(d.dateArrivee).toISOString() : r.dateArrivee;
     const depart = d.dateDepart ? new Date(d.dateDepart).toISOString() : r.dateDepart;
     if (new Date(arrivee) >= new Date(depart)) throw erreur(400, "La date de départ doit être postérieure à la date d'arrivée.");
+    // Même règle que le serveur (packages/regles) : acompte figé à la hausse après l'arrivée, tout figé une fois le séjour encaissé.
+    const facture = this.v.factureDeReservation(r.id);
+    const refus = refusModificationSejour({
+      statut: r.statut,
+      acompteActuel: Number(r.acompte),
+      acompteVoulu: d.acompte !== undefined ? Number(d.acompte) : undefined,
+      datesChangent: new Date(arrivee).getTime() !== new Date(r.dateArrivee).getTime() || new Date(depart).getTime() !== new Date(r.dateDepart).getTime(),
+      dejaEncaisse: !!facture && !facture.annuleLe,
+    });
+    if (refus) throw erreur(409, refus);
     if (d.dateArrivee || d.dateDepart) this.verifierAbsenceDeConflit(r.chambreId, arrivee, depart, r.id);
     const champs: Doc = { dateArrivee: arrivee, dateDepart: depart };
     const chambreDeLaReservation = this.v.chambre(r.chambreId);

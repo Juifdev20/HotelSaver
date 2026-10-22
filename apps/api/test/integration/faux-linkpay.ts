@@ -35,6 +35,8 @@ export class FauxLinkPay {
           res.writeHead(code, { "Content-Type": "application/json" });
           res.end(JSON.stringify(json));
         };
+        // Le client de l'API appelle `<adresse>/api/v1/...` depuis le 19/10/2026 : le faux répond aux mêmes chemins, avec ou sans ce préfixe.
+        req.url = (req.url ?? "").replace(/^\/api\/v1(?=\/)/, "");
         this.appels.push(`${req.method} ${req.url}`);
         if (req.method === "GET" && req.url?.startsWith("/payment-requests/fees-preview")) {
           const q = new URL(req.url, "http://x").searchParams;

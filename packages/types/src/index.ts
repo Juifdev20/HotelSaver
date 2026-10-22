@@ -316,6 +316,8 @@ export interface VenteCafeteria {
   montantMonnaieRendue: string | null;
   reservationLieeId: string | null;
   numeroRecu: string;
+  /** Numéro TEMP-… donné hors ligne par l'appareil, gardé par le serveur : retrouve le reçu après la synchronisation. */
+  numeroProvisoire?: string | null;
   imprimeLe: string | null;
   annuleLe: string | null;
   motifAnnulation: string | null;
@@ -430,6 +432,8 @@ export interface Facture {
   deviseMonnaieRendue: Devise | null;
   montantMonnaieRendue: string | null;
   numeroRecu: string;
+  /** Numéro TEMP-… donné hors ligne par l'appareil, gardé par le serveur : retrouve le reçu après la synchronisation. */
+  numeroProvisoire?: string | null;
   imprimeLe: string | null;
   annuleLe: string | null;
   motifAnnulation: string | null;

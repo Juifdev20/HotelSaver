@@ -36,7 +36,7 @@ type Vue =
   | { id: "liste" }
   | { id: "detail"; reservationId: string }
   | { id: "nouveau"; chambreInitialeId?: string; dateArriveeInitiale?: string }
-  | { id: "facturation"; reservationId: string };
+  | { id: "facturation"; reservationId: string; checkOut: boolean };
 
 const SEGMENTS: { id: SegmentId; libelle: string }[] = [
   { id: "aujourdhui", libelle: "Aujourd'hui" },
@@ -155,7 +155,7 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
           rechargerMiroir();
         }}
         onChange={rechargerMiroir}
-        onFacturer={(idServeur) => setVue({ id: "facturation", reservationId: idServeur })}
+        onFacturer={(idServeur, options) => setVue({ id: "facturation", reservationId: idServeur, checkOut: options?.checkOut ?? true })}
       />
     );
   }
@@ -178,6 +178,7 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
     return (
       <EcranFacturation
         reservationId={vue.reservationId}
+        checkOut={vue.checkOut}
         onRetour={() => {
           setVue({ id: "liste" });
           void moteurSync.forcerSynchronisation().then(rechargerMiroir);

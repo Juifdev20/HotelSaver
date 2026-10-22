@@ -161,8 +161,16 @@ export function construireRecuFacture(
     },
   ];
 
-  if (Number(reservation.acompte) > 0) {
-    lignes.push({ type: "montant", libelle: "Acompte versé", valeur: formatMontant(reservation.acompte, reservation.chambre.devise) });
+  // Le séjour, ce qui a déjà été payé (acompte, en ligne ou à la réception) et ce qui restait : le client comprend son reçu. Avant, seul
+  // « Acompte versé » apparaissait — et rien du tout quand tout était payé d'avance (22/10/2026).
+  const devise = reservation.chambre.devise;
+  const nuits = nombreDeNuits(reservation.dateArrivee, reservation.dateDepart);
+  const montantSejour = Number(facture.montantChambre ?? Number(reservation.chambre.prixParNuit) * nuits) || 0;
+  lignes.push({ type: "montant", libelle: `Séjour (${nuits} nuit${nuits > 1 ? "s" : ""})`, valeur: formatMontant(montantSejour, devise) });
+  const acompte = Number(reservation.acompte);
+  if (acompte > 0) {
+    lignes.push({ type: "montant", libelle: "Acompte déjà payé", valeur: `-${formatMontant(acompte, devise)}` });
+    lignes.push({ type: "montant", libelle: "Reste chambre", valeur: formatMontant(Math.max(0, montantSejour - acompte), devise) });
   }
 
   if (ventesCafeteriaLiees.length > 0) {
@@ -178,6 +186,10 @@ export function construireRecuFacture(
   }
 
   lignes.push(...lignesTotaux(facture.montantTotalUSD, facture.montantTotalCDF, "TOTAL À PAYER"));
+  const rienAPayer = !(Number(facture.montantTotalUSD) > 0) && !(Number(facture.montantTotalCDF) > 0);
+  if (rienAPayer) {
+    lignes.push({ type: "montant", libelle: "TOTAL À PAYER", valeur: formatMontant(0, devise) }, { type: "soustitre", texte: "Séjour entièrement payé d'avance." });
+  }
   lignes.push(...lignesReglement(facture));
   lignes.push(...noteProvisoire(facture.numeroRecu));
   lignes.push(...piedDePage());

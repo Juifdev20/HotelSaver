@@ -15,7 +15,7 @@ export interface EcranReservationsProps {
   client: ClientApi;
   onNaviguer: (page: IdPage) => void;
   /** Ouvre l'écran Facturation directement sur ce séjour. */
-  onFacturer: (reservationId: string) => void;
+  onFacturer: (reservationId: string, options?: { checkOut: boolean }) => void;
   /** Faux pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer » : lecture seule. */
   peutOperer?: boolean;
   /** Ouvre directement la fiche de cette réservation (clic sur une notification). */

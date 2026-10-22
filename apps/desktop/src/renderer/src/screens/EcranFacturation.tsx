@@ -1,12 +1,13 @@
 import * as React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Devise, Facture, ModePaiement, Reservation, Role, ProfilConnecte, VenteCafeteria, peutOperer } from "@hotel-chicago/types";
 import type { TauxChange } from "@hotel-chicago/api-client";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { CalendarCheck } from "lucide-react";
-import { lireMontant } from "@hotel-chicago/miroir-local";
+import { attendreNumeroDefinitif, lireMontant, retrouverRecu } from "@hotel-chicago/miroir-local";
+import type { SynchronisationEcran } from "../synchronisation-ecran";
 import { useConfirmation } from "../components/DialogueConfirmation";
 import { calculerApercuMonnaie } from "../components/apercu-monnaie";
 import { BadgeProvisoire, PHRASE_RECU_PROVISOIRE, estRecuProvisoire } from "../components/RecuProvisoire";
@@ -20,9 +21,13 @@ export interface EcranFacturationProps {
   /** Présent quand on arrive d'une autre page (Réservations, Arrivées et
    * départs) : ouvre directement le détail de cette réservation. */
   reservationInitiale?: string | null;
+  /** Pour imprimer le reçu avec son numéro définitif quand le réseau est là (voir attendreNumeroDefinitif). */
+  synchronisation?: SynchronisationEcran;
+  /** Ouvert depuis « Encaisser le séjour maintenant » : la facture sans le check-out. */
+  checkOutInitial?: boolean;
 }
 
-type Vue = { id: "liste" } | { id: "detail"; reservationId: string };
+type Vue = { id: "liste" } | { id: "detail"; reservationId: string; checkOut?: boolean };
 
 function nombreDeNuits(dateArrivee: string, dateDepart: string): number {
   const millisecondesParJour = 1000 * 60 * 60 * 24;
@@ -59,13 +64,21 @@ function DetailFacturation({
   interfaceImprimante,
   reservationId,
   onRetour,
+  synchronisation,
+  checkOut = true,
 }: {
   client: ClientApi;
   utilisateur: ProfilConnecte;
   interfaceImprimante: string | null;
   reservationId: string;
   onRetour: () => void;
+  synchronisation?: SynchronisationEcran;
+  /** false = « Encaisser le séjour maintenant » : la facture est faite, le client reste (check-out plus tard). */
+  checkOut?: boolean;
 }) {
+  const titreAction = checkOut ? "Facturer et check-out" : "Encaisser le séjour";
+  /** En ligne, le numéro définitif du reçu arrive avec la synchronisation : l'impression l'attend. */
+  const factureDefinitive = useRef<Promise<Facture> | null>(null);
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [ventesLiees, setVentesLiees] = useState<VenteCafeteria[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -142,10 +155,14 @@ function DetailFacturation({
               {apercuMonnaie?.statut === "ok" ? ` · monnaie à rendre : ${formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}` : ""}.
             </p>
           )}
-          <p>La facture sera enregistrée et le séjour terminé (check-out). Seul le patron pourra ensuite annuler le reçu.</p>
+          <p>
+            {checkOut
+              ? "La facture sera enregistrée et le séjour terminé (check-out). Seul le patron pourra ensuite annuler le reçu."
+              : "La facture sera enregistrée ; le client garde sa chambre. Ses consommations de la cafétaria se paieront désormais à la caisse, et le check-out se fera au départ."}
+          </p>
         </>
       ),
-      libelleConfirmer: `Facturer ${total}`,
+      libelleConfirmer: checkOut ? `Facturer ${total}` : `Encaisser ${total}`,
     });
     if (!confirme) return;
     setEnCours(true);
@@ -160,13 +177,22 @@ function DetailFacturation({
       });
       setFactureCreee(facture);
       try {
-        await client.checkOut(reservationId);
+        if (checkOut) await client.checkOut(reservationId);
       } catch (e) {
         setAvertissementCheckOut(
           "Facture créée, mais le check-out a échoué : " +
             (e instanceof Error ? e.message : "erreur inconnue") +
             ". La chambre peut être passée en Nettoyage manuellement depuis Chambres."
         );
+      }
+      if (synchronisation) {
+        factureDefinitive.current = attendreNumeroDefinitif(
+          facture,
+          async () => retrouverRecu(facture, await client.listerFactures(reservationId)),
+          synchronisation.forcer,
+          { enLigne: synchronisation.enLigne() }
+        );
+        void factureDefinitive.current.then(setFactureCreee);
       }
     } catch (e) {
       setErreur(e instanceof Error ? e.message : "Erreur inconnue.");
@@ -184,10 +210,9 @@ function DetailFacturation({
     setEnImpression(true);
     setMessageImpression(null);
     try {
-      await window.hotelChicago.imprimer(
-        interfaceImprimante,
-        construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur))
-      );
+      // En ligne : le reçu imprimé porte son numéro définitif, pas « établi hors connexion ».
+      const facture = factureDefinitive.current ? await factureDefinitive.current : factureCreee;
+      await window.hotelChicago.imprimer(interfaceImprimante, construireRecuFacture(facture, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur)));
       setMessageImpression("Reçu envoyé à l'imprimante. Vérifiez que le ticket est bien sorti avant de le remettre au client.");
     } catch (e) {
       setMessageImpression(e instanceof Error ? e.message : "Échec de l'impression.");
@@ -245,6 +270,53 @@ function DetailFacturation({
     );
   }
 
+  // Séjour déjà encaissé (« Encaisser le séjour maintenant ») : au départ, il ne reste que le check-out — jamais une deuxième facture.
+  const factureExistante = reservation?.facture && !reservation.facture.annuleLe ? reservation.facture : null;
+  if (reservation && factureExistante) {
+    return (
+      <div className="page">
+        <header className="page__entete">
+          <div>
+            <h1 className="hc-text-display-md page__titre">Séjour déjà encaissé</h1>
+            <p className="hc-text-body page__sous-titre">
+              Chambre {reservation.chambre.numero} — {reservation.client.nom}
+            </p>
+          </div>
+          <Button type="button" variant="secondary" onClick={onRetour}>
+            Retour
+          </Button>
+        </header>
+        <div className="carte-formulaire">
+          <p className="hc-text-body">
+            Reçu n° {factureExistante.numeroRecu} <BadgeProvisoire numeroRecu={factureExistante.numeroRecu} /> : rien à encaisser pour la chambre.
+          </p>
+          {erreur && (
+            <p role="alert" className="hc-text-body texte-erreur">
+              {erreur}
+            </p>
+          )}
+          {reservation.statut === "EN_COURS" && peutOperer(utilisateur) && (
+            <Button
+              type="button"
+              disabled={enCours}
+              onClick={() => {
+                setEnCours(true);
+                setErreur(null);
+                client
+                  .checkOut(reservationId)
+                  .then(onRetour)
+                  .catch((e: unknown) => setErreur(e instanceof Error ? e.message : "Erreur inconnue."))
+                  .finally(() => setEnCours(false));
+              }}
+            >
+              {enCours ? "…" : "Check-out"}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <header className="page__entete">
@@ -290,7 +362,7 @@ function DetailFacturation({
             </div>
             {Number(reservation.acompte) > 0 && (
               <div className="parametres-ligne">
-                <span className="hc-text-body">Acompte versé</span>
+                <span className="hc-text-body">Déjà payé (acompte)</span>
                 <span className="hc-text-price">-{formatMontant(reservation.acompte, reservation.chambre.devise)}</span>
               </div>
             )}
@@ -426,7 +498,7 @@ function DetailFacturation({
                 disabled={enCours || bloquerPaiement}
                 style={{ marginTop: "var(--hc-space-3)" }}
               >
-                {enCours ? "Facturation en cours…" : "Facturer et check-out"}
+                {enCours ? "Facturation en cours…" : titreAction}
               </Button>
             ) : (
               <p className="hc-text-caption texte-discret bandeau-lecture-seule" role="note">
@@ -686,9 +758,9 @@ function JournalRecus({
   );
 }
 
-export function EcranFacturation({ client, utilisateur, interfaceImprimante, reservationInitiale }: EcranFacturationProps) {
+export function EcranFacturation({ client, utilisateur, interfaceImprimante, reservationInitiale, synchronisation, checkOutInitial = true }: EcranFacturationProps) {
   const [vue, setVue] = useState<Vue>(
-    reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" }
+    reservationInitiale ? { id: "detail", reservationId: reservationInitiale, checkOut: checkOutInitial } : { id: "liste" }
   );
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -709,6 +781,8 @@ export function EcranFacturation({ client, utilisateur, interfaceImprimante, res
         utilisateur={utilisateur}
         interfaceImprimante={interfaceImprimante}
         reservationId={vue.reservationId}
+        checkOut={vue.checkOut ?? true}
+        synchronisation={synchronisation}
         onRetour={() => {
           setVue({ id: "liste" });
           charger();

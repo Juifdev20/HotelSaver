@@ -37,8 +37,8 @@ export interface EcranReservationDetailProps {
   /** Id de la réservation (local ou serveur — le miroir résout les deux). */
   reservationId: string;
   onRetour: () => void;
-  /** Ouvre la facturation pour cette réservation. */
-  onFacturer: (reservationId: string) => void;
+  /** Ouvre la facturation pour cette réservation ; `checkOut: false` = encaisser le séjour, le client reste (22/10/2026). */
+  onFacturer: (reservationId: string, options?: { checkOut: boolean }) => void;
   /** Appelé après chaque action pour que le hub recharge son miroir. */
   onChange: () => void;
 }
@@ -81,11 +81,19 @@ function saisieDepuisIso(iso: string): string {
  * (confirmation, check-in, annulation, modification) s'écrivent d'abord en
  * local puis partent au serveur dès que le réseau revient.
  */
+/** Ce qui reste à payer pour la chambre : prix du séjour moins l'acompte (payé en ligne ou à la réception). */
+function resteAPayerDe(r: Reservation): number {
+  const nuits = Math.max(1, Math.round((new Date(r.dateDepart).getTime() - new Date(r.dateArrivee).getTime()) / 86400000));
+  return Math.max(0, Number(r.chambre.prixParNuit) * nuits - Number(r.acompte));
+}
+
 export function EcranReservationDetail({ reservationId, onRetour, onFacturer, onChange }: EcranReservationDetailProps) {
   const { client, miroir, utilisateur } = useSession();
   const acomptesEnLigne = useAcomptesEnLigne(client);
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  /** Rappel après le check-in : ce qui reste à payer, et où l'encaisser. */
+  const [info, setInfo] = useState<string | null>(null);
   const [enCours, setEnCours] = useState<string | null>(null);
   const [feuille, setFeuille] = useState<"annuler" | "modifier" | "whatsapp" | "reponse" | null>(null);
   const [motif, setMotif] = useState("");
@@ -140,8 +148,24 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
 
   function checkIn() {
     if (!reservation) return;
+    const reste = resteAPayerDe(reservation);
     void executer("checkin", async () => {
       await client.checkIn(idServeur);
+      setInfo(
+        reste > 0
+          ? `Client arrivé. Reste à payer : ${formatMontant(reste, reservation.chambre.devise)} — encaissez-le maintenant (« Encaisser le séjour maintenant ») ou au départ (« Facturer et check-out »).`
+          : "Client arrivé. Séjour déjà payé : il ne reste rien à encaisser pour la chambre."
+      );
+      recharger();
+    });
+  }
+
+  /** Séjour déjà encaissé (« Encaisser le séjour maintenant ») : au départ, seulement le check-out. */
+  function checkOutSeul() {
+    if (!reservation) return;
+    void executer("checkout", async () => {
+      await client.checkOut(idServeur);
+      setInfo("Check-out enregistré : la chambre passe en nettoyage.");
       recharger();
     });
   }
@@ -345,6 +369,9 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
   const nuits = reservation
     ? Math.max(1, Math.round((new Date(reservation.dateDepart).getTime() - new Date(reservation.dateArrivee).getTime()) / 86400000))
     : 0;
+  const totalSejour = reservation ? Number(reservation.chambre.prixParNuit) * nuits : 0;
+  const resteAPayer = reservation ? resteAPayerDe(reservation) : 0;
+  const factureActive = reservation?.facture && !reservation.facture.annuleLe ? reservation.facture : null;
 
   return (
     <View style={styles.page}>
@@ -358,6 +385,11 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
       {erreur && (
         <Text style={styles.erreur} accessibilityRole="alert">
           {erreur}
+        </Text>
+      )}
+      {info && (
+        <Text style={styles.messageInfo} accessibilityLiveRegion="polite">
+          {info}
         </Text>
       )}
       {messageImpression && (
@@ -390,9 +422,15 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
               {dateCourte(reservation.dateArrivee)} → {dateCourte(reservation.dateDepart)} · {nuits} nuit{nuits > 1 ? "s" : ""}
             </Text>
             <Text style={styles.ligneSecondaire}>
-              {formatMontant(reservation.chambre.prixParNuit, reservation.chambre.devise)} / nuit · Acompte{" "}
-              {formatMontant(reservation.acompte, reservation.chambre.devise)}
+              {formatMontant(reservation.chambre.prixParNuit, reservation.chambre.devise)} / nuit · Séjour {formatMontant(totalSejour, reservation.chambre.devise)}
             </Text>
+            {factureActive ? (
+              <Text style={styles.ligneMontantSejour}>Séjour encaissé · reçu n° {factureActive.numeroRecu}</Text>
+            ) : (
+              <Text style={styles.ligneMontantSejour}>
+                Déjà payé {formatMontant(reservation.acompte, reservation.chambre.devise)} · Reste à payer {formatMontant(resteAPayer, reservation.chambre.devise)}
+              </Text>
+            )}
             <BlocPayeEnLigne paiements={acomptesEnLigne.get(reservation.id)} />
             {reservation.origine === "SITE_PUBLIC" && <Text style={styles.ligneSecondaire}>Demande reçue du site public</Text>}
             {reservation.arriveeLe && <Text style={styles.ligneSecondaire}>Arrivé le {jourEtHeure(reservation.arriveeLe)}</Text>}
@@ -483,7 +521,7 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
               bouton("confirmer", "Confirmer la demande", confirmer, !chambrePrise)}
             {peutOperer(utilisateur) && statut === "CONFIRMEE" &&
               bouton("checkin", "Check-in", checkIn, true)}
-            {peutOperer(utilisateur) && (statut === "CONFIRMEE" || statut === "EN_COURS") &&
+            {peutOperer(utilisateur) && (statut === "CONFIRMEE" || statut === "EN_COURS") && !factureActive &&
               bouton(
                 "modifier",
                 "Modifier dates / acompte",
@@ -499,8 +537,15 @@ export function EcranReservationDetail({ reservationId, onRetour, onFacturer, on
                 true,
                 true
               )}
-            {peutOperer(utilisateur) && statut === "EN_COURS" &&
-              bouton("facturer", "Facturer et check-out", () => onFacturer(idServeur), true)}
+            {/* Le reste du séjour s'encaisse à l'arrivée (le client reste) ou au départ : toujours par un reçu numéroté. */}
+            {peutOperer(utilisateur) && statut === "EN_COURS" && !factureActive &&
+              bouton("encaisser", "Encaisser le séjour maintenant", () => onFacturer(idServeur, { checkOut: false }), true, true)}
+            {peutOperer(utilisateur) && statut === "EN_COURS" && !factureActive &&
+              bouton("facturer", "Facturer et check-out", () => onFacturer(idServeur, { checkOut: true }), true)}
+            {peutOperer(utilisateur) && statut === "EN_COURS" && factureActive &&
+              bouton("checkout", "Check-out (séjour déjà encaissé)", checkOutSeul, true)}
+            {statut === "EN_COURS" && factureActive &&
+              bouton("impression", "Réimprimer le reçu", reimprimerRecu, true, true)}
             {(statut === "EN_ATTENTE" ||
               statut === "CONFIRMEE" ||
               statut === "EN_COURS") &&
@@ -694,6 +739,7 @@ const styles = StyleSheet.create({
   titre: { fontSize: 15, fontWeight: "700", color: couleurs.navy },
   ligne: { fontSize: 14, color: couleurs.encre },
   ligneSecondaire: { fontSize: 13, color: couleurs.encreAttenuee },
+  ligneMontantSejour: { fontSize: 13, fontWeight: "600", color: couleurs.encre, marginTop: 2 },
   horsLigne: { fontSize: 12, color: couleurs.alerte, marginTop: espacements.s2 },
   note: { fontSize: 13, color: couleurs.violet, fontStyle: "italic", marginTop: 2 },
   preEnregistre: { fontSize: 14, fontWeight: "600", color: couleurs.succes },

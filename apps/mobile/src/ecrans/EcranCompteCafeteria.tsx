@@ -7,6 +7,7 @@ import { CompteCafeteria, Devise, LigneCommande, MenuDuJour, ModePaiement, Produ
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Check, Globe, Plus, UserPlus } from "lucide-react-native";
 import { estRecuProvisoire, lireMontant, raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
+import { attendreNumeroDefinitif, retrouverRecu } from "@hotel-chicago/miroir-local";
 import { confirmerAction } from "../confirmer";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -80,6 +81,8 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   const [compteSolde, setCompteSolde] = useState(false);
   const [modePaiement, setModePaiement] = useState<ModePaiement>(ModePaiement.CASH);
   const [venteEncaissee, setVenteEncaissee] = useState<VenteCafeteria | null>(null);
+  /** En ligne, le numéro définitif du reçu arrive avec la synchronisation : l'impression l'attend (voir attendreNumeroDefinitif). */
+  const venteDefinitive = useRef<Promise<VenteCafeteria> | null>(null);
   const [enImpression, setEnImpression] = useState(false);
   const [messageImpression, setMessageImpression] = useState<{ texte: string; reussie: boolean } | null>(null);
 
@@ -234,6 +237,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
     setMontantRegle("");
     setResumeReglement(null);
     setVenteEncaissee(null);
+    venteDefinitive.current = null;
     setMessageImpression(null);
     setErreurAction(null);
     // Taux du jour relu à l'ouverture : le patron a pu le saisir depuis le chargement de l'écran.
@@ -269,6 +273,13 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
           : null
       );
       setVenteEncaissee(ventes[0]);
+      venteDefinitive.current = attendreNumeroDefinitif(
+        ventes[0],
+        async () => retrouverRecu(ventes[0], await client.listerVentesCafeteria()),
+        () => moteurSync.forcerSynchronisation(),
+        { enLigne: moteurSync.etatActuel().enLigne }
+      );
+      void venteDefinitive.current.then((v) => setVenteEncaissee((actuelle) => (actuelle && actuelle.id === ventes[0].id ? v : actuelle)));
       setRecuCompte({ ...compte, sousComptes: concernes });
       // Plus personne à régler après celle(s)-ci → le compte est fermé côté serveur.
       setCompteSolde(personnesARegler.every((sc) => concernes.some((c) => c.id === sc.id)));
@@ -281,11 +292,13 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   }
 
   async function imprimerRecuVente() {
-    if (!lignesRecu) return;
+    if (!lignesRecu || !venteEncaissee) return;
     setEnImpression(true);
     setMessageImpression(null);
     try {
-      await imprimerLignes(lignesRecu);
+      // En ligne : le reçu imprimé porte son numéro définitif, pas « établi hors connexion ».
+      const vente = venteDefinitive.current ? await venteDefinitive.current : venteEncaissee;
+      await imprimerLignes(construireRecuVente(vente, (recuCompte ?? compte)!, utilisateur.nom, enteteHotel(utilisateur)));
       setMessageImpression({ texte: messageImpressionEnvoyee(), reussie: true });
     } catch (e) {
       setMessageImpression({ texte: `Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`, reussie: false });

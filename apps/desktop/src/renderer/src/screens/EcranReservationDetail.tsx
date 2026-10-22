@@ -24,7 +24,7 @@ export interface EcranReservationDetailProps {
   client: ClientApi;
   reservationId: string;
   onRetour: () => void;
-  onFacturer: (reservationId: string) => void;
+  onFacturer: (reservationId: string, options?: { checkOut: boolean }) => void;
   /** Faux : le patron ne réalise pas confirmation / check-in / modification / facturation (annulation et lecture restent). */
   peutOperer?: boolean;
   /** Pour la réimpression du reçu (séjour terminé). */
@@ -238,6 +238,9 @@ export function EcranReservationDetail({
   }
 
   const statut = reservation?.statut;
+  const totalSejour = reservation ? Number(reservation.chambre.prixParNuit) * nombreDeNuits(reservation.dateArrivee, reservation.dateDepart) : 0;
+  const resteAPayer = reservation ? Math.max(0, totalSejour - Number(reservation.acompte)) : 0;
+  const factureActive = reservation?.facture && !reservation.facture.annuleLe ? reservation.facture : null;
 
   return (
     <div className="page">
@@ -286,9 +289,18 @@ export function EcranReservationDetail({
                 {nombreDeNuits(reservation.dateArrivee, reservation.dateDepart) > 1 ? "s" : ""}
               </span>
             </div>
+            {/* Le séjour, ce qui est déjà payé (acompte en ligne ou à la réception) et ce qui reste : visible dès l'arrivée (22/10/2026). */}
             <div className="parametres-ligne">
-              <span className="hc-text-body">Acompte versé</span>
+              <span className="hc-text-body">Séjour</span>
+              <span className="hc-text-price">{formatMontant(totalSejour, reservation.chambre.devise)}</span>
+            </div>
+            <div className="parametres-ligne">
+              <span className="hc-text-body">Déjà payé (acompte)</span>
               <span className="hc-text-price">{formatMontant(reservation.acompte, reservation.chambre.devise)}</span>
+            </div>
+            <div className="parametres-ligne">
+              <span className="hc-text-body-strong">{factureActive ? "Séjour encaissé" : "Reste à payer"}</span>
+              <span className="hc-text-price">{factureActive ? `Reçu n° ${factureActive.numeroRecu}` : formatMontant(resteAPayer, reservation.chambre.devise)}</span>
             </div>
             <BlocPayeEnLigne paiements={acomptesEnLigne.get(reservation.id)} />
             {reservation.origine === "SITE_PUBLIC" && (
@@ -464,11 +476,22 @@ export function EcranReservationDetail({
                 </Button>
               )}
               {peutOperer && statut === "CONFIRMEE" && (
-                <Button type="button" onClick={() => void action(() => client.checkIn(reservationId))} disabled={enCours}>
+                <Button
+                  type="button"
+                  onClick={() =>
+                    void action(
+                      () => client.checkIn(reservationId),
+                      resteAPayer > 0
+                        ? `Client arrivé. Reste à payer : ${formatMontant(resteAPayer, reservation.chambre.devise)} — encaissez-le maintenant (« Encaisser le séjour maintenant ») ou au départ (« Facturer et check-out »).`
+                        : "Client arrivé. Séjour déjà payé : il ne reste rien à encaisser pour la chambre."
+                    )
+                  }
+                  disabled={enCours}
+                >
                   Check-in
                 </Button>
               )}
-              {peutOperer && (statut === "CONFIRMEE" || statut === "EN_COURS") && (
+              {peutOperer && (statut === "CONFIRMEE" || statut === "EN_COURS") && !factureActive && (
                 <Button
                   type="button"
                   variant="secondary"
@@ -484,9 +507,25 @@ export function EcranReservationDetail({
                   Modifier dates / acompte
                 </Button>
               )}
-              {peutOperer && statut === "EN_COURS" && (
-                <Button type="button" onClick={() => onFacturer(reservationId)}>
+              {/* Le reste du séjour s'encaisse à l'arrivée (le client reste) ou au départ : toujours par un reçu numéroté. */}
+              {peutOperer && statut === "EN_COURS" && !factureActive && (
+                <Button type="button" variant="secondary" onClick={() => onFacturer(reservationId, { checkOut: false })}>
+                  Encaisser le séjour maintenant
+                </Button>
+              )}
+              {peutOperer && statut === "EN_COURS" && !factureActive && (
+                <Button type="button" onClick={() => onFacturer(reservationId, { checkOut: true })}>
                   Facturer et check-out
+                </Button>
+              )}
+              {peutOperer && statut === "EN_COURS" && factureActive && (
+                <Button type="button" onClick={() => void action(() => client.checkOut(reservationId), "Check-out enregistré : la chambre passe en nettoyage.")} disabled={enCours}>
+                  Check-out (séjour déjà encaissé)
+                </Button>
+              )}
+              {statut === "EN_COURS" && factureActive && (
+                <Button type="button" variant="secondary" onClick={reimprimerRecu} disabled={enCours}>
+                  {enCours ? "…" : "Réimprimer le reçu"}
                 </Button>
               )}
               {(statut === "EN_ATTENTE" || statut === "CONFIRMEE" || statut === "EN_COURS") && (

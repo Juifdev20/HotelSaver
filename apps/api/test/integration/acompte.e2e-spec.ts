@@ -444,4 +444,46 @@ decrire("Acompte payé en ligne sur le compte ScanLinkPay de l'hôtel, puis remb
       }
     });
   });
+
+  describe("client arrivé après un acompte payé en ligne : le reste se paie avec un reçu (22/10/2026)", () => {
+    let id: string;
+    let chambreId: string;
+
+    it("acompte en ligne crédité, puis check-in : le reste à payer est le séjour moins l'acompte", async () => {
+      // Réglages posés directement : ce bloc ne dépend pas des autres.
+      await p.hotel.update({ where: { id: A.hotelId }, data: { numeroScanLinkPay: "SLP-HOTELA", boutiqueScanLinkPayId: "SLP-HOTELA", nomScanLinkPay: "Hôtel A SARL", pourcentageAcompte: 30 } });
+      const chambre = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "501", type: "Std", prixParNuit: 45, devise: "USD" } });
+      chambreId = chambre.id;
+      const res = await demander({ chambreId, du: 0, au: 3, nom: "Paul Mbuyi" });
+      id = res.id;
+      const paiement = (await payer(res.jeton, {}).expect(201)).body;
+      faux.dernier().statut = "SUCCESS";
+      await app.get(PaiementReservationService).rapprocher(paiement.id);
+      expect(Number((await reservation(id)).acompte)).toBe(41); // 30 % de 135 $, arrondi au dollar supérieur
+      await http().post(`/reservations/${id}/check-in`).set("Authorization", as(A, "recep")).expect(201);
+    });
+
+    it("une fois le client arrivé, l'acompte ne monte plus : le reste ne se « paie » pas en gonflant l'acompte", async () => {
+      const r = await http().patch(`/reservations/${id}`).set("Authorization", as(A, "recep")).send({ acompte: 135 }).expect(409);
+      expect(r.body.message).toMatch(/Encaisser le séjour/);
+      expect(Number((await reservation(id)).acompte)).toBe(41);
+    });
+
+    it("« Encaisser le séjour » à l'arrivée : facture du reste (94 $), numérotée, le client garde sa chambre", async () => {
+      const f = (await http().post("/factures").set("Authorization", as(A, "recep")).send({ reservationId: id, modePaiement: "CASH" }).expect(201)).body;
+      expect(Number(f.montantChambre)).toBe(135);
+      expect(Number(f.montantTotalUSD)).toBe(94);
+      expect(f.numeroRecu).not.toMatch(/^TEMP-/);
+      expect((await reservation(id)).statut).toBe("EN_COURS");
+    });
+
+    it("séjour encaissé : ni dates ni acompte ne changent, pas de deuxième facture ; au départ, le check-out seul", async () => {
+      const depart = new Date(Date.now() + 4 * JOUR).toISOString();
+      await http().patch(`/reservations/${id}`).set("Authorization", as(A, "recep")).send({ dateDepart: depart }).expect(409);
+      await http().post("/factures").set("Authorization", as(A, "recep")).send({ reservationId: id, modePaiement: "CASH" }).expect(409);
+      await http().patch(`/reservations/${id}`).set("Authorization", as(A, "recep")).send({ note: "Chambre calme" }).expect(200);
+      await http().post(`/reservations/${id}/check-out`).set("Authorization", as(A, "recep")).expect(201);
+      expect((await reservation(id)).statut).toBe("TERMINEE");
+    });
+  });
 });

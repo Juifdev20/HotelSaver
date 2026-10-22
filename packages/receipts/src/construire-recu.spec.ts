@@ -84,6 +84,25 @@ function creerFacture(surcharge: Partial<Facture> = {}): Facture {
 }
 
 describe("construireRecuFacture", () => {
+  it("montre le séjour, l'acompte déjà payé et le reste (acompte payé en ligne)", () => {
+    const lignes = construireRecuFacture(creerFacture({ montantTotalUSD: "90" }), { ...creerReservation(), acompte: "45" }, "Alice", [], HOTEL);
+    const montants = lignes.filter((l) => l.type === "montant").map((l: any) => [l.libelle, l.valeur]);
+    expect(montants).toEqual(expect.arrayContaining([
+      ["Séjour (3 nuits)", "135.00 $"],
+      ["Acompte déjà payé", "-45.00 $"],
+      ["Reste chambre", "90.00 $"],
+      ["TOTAL À PAYER EN USD", "90.00 $"],
+    ]));
+  });
+
+  it("séjour payé d'avance : total à zéro dit clairement, pas un reçu vide", () => {
+    const lignes = construireRecuFacture(creerFacture({ montantTotalUSD: "0" }), { ...creerReservation(), acompte: "135" }, "Alice", [], HOTEL);
+    expect(lignes).toEqual(expect.arrayContaining([
+      { type: "montant", libelle: "TOTAL À PAYER", valeur: "0.00 $" },
+      { type: "soustitre", texte: "Séjour entièrement payé d'avance." },
+    ]));
+  });
+
   it("n'imprime jamais une ligne de total à zéro", () => {
     const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [], HOTEL);
     const totaux = lignes.filter((l) => l.type === "montant" && l.libelle.startsWith("TOTAL À PAYER"));

@@ -7,7 +7,8 @@ import { Test } from "@nestjs/testing";
 import * as jwt from "jsonwebtoken";
 import { prisma } from "@hotel-chicago/database";
 import { ErreurApi } from "@hotel-chicago/api-client";
-import { PersistanceMemoire, ouvrirMiroir, type Miroir } from "@hotel-chicago/miroir-local";
+import { PersistanceMemoire, attendreNumeroDefinitif, ouvrirMiroir, retrouverRecu, type Miroir } from "@hotel-chicago/miroir-local";
+import { MESSAGE_ACOMPTE_APRES_ARRIVEE, MESSAGE_SEJOUR_DEJA_REGLE } from "@hotel-chicago/regles";
 import { SEUIL_ECHEC_DEFINITIF } from "@hotel-chicago/sync-engine";
 import { AppModule } from "../../src/app.module";
 import { VERIFICATEUR_JWT, VerificateurJwtHs256 } from "../../src/common/auth/verificateur-jwt";
@@ -276,6 +277,48 @@ decrire("Appareils hors ligne face au vrai serveur", () => {
     await patron.client.supprimerChambre(jetable.id); // action réservée à la connexion
     await synchroniser(recep);
     expect((await recep.client.listerChambres()).some((c) => c.numero === "SUPPR")).toBe(false);
+  });
+
+  it("client arrivé, hors ligne : l'acompte ne monte plus ; « Encaisser le séjour » sans check-out fige le séjour — mêmes règles que le serveur", async () => {
+    const chambre = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "601", type: "Std", prixParNuit: 45, devise: "USD" } });
+    const recep = await creerAppareil("R6", A, "recep");
+    await synchroniser(recep);
+    coupes.add("R6");
+    const resa = await recep.client.creerReservation({
+      chambreId: chambre.id, client: { nom: "Paul Arrivé", telephone: "+243810000061" }, dateArrivee: iso(-0.2), dateDepart: iso(2.8), acompte: 45, installerImmediatement: true,
+    } as any);
+    expect(resa.statut).toBe("EN_COURS");
+    await expect(recep.client.modifierReservation(resa.id, { acompte: 135 } as any)).rejects.toMatchObject({ statusCode: 409, message: MESSAGE_ACOMPTE_APRES_ARRIVEE });
+    const facture = await recep.client.creerFacture({ reservationId: resa.id, modePaiement: "CASH" as any });
+    expect(Number(facture.montantTotalUSD)).toBe(90);
+    await expect(recep.client.modifierReservation(resa.id, { dateDepart: iso(3.8) } as any)).rejects.toMatchObject({ statusCode: 409, message: MESSAGE_SEJOUR_DEJA_REGLE });
+    coupes.delete("R6");
+    await synchroniser(recep);
+    expect(recep.moteur.etatActuel().echecsDefinitifs).toBe(0);
+    const serveur = await p.reservation.findFirst({ where: { hotelId: A.hotelId, client: { nom: "Paul Arrivé" } }, include: { facture: true } });
+    expect(serveur.statut).toBe("EN_COURS"); // encaissé, le client garde sa chambre
+    expect(Number(serveur.facture.montantTotalUSD)).toBe(90);
+    await recep.client.checkOut(serveur.id);
+    await synchroniser(recep);
+    expect((await p.reservation.findUnique({ where: { id: serveur.id } })).statut).toBe("TERMINEE");
+  });
+
+  it("en ligne, le reçu à imprimer attend son numéro définitif (plus « établi hors connexion » quand le réseau est là)", async () => {
+    const chambre = await p.chambre.create({ data: { hotelId: A.hotelId, numero: "602", type: "Std", prixParNuit: 30, devise: "USD" } });
+    const recep = await creerAppareil("R7", A, "recep");
+    await synchroniser(recep);
+    const resa = await recep.client.creerReservation({
+      chambreId: chambre.id, client: { nom: "Ali En-ligne", telephone: "+243810000062" }, dateArrivee: iso(-0.2), dateDepart: iso(0.8), installerImmediatement: true,
+    } as any);
+    const facture = await recep.client.creerFacture({ reservationId: resa.id, modePaiement: "CASH" as any });
+    expect(facture.numeroRecu).toMatch(/^TEMP-/); // écrit d'abord sur l'appareil, même en ligne
+    const definitive = await attendreNumeroDefinitif(
+      facture,
+      async () => retrouverRecu(facture, await recep.client.listerFactures()),
+      () => recep.moteur.forcerSynchronisation(),
+      { enLigne: true, delaiMs: 10_000, pauseMs: 50 }
+    );
+    expect(definitive.numeroRecu).toMatch(/^REC-\d{8}-\d{4}$/);
   });
 
   it("une action en ligne uniquement échoue proprement hors connexion, sans rien casser", async () => {

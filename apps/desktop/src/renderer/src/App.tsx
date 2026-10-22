@@ -98,6 +98,8 @@ export function App() {
   // Séjour à ouvrir directement dans l'écran Facturation (deep-link depuis
   // Réservations ou Arrivées et départs) — remis à zéro par naviguer().
   const [reservationAFacturer, setReservationAFacturer] = useState<string | null>(null);
+  /** false : « Encaisser le séjour maintenant » (la facture sans le check-out). */
+  const [facturationAvecCheckOut, setFacturationAvecCheckOut] = useState(true);
   // Réservation à ouvrir directement dans Réservations (clic sur une notification) — remise à zéro par naviguer().
   const [reservationAOuvrir, setReservationAOuvrir] = useState<string | null>(null);
   // Écran dont le serveur vient de refuser une route (403 FONCTION_NON_INCLUSE) : le panneau « fonction non incluse » le remplace.
@@ -227,6 +229,11 @@ export function App() {
             }
           )
         : null,
+    [miroir]
+  );
+  // Les écrans d'encaissement attendent le numéro définitif d'un reçu (en ligne) avant de l'imprimer.
+  const synchronisationEcran = useMemo(
+    () => (miroir ? { forcer: () => miroir.moteur.forcerSynchronisation(), enLigne: () => miroir.moteur.etatActuel().enLigne } : undefined),
     [miroir]
   );
 
@@ -542,9 +549,10 @@ export function App() {
 
   /** Deep-link vers le détail d'encaissement d'un séjour dans Facturation —
    * contrairement à naviguer() on pose d'abord le contexte, puis la page. */
-  function naviguerVersFacturation(reservationId: string) {
+  function naviguerVersFacturation(reservationId: string, options?: { checkOut: boolean }) {
     setCompteCafeteriaOuvert(null);
     setReservationAFacturer(reservationId);
+    setFacturationAvecCheckOut(options?.checkOut ?? true);
     setPageRefusee(null);
     setPage("facturation");
   }
@@ -625,6 +633,8 @@ export function App() {
           utilisateur={utilisateur}
           interfaceImprimante={configuration.imprimanteInterface}
           reservationInitiale={reservationAFacturer}
+          checkOutInitial={facturationAvecCheckOut}
+          synchronisation={synchronisationEcran}
         />
       );
     } else if (page === "caisse" || page === "comptes-ouverts") {
@@ -637,6 +647,7 @@ export function App() {
           compteId={compteCafeteriaOuvert}
           interfaceImprimante={configuration.imprimanteInterface}
           ouvrirAjoutAuDemarrage={venteRapide}
+          synchronisation={synchronisationEcran}
           onRetour={() => {
             setCompteCafeteriaOuvert(null);
             setVenteRapide(false);

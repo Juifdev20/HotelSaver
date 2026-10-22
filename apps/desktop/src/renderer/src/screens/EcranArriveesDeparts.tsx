@@ -11,7 +11,7 @@ import { BadgePayeEnLigne, useAcomptesEnLigne } from "./PayeEnLigne";
 export interface EcranArriveesDepartsProps {
   client: ClientApi;
   onNaviguer: (page: IdPage) => void;
-  onFacturer: (reservationId: string) => void;
+  onFacturer: (reservationId: string, options?: { checkOut: boolean }) => void;
   /** Faux : lecture seule pour un patron dont l'hôtel n'a pas activé « le patron peut aussi opérer ». */
   peutOperer?: boolean;
 }

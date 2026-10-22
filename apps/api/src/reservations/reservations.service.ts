@@ -9,7 +9,7 @@ import { CreateReservationDto } from "./dto/create-reservation.dto";
 import { UpdateReservationDto } from "./dto/update-reservation.dto";
 import { sansChevauchement } from "../common/chevauchement";
 import { MESSAGE_CHAMBRE_EN_COURS, chambresPrises, verrouillerChambre } from "../common/disponibilite-chambre";
-import { acompteMaximal, MESSAGE_ACOMPTE_TROP_ELEVE } from "@hotel-chicago/regles";
+import { acompteMaximal, MESSAGE_ACOMPTE_TROP_ELEVE, refusModificationSejour } from "@hotel-chicago/regles";
 import { AnnulerReservationDto } from "./dto/annuler-reservation.dto";
 import { FindReservationsQueryDto } from "./dto/find-reservations.query.dto";
 
@@ -138,6 +138,15 @@ export class ReservationsService {
     if (dateArrivee >= dateDepart) {
       throw new BadRequestException("La date de départ doit être postérieure à la date d'arrivée.");
     }
+    // Client arrivé : le reste se paie par une facture, pas en gonflant l'acompte ; séjour déjà encaissé : plus rien ne bouge (packages/regles).
+    const refus = refusModificationSejour({
+      statut: reservation.statut,
+      acompteActuel: Number(reservation.acompte),
+      acompteVoulu: dto.acompte,
+      datesChangent: dateArrivee.getTime() !== reservation.dateArrivee.getTime() || dateDepart.getTime() !== reservation.dateDepart.getTime(),
+      dejaEncaisse: !!reservation.facture && !reservation.facture.annuleLe,
+    });
+    if (refus) throw new ConflictException(refus);
 
     if (dto.dateArrivee || dto.dateDepart) {
       await this.verifierAbsenceDeConflit(reservation.chambreId, dateArrivee, dateDepart, hotelId, id);

@@ -3898,3 +3898,44 @@ mobile « Comptes » restait monté et ne se rechargeait qu'après une synchroni
   - l'AAB signé avec la clé existante (garder cette clé pour Play App Signing) ;
   - les captures ;
   - le point de vigilance sur l'abonnement payé dans l'application.
+
+## Reste du séjour à payer après un acompte, et reçus « hors connexion » alors qu'on est en ligne (22/10/2026)
+
+**Constat (client de 135 $, acompte de 45 $ payé sur le site).**
+- À l'arrivée, rien ne permettait d'encaisser le reste. La réception a donc pu porter l'acompte à 135 $ (« Modifier dates /
+  acompte », le maximum permis).
+- La facture du départ valait alors 0, et le reçu n'affichait que « Acompte versé : 135 $ ».
+- Ces 90 $ n'ont aucun reçu numéroté et n'entrent dans aucun rapport de caisse : un acompte n'est pas une recette.
+- Le serveur, lui, ne crédite l'acompte en ligne qu'une fois (vérifié).
+
+**Ce qui change :**
+- **Encaisser le séjour dès l'arrivée** : « Encaisser le séjour maintenant » (mobile et bureau) fait la facture du reste sans
+  check-out ; le client garde sa chambre.
+  - Au départ, il ne reste que « Check-out (séjour déjà encaissé) ». Facturation affiche « Séjour déjà encaissé », jamais une
+    deuxième facture.
+  - « Facturer et check-out » au départ reste possible.
+  - Après l'encaissement, les consommations de la cafétéria se paient à la caisse : la règle existante refuse déjà de facturer sur
+    une chambre déjà facturée.
+- **Règles** (`refusModificationSejour` dans `packages/regles`, mêmes messages sur le serveur et dans `Ecritures`) :
+  - client arrivé (EN_COURS) : l'acompte ne peut plus monter ; il peut baisser, pour corriger une erreur ;
+  - séjour encaissé (facture non annulée) : ni dates ni acompte ne changent ; la note, si.
+- **Reste à payer visible** :
+  - le détail d'une réservation montre Séjour / Déjà payé / Reste à payer, ou « Séjour encaissé · reçu n° » ;
+  - le check-in rappelle le reste et où l'encaisser.
+- **Reçu de séjour** :
+  - les lignes « Séjour (N nuits) », « Acompte déjà payé », « Reste chambre », puis le total ;
+  - s'il n'y a rien à payer : « TOTAL À PAYER 0 » et « Séjour entièrement payé d'avance » (avant, aucun total).
+
+**Reçus « établis hors connexion » en ligne.** Tout encaissement s'écrit d'abord sur l'appareil avec un numéro TEMP-…, même en
+ligne ; le numéro définitif arrive avec la synchronisation, et le reçu était imprimé avant.
+- `attendreNumeroDefinitif` (dans `miroir-local`) lance la synchronisation et relit le reçu par son numéro provisoire
+  (`retrouverRecu`), 8 s au plus, avant d'imprimer.
+- Sans réseau, rien n'est attendu : le reçu reste provisoire et le dit.
+- Branché sur Facturation et sur la caisse de la cafétéria, mobile et bureau.
+- `Facture` et `VenteCafeteria` exposent `numeroProvisoire`.
+
+**Tests :**
+- Intégration, vraie base : `acompte.e2e-spec.ts` (acompte en ligne, arrivée, acompte figé, encaissement du reste 94 $, départ).
+- Appareil : `appareil.e2e-spec.ts` (mêmes règles hors ligne ; reçu en ligne avec un numéro REC-…).
+- Le faux ScanLinkPay des tests accepte le préfixe `/api/v1` que le client ajoute depuis le 19/10. Les 25 tests d'acompte
+  échouaient pour cette seule raison.

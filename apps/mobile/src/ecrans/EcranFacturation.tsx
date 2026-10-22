@@ -1,11 +1,12 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { Devise, Facture, ModePaiement, Reservation, VenteCafeteria, peutOperer } from "@hotel-chicago/types";
 import type { TauxChange } from "@hotel-chicago/api-client";
 import { construireRecuFacture, enteteHotel } from "@hotel-chicago/receipts";
 import { estRecuProvisoire } from "@hotel-chicago/regles";
+import { attendreNumeroDefinitif, retrouverRecu } from "@hotel-chicago/miroir-local";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -20,6 +21,8 @@ import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
 export interface EcranFacturationProps {
   reservationId: string;
   onRetour: () => void;
+  /** false = « Encaisser le séjour maintenant » : la facture est faite, le client reste (check-out plus tard, depuis le détail). */
+  checkOut?: boolean;
 }
 
 function nombreDeNuits(dateArrivee: string, dateDepart: string): number {
@@ -58,8 +61,9 @@ function calculerApercu(reservation: Reservation, ventesLiees: VenteCafeteria[])
  * check-out échoue après une facture réussie, rien n'est perdu (la facture
  * existe déjà), juste signalé pour un check-out manuel plus tard.
  */
-export function EcranFacturation({ reservationId, onRetour }: EcranFacturationProps) {
-  const { client, utilisateur } = useSession();
+export function EcranFacturation({ reservationId, onRetour, checkOut = true }: EcranFacturationProps) {
+  const titreAction = checkOut ? "Facturer et check-out" : "Encaisser le séjour";
+  const { client, utilisateur, moteurSync } = useSession();
   const cafeteriaOuverte = fonctionOuverte(utilisateur.fonctions, "CAFETERIA");
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [ventesLiees, setVentesLiees] = useState<VenteCafeteria[]>([]);
@@ -70,6 +74,8 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
   const [avertissementCheckOut, setAvertissementCheckOut] = useState<string | null>(null);
   const [enImpression, setEnImpression] = useState(false);
   const [messageImpression, setMessageImpression] = useState<{ texte: string; reussie: boolean } | null>(null);
+  /** En ligne, le numéro définitif du reçu arrive avec la synchronisation : l'impression l'attend (voir attendreNumeroDefinitif). */
+  const factureDefinitive = useRef<Promise<Facture> | null>(null);
 
   // Paiement croisé (section 9.4) : devise remise, montant remis, devise du rendu.
   const [taux, setTaux] = useState<TauxChange | null>(null);
@@ -144,11 +150,15 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
       lignes.push(`Remis par le client : ${formatMontant(regle, deviseReglee)}.`);
       lignes.push(`Monnaie à rendre : ${formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}.`);
     }
-    lignes.push("La facture sera créée et le client sera mis en check-out.");
+    lignes.push(
+      checkOut
+        ? "La facture sera créée et le client sera mis en check-out."
+        : "La facture sera créée ; le client garde sa chambre. Ses consommations de la cafétaria se paieront désormais à la caisse, et le check-out se fera au départ."
+    );
     confirmerAction({
-      titre: "Facturer et check-out",
+      titre: titreAction,
       message: lignes.join("\n"),
-      libelleConfirmer: "Facturer et check-out",
+      libelleConfirmer: titreAction,
       onConfirmer: facturerEtCheckOut,
     });
   }
@@ -167,7 +177,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
       });
       setFactureCreee(facture);
       try {
-        await client.checkOut(reservationId);
+        if (checkOut) await client.checkOut(reservationId);
       } catch (e) {
         setAvertissementCheckOut(
           "Facture créée, mais le check-out a échoué : " +
@@ -175,6 +185,13 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
             ". La chambre peut être passée en Nettoyage manuellement depuis Chambres."
         );
       }
+      factureDefinitive.current = attendreNumeroDefinitif(
+        facture,
+        async () => retrouverRecu(facture, await client.listerFactures(reservationId)),
+        () => moteurSync.forcerSynchronisation(),
+        { enLigne: moteurSync.etatActuel().enLigne }
+      );
+      void factureDefinitive.current.then(setFactureCreee);
     } catch (e) {
       setErreur(messageErreur(e, "La facture n'a pas pu être créée. Réessayez."));
     } finally {
@@ -187,7 +204,9 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
     setEnImpression(true);
     setMessageImpression(null);
     try {
-      await imprimerLignes(construireRecuFacture(factureCreee, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur)));
+      // En ligne : le reçu imprimé porte son numéro définitif, pas « établi hors connexion ».
+      const facture = factureDefinitive.current ? await factureDefinitive.current : factureCreee;
+      await imprimerLignes(construireRecuFacture(facture, reservation, utilisateur.nom, ventesLiees, enteteHotel(utilisateur)));
       // On n'arrive ici que si l'envoi a réellement réussi.
       setMessageImpression({ texte: messageImpressionEnvoyee(), reussie: true });
     } catch (e) {
@@ -254,6 +273,45 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
     );
   }
 
+  // Séjour déjà encaissé (« Encaisser le séjour maintenant ») : au départ, il ne reste que le check-out — jamais une deuxième facture.
+  const factureExistante = reservation?.facture && !reservation.facture.annuleLe ? reservation.facture : null;
+  if (reservation && factureExistante) {
+    return (
+      <View style={styles.page}>
+        <EnteteMobile />
+        <EnteteRetour titre="Séjour déjà encaissé" onRetour={onRetour} />
+        <View style={styles.contenu}>
+          <Text style={styles.champValeur}>
+            Reçu n° {factureExistante.numeroRecu} : rien à encaisser pour la chambre {reservation.chambre.numero}.
+          </Text>
+          {erreur && (
+            <Text style={styles.erreur} accessibilityRole="alert">
+              {erreur}
+            </Text>
+          )}
+          {reservation.statut === "EN_COURS" && (
+            <Pressable
+              style={[styles.bouton, enCours && styles.boutonInactif]}
+              disabled={enCours}
+              accessibilityRole="button"
+              onPress={() => {
+                setEnCours(true);
+                setErreur(null);
+                client
+                  .checkOut(reservationId)
+                  .then(onRetour)
+                  .catch((e: unknown) => setErreur(messageErreur(e, "Le check-out n'a pas pu être enregistré. Réessayez.")))
+                  .finally(() => setEnCours(false));
+              }}
+            >
+              <Text style={styles.boutonTexte}>{enCours ? "…" : "Check-out"}</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.page}>
       <EnteteMobile />
@@ -287,7 +345,7 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
             </View>
             {Number(reservation.acompte) > 0 && (
               <View style={styles.ligneMontant}>
-                <Text style={styles.libelleMontant}>Acompte versé</Text>
+                <Text style={styles.libelleMontant}>Déjà payé (acompte)</Text>
                 <Text style={styles.valeurMontant}>-{formatMontant(reservation.acompte, reservation.chambre.devise)}</Text>
               </View>
             )}
@@ -310,7 +368,12 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
             <Text style={styles.labelTotal}>Total à payer</Text>
             {apercu.totalUSD > 0 && <Text style={styles.montantTotal}>{formatMontant(apercu.totalUSD, Devise.USD)}</Text>}
             {apercu.totalCDF > 0 && <Text style={styles.montantTotal}>{formatMontant(apercu.totalCDF, Devise.CDF)}</Text>}
-            {apercu.totalUSD === 0 && apercu.totalCDF === 0 && <Text style={styles.montantTotal}>0</Text>}
+            {apercu.totalUSD === 0 && apercu.totalCDF === 0 && (
+              <>
+                <Text style={styles.montantTotal}>0</Text>
+                <Text style={styles.libelleMontant}>Séjour entièrement payé d'avance : rien à encaisser.</Text>
+              </>
+            )}
           </View>
 
           <Text style={styles.champLabel}>Mode de paiement</Text>
@@ -424,10 +487,10 @@ export function EcranFacturation({ reservationId, onRetour }: EcranFacturationPr
               onPress={demanderConfirmation}
               disabled={enCours || bloquerPaiement}
               accessibilityRole="button"
-              accessibilityLabel={enCours ? "Facturation en cours" : "Facturer et check-out"}
+              accessibilityLabel={enCours ? "Facturation en cours" : titreAction}
               accessibilityState={{ disabled: enCours || bloquerPaiement, busy: enCours }}
             >
-              <Text style={styles.boutonTexte}>{enCours ? "…" : "Facturer et check-out"}</Text>
+              <Text style={styles.boutonTexte}>{enCours ? "…" : titreAction}</Text>
             </Pressable>
           ) : (
             <Text style={styles.monnaie}>Lecture seule — la facturation est réservée au personnel de la réception.</Text>

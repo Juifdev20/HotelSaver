@@ -17,3 +17,4 @@ export { lireMontant, lireQuantite, lireTauxChange, TAUX_CDF_PAR_USD_MIN, TAUX_C
 export type { ResultatSaisie } from "@hotel-chicago/regles";
 export * from "./persistance-chiffree";
 export * from "./suivi-paiement-abonnement";
+export * from "./numero-definitif";

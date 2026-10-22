@@ -68,3 +68,29 @@ export function acompteMaximal(prixParNuit: number, dateArrivee: Date | string, 
 }
 
 export const MESSAGE_ACOMPTE_TROP_ELEVE = "L'acompte ne peut pas dépasser le prix du séjour.";
+
+/**
+ * Le client est arrivé : le reste du séjour s'encaisse par une facture (« Encaisser le séjour » ou « Facturer et check-out » : reçu
+ * numéroté, compté dans la caisse), jamais en augmentant l'acompte — un acompte gonflé à l'arrivée effaçait le reste à payer sans
+ * reçu ni trace dans les rapports (constaté le 22/10/2026). Baisser l'acompte (erreur de saisie) reste possible.
+ */
+export const MESSAGE_ACOMPTE_APRES_ARRIVEE =
+  "Le client est déjà arrivé : encaissez le reste avec « Encaisser le séjour » (reçu numéroté, compté dans la caisse), pas en augmentant l'acompte.";
+
+/** Un séjour déjà encaissé (facture non annulée) ne change plus de dates ni d'acompte : la facture ne correspondrait plus. */
+export const MESSAGE_SEJOUR_DEJA_REGLE =
+  "Ce séjour est déjà encaissé : ses dates et son acompte ne changent plus. Pour une nuit de plus, faites une nouvelle réservation à la suite (ou faites annuler le reçu par le patron).";
+
+/** Ce qu'une modification de réservation n'a pas le droit de faire, selon l'état du séjour — même règle sur le serveur et sur l'appareil. */
+export function refusModificationSejour(r: {
+  statut: string;
+  acompteActuel: number;
+  acompteVoulu?: number;
+  datesChangent: boolean;
+  dejaEncaisse: boolean;
+}): string | null {
+  const acompteChange = r.acompteVoulu !== undefined && Math.abs(r.acompteVoulu - r.acompteActuel) > 0.005;
+  if (r.dejaEncaisse && (acompteChange || r.datesChangent)) return MESSAGE_SEJOUR_DEJA_REGLE;
+  if (r.statut === "EN_COURS" && r.acompteVoulu !== undefined && r.acompteVoulu > r.acompteActuel + 0.005) return MESSAGE_ACOMPTE_APRES_ARRIVEE;
+  return null;
+}
