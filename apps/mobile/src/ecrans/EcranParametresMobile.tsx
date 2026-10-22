@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
-import { CreditCard, HandCoins, LogOut, UserRound } from "lucide-react-native";
+import { CreditCard, HandCoins, LogOut, Trash2, UserRound } from "lucide-react-native";
 import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE } from "../navigation";
@@ -13,6 +13,7 @@ import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { messageErreur } from "../messagesErreur";
 import { BlocSecuriteMobile } from "../composants/BlocSecuriteMobile";
 import { useSession } from "../contexteSession";
+import { URL_SUPPRESSION_COMPTE, ouvrirLienSur } from "../liens";
 
 export interface EcranParametresMobileProps {
   client: ClientApi;
@@ -90,6 +91,22 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
       { text: "Annuler", style: "cancel" },
       { text: "Se déconnecter", style: "destructive", onPress: onSeDeconnecter },
     ]);
+  }
+
+  /** La suppression se fait sur le site (raison du départ, nom de l'hôtel retapé), comme Google Play le demande. */
+  function supprimerCompte() {
+    if (!URL_SUPPRESSION_COMPTE) {
+      Alert.alert("Supprimer mon compte", "Rendez-vous sur le site HotelSaver, page « Supprimer mon compte », ou contactez le support HotelSaver.");
+      return;
+    }
+    Alert.alert(
+      "Supprimer mon compte",
+      "Votre compte, votre hôtel et tout son contenu (équipe, clients, réservations, factures, site) seront supprimés définitivement. La suppression se fait sur le site HotelSaver : il s'ouvre dans votre navigateur.",
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Ouvrir le site", style: "destructive", onPress: () => ouvrirLienSur(URL_SUPPRESSION_COMPTE).catch(() => Alert.alert("Supprimer mon compte", "Le navigateur ne s'est pas ouvert. Contactez le support HotelSaver.")) },
+      ]
+    );
   }
 
   return (
@@ -218,6 +235,13 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
                   </Pressable>
                 )
               )}
+              {/* Le patron seul : son compte part avec l'hôtel. La réception et la cafétéria sont retirées par le patron. */}
+              {utilisateur.role === Role.PATRON && (
+                <Pressable style={styles.lienSuppression} onPress={supprimerCompte} accessibilityRole="button">
+                  <Trash2 size={15} color={couleurs.danger} />
+                  <Text style={styles.lienSuppressionTexte}>Supprimer mon compte et mon hôtel</Text>
+                </Pressable>
+              )}
             </View>
           )}
       </ConteneurFormulaire>
@@ -284,4 +308,6 @@ const styles = StyleSheet.create({
     gap: espacements.s2,
   },
   boutonDangerTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  lienSuppression: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: espacements.s3, paddingVertical: espacements.s2 },
+  lienSuppressionTexte: { color: couleurs.danger, fontWeight: "600", fontSize: 13 },
 });

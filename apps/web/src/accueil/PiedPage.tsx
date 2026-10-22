@@ -33,6 +33,8 @@ export function PiedPage() {
           <a href="#faq">FAQ</a>
           <Link to="/inscription">Créer un compte</Link>
           <Link to="/conditions">Conditions d'utilisation</Link>
+          <Link to="/confidentialite">Confidentialité</Link>
+          <Link to="/supprimer-mon-compte">Supprimer mon compte</Link>
         </nav>
         <ContactWhatsApp className="contact-whatsapp--pied" />
         <small>© {new Date().getFullYear()} HotelSaver. Tous droits réservés.</small>

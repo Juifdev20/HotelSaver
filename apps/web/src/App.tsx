@@ -11,6 +11,8 @@ import { EcranInscription } from "./EcranInscription";
 import { EcranConditions } from "./EcranConditions";
 import { EcranSucces } from "./EcranSucces";
 import { EcranPayerAbonnement } from "./payer/EcranPayerAbonnement";
+import { EcranConfidentialite } from "./compte/EcranConfidentialite";
+import { EcranSuppressionCompte } from "./compte/EcranSuppressionCompte";
 import { EcranGuide } from "./guide/EcranGuide";
 import { EcranConnexionWeb, EcranMotDePasseOublie, EcranReinitialisation } from "./auth/EcransMotDePasse";
 import { EcranAccueil } from "./EcranAccueil";
@@ -55,12 +57,14 @@ const TITRE_PAGE_MARKETING: Record<string, string> = {
   "/guide": "Guide d'utilisation",
   "/mot-de-passe-oublie": "Mot de passe oublié",
   "/reinitialiser-mot-de-passe": "Nouveau mot de passe",
+  "/confidentialite": "Politique de confidentialité",
+  "/supprimer-mon-compte": "Supprimer mon compte",
 };
 
 function SiteMarketing() {
   const { pathname } = useLocation();
   useTitrePage(TITRE_PAGE_MARKETING[pathname] ?? "");
-  const surVitrine = ["/", "/inscription", "/connexion", "/payer", "/guide", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe"].includes(pathname);
+  const surVitrine = ["/", "/inscription", "/connexion", "/payer", "/guide", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe", "/supprimer-mon-compte"].includes(pathname);
   return (
     <>
       {surVitrine && <BarreMarketing />}
@@ -68,6 +72,9 @@ function SiteMarketing() {
         <Route path="/" element={<EcranAccueil />} />
         <Route path="/inscription" element={<EcranInscriptionAvecEtat />} />
         <Route path="/conditions" element={<EcranConditions />} />
+        {/* Pages données à Google Play : confidentialité, suppression du compte (patron seul). */}
+        <Route path="/confidentialite" element={<EcranConfidentialite />} />
+        <Route path="/supprimer-mon-compte" element={<EcranSuppressionCompte />} />
         <Route path="/connexion" element={<EcranConnexionWeb />} />
         <Route path="/payer" element={<EcranPayerAbonnement />} />
         <Route path="/guide" element={<EcranGuide />} />

@@ -1,0 +1,27 @@
+/* Pages « Confidentialité » et « Supprimer mon compte » (22/10/2026). */
+.page-doc {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: var(--hc-space-6) 16px var(--hc-space-8, 48px);
+  line-height: 1.6;
+  font-size: 15px;
+}
+.page-doc h1 { font-size: 28px; margin: var(--hc-space-3) 0 4px; }
+.page-doc h2 { font-size: 18px; margin: var(--hc-space-5, 24px) 0 6px; }
+.page-doc ul { padding-left: 20px; margin: 6px 0; }
+.page-doc li { margin: 4px 0; }
+.page-doc__date { font-size: 13px; opacity: 0.75; }
+.page-doc__retour { display: inline-flex; align-items: center; gap: 6px; }
+
+.suppr-liste { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; text-align: left; }
+.suppr-obstacle { background: var(--hc-warning-light, #fff4e5); border-radius: var(--hc-radius-sm, 10px); padding: 10px 12px; font-size: 14px; }
+.suppr-info { text-align: left; font-size: 14px; line-height: 1.55; margin: 12px 0; }
+.suppr-info p { margin: 6px 0; }
+.suppr-raisons { border: 0; padding: 0; margin: 12px 0; display: grid; gap: 8px; text-align: left; }
+.suppr-raisons legend { font-weight: 600; margin-bottom: 6px; }
+.suppr-raison { display: flex; align-items: center; gap: 10px; border: 1px solid var(--hc-border); border-radius: var(--hc-radius-sm, 10px); padding: 10px 12px; cursor: pointer; font-size: 14px; }
+.suppr-raison--choisie { border-color: var(--hc-blue, #053483); background: var(--hc-blue-light, rgba(5, 52, 131, 0.06)); }
+.suppr-commentaire { width: 100%; min-height: 84px; border: 1px solid var(--hc-border); border-radius: var(--hc-radius-sm, 10px); padding: 10px 12px; font: inherit; font-size: 14px; resize: vertical; box-sizing: border-box; }
+.suppr-coche { display: flex; gap: 10px; align-items: flex-start; text-align: left; font-size: 14px; margin: 12px 0 4px; }
+.bouton-auth.bouton-danger { background: #c0352b; }
+.bouton-auth.bouton-danger:hover:not(:disabled) { background: #a32a21; }

@@ -672,6 +672,16 @@ export class ClientApi {
     return this.requete<{ patronPeutOperer: boolean; cuisineActivee: boolean; commandeWebActivee: boolean }>("/hotel/reglages", { method: "PATCH", body: JSON.stringify(donnees) });
   }
 
+  /** Suppression du compte du patron et de son hôtel (PATRON) : ce qui reste à faire avant — liste vide = possible maintenant. */
+  async etatSuppressionHotel(): Promise<{ hotelNom: string; obstacles: string[] }> {
+    return this.requete<{ hotelNom: string; obstacles: string[] }>("/hotel/suppression");
+  }
+
+  /** Supprime définitivement l'hôtel et tous ses comptes (PATRON), avec la raison du départ et le nom de l'hôtel retapé. */
+  async supprimerHotel(demande: { raison: string; commentaire?: string; confirmationNom: string }): Promise<{ supprime: true }> {
+    return this.requete<{ supprime: true }>("/hotel/suppression", { method: "POST", body: JSON.stringify(demande) });
+  }
+
   /** Produits les plus ajoutés aux comptes aujourd'hui (du plus au moins demandé). */
   async produitsPopulaires(): Promise<ProduitPopulaire[]> {
     return this.requete<ProduitPopulaire[]>("/cafeteria/produits-populaires");

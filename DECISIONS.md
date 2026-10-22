@@ -3871,3 +3871,30 @@ mobile « Comptes » restait monté et ne se rechargeait qu'après une synchroni
   chambre, nom du client, lus dans la copie locale, donc hors ligne aussi), cachés sinon ; objet imbriqué → son nom.
 - **Captures du guide** : toutes à la taille d'un vrai téléphone (390 × 844) ; un écran trop long est montré en plusieurs images
   (liste « Plus » de la cafétaria : haut et bas), au lieu d'un écran artificiellement allongé.
+
+## Suppression du compte par le patron, depuis le site (22/10/2026, exigence Google Play)
+
+- **Le patron seul.** Son compte, son hôtel et tout ce qui lui appartient partent ensemble. La réception et la cafétéria ne peuvent pas
+  (`@Roles(PATRON)`) : le patron les retire de son équipe.
+- **Où** : la page `/supprimer-mon-compte` du site vitrine. Dans l'application mobile, Paramètres → « Supprimer mon compte et mon
+  hôtel » (patron seulement) l'ouvre dans le navigateur (`EXPO_PUBLIC_SITE_URL`).
+- **Étapes** :
+  1. connexion du patron (numéro et mot de passe, session en mémoire comme « Payer ») ;
+  2. ce qui reste à faire, s'il y a quelque chose ;
+  3. la raison du départ (6 choix et un commentaire) ;
+  4. le nom de l'hôtel retapé (accents et majuscules ignorés) et une case « définitif ».
+- **Refusée** tant qu'un client est dans l'hôtel (réservation EN_COURS), qu'une réservation est à venir (EN_ATTENTE ou CONFIRMEE
+  non passée) ou qu'un remboursement d'acompte est A_FAIRE : des gens comptent encore sur l'hôtel.
+- **Même suppression complète que les essais abandonnés** (`NettoyageEssaisService.supprimerHotel`, désormais exporté par le module
+  super-admin) :
+  - fichiers, puis toute la base en une transaction, puis les comptes de connexion ;
+  - la raison et le commentaire vont dans `HotelSupprime.motif` (« Supprimé par le patron (nom) — raison — « commentaire » »), lisible
+    par le super-admin ;
+  - le numéro garde son « essai utilisé ».
+- Routes `GET/POST /hotel/suppression`, et `etatSuppressionHotel` et `supprimerHotel` dans `api-client`.
+- Page publique `/confidentialite`, rédigée d'après ce que l'application collecte vraiment. Liens dans le pied de page.
+- `docs/PLAY_STORE.md` contient :
+  - les réponses au formulaire « Sécurité des données » ;
+  - l'AAB signé avec la clé existante (garder cette clé pour Play App Signing) ;
+  - les captures ;
+  - le point de vigilance sur l'abonnement payé dans l'application.

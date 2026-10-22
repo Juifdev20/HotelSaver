@@ -14,5 +14,7 @@ import { NettoyageEssaisService } from "./nettoyage-essais.service";
   imports: [PrismaModule],
   controllers: [SuperAdminController, ConditionsAdminController],
   providers: [SuperAdminService, LicenceSchedulerService, RenderDomainsService, UtilisateursService, SupabaseAdminService, SupabaseStorageService, NettoyageEssaisService],
+  // Le patron qui supprime son hôtel passe par la même suppression complète (reglages-hotel/suppression-hotel.service.ts).
+  exports: [NettoyageEssaisService],
 })
 export class SuperAdminModule {}
