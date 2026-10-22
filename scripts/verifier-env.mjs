@@ -7,8 +7,9 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const RACINE = new URL("..", import.meta.url).pathname;
+const RACINE = fileURLToPath(new URL("..", import.meta.url));
 
 /** Fichier → variables indispensables (les autres de .env.example sont facultatives). */
 const FICHIERS = [
