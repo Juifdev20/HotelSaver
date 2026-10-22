@@ -22,7 +22,7 @@ services:
     plan: starter
     branch: master
     buildCommand: >-
-      corepack enable &&
+      npm install -g pnpm@12.6.0 &&
       sed -i "/^virtualStoreDir:/d" pnpm-workspace.yaml &&
       pnpm install --frozen-lockfile --production=false --filter "@hotel-chicago/api..." &&
       pnpm --filter "@hotel-chicago/api..." run build
@@ -72,7 +72,7 @@ services:
     runtime: static
     branch: master
     buildCommand: >-
-      corepack enable &&
+      npm install -g pnpm@12.6.0 &&
       sed -i "/^virtualStoreDir:/d" pnpm-workspace.yaml &&
       pnpm install --frozen-lockfile --filter "@hotel-chicago/web..." &&
       pnpm --filter "@hotel-chicago/web..." run build
@@ -122,7 +122,7 @@ services:
     runtime: static
     branch: master
     buildCommand: >-
-      corepack enable &&
+      npm install -g pnpm@12.6.0 &&
       sed -i "/^virtualStoreDir:/d" pnpm-workspace.yaml &&
       pnpm install --frozen-lockfile --filter "@hotel-chicago/super-admin..." &&
       pnpm --filter "@hotel-chicago/super-admin..." run build
