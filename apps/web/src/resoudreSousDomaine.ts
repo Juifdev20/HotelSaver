@@ -30,6 +30,11 @@ export function resoudreSousDomaine(): string | null {
   const estAdresseIp = labels.every((label) => /^\d+$/.test(label));
   if (labels.length < 2 || estAdresseIp) return null;
 
+  // Domaine propre de la vitrine HotelSaver (VITE_VITRINE_HOST, ex. hotelsaver-site.onrender.com) :
+  // ce n'est pas un sous-domaine hôtel, inutile d'interroger l'API.
+  const vitrineHost = import.meta.env.VITE_VITRINE_HOST as string | undefined;
+  if (vitrineHost && hote === vitrineHost) return null;
+
   return hote;
 }
 

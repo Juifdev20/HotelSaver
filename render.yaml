@@ -98,6 +98,9 @@ services:
         value: "24"
       - key: VITE_API_URL
         value: https://hotelsaver-api.onrender.com
+      # Hôte propre de la vitrine : exclut ce domaine de la résolution de tenant (hotelsaver-site.onrender.com n'est pas un hôtel).
+      - key: VITE_VITRINE_HOST
+        value: hotelsaver-site.onrender.com
       - key: VITE_URL_PLAY_STORE
         sync: false
       - key: VITE_URL_APP_STORE
