@@ -3,7 +3,7 @@
     "name": "HotelSaver",
     "slug": "hotelsaver",
     "scheme": "hotelsaver",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -21,7 +21,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "allowBackup": false,
-      "versionCode": 5
+      "versionCode": 6
     },
     "web": {
       "favicon": "./assets/favicon.png"

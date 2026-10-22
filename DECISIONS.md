@@ -3939,3 +3939,6 @@ ligne ; le numéro définitif arrive avec la synchronisation, et le reçu était
 - Appareil : `appareil.e2e-spec.ts` (mêmes règles hors ligne ; reçu en ligne avec un numéro REC-…).
 - Le faux ScanLinkPay des tests accepte le préfixe `/api/v1` que le client ajoute depuis le 19/10. Les 25 tests d'acompte
   échouaient pour cette seule raison.
+
+- **Applications 1.0.5** (versionCode 6, 22/10/2026) : encaisser le séjour dès l'arrivée, reste à payer visible, reçus imprimés en
+  ligne avec leur numéro définitif, suppression du compte par le patron (Paramètres → site).
