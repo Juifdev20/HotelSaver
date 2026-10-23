@@ -34,9 +34,9 @@ const MARQUES = {
     phrase: "Une nouvelle expérience de paiement se prépare pour vous.",
     avancement: 85,
     c: { a: "#060B3D", b: "#0A1472", c: "#1130F7", clair: "#4CA6F7", accent: "#4CA6F7", texteAccent: "#06124F" },
+    carte: asset("carte-scanlinkpay.png"),
     pastilles: [
-      { icone: "recharger", titre: "Recharger", texte: "Mobile Money et carte", x: 560, y: 840 },
-      { icone: "payer", titre: "Payer par QR", texte: "Un scan, c'est réglé", x: 515, y: 990 },
+      { icone: "recharger", titre: "Recharger", texte: "Mobile Money et carte", x: 585, y: 676 },
       { icone: "retirer", titre: "Retirer", texte: "Mobile Money ou banque", x: 905, y: 318 },
     ],
   },
@@ -75,7 +75,17 @@ function page(cle) {
       (p) => `<div class="pastille" style="left:${p.x}px;top:${p.y}px"><span class="pico">${icone(p.icone, c.texteAccent)}</span><div><b>${p.titre}</b><small>${p.texte}</small></div></div>`,
     )
     .join("");
+  const epaisseur = Array.from({ length: 9 }, (_, i) => `<i style="transform:translateZ(${-(i + 1) * 1.6}px);background:${i % 2 ? "#0A17A8" : "#0F26D8"}"></i>`).join("");
+  const carte = m.carte
+    ? `<div class="scene"><div class="ombre-carte"></div><div class="carte3d">${epaisseur}<img src="${m.carte}" alt=""><span class="gloss"></span></div></div>`
+    : "";
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>
+  .scene{position:absolute;left:365px;top:790px;width:560px;height:360px;perspective:1500px;z-index:7;pointer-events:none}
+  .carte3d{position:absolute;left:30px;top:20px;width:500px;height:315px;transform-style:preserve-3d;transform:rotateX(18deg) rotateY(-24deg) rotateZ(-9deg);border-radius:18px}
+  .carte3d img{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+  .carte3d i{position:absolute;inset:0;border-radius:18px}
+  .carte3d .gloss{position:absolute;inset:0;border-radius:18px;background:linear-gradient(118deg,rgba(255,255,255,.42) 0%,rgba(255,255,255,.08) 28%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 70%,rgba(255,255,255,.16) 100%)}
+  .ombre-carte{position:absolute;left:60px;top:250px;width:470px;height:90px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,30,.6),transparent 68%);transform:rotate(-8deg);filter:blur(6px)}
   *{box-sizing:border-box;margin:0;padding:0}
   body{width:1254px;height:1254px;overflow:hidden;font-family:"Inter","Inter Display",sans-serif;position:relative;color:#fff;
     background:radial-gradient(ellipse 60% 55% at 74% 52%,${c.c} 0%,${c.b} 55%,${c.a} 100%)}
@@ -119,6 +129,7 @@ function page(cle) {
   <div class="jauge-texte"><strong>Le lancement approche.</strong><br>Restez connectés.</div>
   <div class="tel"><div class="ecran"><img class="cap" src="${m.capture}" alt="">${barreEtat("#111")}<div class="ilot"></div><div class="reflet"></div></div></div>
   ${pastilles}
+  ${carte}
   </body></html>`;
 }
 
