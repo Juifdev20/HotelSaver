@@ -1,0 +1,52 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>
+  .scene{position:absolute;left:365px;top:790px;width:560px;height:360px;perspective:1500px;z-index:7;pointer-events:none}
+  .carte3d{position:absolute;left:30px;top:20px;width:500px;height:315px;transform-style:preserve-3d;transform:rotateX(18deg) rotateY(-24deg) rotateZ(-9deg);border-radius:18px}
+  .carte3d img{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+  .carte3d i{position:absolute;inset:0;border-radius:18px}
+  .carte3d .gloss{position:absolute;inset:0;border-radius:18px;background:linear-gradient(118deg,rgba(255,255,255,.42) 0%,rgba(255,255,255,.08) 28%,rgba(255,255,255,0) 42%,rgba(255,255,255,0) 70%,rgba(255,255,255,.16) 100%)}
+  .ombre-carte{position:absolute;left:60px;top:250px;width:470px;height:90px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,30,.6),transparent 68%);transform:rotate(-8deg);filter:blur(6px)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{width:1254px;height:1254px;overflow:hidden;font-family:"Inter","Inter Display",sans-serif;position:relative;color:#fff;
+    background:radial-gradient(ellipse 60% 55% at 74% 52%,#1769E0 0%,#053483 55%,#061224 100%)}
+  svg.ondes{position:absolute;left:0;top:0}
+  .grain{position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.16) 1.4px,transparent 1.6px);background-size:34px 34px;opacity:.5;-webkit-mask-image:linear-gradient(100deg,#000 0,transparent 55%);mask-image:linear-gradient(100deg,#000 0,transparent 55%)}
+  .marque{position:absolute;left:84px;top:78px;display:flex;align-items:center;gap:18px}
+  .marque img{width:76px;height:76px;border-radius:20px;box-shadow:0 12px 28px rgba(0,0,0,.35)}
+  .marque b{font-size:44px;font-weight:800;letter-spacing:-.035em}
+  .marque b em{font-style:normal;color:#F5B400}
+  .tag{position:absolute;left:84px;top:300px;display:inline-flex;align-items:center;gap:14px;height:54px;padding:0 26px 0 20px;border-radius:27px;background:#F5B400;color:#2A1D00;font-weight:800;font-size:23px;letter-spacing:.22em}
+  .tag i{width:14px;height:14px;border-radius:50%;background:#2A1D00;box-shadow:0 0 0 6px rgba(255,255,255,.4)}
+  h1{position:absolute;left:84px;top:384px;font-size:76px;line-height:1.06;font-weight:800;letter-spacing:-.035em;width:640px}
+  h1 span{color:#F5B400}
+  .phrase{position:absolute;left:84px;top:604px;width:470px;font-size:27px;line-height:1.5;font-weight:500;color:rgba(255,255,255,.82)}
+  .jauge{position:absolute;left:84px;top:858px;width:150px;height:150px}
+  .jauge b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800;letter-spacing:-.02em}
+  .jauge-texte{position:absolute;left:84px;top:1024px;width:420px;font-size:22px;font-weight:600;letter-spacing:.06em;color:rgba(255,255,255,.78);line-height:1.4}
+  .jauge-texte strong{color:#fff;font-weight:800}
+  .tel{position:absolute;width:400px;height:838px;border-radius:68px;padding:14px;transform-origin:50% 0;
+    background:linear-gradient(150deg,#4A566C,#0B1220 45%,#2B3548);box-shadow:0 60px 90px rgba(0,0,0,.5),0 0 0 2px rgba(255,255,255,.16),0 0 120px #1769E0}
+  .ecran{position:relative;width:100%;height:100%;border-radius:54px;overflow:hidden;background:#FFFFFF}
+  .ecran img.cap{position:absolute;left:0;top:0;width:100%;height:auto;display:block}
+  .etat{position:absolute;left:0;right:0;top:0;height:34px;background:#FFFFFF;display:flex;align-items:center;justify-content:space-between;padding:0px 38px 0 44px;font-weight:700;font-size:19px;color:#111}
+  .ilot{position:absolute;left:50%;top:7px;width:112px;height:26px;margin-left:-56px;border-radius:20px;background:#05080F;z-index:3}
+  .reflet{position:absolute;inset:0;border-radius:54px;background:linear-gradient(115deg,rgba(255,255,255,.3),rgba(255,255,255,0) 32%,rgba(255,255,255,0) 70%,rgba(255,255,255,.08));z-index:4}
+  .pastille{position:absolute;z-index:5;display:flex;align-items:center;gap:16px;padding:16px 26px 16px 16px;border-radius:26px;background:#061224EB;border:1.5px solid rgba(255,255,255,.28);box-shadow:0 22px 40px rgba(0,0,0,.35);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+  .pico{width:56px;height:56px;border-radius:18px;background:#F5B400;display:flex;align-items:center;justify-content:center;flex:none}
+  .pastille b{display:block;font-size:24px;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+  .pastille small{display:block;margin-top:3px;font-size:16.5px;font-weight:500;color:rgba(255,255,255,.82);white-space:nowrap}
+  </style></head><body>
+  <svg class="ondes" width="1254" height="1254" viewBox="0 0 1254 1254" fill="none">
+    <g stroke="#fff" stroke-width="2"><circle cx="925" cy="690" r="290" opacity=".2"/><circle cx="925" cy="690" r="430" opacity=".14"/><circle cx="925" cy="690" r="580" opacity=".09"/><circle cx="925" cy="690" r="740" opacity=".06"/></g>
+    <circle cx="925" cy="690" r="290" stroke="#F5B400" stroke-width="4" stroke-dasharray="3 22" stroke-linecap="round" opacity=".7"/>
+  </svg>
+  <div class="grain"></div>
+  <div class="marque"><img src="file:///home/user/HotelSaver/docs/marketing/affiches/assets/hotelsaver-logo.png" alt=""><b>Hotel<em>Saver</em></b></div>
+  <div class="tag"><i></i>COMING SOON</div>
+  <h1>Votre hôtel,<br><span>sous contrôle.</span></h1>
+  <p class="phrase">Une nouvelle expérience hôtelière se prépare pour vous.</p>
+  <div class="jauge"><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="70" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="14"/><circle cx="75" cy="75" r="70" fill="none" stroke="#F5B400" stroke-width="14" stroke-linecap="round" stroke-dasharray="395.84067435231395 439.822971502571" transform="rotate(-90 75 75)"/></svg><b>90%</b></div>
+  <div class="jauge-texte"><strong>Le lancement approche.</strong><br>Restez connectés.</div>
+  <div class="tel" style="left:720px;top:260px;transform:rotate(5deg) scale(1.1);z-index:3"><div class="ecran"><img class="cap" src="file:///home/user/HotelSaver/docs/marketing/affiches/assets/hotelsaver-cafeteria-accueil.png" alt=""><div class="etat"><span>9:41</span><svg width="86" height="26" viewBox="0 0 86 26" fill="#111"><rect x="0" y="14" width="5" height="9" rx="1.5"/><rect x="8" y="10" width="5" height="13" rx="1.5"/><rect x="16" y="6" width="5" height="17" rx="1.5"/><rect x="24" y="2" width="5" height="21" rx="1.5"/><path d="M42 7a14 14 0 0 1 20 0l-2.4 2.6a10.4 10.4 0 0 0-15.2 0z"/><path d="M46 12a8.6 8.6 0 0 1 12 0l-2.4 2.6a5.2 5.2 0 0 0-7.2 0z"/><circle cx="52" cy="19" r="2.8"/><rect x="66" y="5" width="20" height="14" rx="4" fill="none" stroke="#111" stroke-width="2"/><rect x="68.5" y="7.5" width="12" height="9" rx="2"/></svg></div><div class="ilot"></div><div class="reflet"></div></div></div>
+  <div class="pastille" style="left:585px;top:676px"><span class="pico"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#2A1D00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></svg></span><div><b>Vente rapide</b><small>Scannez les articles</small></div></div><div class="pastille" style="left:905px;top:318px"><span class="pico"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#2A1D00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></svg></span><div><b>Stock</b><small>Alertes de stock bas</small></div></div>
+  
+  </body></html>

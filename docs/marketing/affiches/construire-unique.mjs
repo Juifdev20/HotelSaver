@@ -20,6 +20,10 @@ const ICONES = {
   lit: '<path d="M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5M7 11.5a1.5 1.5 0 1 0 0-.01"/>',
   caisse: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2m3 0h3M8 15h2m3 0h3"/>',
   cafe: '<path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5zM17 10h2a2 2 0 0 1 0 4h-2M8 3v3m4-3v3"/>',
+  agenda: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4m8-4v4"/>',
+  boite: '<path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/>',
+  graphe: '<path d="M4 20V10m6 10V4m6 16v-7m4 7H2"/>',
+  scan: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/>',
   hors: '<path d="M3 3l18 18M8.5 8.8A7 7 0 0 0 5 11m4.7.3A4 4 0 0 1 12 10.7m6.2.3a10 10 0 0 0-5.4-2.9M12 18.2h.01"/>',
 };
 
@@ -43,21 +47,14 @@ const MARQUES = {
   hotelsaver: {
     nom: ["Hotel", "Saver"],
     logo: asset("hotelsaver-logo.png"),
-    capture: asset("hotelsaver-cafeteria-accueil.png"),
-    telephones: [
-      { capture: asset("hotelsaver-reception-accueil.png"), left: 565, top: 330, rot: -7, scale: 0.86, z: 3 },
-      { capture: asset("hotelsaver-cafeteria-accueil.png"), left: 845, top: 235, rot: 6, scale: 0.93, z: 4 },
-    ],
+    capture: asset("hotelsaver-tableau-de-bord.png"),
     fondEcran: "#FFFFFF",
     barre: 34,
     titre: ["Votre hôtel,", "sous contrôle."],
     phrase: "Une nouvelle expérience hôtelière se prépare pour vous.",
     avancement: 90,
     c: { a: "#061224", b: "#053483", c: "#1769E0", clair: "#F5B400", accent: "#F5B400", texteAccent: "#2A1D00" },
-    pastilles: [
-      { icone: "lit", titre: "Réception", texte: "Chambres et réservations", x: 410, y: 1110 },
-      { icone: "cafe", titre: "Cafétaria", texte: "Ventes et stock", x: 770, y: 1110 },
-    ],
+    pastilles: [],
   },
 };
 
@@ -68,8 +65,7 @@ function barreEtat(couleur) {
   return `<div class="etat"><span>9:41</span><svg width="86" height="26" viewBox="0 0 86 26" fill="${couleur}"><rect x="0" y="14" width="5" height="9" rx="1.5"/><rect x="8" y="10" width="5" height="13" rx="1.5"/><rect x="16" y="6" width="5" height="17" rx="1.5"/><rect x="24" y="2" width="5" height="21" rx="1.5"/><path d="M42 7a14 14 0 0 1 20 0l-2.4 2.6a10.4 10.4 0 0 0-15.2 0z"/><path d="M46 12a8.6 8.6 0 0 1 12 0l-2.4 2.6a5.2 5.2 0 0 0-7.2 0z"/><circle cx="52" cy="19" r="2.8"/><rect x="66" y="5" width="20" height="14" rx="4" fill="none" stroke="${couleur}" stroke-width="2"/><rect x="68.5" y="7.5" width="12" height="9" rx="2"/></svg></div>`;
 }
 
-function page(cle) {
-  const m = MARQUES[cle];
+function page(m) {
   const c = m.c;
   const r = 70;
   const perimetre = 2 * Math.PI * r;
@@ -78,7 +74,7 @@ function page(cle) {
       (p) => `<div class="pastille" style="left:${p.x}px;top:${p.y}px"><span class="pico">${icone(p.icone, c.texteAccent)}</span><div><b>${p.titre}</b><small>${p.texte}</small></div></div>`,
     )
     .join("");
-  const liste = m.telephones ?? [{ capture: m.capture, left: 720, top: 260, rot: 5, scale: 1.1, z: 3 }];
+  const liste = [{ capture: m.capture, left: 720, top: 260, rot: 5, scale: 1.1, z: 3 }];
   const telephones = liste
     .map(
       (t) => `<div class="tel" style="left:${t.left}px;top:${t.top}px;transform:rotate(${t.rot}deg) scale(${t.scale});z-index:${t.z}"><div class="ecran"><img class="cap" src="${t.capture}" alt="">${barreEtat("#111")}<div class="ilot"></div><div class="reflet"></div></div></div>`,
@@ -147,14 +143,40 @@ mkdirSync(SORTIE, { recursive: true });
 const requireApi = createRequire(join(ICI, "../../../apps/api/package.json"));
 const { chromium } = requireApi("playwright-core");
 const nav = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium", args: ["--no-sandbox", "--allow-file-access-from-files"] });
-for (const cle of Object.keys(MARQUES)) {
-  const html = join(SORTIE, `${cle}-coming-soon-unique.html`);
-  writeFileSync(html, page(cle));
+/** Une affiche par interface : on ne mélange jamais deux interfaces sur la même image. */
+const sansInternet = { icone: "hors", titre: "Sans internet", texte: "Tout continue de marcher" };
+const VARIANTES = [
+  { fichier: "scanlinkpay-coming-soon-unique", marque: MARQUES.scanlinkpay },
+  {
+    fichier: "hotelsaver-coming-soon-unique-patron",
+    marque: { ...MARQUES.hotelsaver, pastilles: [
+      { icone: "graphe", titre: "Rapports", texte: "Recettes mois par mois", x: 585, y: 676 },
+      { ...sansInternet, x: 905, y: 318 },
+    ] },
+  },
+  {
+    fichier: "hotelsaver-coming-soon-unique-reception",
+    marque: { ...MARQUES.hotelsaver, capture: asset("hotelsaver-reception-accueil.png"), pastilles: [
+      { icone: "lit", titre: "Chambres", texte: "Libres, occupées, réservées", x: 585, y: 676 },
+      { icone: "agenda", titre: "Réservations", texte: "Arrivées et départs", x: 905, y: 318 },
+    ] },
+  },
+  {
+    fichier: "hotelsaver-coming-soon-unique-cafeteria",
+    marque: { ...MARQUES.hotelsaver, capture: asset("hotelsaver-cafeteria-accueil.png"), pastilles: [
+      { icone: "scan", titre: "Vente rapide", texte: "Scannez les articles", x: 585, y: 676 },
+      { icone: "boite", titre: "Stock", texte: "Alertes de stock bas", x: 905, y: 318 },
+    ] },
+  },
+];
+for (const v of VARIANTES) {
+  const html = join(SORTIE, `${v.fichier}.html`);
+  writeFileSync(html, page(v.marque));
   const p = await nav.newPage({ viewport: { width: 1254, height: 1254 }, deviceScaleFactor: 1 });
   await p.goto(pathToFileURL(html).href, { waitUntil: "load" });
   await p.evaluate(() => document.fonts.ready);
   await p.waitForTimeout(400);
-  await p.screenshot({ path: join(SORTIE, `${cle}-coming-soon-unique.png`) });
+  await p.screenshot({ path: join(SORTIE, `${v.fichier}.png`) });
   await p.close();
 }
 await nav.close();
