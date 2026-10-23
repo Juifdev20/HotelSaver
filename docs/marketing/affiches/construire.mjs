@@ -216,20 +216,91 @@ function page(cle) {
   </body></html>`;
 }
 
+
+/* ------------------------------------------------------------------ version carrée (1254 × 1254, WhatsApp, Facebook, Instagram) */
+
+function pageCarree(cle) {
+  const m = MARQUES[cle];
+  const c = m.c;
+  const segments = 20;
+  const pleins = Math.round((m.avancement / 100) * segments);
+  const barre = Array.from({ length: segments }, (_, i) => `<i class="${i < pleins ? "on" : ""}"></i>`).join("");
+  const objets =
+    m.objets === "paiement"
+      ? `<div class="obj carte" style="left:845px;top:760px;transform:rotate(24deg) scale(.72);transform-origin:0 0">${cartePaiement(c, m.logo)}</div>
+         <div class="obj front" style="left:70px;top:820px;transform:rotate(-4deg) scale(.82);transform-origin:0 0">${pieces(c)}</div>
+         <div class="obj front" style="left:430px;top:810px;transform:rotate(-7deg) scale(.78);transform-origin:0 0">${etiquetteQr(c)}</div>`
+      : `<div class="obj carte" style="left:845px;top:760px;transform:rotate(24deg) scale(.72);transform-origin:0 0">${carteChambre(c, m.logo)}</div>
+         <div class="obj front" style="left:80px;top:790px;transform:rotate(10deg) scale(.56);transform-origin:0 0">${cleChambre(c, m.logo)}</div>
+         <div class="obj front" style="left:330px;top:905px;transform:rotate(-5deg) scale(.78);transform-origin:0 0">${sonnette(c)}</div>`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>
+  :root{--fonce:${c.fonce};--principal:${c.principal};--clair:${c.clair};--bande:${c.bande};}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{width:1254px;height:1254px;overflow:hidden;background:#fff;font-family:"Inter","Inter Display",sans-serif;position:relative}
+  .fond{position:absolute;inset:0;background:radial-gradient(ellipse 55% 60% at 74% 48%,rgba(17,48,247,.07),transparent 70%),linear-gradient(#fff,#F6F8FD 70%,#EEF2FA)}
+  .cadre{position:absolute;inset:24px;border:2px solid var(--fonce);opacity:.9}
+  .marque{position:absolute;left:68px;top:64px;display:flex;align-items:center;gap:18px}
+  .marque img{width:84px;height:84px;border-radius:22px;box-shadow:0 14px 30px rgba(6,22,80,.22)}
+  .marque b{display:block;font-size:48px;font-weight:800;letter-spacing:-.035em;line-height:1;color:var(--fonce)}
+  .marque b em{font-style:normal;color:var(--clair)}
+  .marque span{display:block;margin-top:8px;font-size:17px;font-weight:600;letter-spacing:.03em;color:#5A6A86}
+  .ruban{position:absolute;left:908px;top:0;width:44px;height:190px;background:linear-gradient(90deg,var(--principal),var(--fonce) 60%,var(--principal));box-shadow:0 10px 24px rgba(6,22,80,.25)}
+  .ruban::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 14px,rgba(255,255,255,.18) 14px 16px)}
+  .anneau{position:absolute;left:890px;top:166px;width:80px;height:80px;border-radius:50%;border:9px solid #F5B400;box-shadow:0 8px 16px rgba(0,0,0,.25),inset 0 2px 3px rgba(255,255,255,.7);z-index:5}
+  .ombre{position:absolute;left:540px;top:960px;width:520px;height:60px;border-radius:50%;background:radial-gradient(ellipse,rgba(6,22,80,.32),transparent 70%)}
+  .obj{position:absolute;filter:drop-shadow(0 22px 22px rgba(6,22,80,.26))}
+  .obj.front{z-index:6}.obj.carte{z-index:2}
+  .tel-ancre{position:absolute;left:930px;top:240px;width:0;height:0;z-index:4;transform:rotate(-13deg) scale(.9);transform-origin:0 0}
+  .tel{position:absolute;left:-200px;top:0;width:400px;height:838px;border-radius:68px;padding:14px;background:linear-gradient(150deg,#3A4558,#0B1220 45%,#2B3548);box-shadow:0 40px 60px rgba(6,22,80,.35),inset 0 0 0 2px #596378}
+  .tel::before{content:"";position:absolute;right:-5px;top:170px;width:6px;height:96px;border-radius:0 4px 4px 0;background:#2B3548}
+  .tel::after{content:"";position:absolute;left:-5px;top:140px;width:6px;height:60px;border-radius:4px 0 0 4px;background:#2B3548;box-shadow:0 84px 0 #2B3548}
+  .ecran{position:relative;width:100%;height:100%;border-radius:54px;overflow:hidden;background:${m.fondEcran}}
+  .ecran img.cap{position:absolute;left:0;top:0;width:100%;height:auto;display:block}
+  .etat{position:absolute;left:0;right:0;top:0;height:${m.barre}px;background:${m.fondEcran};display:flex;align-items:center;justify-content:space-between;padding:${m.barre > 40 ? 6 : 0}px 38px 0 44px;font-weight:700;font-size:${m.barre > 40 ? 22 : 19}px;color:#111}
+  .ilot{position:absolute;left:50%;top:${m.barre > 40 ? 12 : 7}px;width:112px;height:${m.barre > 40 ? 32 : 26}px;margin-left:-56px;border-radius:20px;background:#05080F;z-index:3}
+  .reflet{position:absolute;inset:0;border-radius:54px;background:linear-gradient(115deg,rgba(255,255,255,.34),rgba(255,255,255,0) 32%,rgba(255,255,255,0) 70%,rgba(255,255,255,.10));pointer-events:none;z-index:4}
+  h1{position:absolute;left:68px;width:600px;text-align:left;font-weight:900;line-height:.82;letter-spacing:-.04em;color:var(--fonce)}
+  h1.a{top:268px;font-size:152px}h1.b{top:432px;font-size:196px}
+  .stay{position:absolute;left:64px;top:392px;transform:rotate(-1deg);width:500px;height:62px;background:var(--bande);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:34px;letter-spacing:.3em;padding-left:.3em;color:${c.texteBande};z-index:3;box-shadow:0 10px 22px rgba(6,22,80,.2)}
+  .phrase{position:absolute;left:68px;top:650px;width:580px;font-size:22px;font-weight:500;letter-spacing:.1em;line-height:1.55;color:#2B3A55}
+  .avance{position:absolute;left:68px;right:68px;top:1130px;display:flex;align-items:center;gap:24px}
+  .avance .seg{flex:1;display:flex;gap:9px}
+  .avance i{flex:1;height:24px;border-radius:12px;background:#D5DAE4}
+  .avance i.on{background:linear-gradient(180deg,var(--clair),var(--principal) 55%,var(--fonce))}
+  .avance b{font-size:40px;font-weight:800;color:var(--fonce);letter-spacing:-.01em;min-width:92px;text-align:right}
+  </style></head><body>
+  <div class="fond"></div><div class="cadre"></div>
+  <div class="marque"><img src="${m.logo}" alt=""><div><b>${m.nom.debut}<em>${m.nom.fin}</em></b><span>${m.slogan}</span></div></div>
+  <div class="ruban"></div><div class="anneau"></div><div class="ombre"></div>
+  ${objets}
+  <div class="tel-ancre"><div class="tel"><div class="ecran"><img class="cap" src="${m.capture}" alt="">${barreEtat("#111")}<div class="ilot"></div><div class="reflet"></div></div></div></div>
+  <h1 class="a">COMING</h1><div class="stay">STAY TUNED</div><h1 class="b">SOON</h1>
+  <p class="phrase">${m.phrase[0]}<br>${m.phrase[1]}</p>
+  <div class="avance"><div class="seg">${barre}</div><b>${m.avancement}%</b></div>
+  </body></html>`;
+}
+
 const SORTIE = join(ICI, "sortie");
 mkdirSync(SORTIE, { recursive: true });
 const requireApi = createRequire(join(ICI, "../../../apps/api/package.json"));
 const { chromium } = requireApi("playwright-core");
 const nav = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium", args: ["--no-sandbox", "--allow-file-access-from-files"] });
+const FORMATS = [
+  { suffixe: "", largeur: 1080, hauteur: 1920, facteur: 2, construire: page },
+  { suffixe: "-carre", largeur: 1254, hauteur: 1254, facteur: 1, construire: pageCarree },
+];
 for (const cle of Object.keys(MARQUES)) {
-  const html = join(SORTIE, `${cle}-coming-soon.html`);
-  writeFileSync(html, page(cle));
-  const p = await nav.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 2 });
-  await p.goto(pathToFileURL(html).href, { waitUntil: "load" });
-  await p.evaluate(() => document.fonts.ready);
-  await p.waitForTimeout(500);
-  await p.screenshot({ path: join(SORTIE, `${cle}-coming-soon.png`) });
-  await p.close();
+  for (const f of FORMATS) {
+    const nom = `${cle}-coming-soon${f.suffixe}`;
+    const html = join(SORTIE, `${nom}.html`);
+    writeFileSync(html, f.construire(cle));
+    const p = await nav.newPage({ viewport: { width: f.largeur, height: f.hauteur }, deviceScaleFactor: f.facteur });
+    await p.goto(pathToFileURL(html).href, { waitUntil: "load" });
+    await p.evaluate(() => document.fonts.ready);
+    await p.waitForTimeout(500);
+    await p.screenshot({ path: join(SORTIE, `${nom}.png`) });
+    await p.close();
+  }
 }
 await nav.close();
 console.log("affiches faites");

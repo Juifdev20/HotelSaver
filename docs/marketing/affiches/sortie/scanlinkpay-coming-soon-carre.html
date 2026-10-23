@@ -1,0 +1,91 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><style>
+  :root{--fonce:#0A1472;--principal:#1130F7;--clair:#4CA6F7;--bande:#4CA6F7;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{width:1254px;height:1254px;overflow:hidden;background:#fff;font-family:"Inter","Inter Display",sans-serif;position:relative}
+  .fond{position:absolute;inset:0;background:radial-gradient(ellipse 55% 60% at 74% 48%,rgba(17,48,247,.07),transparent 70%),linear-gradient(#fff,#F6F8FD 70%,#EEF2FA)}
+  .cadre{position:absolute;inset:24px;border:2px solid var(--fonce);opacity:.9}
+  .marque{position:absolute;left:68px;top:64px;display:flex;align-items:center;gap:18px}
+  .marque img{width:84px;height:84px;border-radius:22px;box-shadow:0 14px 30px rgba(6,22,80,.22)}
+  .marque b{display:block;font-size:48px;font-weight:800;letter-spacing:-.035em;line-height:1;color:var(--fonce)}
+  .marque b em{font-style:normal;color:var(--clair)}
+  .marque span{display:block;margin-top:8px;font-size:17px;font-weight:600;letter-spacing:.03em;color:#5A6A86}
+  .ruban{position:absolute;left:908px;top:0;width:44px;height:190px;background:linear-gradient(90deg,var(--principal),var(--fonce) 60%,var(--principal));box-shadow:0 10px 24px rgba(6,22,80,.25)}
+  .ruban::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 14px,rgba(255,255,255,.18) 14px 16px)}
+  .anneau{position:absolute;left:890px;top:166px;width:80px;height:80px;border-radius:50%;border:9px solid #F5B400;box-shadow:0 8px 16px rgba(0,0,0,.25),inset 0 2px 3px rgba(255,255,255,.7);z-index:5}
+  .ombre{position:absolute;left:540px;top:960px;width:520px;height:60px;border-radius:50%;background:radial-gradient(ellipse,rgba(6,22,80,.32),transparent 70%)}
+  .obj{position:absolute;filter:drop-shadow(0 22px 22px rgba(6,22,80,.26))}
+  .obj.front{z-index:6}.obj.carte{z-index:2}
+  .tel-ancre{position:absolute;left:930px;top:240px;width:0;height:0;z-index:4;transform:rotate(-13deg) scale(.9);transform-origin:0 0}
+  .tel{position:absolute;left:-200px;top:0;width:400px;height:838px;border-radius:68px;padding:14px;background:linear-gradient(150deg,#3A4558,#0B1220 45%,#2B3548);box-shadow:0 40px 60px rgba(6,22,80,.35),inset 0 0 0 2px #596378}
+  .tel::before{content:"";position:absolute;right:-5px;top:170px;width:6px;height:96px;border-radius:0 4px 4px 0;background:#2B3548}
+  .tel::after{content:"";position:absolute;left:-5px;top:140px;width:6px;height:60px;border-radius:4px 0 0 4px;background:#2B3548;box-shadow:0 84px 0 #2B3548}
+  .ecran{position:relative;width:100%;height:100%;border-radius:54px;overflow:hidden;background:#F5F7FE}
+  .ecran img.cap{position:absolute;left:0;top:0;width:100%;height:auto;display:block}
+  .etat{position:absolute;left:0;right:0;top:0;height:58px;background:#F5F7FE;display:flex;align-items:center;justify-content:space-between;padding:6px 38px 0 44px;font-weight:700;font-size:22px;color:#111}
+  .ilot{position:absolute;left:50%;top:12px;width:112px;height:32px;margin-left:-56px;border-radius:20px;background:#05080F;z-index:3}
+  .reflet{position:absolute;inset:0;border-radius:54px;background:linear-gradient(115deg,rgba(255,255,255,.34),rgba(255,255,255,0) 32%,rgba(255,255,255,0) 70%,rgba(255,255,255,.10));pointer-events:none;z-index:4}
+  h1{position:absolute;left:68px;width:600px;text-align:left;font-weight:900;line-height:.82;letter-spacing:-.04em;color:var(--fonce)}
+  h1.a{top:268px;font-size:152px}h1.b{top:432px;font-size:196px}
+  .stay{position:absolute;left:64px;top:392px;transform:rotate(-1deg);width:500px;height:62px;background:var(--bande);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:34px;letter-spacing:.3em;padding-left:.3em;color:#FFFFFF;z-index:3;box-shadow:0 10px 22px rgba(6,22,80,.2)}
+  .phrase{position:absolute;left:68px;top:650px;width:580px;font-size:22px;font-weight:500;letter-spacing:.1em;line-height:1.55;color:#2B3A55}
+  .avance{position:absolute;left:68px;right:68px;top:1130px;display:flex;align-items:center;gap:24px}
+  .avance .seg{flex:1;display:flex;gap:9px}
+  .avance i{flex:1;height:24px;border-radius:12px;background:#D5DAE4}
+  .avance i.on{background:linear-gradient(180deg,var(--clair),var(--principal) 55%,var(--fonce))}
+  .avance b{font-size:40px;font-weight:800;color:var(--fonce);letter-spacing:-.01em;min-width:92px;text-align:right}
+  </style></head><body>
+  <div class="fond"></div><div class="cadre"></div>
+  <div class="marque"><img src="file:///home/user/HotelSaver/docs/marketing/affiches/assets/scanlinkpay-logo.png" alt=""><div><b>ScanLink<em>Pay</em></b><span>Payez. Recevez. Simplement.</span></div></div>
+  <div class="ruban"></div><div class="anneau"></div><div class="ombre"></div>
+  <div class="obj carte" style="left:845px;top:760px;transform:rotate(24deg) scale(.72);transform-origin:0 0"><svg viewBox="0 0 540 340" width="540" height="340"><defs>
+  <linearGradient id="cp-carte" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0A1472"/><stop offset=".55" stop-color="#1130F7"/><stop offset="1" stop-color="#4CA6F7"/></linearGradient>
+  <linearGradient id="cp-or" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE08A"/><stop offset=".5" stop-color="#F5B400"/><stop offset="1" stop-color="#B97F00"/></linearGradient>
+  <linearGradient id="cp-orcote" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#A16F00"/><stop offset=".35" stop-color="#E8A800"/><stop offset=".7" stop-color="#C98B00"/><stop offset="1" stop-color="#8F6200"/></linearGradient>
+  <linearGradient id="cp-argent" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".5" stop-color="#DDE5F2"/><stop offset="1" stop-color="#9FB0C9"/></linearGradient>
+    <clipPath id="cp-clip"><rect width="520" height="320" rx="30"/></clipPath></defs>
+    <g transform="translate(10 10)"><rect width="520" height="320" rx="30" fill="url(#cp-carte)"/>
+    <g clip-path="url(#cp-clip)"><ellipse cx="470" cy="20" rx="260" ry="190" fill="#fff" opacity=".10"/><ellipse cx="60" cy="330" rx="220" ry="120" fill="#fff" opacity=".07"/></g>
+    <image href="file:///home/user/HotelSaver/docs/marketing/affiches/assets/scanlinkpay-logo.png" x="36" y="30" width="62" height="62"/>
+    <text x="112" y="72" font-family="Inter" font-weight="800" font-size="30" fill="#fff">ScanLinkPay</text>
+    <rect x="40" y="130" width="82" height="62" rx="12" fill="url(#cp-or)"/><path d="M40 161h82M81 130v62M40 146h28M95 146h27M40 176h28M95 176h27" stroke="#9A6A00" stroke-width="2" fill="none" opacity=".55"/>
+    <g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".95"><path d="M168 146a30 30 0 0 1 0 30"/><path d="M186 132a52 52 0 0 1 0 58"/><path d="M204 118a74 74 0 0 1 0 86"/></g>
+    <text x="40" y="262" font-family="Inter" font-weight="600" font-size="30" letter-spacing="5" fill="#fff" opacity=".92">••••  ••••  ••••  2026</text>
+    <text x="40" y="296" font-family="Inter" font-weight="600" font-size="15" letter-spacing="4" fill="#fff" opacity=".75">PAYEZ. RECEVEZ. SIMPLEMENT.</text></g></svg></div>
+         <div class="obj front" style="left:70px;top:820px;transform:rotate(-4deg) scale(.82);transform-origin:0 0"><svg viewBox="0 0 420 260" width="420" height="260"><defs>
+  <linearGradient id="pc-carte" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0A1472"/><stop offset=".55" stop-color="#1130F7"/><stop offset="1" stop-color="#4CA6F7"/></linearGradient>
+  <linearGradient id="pc-or" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE08A"/><stop offset=".5" stop-color="#F5B400"/><stop offset="1" stop-color="#B97F00"/></linearGradient>
+  <linearGradient id="pc-orcote" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#A16F00"/><stop offset=".35" stop-color="#E8A800"/><stop offset=".7" stop-color="#C98B00"/><stop offset="1" stop-color="#8F6200"/></linearGradient>
+  <linearGradient id="pc-argent" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".5" stop-color="#DDE5F2"/><stop offset="1" stop-color="#9FB0C9"/></linearGradient></defs>
+    <ellipse cx="205" cy="232" rx="190" ry="22" fill="#000" opacity=".16"/>
+    <ellipse cx="120" cy="208" rx="68" ry="25.84" fill="url(#pc-orcote)"/><rect x="52" y="184" width="136" height="24" fill="url(#pc-orcote)"/>
+            <ellipse cx="120" cy="208" rx="68" ry="25.84" fill="url(#pc-orcote)"/>
+            <path d="M52 184v24M188 184v24" stroke="#7A5300" stroke-width="1.5" opacity=".5"/><ellipse cx="120" cy="184" rx="68" ry="25.84" fill="url(#pc-orcote)"/><rect x="52" y="160" width="136" height="24" fill="url(#pc-orcote)"/>
+            <ellipse cx="120" cy="184" rx="68" ry="25.84" fill="url(#pc-orcote)"/>
+            <path d="M52 160v24M188 160v24" stroke="#7A5300" stroke-width="1.5" opacity=".5"/><ellipse cx="120" cy="160" rx="68" ry="25.84" fill="url(#pc-or)" stroke="#B97F00" stroke-width="2"/>
+          <ellipse cx="120" cy="160" rx="50.32" ry="19.040000000000003" fill="none" stroke="#B97F00" stroke-width="2" opacity=".7"/>
+          <text x="120" y="166.8" text-anchor="middle" font-family="Inter" font-weight="900" font-size="37.400000000000006" fill="#9A6A00" opacity=".85" transform="translate(0 88) scale(1 .62) translate(0 -88)">FC</text><ellipse cx="262" cy="224" rx="82" ry="31.16" fill="url(#pc-orcote)"/><rect x="180" y="200" width="164" height="24" fill="url(#pc-orcote)"/>
+            <ellipse cx="262" cy="224" rx="82" ry="31.16" fill="url(#pc-orcote)"/>
+            <path d="M180 200v24M344 200v24" stroke="#7A5300" stroke-width="1.5" opacity=".5"/><ellipse cx="262" cy="200" rx="82" ry="31.16" fill="url(#pc-orcote)"/><rect x="180" y="176" width="164" height="24" fill="url(#pc-orcote)"/>
+            <ellipse cx="262" cy="200" rx="82" ry="31.16" fill="url(#pc-orcote)"/>
+            <path d="M180 176v24M344 176v24" stroke="#7A5300" stroke-width="1.5" opacity=".5"/><ellipse cx="262" cy="176" rx="82" ry="31.16" fill="url(#pc-orcote)"/><rect x="180" y="152" width="164" height="24" fill="url(#pc-orcote)"/>
+            <ellipse cx="262" cy="176" rx="82" ry="31.16" fill="url(#pc-orcote)"/>
+            <path d="M180 152v24M344 152v24" stroke="#7A5300" stroke-width="1.5" opacity=".5"/><ellipse cx="262" cy="152" rx="82" ry="31.16" fill="url(#pc-orcote)"/><rect x="180" y="128" width="164" height="24" fill="url(#pc-orcote)"/>
+            <ellipse cx="262" cy="152" rx="82" ry="31.16" fill="url(#pc-orcote)"/>
+            <path d="M180 128v24M344 128v24" stroke="#7A5300" stroke-width="1.5" opacity=".5"/><ellipse cx="262" cy="128" rx="82" ry="31.16" fill="url(#pc-or)" stroke="#B97F00" stroke-width="2"/>
+          <ellipse cx="262" cy="128" rx="60.68" ry="22.96" fill="none" stroke="#B97F00" stroke-width="2" opacity=".7"/>
+          <text x="262" y="136.2" text-anchor="middle" font-family="Inter" font-weight="900" font-size="45.1" fill="#9A6A00" opacity=".85" transform="translate(0 70.4) scale(1 .62) translate(0 -70.4)">$</text></svg></div>
+         <div class="obj front" style="left:430px;top:810px;transform:rotate(-7deg) scale(.78);transform-origin:0 0"><svg viewBox="0 0 230 270" width="230" height="270"><defs>
+  <linearGradient id="qr-carte" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0A1472"/><stop offset=".55" stop-color="#1130F7"/><stop offset="1" stop-color="#4CA6F7"/></linearGradient>
+  <linearGradient id="qr-or" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE08A"/><stop offset=".5" stop-color="#F5B400"/><stop offset="1" stop-color="#B97F00"/></linearGradient>
+  <linearGradient id="qr-orcote" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#A16F00"/><stop offset=".35" stop-color="#E8A800"/><stop offset=".7" stop-color="#C98B00"/><stop offset="1" stop-color="#8F6200"/></linearGradient>
+  <linearGradient id="qr-argent" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".5" stop-color="#DDE5F2"/><stop offset="1" stop-color="#9FB0C9"/></linearGradient></defs>
+    <rect x="10" y="10" width="210" height="250" rx="34" fill="#fff"/>
+    <rect x="10" y="10" width="210" height="250" rx="34" fill="none" stroke="#1130F7" stroke-width="3" opacity=".25"/>
+    <g transform="translate(40 36) scale(7.142857142857143)"><path d="M0 0.5h7m1 0h4m2 0h7M0 1.5h1m5 0h1m5 0h1m1 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m2 0h4m1 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h1m5 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h3m1 0h1m1 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m1 0h4m2 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h7M8 7.5h5M0 8.5h1m3 0h1m1 0h6m1 0h5m2 0h1M1 9.5h1m1 0h3m1 0h3m1 0h3m2 0h1m1 0h2M1 10.5h3m2 0h2m2 0h2m1 0h2m1 0h1m1 0h2M0 11.5h1m1 0h1m1 0h1m4 0h1m3 0h1m1 0h1m3 0h2M1 12.5h1m1 0h4m5 0h1m1 0h3m2 0h2M8 13.5h2m2 0h3m1 0h1m1 0h1m1 0h1M0 14.5h7m1 0h1m3 0h1m3 0h1m2 0h1M0 15.5h1m5 0h1m3 0h4m2 0h1m2 0h2M0 16.5h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h1m2 0h1m2 0h1M0 17.5h1m1 0h3m1 0h1m2 0h1m2 0h3m1 0h2m1 0h2M0 18.5h1m1 0h3m1 0h1m2 0h3m1 0h1m2 0h3M0 19.5h1m5 0h1m3 0h1m2 0h1m1 0h2M0 20.5h7m1 0h1m1 0h1m4 0h2m1 0h1m1 0h1" stroke="#0A1472" fill="none" shape-rendering="crispEdges"/></g>
+    <rect x="30" y="204" width="170" height="34" rx="17" fill="#1130F7"/>
+    <text x="115" y="228" text-anchor="middle" font-family="Inter" font-weight="800" font-size="19" letter-spacing="4" fill="#fff">SCANNEZ</text></svg></div>
+  <div class="tel-ancre"><div class="tel"><div class="ecran"><img class="cap" src="file:///home/user/HotelSaver/docs/marketing/affiches/assets/scanlinkpay-tableau-de-bord.png" alt=""><div class="etat"><span>9:41</span><svg width="86" height="26" viewBox="0 0 86 26" fill="#111"><rect x="0" y="14" width="5" height="9" rx="1.5"/><rect x="8" y="10" width="5" height="13" rx="1.5"/><rect x="16" y="6" width="5" height="17" rx="1.5"/><rect x="24" y="2" width="5" height="21" rx="1.5"/><path d="M42 7a14 14 0 0 1 20 0l-2.4 2.6a10.4 10.4 0 0 0-15.2 0z"/><path d="M46 12a8.6 8.6 0 0 1 12 0l-2.4 2.6a5.2 5.2 0 0 0-7.2 0z"/><circle cx="52" cy="19" r="2.8"/><rect x="66" y="5" width="20" height="14" rx="4" fill="none" stroke="#111" stroke-width="2"/><rect x="68.5" y="7.5" width="12" height="9" rx="2"/></svg></div><div class="ilot"></div><div class="reflet"></div></div></div></div>
+  <h1 class="a">COMING</h1><div class="stay">STAY TUNED</div><h1 class="b">SOON</h1>
+  <p class="phrase">Une nouvelle expérience de paiement<br>se prépare pour vous.</p>
+  <div class="avance"><div class="seg"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i><i class=""></i></div><b>85%</b></div>
+  </body></html>
