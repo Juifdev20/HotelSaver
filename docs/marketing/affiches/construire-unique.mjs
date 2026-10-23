@@ -43,7 +43,7 @@ const MARQUES = {
   hotelsaver: {
     nom: ["Hotel", "Saver"],
     logo: asset("hotelsaver-logo.png"),
-    capture: asset("hotelsaver-tableau-de-bord.png"),
+    capture: asset("hotelsaver-cafeteria-accueil.png"),
     fondEcran: "#FFFFFF",
     barre: 34,
     titre: ["Votre hôtel,", "sous contrôle."],
@@ -51,8 +51,8 @@ const MARQUES = {
     avancement: 90,
     c: { a: "#061224", b: "#053483", c: "#1769E0", clair: "#F5B400", accent: "#F5B400", texteAccent: "#2A1D00" },
     pastilles: [
-      { icone: "lit", titre: "Réception", texte: "Chambres et réservations", x: 560, y: 840 },
-      { icone: "hors", titre: "Sans internet", texte: "Tout continue de marcher", x: 515, y: 990 },
+      { icone: "lit", titre: "Réception", texte: "Chambres et réservations", x: 395, y: 850 },
+      { icone: "hors", titre: "Sans internet", texte: "Tout continue de marcher", x: 395, y: 985 },
       { icone: "cafe", titre: "Cafétaria", texte: "Ventes et stock", x: 905, y: 318 },
     ],
   },
