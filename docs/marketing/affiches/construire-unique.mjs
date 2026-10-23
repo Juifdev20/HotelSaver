@@ -44,6 +44,10 @@ const MARQUES = {
     nom: ["Hotel", "Saver"],
     logo: asset("hotelsaver-logo.png"),
     capture: asset("hotelsaver-cafeteria-accueil.png"),
+    telephones: [
+      { capture: asset("hotelsaver-reception-accueil.png"), left: 565, top: 330, rot: -7, scale: 0.86, z: 3 },
+      { capture: asset("hotelsaver-cafeteria-accueil.png"), left: 845, top: 235, rot: 6, scale: 0.93, z: 4 },
+    ],
     fondEcran: "#FFFFFF",
     barre: 34,
     titre: ["Votre hôtel,", "sous contrôle."],
@@ -51,9 +55,8 @@ const MARQUES = {
     avancement: 90,
     c: { a: "#061224", b: "#053483", c: "#1769E0", clair: "#F5B400", accent: "#F5B400", texteAccent: "#2A1D00" },
     pastilles: [
-      { icone: "lit", titre: "Réception", texte: "Chambres et réservations", x: 395, y: 850 },
-      { icone: "hors", titre: "Sans internet", texte: "Tout continue de marcher", x: 395, y: 985 },
-      { icone: "cafe", titre: "Cafétaria", texte: "Ventes et stock", x: 905, y: 318 },
+      { icone: "lit", titre: "Réception", texte: "Chambres et réservations", x: 410, y: 1110 },
+      { icone: "cafe", titre: "Cafétaria", texte: "Ventes et stock", x: 770, y: 1110 },
     ],
   },
 };
@@ -73,6 +76,12 @@ function page(cle) {
   const pastilles = m.pastilles
     .map(
       (p) => `<div class="pastille" style="left:${p.x}px;top:${p.y}px"><span class="pico">${icone(p.icone, c.texteAccent)}</span><div><b>${p.titre}</b><small>${p.texte}</small></div></div>`,
+    )
+    .join("");
+  const liste = m.telephones ?? [{ capture: m.capture, left: 720, top: 260, rot: 5, scale: 1.1, z: 3 }];
+  const telephones = liste
+    .map(
+      (t) => `<div class="tel" style="left:${t.left}px;top:${t.top}px;transform:rotate(${t.rot}deg) scale(${t.scale});z-index:${t.z}"><div class="ecran"><img class="cap" src="${t.capture}" alt="">${barreEtat("#111")}<div class="ilot"></div><div class="reflet"></div></div></div>`,
     )
     .join("");
   const epaisseur = Array.from({ length: 9 }, (_, i) => `<i style="transform:translateZ(${-(i + 1) * 1.6}px);background:${i % 2 ? "#0A17A8" : "#0F26D8"}"></i>`).join("");
@@ -104,7 +113,7 @@ function page(cle) {
   .jauge b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800;letter-spacing:-.02em}
   .jauge-texte{position:absolute;left:84px;top:1024px;width:420px;font-size:22px;font-weight:600;letter-spacing:.06em;color:rgba(255,255,255,.78);line-height:1.4}
   .jauge-texte strong{color:#fff;font-weight:800}
-  .tel{position:absolute;left:720px;top:260px;width:400px;height:838px;border-radius:68px;padding:14px;transform:rotate(5deg) scale(1.1);transform-origin:50% 0;z-index:3;
+  .tel{position:absolute;width:400px;height:838px;border-radius:68px;padding:14px;transform-origin:50% 0;
     background:linear-gradient(150deg,#4A566C,#0B1220 45%,#2B3548);box-shadow:0 60px 90px rgba(0,0,0,.5),0 0 0 2px rgba(255,255,255,.16),0 0 120px ${c.c}}
   .ecran{position:relative;width:100%;height:100%;border-radius:54px;overflow:hidden;background:${m.fondEcran}}
   .ecran img.cap{position:absolute;left:0;top:0;width:100%;height:auto;display:block}
@@ -127,7 +136,7 @@ function page(cle) {
   <p class="phrase">${m.phrase}</p>
   <div class="jauge"><svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="${r}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="14"/><circle cx="75" cy="75" r="${r}" fill="none" stroke="${c.accent}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(perimetre * m.avancement) / 100} ${perimetre}" transform="rotate(-90 75 75)"/></svg><b>${m.avancement}%</b></div>
   <div class="jauge-texte"><strong>Le lancement approche.</strong><br>Restez connectés.</div>
-  <div class="tel"><div class="ecran"><img class="cap" src="${m.capture}" alt="">${barreEtat("#111")}<div class="ilot"></div><div class="reflet"></div></div></div>
+  ${telephones}
   ${pastilles}
   ${carte}
   </body></html>`;
