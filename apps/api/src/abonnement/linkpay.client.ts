@@ -130,15 +130,33 @@ export class LinkPayClient {
   async creerDemande(p: { marchand?: Marchand; montantCentimes: number; devise: "USD" | "CDF"; modele?: ModeleCommission; description?: string; expireMinutes?: number }): Promise<DemandeCreee> {
     const marchand = p.marchand ?? this.marchandPlateforme();
     if (!marchand) throw new ErreurLinkPay(503, "Le paiement en ligne n'est pas configuré sur ce serveur.");
-    const corps = await this.appeler("POST", "/payment-requests/quick-pay", {
-      scanlinkpay_number: marchand.numero,
-      merchant_id: marchand.boutiqueId || undefined,
-      amount_cents: p.montantCentimes,
-      currency: p.devise,
-      commission_model: p.modele,
-      description: p.description,
-      expires_in_minutes: p.expireMinutes,
-    });
+    let corps: Record<string, any> | null;
+    try {
+      corps = await this.appeler("POST", "/payment-requests/quick-pay", {
+        scanlinkpay_number: marchand.numero,
+        merchant_id: marchand.boutiqueId || undefined,
+        amount_cents: p.montantCentimes,
+        currency: p.devise,
+        commission_model: p.modele,
+        description: p.description,
+        expires_in_minutes: p.expireMinutes,
+      });
+    } catch (e) {
+      // Le compte marchand de la PLATEFORME (abonnements) est inconnu de ScanLinkPay : le patron ne peut rien y faire et n'a pas à lire « numéro introuvable »
+      // (il croirait que c'est SON numéro). C'est un réglage du serveur : LINKPAY_NUMERO_MARCHAND ou LINKPAY_API_URL.
+      if (!p.marchand && e instanceof ErreurLinkPay && e.statut === 404 && /introuvable/i.test(e.message)) {
+        this.logger.error(
+          `ScanLinkPay ne connaît pas le numéro marchand de la plateforme « ${marchand.numero} » (LINKPAY_NUMERO_MARCHAND) sur ${this.adresse()} : ` +
+            "vérifiez le numéro (entreprise ou boutique créée dans CE ScanLinkPay, pas le numéro de portefeuille SLP-CLI-…) et que LINKPAY_API_URL vise le bon ScanLinkPay (production ou test).",
+        );
+        throw new ErreurLinkPay(
+          503,
+          "Le paiement en ligne est momentanément indisponible : le compte HotelSaver n'est pas reconnu par le service de paiement. Notre équipe doit corriger ce réglage. Contactez le support HotelSaver (WhatsApp) pour renouveler votre abonnement.",
+          true
+        );
+      }
+      throw e;
+    }
     const linkToken = chaine(corps?.link_token);
     const reference = chaine(corps?.reference);
     // Garde-fou : ScanLinkPay doit nous renvoyer EXACTEMENT ce que nous avons demandé.

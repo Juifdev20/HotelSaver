@@ -138,7 +138,8 @@ export class AbonnementService {
     try {
       const { frais } = await this.linkpay.apercuFrais({ marchand, montantCentimes: Math.round(montant * 100), devise, modele: payeur ? "CUSTOMER_PAID" : "MERCHANT_PAID" });
       return { ...base, commission: frais.commissionCentimes / 100, total: frais.totalCentimes / 100, disponible: true };
-    } catch {
+    } catch (e) {
+      if (e instanceof ErreurLinkPay && e.statut === 404) this.logger.error("Aperçu des frais d'abonnement : ScanLinkPay ne connaît pas LINKPAY_NUMERO_MARCHAND — vérifiez ce numéro et LINKPAY_API_URL.");
       return base; // ScanLinkPay injoignable : on montre le prix seul, sans bloquer l'achat
     }
   }
