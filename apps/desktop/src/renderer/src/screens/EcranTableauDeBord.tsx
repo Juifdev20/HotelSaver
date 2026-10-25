@@ -128,6 +128,8 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
   const activite = useDonnee<VentesRecentes>(() => client.ventesRecentes(limiteActivite), [client, limiteActivite]);
 
   const r = recette.donnee;
+  /** Le patron voit 4 cartes (total par devise + détail chambres / cafétaria) ; un employé 2 : la rangée en tient compte. */
+  const detailParSource = utilisateur.role === Role.PATRON && !!r?.chambres && !!r?.cafeteria && receptionOuverte && cafeteriaOuverte;
   const o = occupation.donnee;
   const evenements = fusionnerActivite(activite.donnee, limiteActivite, receptionOuverte, cafeteriaOuverte);
 
@@ -187,7 +189,7 @@ export function EcranTableauDeBord({ client, utilisateur, onNaviguer }: EcranTab
       </section>
 
       {recette.erreur && <p role="alert" className="hc-text-body texte-erreur">{recette.erreur}</p>}
-      <div className="grille-stats">
+      <div className={`grille-stats${detailParSource ? "" : " grille-stats--deux"}`}>
         {/* USD et CDF jamais additionnés (section 9.4) : deux cartes distinctes. */}
         <DashboardStat
           icone={<Wallet size={20} aria-hidden="true" />}

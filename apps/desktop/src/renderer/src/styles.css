@@ -1,3 +1,15 @@
+/* Alias de variables utilisées par d'anciens écrans (Stock, Inventaire…) et qui n'existaient pas : sans eux, fonds et textes retombaient sur « rien ». */
+:root {
+  --hc-bg: var(--hc-surface-100);
+  --hc-surface: var(--hc-surface-200);
+  --hc-surface-subtle: var(--hc-surface-300);
+  --hc-text: var(--hc-ink);
+  --hc-text-subtle: var(--hc-ink-muted);
+  --hc-radius: var(--hc-radius-md);
+  --hc-success-subtle: var(--hc-success-light);
+  --hc-space-10: 64px;
+}
+
 /* Mise en page propre à cette app — pas des jetons de charte graphique
  * (ceux-là vivent dans @hotel-chicago/ui/dist/tokens.css). */
 
@@ -1626,8 +1638,8 @@ button {
 
 .kds-grille {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--hc-space-3);
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--hc-space-4);
   align-items: start;
 }
 
@@ -1644,17 +1656,17 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--hc-space-3) var(--hc-space-3) var(--hc-space-2);
+  padding: var(--hc-space-3) var(--hc-space-4);
   border-bottom: 1px solid var(--hc-border);
   background: var(--hc-bg);
 }
-.kds-carte__table { font-size: 13px; font-weight: 700; color: var(--hc-ink); }
+.kds-carte__table { font-size: 17px; font-weight: 700; color: var(--hc-ink); }
 .kds-carte__table--lien {
   background: none;
   border: none;
   padding: 0;
   font: inherit;
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--hc-blue);
   cursor: pointer;
@@ -1665,7 +1677,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--hc-ink-muted);
 }
 .kds-carte__timer--urgente { color: var(--hc-danger); font-weight: 700; }
@@ -1681,8 +1693,9 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--hc-space-2);
-  padding: var(--hc-space-2) var(--hc-space-3);
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-3) var(--hc-space-4);
+  font-size: 16px;
   background: var(--hc-surface);
 }
 .kds-ligne--attente     { border-left: 3px solid #f79009; }
@@ -1707,15 +1720,15 @@ button {
 
 .kds-ligne__btn {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  padding: 5px 10px;
+  padding: 8px 16px;
   border-radius: var(--hc-radius-md);
   border: none;
   cursor: pointer;
   white-space: nowrap;
 }
-.kds-ligne__btn { min-height: 44px; }
+.kds-ligne__btn { min-height: 48px; }
 .kds-ligne__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .kds-ligne__btn--prendre {
   background: var(--hc-warning-light);
@@ -2045,49 +2058,48 @@ button {
 
 /* ── Évaluateur d'inventaire physique ────────────────────────────────────── */
 
-/* Indicateur d'étape (wizard) */
+/* Indicateur d'étape (wizard) : trois étapes égales, numéro rond + libellé, reliées par un filet. */
 .inv-etapes {
-  display: flex;
-  align-items: center;
-  gap: var(--hc-space-1);
-  margin-bottom: var(--hc-space-4);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--hc-space-4);
+  margin-bottom: var(--hc-space-5);
 }
 .inv-etape {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--hc-space-2);
-  padding: var(--hc-space-2) var(--hc-space-3);
-  border-radius: var(--hc-radius);
-  background: var(--hc-surface-subtle);
-  color: var(--hc-text-subtle);
-  font-size: 13px;
-  flex: 1;
+  gap: var(--hc-space-3);
+  padding-top: var(--hc-space-3);
+  border-top: 3px solid var(--hc-border);
+  color: var(--hc-ink-muted);
+  font-size: 14px;
   min-width: 0;
 }
 .inv-etape--actif {
-  background: var(--hc-blue);
-  color: var(--hc-on-accent);
+  border-top-color: var(--hc-blue);
+  color: var(--hc-ink);
   font-weight: 600;
 }
 .inv-etape--fait {
-  background: var(--hc-success-subtle, #ecfdf3);
-  color: var(--hc-success, #12b76a);
+  border-top-color: var(--hc-success);
+  color: var(--hc-success);
 }
 .inv-etape__numero {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: currentColor;
-  color: var(--hc-surface);
+  background: var(--hc-surface-300);
+  color: var(--hc-ink-muted);
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   flex-shrink: 0;
 }
-.inv-etape--actif .inv-etape__numero { background: rgba(255,255,255,0.3); color: var(--hc-on-accent); }
-.inv-etape--fait  .inv-etape__numero { background: var(--hc-success, #12b76a); color: var(--hc-on-status); }
+.inv-etape--actif .inv-etape__numero { background: var(--hc-blue); color: var(--hc-on-accent); }
+.inv-etape--fait  .inv-etape__numero { background: var(--hc-success); color: var(--hc-on-status); }
 .inv-etape__libelle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Barre d'état (nb saisis / total) */
@@ -2371,4 +2383,161 @@ button {
 
 .champ--date {
   width: 170px;
+}
+
+/* Deux blocs côte à côte sur grand écran (ex. Caisse : « compte à la table » / « vente au comptoir »), l'un sous l'autre sur fenêtre étroite. */
+.page__colonnes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--hc-space-5);
+  align-items: start;
+}
+
+.page__colonnes > .carte-formulaire {
+  max-width: none;
+}
+
+@media (max-width: 999px) {
+  .page__colonnes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Retrait d'une commande par sa référence : carte centrée, grand champ lisible, bouton à côté. */
+.carte-ticket {
+  max-width: 680px;
+  padding: var(--hc-space-5);
+}
+
+.carte-ticket form > div {
+  align-items: stretch;
+}
+
+.champ-ticket {
+  flex: 1;
+  height: 52px !important;
+  font-size: 20px !important;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.carte-simple__entete--titre {
+  justify-content: flex-start;
+}
+
+.champ--mois {
+  width: 220px;
+}
+
+.champ--mois select {
+  height: 42px;
+  padding: 0 var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  border: 1px solid var(--hc-border);
+  background-color: var(--hc-surface-200);
+  color: var(--hc-ink);
+  font-family: var(--hc-font-body);
+  font-size: 14px;
+}
+
+/* Page faite de plusieurs cartes (Paramètres, Site de l'hôtel) : deux colonnes sur grand écran au lieu d'une pile étroite à gauche. */
+.page--colonnes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+  gap: var(--hc-space-5);
+  align-items: start;
+}
+
+.page--colonnes > :not(.carte-formulaire) {
+  grid-column: 1 / -1;
+}
+
+.page--colonnes > .carte-formulaire {
+  max-width: none;
+}
+
+/* Compte cafétaria ouvert : les personnes et leurs consommations à gauche, le total et le règlement (toujours visibles) à droite. */
+.compte-colonnes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: var(--hc-space-5);
+  align-items: start;
+}
+
+.compte-colonnes__principal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-4);
+}
+
+.compte-colonnes__lateral {
+  position: sticky;
+  top: calc(var(--coquille-hauteur-haut) + var(--hc-space-4));
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-4);
+}
+
+.compte-colonnes__lateral > .carte-formulaire,
+.compte-colonnes__principal > .carte-formulaire {
+  max-width: none;
+}
+
+@media (max-width: 999px) {
+  .compte-colonnes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .compte-colonnes__lateral {
+    position: static;
+  }
+}
+
+/* Nouvelle réservation : séjour, chambre et client à gauche ; demandes, paiement et bouton à droite (toujours en vue). */
+.reservation-colonnes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: var(--hc-space-5);
+  align-items: start;
+}
+
+.reservation-colonnes__principal,
+.reservation-colonnes__lateral {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-4);
+}
+
+.reservation-colonnes__lateral {
+  position: sticky;
+  top: calc(var(--coquille-hauteur-haut) + var(--hc-space-4));
+}
+
+.reservation-colonnes .carte-formulaire {
+  max-width: none;
+}
+
+.champ--large {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 999px) {
+  .reservation-colonnes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reservation-colonnes__lateral {
+    position: static;
+  }
+}
+
+/* Tableau plus serré pour les listes à nombreuses colonnes (Stock). */
+.tableau--dense thead th,
+.tableau--dense tbody td {
+  padding-left: var(--hc-space-3);
+  padding-right: var(--hc-space-3);
+}
+
+/* Deux cartes de chiffres seulement (employés) : elles se partagent la rangée au lieu de laisser la moitié vide. */
+.grille-stats--deux {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }

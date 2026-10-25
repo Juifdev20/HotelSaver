@@ -110,10 +110,7 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
     <div className="page">
       <header className="page__entete">
         <div>
-          <h1 className="hc-text-display-md page__titre">
-            <ChefHat size={24} aria-hidden="true" style={{ verticalAlign: "middle", marginRight: "var(--hc-space-2)" }} />
-            Cuisine
-          </h1>
+          <h1 className="hc-text-display-md page__titre">Cuisine</h1>
           <p className="hc-text-body page__sous-titre" aria-live="polite">
             {attente > 0 && (
               <span className="kds-compteur kds-compteur--attente">{attente} en attente</span>

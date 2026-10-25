@@ -182,24 +182,31 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
       )}
 
       {!chargement && (
-        <>
+        <div className="reservation-colonnes">
+          <div className="reservation-colonnes__principal">
           <div className="carte-formulaire formulaire">
             <p className="hc-text-label texte-discret">Séjour</p>
-            <label className="hc-text-label" htmlFor="arrivee">
-              Arrivée
-            </label>
-            <input id="arrivee" type="date" value={arrivee} onChange={(e) => setArrivee(e.target.value)} />
-            <label className="hc-text-label" htmlFor="nuits">
-              Nuits
-            </label>
-            <input
-              id="nuits"
-              type="number"
-              min={1}
-              max={60}
-              value={nuits}
-              onChange={(e) => setNuits(Math.max(1, Number(e.target.value) || 1))}
-            />
+            <div className="champs-grille">
+              <div className="champ">
+                <label className="hc-text-label" htmlFor="arrivee">
+                  Arrivée
+                </label>
+                <input id="arrivee" type="date" value={arrivee} onChange={(e) => setArrivee(e.target.value)} />
+              </div>
+              <div className="champ">
+                <label className="hc-text-label" htmlFor="nuits">
+                  Nuits
+                </label>
+                <input
+                  id="nuits"
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={nuits}
+                  onChange={(e) => setNuits(Math.max(1, Number(e.target.value) || 1))}
+                />
+              </div>
+            </div>
             <p className="hc-text-caption texte-discret">Départ le {depart.split("-").reverse().join("/")}</p>
           </div>
 
@@ -227,28 +234,38 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
             </div>
 
             {modeClient === "nouveau" ? (
-              <>
-                <label className="hc-text-label" htmlFor="nom">
-                  Nom (obligatoire)
-                </label>
-                <input id="nom" type="text" value={nom} onChange={(e) => setNom(e.target.value)} />
-                <label className="hc-text-label" htmlFor="tel">
-                  Téléphone
-                </label>
-                <input id="tel" type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} />
-                <label className="hc-text-label" htmlFor="email">
-                  Email
-                </label>
-                <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-                <label className="hc-text-label" htmlFor="type-piece">
-                  Type de pièce (optionnel)
-                </label>
-                <input id="type-piece" type="text" value={typePiece} onChange={(e) => setTypePiece(e.target.value)} placeholder="CNI, passeport, permis…" />
-                <label className="hc-text-label" htmlFor="numero-piece">
-                  N° de pièce (optionnel)
-                </label>
-                <input id="numero-piece" type="text" value={numeroPiece} onChange={(e) => setNumeroPiece(e.target.value)} placeholder="Numéro de la pièce d'identité" />
-              </>
+              <div className="champs-grille">
+                <div className="champ champ--large">
+                  <label className="hc-text-label" htmlFor="nom">
+                    Nom (obligatoire)
+                  </label>
+                  <input id="nom" type="text" value={nom} onChange={(e) => setNom(e.target.value)} />
+                </div>
+                <div className="champ">
+                  <label className="hc-text-label" htmlFor="tel">
+                    Téléphone
+                  </label>
+                  <input id="tel" type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} />
+                </div>
+                <div className="champ">
+                  <label className="hc-text-label" htmlFor="email">
+                    Email
+                  </label>
+                  <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
+                <div className="champ">
+                  <label className="hc-text-label" htmlFor="type-piece">
+                    Type de pièce (optionnel)
+                  </label>
+                  <input id="type-piece" type="text" value={typePiece} onChange={(e) => setTypePiece(e.target.value)} placeholder="CNI, passeport, permis…" />
+                </div>
+                <div className="champ">
+                  <label className="hc-text-label" htmlFor="numero-piece">
+                    N° de pièce (optionnel)
+                  </label>
+                  <input id="numero-piece" type="text" value={numeroPiece} onChange={(e) => setNumeroPiece(e.target.value)} placeholder="Numéro de la pièce" />
+                </div>
+              </div>
             ) : (
               <>
                 <label className="hc-text-label" htmlFor="recherche-client">
@@ -277,6 +294,8 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
             )}
           </div>
 
+          </div>
+          <div className="reservation-colonnes__lateral">
           <div className="carte-formulaire formulaire">
             <p className="hc-text-label texte-discret">Demandes spéciales (optionnel)</p>
             <textarea
@@ -328,7 +347,8 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
               {enCours ? "…" : checkInImmediat ? "Créer et enregistrer l'arrivée" : "Créer la réservation"}
             </Button>
           </div>
-        </>
+          </div>
+        </div>
       )}
     </div>
   );

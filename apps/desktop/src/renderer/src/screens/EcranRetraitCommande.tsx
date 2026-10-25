@@ -2,7 +2,6 @@ import * as React from "react";
 import { useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Button } from "@hotel-chicago/ui";
-import { Ticket } from "lucide-react";
 
 export interface EcranRetraitCommandeProps {
   client: ClientApi;
@@ -39,16 +38,14 @@ export function EcranRetraitCommande({ client, onOuvrirCompte }: EcranRetraitCom
     <div className="page">
       <header className="page__entete">
         <div>
-          <h1 className="hc-text-display-md page__titre">
-            <Ticket size={24} aria-hidden="true" style={{ verticalAlign: "middle", marginRight: "var(--hc-space-2)" }} />
-            Retrait commande
-          </h1>
+          <h1 className="hc-text-display-md page__titre">Retrait commande</h1>
           <p className="hc-text-body page__sous-titre">Commande passée sur le site web de l'hôtel</p>
         </div>
       </header>
 
-      <div className="carte-tableau" style={{ maxWidth: 480, padding: "var(--hc-space-4)" }}>
+      <div className="carte-tableau carte-ticket">
         <form
+          className="formulaire"
           onSubmit={(e) => {
             e.preventDefault();
             void rechercher();
@@ -70,7 +67,7 @@ export function EcranRetraitCommande({ client, onOuvrirCompte }: EcranRetraitCom
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
-              style={{ flex: 1, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}
+              className="champ-ticket"
               autoFocus
             />
             <Button type="submit" disabled={!reference.trim() || chargement}>

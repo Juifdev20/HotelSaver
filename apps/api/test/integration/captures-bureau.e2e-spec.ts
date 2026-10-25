@@ -45,7 +45,7 @@ const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string }[] = [
   { role: "recep", page: "Dépenses", bouton: /Nouvelle dépense/, nom: "formulaire-depense" },
   { role: "recep", page: "Facturation", bouton: /^Détail$/, nom: "detail-recu" },
   { role: "recep", page: "Réservations", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
-  { role: "caf", page: "Caisse", bouton: /Vente rapide|Ouvrir le compte/, nom: "caisse-vente-rapide" },
+  { role: "caf", page: "Caisse", bouton: /Vente rapide/, nom: "caisse-vente-rapide" },
   { role: "caf", page: "Comptes ouverts", bouton: /^Ouvrir$/, nom: "compte-detail" },
 ];
 

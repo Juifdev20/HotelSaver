@@ -512,6 +512,8 @@ export function EcranCompteCafeteria({
         <p className="hc-text-caption texte-discret">Ajoutez des consommations à une personne, puis encaissez-la quand elle part : chacun règle sa part.</p>
       )}
 
+      <div className="compte-colonnes">
+      <div className="compte-colonnes__principal">
       {personnesAffichees.map((sousCompte) => {
         const totalPersonne = totalSousCompte(sousCompte);
         const nbArticles = sousCompte.lignes.reduce((n, l) => n + Number(l.quantite), 0);
@@ -600,6 +602,8 @@ export function EcranCompteCafeteria({
         </button>
       )}
 
+      </div>
+      <aside className="compte-colonnes__lateral" aria-label="Total et règlement">
       <div className="carte-formulaire">
         <p className="hc-text-label texte-discret">{unePersonneAPaye && compteOuvert ? "Reste à payer" : "Total"}</p>
         {(unePersonneAPaye && compteOuvert ? reste : total).usd === 0 && (unePersonneAPaye && compteOuvert ? reste : total).cdf === 0 ? (
@@ -751,6 +755,8 @@ export function EcranCompteCafeteria({
           )}
         </>
       )}
+      </aside>
+      </div>
     </div>
   );
 }

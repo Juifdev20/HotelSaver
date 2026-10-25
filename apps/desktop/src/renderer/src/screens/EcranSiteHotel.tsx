@@ -109,7 +109,7 @@ export function EcranSiteHotel({ client }: EcranSiteHotelProps) {
   const suiviEnvoi = (url: string) => setImagesEnvoyees((l) => [...l, url]);
 
   return (
-    <div className="page site-hotel">
+    <div className="page page--colonnes site-hotel">
       <header className="page__entete">
         <div>
           <h1 className="hc-text-display-md page__titre">Site de l'hôtel</h1>

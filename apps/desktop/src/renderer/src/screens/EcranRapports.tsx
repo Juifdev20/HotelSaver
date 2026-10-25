@@ -118,16 +118,18 @@ export function EcranRapports({ client, utilisateur }: EcranRapportsProps) {
             Rapport PDF officiel de chaque département, à remettre au patron — comparé au tableau de bord du mois.
           </p>
         </div>
-        <label className="hc-text-label">
-          Mois{" "}
-          <select value={moisChoisi} onChange={(e) => setMoisChoisi(e.target.value)} aria-label="Mois du rapport">
+        <div className="champ champ--mois">
+          <label className="hc-text-label" htmlFor="rapports-mois">
+            Mois
+          </label>
+          <select id="rapports-mois" value={moisChoisi} onChange={(e) => setMoisChoisi(e.target.value)} aria-label="Mois du rapport">
             {mois.map((m) => (
               <option key={m.valeur} value={m.valeur}>
                 {m.libelle}
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </header>
 
       {erreur && (
@@ -139,14 +141,14 @@ export function EcranRapports({ client, utilisateur }: EcranRapportsProps) {
       {rapports === null && !erreur && <p className="hc-text-body texte-discret">Chargement…</p>}
 
       {rapports && (
-        <div className="page__bloc">
+        <div className="page__colonnes">
           {departements.map((departement) => {
             const duMois = rapports.filter((r) => r.departement === departement);
             const actif = duMois.find((r) => r.statut === "ACTIF");
             const remplaces = duMois.filter((r) => r.statut === "REMPLACE");
             return (
               <section key={departement} className="carte-simple" data-testid={`rapport-${departement}`}>
-                <div className="carte-simple__entete">
+                <div className="carte-simple__entete carte-simple__entete--titre">
                   {ICONES[departement]}
                   <h2 className="hc-text-subheading">Rapport {LIBELLES[departement]} — {libelleMoisChoisi}</h2>
                 </div>

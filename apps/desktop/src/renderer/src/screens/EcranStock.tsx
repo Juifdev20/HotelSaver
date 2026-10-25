@@ -309,17 +309,17 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
 
           {produitsTriés.length > 0 && (
             <div className="carte-tableau">
-              <table className="tableau tableau--une-ligne">
+              <table className="tableau tableau--une-ligne tableau--dense">
                 <thead>
                   <tr>
                     <th>Produit</th>
                     <th>Catégorie</th>
                     <th>Prix</th>
                     <th>Stock actuel</th>
-                    <th>Seuil d'alerte</th>
-                    <th style={{ textAlign: "right" }}>Val. marchande</th>
-                    <th style={{ textAlign: "right" }}>Coût acq.</th>
-                    <th>Évolution auj.</th>
+                    <th>Seuil</th>
+                    <th style={{ textAlign: "right" }}>Valeur</th>
+                    <th style={{ textAlign: "right" }}>Coût</th>
+                    <th>Aujourd'hui</th>
                     <th>Statut</th>
                     <th></th>
                   </tr>
@@ -420,7 +420,7 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
 
           {mouvements.length > 0 && (
             <div className="carte-tableau">
-              <table className="tableau tableau--une-ligne">
+              <table className="tableau tableau--une-ligne tableau--dense">
                 <thead>
                   <tr>
                     <th>Date</th>

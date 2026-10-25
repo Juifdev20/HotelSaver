@@ -71,7 +71,10 @@ export function EcranCaisse({ client, onCompteOuvert }: EcranCaisseProps) {
         </div>
       </header>
 
+      <div className="page__colonnes">
       <div className="carte-formulaire formulaire">
+        <p className="hc-text-body-strong">Compte à la table</p>
+        <p className="hc-text-body texte-discret">Un compte par table ou par client : on y ajoute les consommations, puis on encaisse chacun.</p>
         <label className="hc-text-label" htmlFor="champ-table">
           Table ou nom du client
         </label>
@@ -111,6 +114,7 @@ export function EcranCaisse({ client, onCompteOuvert }: EcranCaisseProps) {
         <Button type="button" onClick={() => setVenteRapide(true)} disabled={enCours}>
           <ScanBarcode size={16} aria-hidden="true" /> Vente rapide (scanner)
         </Button>
+      </div>
       </div>
     </div>
   );

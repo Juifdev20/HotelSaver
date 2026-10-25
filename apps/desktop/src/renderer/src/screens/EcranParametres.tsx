@@ -166,7 +166,7 @@ export function EcranParametres({
   }, []);
 
   return (
-    <div className="page">
+    <div className="page page--colonnes">
       <header className="page__entete">
         <div>
           <h1 className="hc-text-display-md page__titre">Paramètres</h1>
