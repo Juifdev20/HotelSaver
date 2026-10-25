@@ -10,6 +10,7 @@ import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
 import { EcranPlanning } from "./EcranPlanning";
 import { BadgePayeEnLigne, useAcomptesEnLigne } from "./PayeEnLigne";
 import { demandesSurChambrePrise } from "@hotel-chicago/regles";
+import { useTri } from "../components/useTri";
 
 export interface EcranReservationsProps {
   client: ClientApi;
@@ -97,6 +98,16 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
           r.chambre.numero.toLowerCase().includes(terme))
     );
   }, [reservations, filtreStatut, recherche]);
+
+  const { lignes: listeTriee, entete } = useTri(liste, {
+    client: (r) => r.client.nom,
+    chambre: (r) => r.chambre.numero,
+    arrivee: (r) => r.dateArrivee,
+    depart: (r) => r.dateDepart,
+    nuits: (r) => nombreDeNuits(r.dateArrivee, r.dateDepart),
+    acompte: (r) => Number(r.acompte),
+    statut: (r) => r.statut,
+  });
 
   // Demandes en attente dont la chambre est DÉJÀ prise par un autre client : signalées en rouge dans la liste.
   const demandesBloquees = useMemo(() => demandesSurChambrePrise(reservations ?? []), [reservations]);
@@ -225,17 +236,17 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
           <table className="tableau">
             <thead>
               <tr>
-                <th>Client</th>
-                <th>Chambre</th>
-                <th>Arrivée</th>
-                <th>Départ</th>
-                <th>Nuits</th>
-                <th>Acompte</th>
-                <th>Statut</th>
+                {entete("client", "Client")}
+                {entete("chambre", "Chambre")}
+                {entete("arrivee", "Arrivée")}
+                {entete("depart", "Départ")}
+                {entete("nuits", "Nuits")}
+                {entete("acompte", "Acompte")}
+                {entete("statut", "Statut")}
               </tr>
             </thead>
             <tbody>
-              {liste.map((r) => (
+              {listeTriee.map((r) => (
                 <tr key={r.id} className="ligne-cliquable" onClick={() => setVue({ id: "detail", reservationId: r.id })}>
                   <td className="hc-text-body-strong">
                     {/* Le clic sur la ligne reste, mais seul ce bouton est atteignable au clavier. */}

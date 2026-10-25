@@ -2541,3 +2541,37 @@ button {
 .grille-stats--deux {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+
+/* En-tête de colonne triable (useTri) : un bouton qui garde l'apparence de l'en-tête. */
+.th-tri {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.th-tri svg {
+  opacity: 0.45;
+}
+
+.th-tri:hover svg,
+.th-tri--actif svg {
+  opacity: 1;
+}
+
+.th-tri--actif {
+  color: var(--hc-ink);
+}
+
+.th-tri:focus-visible {
+  outline: 2px solid var(--hc-blue);
+  outline-offset: 3px;
+  border-radius: 2px;
+}

@@ -237,6 +237,20 @@ export function Coquille({
   const refBoutonProfil = useRef<HTMLButtonElement>(null);
   const refMenuProfil = useRef<HTMLDivElement>(null);
   const refContenu = useRef<HTMLElement>(null);
+  const refRecherche = useRef<HTMLInputElement>(null);
+
+  // Raccourci clavier : Ctrl+K (ou Cmd+K) met le curseur dans la recherche, de n'importe quel écran.
+  useEffect(() => {
+    const surTouche = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && refRecherche.current) {
+        e.preventDefault();
+        refRecherche.current.focus();
+        refRecherche.current.select();
+      }
+    };
+    window.addEventListener("keydown", surTouche);
+    return () => window.removeEventListener("keydown", surTouche);
+  }, []);
 
   // Titre de la fenêtre = écran courant (premier élément annoncé par un lecteur d'écran, et nom de l'onglet/tâche).
   useTitrePage(libellePage(pageActive));
@@ -370,16 +384,18 @@ export function Coquille({
           {rechercheDisponible ? (
           <label className="coquille__recherche coquille__masque-etroit">
             <Search size={18} aria-hidden="true" />
-            <span className="visuellement-cache">Rechercher une chambre, un client…</span>
+            <span className="visuellement-cache">Rechercher une chambre (Ctrl+K)</span>
             <input
+              ref={refRecherche}
               type="search"
-              placeholder="Rechercher une chambre, un client…"
+              placeholder="Rechercher une chambre…"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") lancerRecherche();
               }}
             />
+            <kbd className="coquille__raccourci" aria-hidden="true">Ctrl K</kbd>
           </label>
           ) : (
             <span className="coquille__recherche-vide coquille__masque-etroit" aria-hidden="true" />

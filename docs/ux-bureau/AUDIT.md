@@ -63,3 +63,24 @@ formulaires s'ouvrent au milieu de la page et la moitié droite de l'écran rest
    à droite), Cuisine (grandes cartes), Tableau de bord (4 cartes pour tous les rôles).
 6. **Finition** : recherche globale, raccourcis clavier, barre latérale (C4, C5, C6, C7).
 7. **Contrôle** : refaire toutes les photos aux 6 tailles et vérifier les 3 rôles ; tests de navigateur existants (`navigateur*.e2e-spec.ts`) relancés.
+
+## État d'avancement (25/10/2026)
+
+Corrigé et vérifié par de nouvelles photos aux tailles 960, 1280, 1440 et 1920 px :
+
+- **A1, A2** — Les formulaires de chambre, de produit, de mouvement de stock et de dépense s'ouvrent dans un **panneau latéral** (composant `PanneauFormulaire`, champs sur deux colonnes, boutons toujours visibles, Échap ferme). Caisse, Paramètres, Site de l'hôtel, Rapports, Nouvelle réservation et compte cafétaria sont repensés en **deux colonnes**.
+- **A3** — Les pages sont centrées (largeur maximale 1440 px).
+- **A4** — Fenêtre minimale **880 × 560 px** ; taille de départ adaptée à l'écran (90 % de la zone utile, entre 1280 × 800 et 1600 × 1000) ; barre latérale réduite aux icônes d'office sous 1180 px ; la version téléphone ne s'affiche plus que sous 760 px (donc jamais dans l'application).
+- **A6** — Les deux cartes de chiffres des employés se partagent la rangée.
+- **B1, B2, B3, B5, B6, B7, B8** — Stock (recherche, prix sur une ligne), filtres de Dépenses, indicateur d'étapes de l'Inventaire, Cuisine (cartes plus grandes), Rapports, Retrait commande, compte cafétaria.
+- **Variables CSS manquantes** : sept variables (`--hc-surface`, `--hc-text`, `--hc-radius`…) étaient utilisées sans être définies, d'où des fonds et des textes « vides » (inventaire, stock, cuisine). Elles sont maintenant définies.
+- **C1** (partiel : icônes retirées des titres Cuisine et Retrait commande), **C2** (tri par clic sur l'en-tête : Réservations, Clients, Dépenses, Stock), **C5** (libellé honnête : « Rechercher une chambre »), **C6** (partiel : Ctrl+K place le curseur dans la recherche).
+
+Correction de l'audit : **B4 n'était pas un défaut**. L'erreur rouge de la Caisse venait de l'outil de capture, qui avait cliqué sur « Ouvrir le compte » avant de photographier.
+
+Reste à faire :
+
+- **C3** — Quelques formulaires restent dans la page (modification d'un client, utilisateurs, taux de change, inventaire) : à passer en panneau latéral.
+- **Pagination** et **mode compact** des tableaux (C2, C8) ; défilement horizontal des tableaux larges sur fenêtre étroite (le Stock garde des colonnes coupées sous 1400 px, avec défilement).
+- **C4** (barre latérale), **C7** (message « Lecture seule »), autres raccourcis clavier.
+- **Cuisine** en plein écran et **Caisse** avec catalogue à gauche et ticket à droite (la vente rapide et l'ajout de consommations ont déjà une disposition à deux colonnes).

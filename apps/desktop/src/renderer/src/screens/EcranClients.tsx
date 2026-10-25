@@ -5,6 +5,7 @@ import { Devise } from "@hotel-chicago/types";
 import { Button, StatusBadge, formatMontant } from "@hotel-chicago/ui";
 import { Pencil, Search, Users } from "lucide-react";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
+import { useTri } from "../components/useTri";
 
 export interface EcranClientsProps {
   client: ClientApi;
@@ -40,6 +41,11 @@ export function EcranClients({ client }: EcranClientsProps) {
       (c) => !terme || c.nom.toLowerCase().includes(terme) || (c.telephone ?? "").includes(recherche.trim())
     );
   }, [clients, recherche]);
+  const { lignes: listeTriee, entete } = useTri(liste, {
+    nom: (c) => c.nom,
+    telephone: (c) => c.telephone,
+    email: (c) => c.email,
+  });
 
   const sejoursDuClient = useMemo(
     () => [...(clientChoisi?.reservations ?? [])].sort((a, b) => new Date(b.dateArrivee).getTime() - new Date(a.dateArrivee).getTime()),
@@ -244,13 +250,13 @@ export function EcranClients({ client }: EcranClientsProps) {
           <table className="tableau">
             <thead>
               <tr>
-                <th>Nom</th>
-                <th>Téléphone</th>
-                <th>Email</th>
+                {entete("nom", "Nom")}
+                {entete("telephone", "Téléphone")}
+                {entete("email", "Email")}
               </tr>
             </thead>
             <tbody>
-              {liste.map((c) => (
+              {listeTriee.map((c) => (
                 <tr key={c.id} className="ligne-cliquable" onClick={() => setClientChoisi(c)}>
                   <td className="hc-text-body-strong">
                     <button

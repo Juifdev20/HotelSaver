@@ -790,3 +790,18 @@
 .coquille__contenu:focus {
   outline: none;
 }
+
+/* Rappel du raccourci clavier, à droite du champ de recherche ; disparaît dès que l'on tape. */
+.coquille__raccourci {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-sm);
+  background-color: var(--hc-surface-200);
+  color: var(--hc-ink-faint, var(--hc-ink-muted));
+  font: 600 11px/1.4 var(--hc-font-body);
+}
+
+.coquille__recherche:focus-within .coquille__raccourci {
+  display: none;
+}

@@ -7,6 +7,7 @@ import { lireQuantite } from "@hotel-chicago/miroir-local";
 import { typesMouvementAutorises } from "@hotel-chicago/regles";
 import { CarteEtiquettes } from "../components/CarteEtiquettes";
 import { PanneauFormulaire } from "../components/PanneauFormulaire";
+import { useTri } from "../components/useTri";
 
 export interface EcranStockProps {
   client: ClientApi;
@@ -153,6 +154,17 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
     const ordre = { epuise: 0, bas: 1, ok: 2 };
     const diff = ordre[niveauStock(a)] - ordre[niveauStock(b)];
     return diff !== 0 ? diff : a.nom.localeCompare(b.nom, "fr");
+  });
+
+  const { lignes: produitsAffiches, entete } = useTri(produitsTriés, {
+    produit: (p) => p.nom,
+    categorie: (p) => p.categorie,
+    prix: (p) => Number(p.prix),
+    stock: (p) => Number(p.stockActuel),
+    seuil: (p) => Number(p.seuilAlerte),
+    valeur: (p) => Number(p.prix) * Number(p.stockActuel),
+    cout: (p) => (p.prixAchat ? Number(p.prixAchat) * Number(p.stockActuel) : null),
+    evolution: (p) => evolutionJour.get(p.id) ?? 0,
   });
 
   return (
@@ -312,20 +324,20 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
               <table className="tableau tableau--une-ligne tableau--dense">
                 <thead>
                   <tr>
-                    <th>Produit</th>
-                    <th>Catégorie</th>
-                    <th>Prix</th>
-                    <th>Stock actuel</th>
-                    <th>Seuil</th>
-                    <th style={{ textAlign: "right" }}>Valeur</th>
-                    <th style={{ textAlign: "right" }}>Coût</th>
-                    <th>Aujourd'hui</th>
+                    {entete("produit", "Produit")}
+                    {entete("categorie", "Catégorie")}
+                    {entete("prix", "Prix")}
+                    {entete("stock", "Stock actuel")}
+                    {entete("seuil", "Seuil")}
+                    {entete("valeur", "Valeur", { aDroite: true })}
+                    {entete("cout", "Coût", { aDroite: true })}
+                    {entete("evolution", "Aujourd'hui")}
                     <th>Statut</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {produitsTriés.map((p) => {
+                  {produitsAffiches.map((p) => {
                     const niveau    = niveauStock(p);
                     const stock     = Number(p.stockActuel);
                     const seuil     = Number(p.seuilAlerte);

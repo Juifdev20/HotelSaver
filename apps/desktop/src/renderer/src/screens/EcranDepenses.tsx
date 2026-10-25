@@ -6,6 +6,7 @@ import { Button, formatMontant } from "@hotel-chicago/ui";
 import { FileDown, Plus, Wallet } from "lucide-react";
 import { lireMontant, lireQuantite } from "@hotel-chicago/miroir-local";
 import { PanneauFormulaire } from "../components/PanneauFormulaire";
+import { useTri } from "../components/useTri";
 
 export interface EcranDepensesProps {
   client: ClientApi;
@@ -161,6 +162,13 @@ export function EcranDepenses({ client, utilisateur }: EcranDepensesProps) {
   }
 
   const actives = (depenses ?? []).filter((d) => !d.annulee);
+  const { lignes: depensesTriees, entete } = useTri(depenses ?? [], {
+    date: (d) => d.date,
+    departement: (d) => LIBELLE_DEPARTEMENT[d.departement],
+    motif: (d) => d.motif,
+    montant: (d) => Number(d.montant),
+    auteur: (d) => d.creeParNom,
+  });
 
   return (
     <div className="page">
@@ -302,16 +310,16 @@ export function EcranDepenses({ client, utilisateur }: EcranDepensesProps) {
           <table className="tableau">
             <thead>
               <tr>
-                <th>Date</th>
-                {!departementPersonnel && <th>Département</th>}
-                <th>Motif</th>
-                <th style={{ textAlign: "right" }}>Montant</th>
-                <th>Saisi par</th>
+                {entete("date", "Date")}
+                {!departementPersonnel && entete("departement", "Département")}
+                {entete("motif", "Motif")}
+                {entete("montant", "Montant", { aDroite: true })}
+                {entete("auteur", "Saisi par")}
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {depenses.map((d) => {
+              {depensesTriees.map((d) => {
                 const barre = d.annulee ? { textDecoration: "line-through" } : undefined;
                 return (
                   <tr key={d.id} className={d.annulee ? "texte-discret" : ""}>
