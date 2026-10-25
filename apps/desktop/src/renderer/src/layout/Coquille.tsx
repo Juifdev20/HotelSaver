@@ -49,6 +49,20 @@ import "./coquille.css";
 const CLE_BARRE_REDUITE = "hotel-chicago:barre-laterale-reduite";
 
 /** Barre latérale réduite (icônes seules) : préférence mémorisée entre deux lancements. */
+/** Largeur en dessous de laquelle la barre latérale se réduit toute seule aux icônes : le contenu garde la place dont il a besoin. */
+const REQUETE_FENETRE_COMPACTE = "(max-width: 1179px)";
+
+function useFenetreCompacte(): boolean {
+  const [compacte, setCompacte] = useState(() => window.matchMedia(REQUETE_FENETRE_COMPACTE).matches);
+  useEffect(() => {
+    const requete = window.matchMedia(REQUETE_FENETRE_COMPACTE);
+    const maj = () => setCompacte(requete.matches);
+    requete.addEventListener("change", maj);
+    return () => requete.removeEventListener("change", maj);
+  }, []);
+  return compacte;
+}
+
 function barreReduitePreferee(): boolean {
   try {
     return localStorage.getItem(CLE_BARRE_REDUITE) === "true";
@@ -210,7 +224,9 @@ export function Coquille({
   const [menuProfilOuvert, setMenuProfilOuvert] = useState(false);
   const [notificationsOuvertes, setNotificationsOuvertes] = useState(false);
   const [recherche, setRecherche] = useState("");
-  const [barreReduite, setBarreReduite] = useState(barreReduitePreferee);
+  const [barreReduitePrefereeParUtilisateur, setBarreReduite] = useState(barreReduitePreferee);
+  const fenetreCompacte = useFenetreCompacte();
+  const barreReduite = barreReduitePrefereeParUtilisateur || fenetreCompacte;
   const sections = sectionsPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true, utilisateur.fonctions);
   const barreDuBas = entreesBarreDuBas(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true, utilisateur.fonctions);
   // La recherche mène à l'écran Chambres : sans la réception, elle n'a plus de sens.
@@ -305,6 +321,7 @@ export function Coquille({
         Aller au contenu
       </button>
       <aside className="coquille__laterale" aria-label="Navigation principale">
+        {!fenetreCompacte && (
         <button
           type="button"
           className="coquille__bascule"
@@ -315,6 +332,7 @@ export function Coquille({
         >
           {barreReduite ? <ChevronRight size={16} aria-hidden="true" /> : <ChevronLeft size={16} aria-hidden="true" />}
         </button>
+        )}
         <div className="coquille__marque">
           <img className="coquille__logo coquille__logo-img" src={logoHotelSaver} alt="" />
           <span className="coquille__marque-textes">

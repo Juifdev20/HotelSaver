@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, session, shell, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, screen, session, shell, Tray } from "electron";
 import { join, resolve } from "path";
 import { cleChiffrementLocale, ecrireConfiguration, lireConfiguration } from "./config-store";
 import { imprimerLignes, imprimerTicketDeTest } from "./imprimante";
@@ -65,10 +65,30 @@ if (!premiereInstance) {
   });
 }
 
+/**
+ * Fenêtre minimale : en dessous, l'interface passerait en mode téléphone (barre du bas). 880 px laisse tout juste la barre latérale réduite
+ * et un tableau lisible, et reste atteignable sur un portable 1366 px réglé à 150 % d'affichage Windows (≈ 910 px utiles).
+ */
+const LARGEUR_MINIMALE = 880;
+const HAUTEUR_MINIMALE = 560;
+
+/** Taille de départ : 90 % de la zone utile de l'écran, entre 1280 × 800 et 1600 × 1000, sans jamais dépasser l'écran lui-même. */
+function tailleInitiale(): { width: number; height: number } {
+  const zone = screen.getPrimaryDisplay().workAreaSize;
+  const entre = (valeur: number, mini: number, maxi: number) => Math.max(mini, Math.min(valeur, maxi));
+  return {
+    width: Math.min(zone.width, Math.round(entre(zone.width * 0.9, 1280, 1600))),
+    height: Math.min(zone.height, Math.round(entre(zone.height * 0.9, 800, 1000))),
+  };
+}
+
 function creerFenetrePrincipale(): BrowserWindow {
+  const { width, height } = tailleInitiale();
   const fenetre = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width,
+    height,
+    minWidth: Math.min(LARGEUR_MINIMALE, width),
+    minHeight: Math.min(HAUTEUR_MINIMALE, height),
     autoHideMenuBar: true,
     // Icône HotelSaver (fenêtre/barre des tâches en dev ; resources/ est la
     // convention electron-vite reprise par le packaging — icon.ico pour Windows).

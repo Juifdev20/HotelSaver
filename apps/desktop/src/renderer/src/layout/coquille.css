@@ -481,7 +481,8 @@
 
 .coquille__contenu {
   flex: 1;
-  padding: var(--hc-space-6);
+  min-width: 0;
+  padding: var(--hc-space-6) clamp(var(--hc-space-5), 3vw, 48px);
 }
 
 /* ---------- Indicateur de connexion ---------- */
@@ -686,7 +687,7 @@
     transition: none;
   }
 }
-@media (max-width: 900px) {
+@media (max-width: 759px) {
   .coquille__laterale,
   .coquille__masque-etroit {
     display: none;

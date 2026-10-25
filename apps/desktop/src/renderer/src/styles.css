@@ -400,7 +400,9 @@ p {
 /* ---------- Pages dans la coquille ---------- */
 
 .page {
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: var(--hc-space-6);
@@ -431,7 +433,7 @@ p {
   gap: var(--hc-space-4);
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 899px) {
   .grille-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -531,7 +533,7 @@ p {
   display: none;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 759px) {
   .hero__desktop {
     display: none;
   }
@@ -1205,7 +1207,7 @@ p {
   cursor: pointer;
 }
 
-@media (max-width: 899px) {
+@media (max-width: 759px) {
   .ligne-service {
     grid-template-columns: 1fr 36px;
   }
@@ -1788,7 +1790,7 @@ button {
   color: var(--hc-blue);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 759px) {
   .ajout-conso {
     grid-template-columns: 1fr;
   }
