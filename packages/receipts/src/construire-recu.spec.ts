@@ -159,6 +159,7 @@ describe("ticket de test d'imprimante", () => {
     expect(lignes[0]).toEqual({ type: "titre", texte: "Hôtel Test" });
     expect(lignes).toContainEqual({ type: "soustitre", texte: "MERCI D'AVOIR CHOISI" });
     expect(lignes).toContainEqual({ type: "titre", texte: "L'APPLICATION HOTELSAVER" });
+    expect(lignes.at(-1)).toEqual({ type: "soustitre", texte: "Généré par l'application HotelSaver" });
     expect(JSON.stringify(lignes)).not.toMatch(/CHICAGO/i);
   });
 
@@ -188,7 +189,7 @@ describe("en-tête du reçu : l'hôtel de l'utilisateur, jamais un nom en dur", 
 
   it("n'imprime pas de ligne vide quand l'adresse ou le téléphone manquent", () => {
     const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [], { nom: "Hôtel Test", adresse: null, telephone: "  " });
-    expect(lignes.filter((l) => l.type === "soustitre").map((l) => (l as { texte: string }).texte)).toEqual(["Merci de votre visite !"]);
+    expect(lignes.filter((l) => l.type === "soustitre").map((l) => (l as { texte: string }).texte)).toEqual(["Merci de votre visite !", "Généré par l'application HotelSaver"]);
   });
 
   it("enteteHotel() reprend les coordonnées du profil connecté", () => {

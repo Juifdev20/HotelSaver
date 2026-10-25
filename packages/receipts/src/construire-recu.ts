@@ -50,6 +50,8 @@ export function construireTicketDeTest(hotel: EnteteHotel, maintenant: Date = ne
     { type: "separateur" },
     { type: "soustitre", texte: "MERCI D'AVOIR CHOISI" },
     { type: "titre", texte: "L'APPLICATION HOTELSAVER" },
+    { type: "separateur" },
+    { type: "soustitre", texte: SIGNATURE_TICKET },
   ];
 }
 
@@ -64,8 +66,11 @@ function enTete(hotel: EnteteHotel, sousTitre?: string): LigneRecu[] {
   return lignes;
 }
 
+/** Signature imprimée tout en bas de chaque ticket (reçus et ticket de test). */
+export const SIGNATURE_TICKET = "Généré par l'application HotelSaver";
+
 function piedDePage(): LigneRecu[] {
-  return [{ type: "soustitre", texte: "Merci de votre visite !" }];
+  return [{ type: "soustitre", texte: "Merci de votre visite !" }, { type: "soustitre", texte: SIGNATURE_TICKET }];
 }
 
 /** Lignes de règlement/monnaie communes aux deux reçus (section 11.2/11.3). */
