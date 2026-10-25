@@ -102,3 +102,12 @@ Reste à faire :
 ### Facturation (25/10/2026)
 
 L'écran de facturation d'un séjour est à deux colonnes : le récapitulatif du séjour (client, chambre, dates, prix, acompte, ventes liées) à gauche, le total, le mode de paiement, le détail du règlement et le bouton « Facturer et check-out » à droite, toujours en vue. La liste des séjours à facturer et le journal des reçus étaient déjà corrects.
+
+### Écrans de la réception et des réglages (25/10/2026)
+
+- **Imprimante** : deux colonnes (la connexion à gauche, « Quelle adresse saisir ? » avec des exemples à droite).
+- **Guide d'utilisation** : un état vide qui explique quoi faire ; les guides publiés s'affichent en colonnes.
+- **Fiche client** et **fiche d'une réservation** : cartes en deux colonnes.
+- **Abonnement** : laissé tel quel, sa mise en page (carte d'état en haut, historique, aide) est cohérente avec le bureau ; le formulaire de paiement n'est pas visible tant que le paiement en ligne n'est pas ouvert.
+- **Connexion** : contrôlée, déjà adaptée au bureau (photo à gauche, carte de connexion).
+- Non contrôlés : Synchronisation, abonnement bloqué, aperçu d'un reçu, inscription.

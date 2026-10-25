@@ -60,13 +60,21 @@ export function EcranGuides({ client }: EcranGuidesProps) {
         </p>
       )}
       {guides === null && !erreur && <p className="hc-text-body texte-discret">Chargement…</p>}
-      {guides && guides.length === 0 && <p className="hc-text-body texte-discret">Aucun guide n'est encore publié pour votre compte.</p>}
+      {guides && guides.length === 0 && (
+        <div className="etat-vide">
+          <BookOpen size={32} strokeWidth={1.5} aria-hidden="true" />
+          <p className="hc-text-subheading">Aucun guide n'est encore publié pour votre compte</p>
+          <p className="hc-text-body texte-discret">
+            Le guide de votre poste apparaîtra ici dès qu'il sera publié. En attendant, écrivez-nous sur WhatsApp : nous vous répondons vite.
+          </p>
+        </div>
+      )}
 
       {guides && guides.length > 0 && (
-        <div className="page__bloc">
+        <div className="page__colonnes">
           {guides.map((g) => (
             <section key={g.guide} className="carte-simple">
-              <div className="carte-simple__entete">
+              <div className="carte-simple__entete carte-simple__entete--titre">
                 <BookOpen size={20} aria-hidden="true" />
                 <h2 className="hc-text-subheading">{g.libelle}</h2>
               </div>

@@ -2659,3 +2659,27 @@ button {
 .page--cuisine:fullscreen .kds-ligne {
   font-size: 19px;
 }
+
+/* Exemples d'adresse d'imprimante : un libellé, l'adresse en police fixe, une phrase d'aide. */
+.aide-adresses {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+  margin: 0;
+}
+
+.aide-adresses dd {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 var(--hc-space-3);
+}
+
+.aide-adresses code {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--hc-radius-sm);
+  background-color: var(--hc-surface-300);
+  font-family: var(--hc-font-mono, ui-monospace, monospace);
+  font-size: 13px;
+}

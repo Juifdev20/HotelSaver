@@ -47,6 +47,7 @@ export function EcranImprimante({ interfaceImprimante, onEnregistrer, onRetour }
         </Button>
       </header>
 
+      <div className="page__colonnes">
       <div className="carte-formulaire formulaire">
         <label className="hc-text-label" htmlFor="champ-interface-imprimante">
           Connexion
@@ -61,10 +62,7 @@ export function EcranImprimante({ interfaceImprimante, onEnregistrer, onRetour }
           }}
           placeholder="tcp://192.168.1.50:9100"
         />
-        <p className="hc-text-caption texte-discret">
-          Imprimante réseau : tcp://ip:port (port 9100 le plus courant sur les imprimantes ESC/POS bon marché).
-          Imprimante USB/série : \\.\COM5 sous Windows, /dev/usb/lp0 sous Linux.
-        </p>
+        <p className="hc-text-caption texte-discret">Saisissez l'adresse de l'imprimante, enregistrez, puis imprimez un ticket de test pour vérifier.</p>
 
         {messageTest && (
           <p className="hc-text-body" role="status">
@@ -91,6 +89,27 @@ export function EcranImprimante({ interfaceImprimante, onEnregistrer, onRetour }
             {enTest ? "…" : "Imprimer un ticket de test"}
           </Button>
         </div>
+      </div>
+
+      <aside className="carte-formulaire" aria-label="Exemples d'adresse">
+        <p className="hc-text-body-strong">Quelle adresse saisir ?</p>
+        <dl className="aide-adresses">
+          <dt className="hc-text-label texte-discret">Imprimante réseau</dt>
+          <dd className="hc-text-body">
+            <code>tcp://192.168.1.50:9100</code>
+            <span className="hc-text-caption texte-discret">Adresse IP de l'imprimante et port 9100, le plus courant sur les imprimantes ESC/POS.</span>
+          </dd>
+          <dt className="hc-text-label texte-discret">Imprimante USB ou série (Windows)</dt>
+          <dd className="hc-text-body">
+            <code>\\.\COM5</code>
+            <span className="hc-text-caption texte-discret">Le numéro du port COM figure dans le Gestionnaire de périphériques.</span>
+          </dd>
+          <dt className="hc-text-label texte-discret">Imprimante USB (Linux)</dt>
+          <dd className="hc-text-body">
+            <code>/dev/usb/lp0</code>
+          </dd>
+        </dl>
+      </aside>
       </div>
     </div>
   );

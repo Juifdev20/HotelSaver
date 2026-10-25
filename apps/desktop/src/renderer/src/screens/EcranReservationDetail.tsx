@@ -275,7 +275,7 @@ export function EcranReservationDetail({
       {!reservation && !erreur && <p className="hc-text-body texte-discret">Chargement…</p>}
 
       {reservation && statut && (
-        <>
+        <div className="page__colonnes">
           <div className="carte-formulaire">
             <div className="parametres-ligne">
               <span className="hc-text-body-strong">Séjour</span>
@@ -617,7 +617,7 @@ export function EcranReservationDetail({
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

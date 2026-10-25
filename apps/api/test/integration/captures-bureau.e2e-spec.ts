@@ -47,6 +47,9 @@ const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string; ensuit
   { role: "recep", page: "Réservations", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
   { role: "caf", page: "Caisse", bouton: /Vente rapide/, nom: "caisse-vente-rapide" },
   { role: "patron", page: "Réservations", bouton: /Planning/, nom: "reservations-planning" },
+  { role: "recep", page: "Réservations", bouton: /Ouvrir la réservation de/, nom: "reservation-detail" },
+  { role: "recep", page: "Clients", bouton: /^Aline Kabila$|Aline/, nom: "client-detail" },
+  { role: "patron", page: "Tableau de bord", bouton: /À jour/, nom: "synchronisation" },
   { role: "patron", page: "Réservations", bouton: /Ouvrir la réservation de Aline/, nom: "reservation-detail" },
   { role: "patron", page: "Paramètres", bouton: /^Gérer$/, nom: "parametres-utilisateurs" },
   { role: "patron", page: "Paramètres", bouton: /Configurer/, nom: "parametres-imprimante" },
@@ -180,6 +183,9 @@ async function remplir(A: JeuHotel) {
     });
     const page = await contexte.newPage();
     await page.goto(siteUrl);
+    await page.waitForTimeout(1200);
+    mkdirSync(join(SORTIE, `${largeur}x${hauteur}`), { recursive: true });
+    if (role === "patron") await page.screenshot({ path: join(SORTIE, `${largeur}x${hauteur}`, "connexion.png") });
     const champ = page.getByLabel("Adresse e-mail");
     if (!(await champ.isVisible().catch(() => false))) await page.getByRole("button", { name: /Ancien compte \? Se connecter avec un e-mail/ }).click();
     await champ.fill(`${A.auth[role]}@exemple.test`);

@@ -115,6 +115,7 @@ export function EcranClients({ client }: EcranClientsProps) {
           </div>
         </header>
 
+        <div className="page__colonnes">
         <div className="carte-formulaire">
           <p className="hc-text-label texte-discret">Coordonnées</p>
           {clientChoisi.telephone && <p className="hc-text-body">{clientChoisi.telephone}</p>}
@@ -145,6 +146,7 @@ export function EcranClients({ client }: EcranClientsProps) {
               {totalDepense.cdf > 0 ? ` + ${formatMontant(totalDepense.cdf, Devise.CDF)}` : ""}
             </p>
           )}
+        </div>
         </div>
 
         {edition && (
