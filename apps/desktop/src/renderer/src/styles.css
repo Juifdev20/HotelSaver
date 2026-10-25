@@ -850,6 +850,19 @@ p {
   box-shadow: 0 0 0 3px var(--hc-blue-light);
 }
 
+/* Dans une page (colonne), la recherche garde sa hauteur : sans cela « flex: 1 1 260px » en ferait une boîte de 260 px de haut. */
+.page > .champ-recherche,
+.page__bloc > .champ-recherche {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+/* Tableau dont chaque ligne tient sur une seule ligne (prix, quantités, actions) : au besoin, la carte défile à l'horizontale. */
+.tableau--une-ligne th,
+.tableau--une-ligne td {
+  white-space: nowrap;
+}
+
 .puces {
   display: flex;
   flex-wrap: wrap;
@@ -2238,4 +2251,124 @@ button {
   font-size: 14px;
   line-height: 1.55;
   padding-right: 6px;
+}
+
+/* ---------- Panneau latéral de saisie (formulaires du bureau) ---------- */
+
+.panneau-fond {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 39, 66, 0.45);
+  animation: panneau-fond-entree 0.15s ease-out;
+}
+
+.panneau {
+  width: min(560px, 100%);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--hc-surface-200);
+  color: var(--hc-ink);
+  box-shadow: var(--hc-shadow-hover);
+  animation: panneau-entree 0.2s ease-out;
+}
+
+.panneau__entete {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-5) var(--hc-space-5) var(--hc-space-4);
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.panneau__fermer {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--hc-radius-md);
+  background: transparent;
+  color: var(--hc-ink-muted);
+  cursor: pointer;
+}
+
+.panneau__fermer:hover {
+  background-color: var(--hc-surface-300);
+  color: var(--hc-ink);
+}
+
+.panneau__corps {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--hc-space-5);
+  gap: var(--hc-space-3);
+}
+
+.panneau__pied {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--hc-space-2);
+  padding: var(--hc-space-4) var(--hc-space-5);
+  border-top: 1px solid var(--hc-border);
+  background-color: var(--hc-surface-200);
+}
+
+/* Deux champs côte à côte dans un formulaire : chaque champ = <div class="champ"><label/><input/></div>. */
+.champs-grille {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--hc-space-3);
+}
+
+.champ {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-1);
+  min-width: 0;
+}
+
+.champ input,
+.champ select,
+.panneau__corps input,
+.panneau__corps select {
+  width: 100%;
+}
+
+@keyframes panneau-entree {
+  from { transform: translateX(32px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes panneau-fond-entree {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panneau,
+  .panneau-fond {
+    animation: none;
+  }
+}
+
+.panneau__erreur {
+  padding: var(--hc-space-3);
+  border-radius: var(--hc-radius-md);
+  background-color: var(--hc-danger-light, #fdecec);
+}
+
+/* Barre de filtres dont les champs (date…) portent un libellé au-dessus : tout est aligné sur le bas. */
+.barre-filtres--bas {
+  align-items: flex-end;
+}
+
+.champ--date {
+  width: 170px;
 }

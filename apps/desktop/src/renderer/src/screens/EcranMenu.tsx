@@ -7,6 +7,7 @@ import { Devise, Produit, Role, TypeProduit, UtilisateurAuthentifie } from "@hot
 import { Button, StatusBadge, formatMontant } from "@hotel-chicago/ui";
 import { Camera, Printer, UtensilsCrossed } from "lucide-react";
 import { ScannerWebcam } from "../components/ScannerWebcam";
+import { PanneauFormulaire } from "../components/PanneauFormulaire";
 import { SelecteurPhotos, nettoyerImages } from "../components/SelecteurPhotos";
 import { ApercuRecu } from "../components/ApercuRecu";
 import { lireMontant, lireQuantite } from "@hotel-chicago/miroir-local";
@@ -374,7 +375,32 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
       )}
 
       {formulaireOuvert && peutModifier && (
-        <div className="carte-formulaire formulaire">
+        <PanneauFormulaire
+          titre={produitEnEdition ? `Modifier ${produitEnEdition.nom}` : "Nouveau produit"}
+          sousTitre={formulaire.typeProduit === TypeProduit.PLAT ? "Plat préparé en cuisine" : "Article de comptoir, suivi en stock"}
+          onFermer={() => !enEnvoi && setFormulaireOuvert(false)}
+          erreur={erreurFormulaire}
+          actions={
+            <>
+              {produitEnEdition && (
+                <Button type="button" variant="danger" onClick={() => supprimer(produitEnEdition)} disabled={enEnvoi}>
+                  Supprimer
+                </Button>
+              )}
+              <span style={{ flex: 1 }} />
+              <Button type="button" variant="secondary" onClick={() => setFormulaireOuvert(false)} disabled={enEnvoi}>
+                Annuler
+              </Button>
+              <Button type="button" onClick={() => void enregistrer()} disabled={enEnvoi}>
+                {enEnvoi
+                  ? "…"
+                  : nbEtiquettes > 0
+                    ? `Enregistrer et imprimer ${nbEtiquettes} étiquette${nbEtiquettes > 1 ? "s" : ""}`
+                    : "Enregistrer"}
+              </Button>
+            </>
+          }
+        >
           <span className="hc-text-label">Type de produit</span>
           <div className="puces" role="group" aria-label="Type de produit">
             {([
@@ -393,134 +419,155 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
             ))}
           </div>
 
-          <label className="hc-text-label" htmlFor="champ-nom-produit">
-            Nom
-          </label>
-          <input
-            id="champ-nom-produit"
-            value={formulaire.nom}
-            onChange={(e) => setFormulaire((f) => ({ ...f, nom: e.target.value }))}
-            placeholder={placeholdersPour(formulaire.typeProduit).nom}
-          />
-
-          <label className="hc-text-label" htmlFor="champ-categorie-produit">
-            Catégorie
-          </label>
-          <input
-            id="champ-categorie-produit"
-            value={formulaire.categorie}
-            onChange={(e) => setFormulaire((f) => ({ ...f, categorie: e.target.value }))}
-            placeholder={placeholdersPour(formulaire.typeProduit).categorie}
-          />
-
-          <label className="hc-text-label" htmlFor="champ-prix-produit">
-            Prix
-          </label>
-          <input
-            id="champ-prix-produit"
-            type="number"
-            step="0.01"
-            value={formulaire.prix}
-            onChange={(e) => setFormulaire((f) => ({ ...f, prix: e.target.value }))}
-            placeholder="0"
-          />
-
-          <div className="puces" role="group" aria-label="Devise">
-            {[Devise.USD, Devise.CDF].map((d) => (
-              <button
-                key={d}
-                type="button"
-                className="puce"
-                aria-pressed={formulaire.devise === d}
-                onClick={() => setFormulaire((f) => ({ ...f, devise: d }))}
-              >
-                {d}
-              </button>
-            ))}
+          <div className="champs-grille">
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="champ-nom-produit">
+                Nom
+              </label>
+              <input
+                id="champ-nom-produit"
+                value={formulaire.nom}
+                onChange={(e) => setFormulaire((f) => ({ ...f, nom: e.target.value }))}
+                placeholder={placeholdersPour(formulaire.typeProduit).nom}
+              />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="champ-categorie-produit">
+                Catégorie
+              </label>
+              <input
+                id="champ-categorie-produit"
+                value={formulaire.categorie}
+                onChange={(e) => setFormulaire((f) => ({ ...f, categorie: e.target.value }))}
+                placeholder={placeholdersPour(formulaire.typeProduit).categorie}
+              />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="champ-prix-produit">
+                Prix
+              </label>
+              <input
+                id="champ-prix-produit"
+                type="number"
+                step="0.01"
+                value={formulaire.prix}
+                onChange={(e) => setFormulaire((f) => ({ ...f, prix: e.target.value }))}
+                placeholder="0"
+              />
+            </div>
+            <div className="champ">
+              <span className="hc-text-label">Devise</span>
+              <div className="puces" role="group" aria-label="Devise">
+                {[Devise.USD, Devise.CDF].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className="puce"
+                    aria-pressed={formulaire.devise === d}
+                    onClick={() => setFormulaire((f) => ({ ...f, devise: d }))}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {formulaire.typeProduit === TypeProduit.ARTICLE && (
             <>
-              {!produitEnEdition && (
-                <>
-                  <label className="hc-text-label" htmlFor="champ-quantite-produit">
-                    Quantité initiale en stock (optionnel — ensuite via l'écran Stock)
+              <div className="champs-grille">
+                {!produitEnEdition && (
+                  <div className="champ">
+                    <label className="hc-text-label" htmlFor="champ-quantite-produit">
+                      Quantité initiale en stock
+                    </label>
+                    <input
+                      id="champ-quantite-produit"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formulaire.quantiteInitiale}
+                      onChange={(e) => setFormulaire((f) => ({ ...f, quantiteInitiale: e.target.value }))}
+                      placeholder="0"
+                    />
+                    <span className="hc-text-caption texte-discret">Facultatif — ensuite via l'écran Stock.</span>
+                  </div>
+                )}
+                <div className="champ">
+                  <label className="hc-text-label" htmlFor="champ-seuil-produit">
+                    Seuil d'alerte
                   </label>
                   <input
-                    id="champ-quantite-produit"
+                    id="champ-seuil-produit"
+                    type="number"
+                    value={formulaire.seuilAlerte}
+                    onChange={(e) => setFormulaire((f) => ({ ...f, seuilAlerte: e.target.value }))}
+                    placeholder="0"
+                  />
+                  <span className="hc-text-caption texte-discret">Facultatif.</span>
+                </div>
+                <div className="champ">
+                  <label className="hc-text-label" htmlFor="champ-prix-achat-produit">
+                    Prix d'achat
+                  </label>
+                  <input
+                    id="champ-prix-achat-produit"
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formulaire.quantiteInitiale}
-                    onChange={(e) => setFormulaire((f) => ({ ...f, quantiteInitiale: e.target.value }))}
-                    placeholder="0"
+                    value={formulaire.prixAchat}
+                    onChange={(e) => setFormulaire((f) => ({ ...f, prixAchat: e.target.value }))}
+                    placeholder="0.00"
                   />
-                </>
-              )}
-
-              <label className="hc-text-label" htmlFor="champ-seuil-produit">
-                Seuil d'alerte (optionnel)
-              </label>
-              <input
-                id="champ-seuil-produit"
-                type="number"
-                value={formulaire.seuilAlerte}
-                onChange={(e) => setFormulaire((f) => ({ ...f, seuilAlerte: e.target.value }))}
-                placeholder="0"
-              />
-
-              <label className="hc-text-label" htmlFor="champ-prix-achat-produit">
-                Prix d'achat (optionnel — pour calcul de marge dans l'inventaire)
-              </label>
-              <input
-                id="champ-prix-achat-produit"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formulaire.prixAchat}
-                onChange={(e) => setFormulaire((f) => ({ ...f, prixAchat: e.target.value }))}
-                placeholder="0.00"
-              />
-
-              <label className="hc-text-label" htmlFor="champ-code-barres-produit">
-                Code-barres (optionnel — code du fabricant, ou « Générer » puis étiquette)
-              </label>
-              <div style={{ display: "flex", gap: "var(--hc-space-2)", alignItems: "center" }}>
-                <input
-                  id="champ-code-barres-produit"
-                  value={formulaire.codeBarres}
-                  onChange={(e) => {
-                    setCodeGenere(false);
-                    setFormulaire((f) => ({ ...f, codeBarres: e.target.value }));
-                  }}
-                  placeholder="Scanner avec la douchette, la webcam, ou générer"
-                  style={{ flex: 1 }}
-                />
-                <Button type="button" variant="secondary" onClick={() => setWebcamOuverte(true)}>
-                  <Camera size={16} aria-hidden="true" /> Scanner
-                </Button>
-                <Button type="button" variant="secondary" onClick={genererCode}>
-                  Générer
-                </Button>
+                  <span className="hc-text-caption texte-discret">Facultatif — pour la marge dans l'inventaire.</span>
+                </div>
               </div>
-              <p className="hc-text-caption texte-discret">Le code ne contient pas le prix : changer un prix ne demande pas de réimprimer.</p>
 
-              <label className="hc-text-label" htmlFor="champ-nb-etiquettes-enregistrement">
-                Nombre d'étiquettes code-barres à imprimer
-              </label>
-              <input
-                id="champ-nb-etiquettes-enregistrement"
-                type="number"
-                min="0"
-                                value={nbEtiquettesSaisi ?? String(nbEtiquettesDefaut)}
-                onChange={(e) => setNbEtiquettesSaisi(e.target.value)}
-                style={{ width: 100 }}
-              />
-              <p className="hc-text-caption texte-discret">
-                {codeSaisi === ""
-                  ? "Générez ou scannez d'abord un code : les étiquettes s'impriment à l'enregistrement."
-                  : "Imprimées automatiquement en cliquant sur Enregistrer. 0 = aucune."}
-              </p>
+              <div className="champ">
+                <label className="hc-text-label" htmlFor="champ-code-barres-produit">
+                  Code-barres (optionnel)
+                </label>
+                <div style={{ display: "flex", gap: "var(--hc-space-2)", alignItems: "center" }}>
+                  <input
+                    id="champ-code-barres-produit"
+                    value={formulaire.codeBarres}
+                    onChange={(e) => {
+                      setCodeGenere(false);
+                      setFormulaire((f) => ({ ...f, codeBarres: e.target.value }));
+                    }}
+                    placeholder="Douchette, webcam, ou générer"
+                    style={{ flex: 1 }}
+                  />
+                  <Button type="button" variant="secondary" onClick={() => setWebcamOuverte(true)}>
+                    <Camera size={16} aria-hidden="true" /> Scanner
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={genererCode}>
+                    Générer
+                  </Button>
+                </div>
+                <span className="hc-text-caption texte-discret">
+                  Le code ne contient pas le prix : changer un prix ne demande pas de réimprimer.
+                </span>
+              </div>
+
+              <div className="champ">
+                <label className="hc-text-label" htmlFor="champ-nb-etiquettes-enregistrement">
+                  Nombre d'étiquettes code-barres à imprimer
+                </label>
+                <input
+                  id="champ-nb-etiquettes-enregistrement"
+                  type="number"
+                  min="0"
+                  value={nbEtiquettesSaisi ?? String(nbEtiquettesDefaut)}
+                  onChange={(e) => setNbEtiquettesSaisi(e.target.value)}
+                  style={{ width: 100 }}
+                />
+                <span className="hc-text-caption texte-discret">
+                  {codeSaisi === ""
+                    ? "Générez ou scannez d'abord un code : les étiquettes s'impriment à l'enregistrement."
+                    : "Imprimées automatiquement en cliquant sur Enregistrer. 0 = aucune."}
+                </span>
+              </div>
               {messageEtiquette && <p className="hc-text-caption texte-discret">{messageEtiquette}</p>}
 
               {webcamOuverte && (
@@ -548,26 +595,33 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
                 libelle="Photo du plat (optionnel, visible sur le site)"
               />
 
-              <label className="hc-text-label" htmlFor="champ-portions-produit">
-                Portions disponibles (optionnel — vide = illimité, cuisine à la commande)
-              </label>
-              <input
-                id="champ-portions-produit"
-                type="number"
-                min="0"
-                value={formulaire.portionsDisponibles}
-                onChange={(e) => setFormulaire((f) => ({ ...f, portionsDisponibles: e.target.value }))}
-                placeholder="Illimité"
-              />
-
-              <label className="hc-text-label" htmlFor="champ-description-produit">
-                Description sur le site (optionnel — ex. « Poulet braisé, frites et salade »)
-              </label>
-              <input
-                id="champ-description-produit"
-                value={formulaire.description}
-                onChange={(e) => setFormulaire((f) => ({ ...f, description: e.target.value }))}
-              />
+              <div className="champs-grille">
+                <div className="champ">
+                  <label className="hc-text-label" htmlFor="champ-portions-produit">
+                    Portions disponibles
+                  </label>
+                  <input
+                    id="champ-portions-produit"
+                    type="number"
+                    min="0"
+                    value={formulaire.portionsDisponibles}
+                    onChange={(e) => setFormulaire((f) => ({ ...f, portionsDisponibles: e.target.value }))}
+                    placeholder="Illimité"
+                  />
+                  <span className="hc-text-caption texte-discret">Vide = illimité (cuisine à la commande).</span>
+                </div>
+                <div className="champ">
+                  <label className="hc-text-label" htmlFor="champ-description-produit">
+                    Description sur le site
+                  </label>
+                  <input
+                    id="champ-description-produit"
+                    value={formulaire.description}
+                    onChange={(e) => setFormulaire((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Ex. Poulet braisé, frites et salade"
+                  />
+                </div>
+              </div>
 
               <div className="parametres-ligne">
                 <span className="hc-text-body">Visible et commandable sur le site (« Cuisine »)</span>
@@ -582,28 +636,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
               </p>
             </>
           )}
-
-          {erreurFormulaire && (
-            <p role="alert" className="hc-text-body texte-erreur">
-              {erreurFormulaire}
-            </p>
-          )}
-
-          <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-2)" }}>
-            {produitEnEdition && (
-              <Button type="button" variant="danger" onClick={() => supprimer(produitEnEdition)} disabled={enEnvoi}>
-                Supprimer
-              </Button>
-            )}
-            <Button type="button" onClick={() => void enregistrer()} disabled={enEnvoi}>
-              {enEnvoi
-                ? "…"
-                : nbEtiquettes > 0
-                  ? `Enregistrer et imprimer ${nbEtiquettes} étiquette${nbEtiquettes > 1 ? "s" : ""}`
-                  : "Enregistrer"}
-            </Button>
-          </div>
-        </div>
+        </PanneauFormulaire>
       )}
 
       {produits === null && !erreur && <p className="hc-text-body texte-discret">Chargement…</p>}

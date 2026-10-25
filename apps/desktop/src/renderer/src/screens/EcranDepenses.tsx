@@ -5,6 +5,7 @@ import { DepartementRapport, Depense, Devise, ProfilConnecte, Role } from "@hote
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { FileDown, Plus, Wallet } from "lucide-react";
 import { lireMontant, lireQuantite } from "@hotel-chicago/miroir-local";
+import { PanneauFormulaire } from "../components/PanneauFormulaire";
 
 export interface EcranDepensesProps {
   client: ClientApi;
@@ -184,15 +185,19 @@ export function EcranDepenses({ client, utilisateur }: EcranDepensesProps) {
         </div>
       </header>
 
-      <div className="formulaire" style={{ display: "flex", gap: "var(--hc-space-3)", alignItems: "flex-end", flexWrap: "wrap" }}>
-        <label className="hc-text-label">
-          Du{" "}
-          <input type="date" value={du} max={au || undefined} onChange={(e) => setDu(e.target.value)} />
-        </label>
-        <label className="hc-text-label">
-          Au{" "}
-          <input type="date" value={au} min={du || undefined} onChange={(e) => setAu(e.target.value)} />
-        </label>
+      <div className="barre-filtres barre-filtres--bas">
+        <div className="champ champ--date">
+          <label className="hc-text-label" htmlFor="filtre-depenses-du">
+            Du
+          </label>
+          <input id="filtre-depenses-du" type="date" value={du} max={au || undefined} onChange={(e) => setDu(e.target.value)} />
+        </div>
+        <div className="champ champ--date">
+          <label className="hc-text-label" htmlFor="filtre-depenses-au">
+            Au
+          </label>
+          <input id="filtre-depenses-au" type="date" value={au} min={du || undefined} onChange={(e) => setAu(e.target.value)} />
+        </div>
         {!departementPersonnel && (
           <div className="puces" role="group" aria-label="Département">
             {(
@@ -215,58 +220,66 @@ export function EcranDepenses({ client, utilisateur }: EcranDepensesProps) {
       {!periodeValide && <p className="hc-text-body texte-erreur">La date de fin doit suivre la date de début.</p>}
 
       {formulaireOuvert && (
-        <div className="carte-formulaire formulaire">
-          <p className="hc-text-label texte-discret">{edition ? "Corriger la dépense" : "Nouvelle dépense"}</p>
+        <PanneauFormulaire
+          titre={edition ? "Corriger la dépense" : "Nouvelle dépense"}
+          onFermer={() => !enEnvoi && setFormulaireOuvert(false)}
+          erreur={erreurForm}
+          actions={
+            <>
+              {edition && (
+                <Button type="button" variant="secondary" onClick={() => annuler(edition)} disabled={enEnvoi} style={{ color: "var(--hc-danger)" }}>
+                  Annuler cette dépense
+                </Button>
+              )}
+              <span style={{ flex: 1 }} />
+              <Button type="button" variant="secondary" onClick={() => setFormulaireOuvert(false)} disabled={enEnvoi}>
+                Fermer
+              </Button>
+              <Button type="button" onClick={enregistrer} disabled={enEnvoi}>
+                {enEnvoi ? "Enregistrement…" : "Enregistrer"}
+              </Button>
+            </>
+          }
+        >
+          <div className="champ">
+            <label className="hc-text-label" htmlFor="champ-date-depense">Date</label>
+            <input id="champ-date-depense" type="date" value={date} max={iso(new Date())} onChange={(e) => setDate(e.target.value)} />
+          </div>
 
-          <label className="hc-text-label" htmlFor="champ-date-depense">Date</label>
-          <input id="champ-date-depense" type="date" value={date} max={iso(new Date())} onChange={(e) => setDate(e.target.value)} />
-
-          <label className="hc-text-label" htmlFor="champ-motif-depense">Motif</label>
-          <input
-            id="champ-motif-depense"
-            value={motif}
-            maxLength={200}
-            onChange={(e) => setMotif(e.target.value)}
-            placeholder="Ex. carburant du groupe électrogène"
-          />
-
-          <label className="hc-text-label" htmlFor="champ-montant-depense">Montant</label>
-          <div style={{ display: "flex", gap: "var(--hc-space-2)", alignItems: "center" }}>
+          <div className="champ">
+            <label className="hc-text-label" htmlFor="champ-motif-depense">Motif</label>
             <input
-              id="champ-montant-depense"
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={montant}
-              onChange={(e) => setMontant(e.target.value)}
-              placeholder="0"
-              style={{ flex: 1 }}
+              id="champ-motif-depense"
+              value={motif}
+              maxLength={200}
+              onChange={(e) => setMotif(e.target.value)}
+              placeholder="Ex. carburant du groupe électrogène"
             />
-            <div className="puces" role="group" aria-label="Devise">
-              {[Devise.USD, Devise.CDF].map((d) => (
-                <button key={d} type="button" className="puce" aria-pressed={devise === d} onClick={() => setDevise(d)}>
-                  {d === Devise.USD ? "USD $" : "CDF FC"}
-                </button>
-              ))}
+          </div>
+
+          <div className="champ">
+            <label className="hc-text-label" htmlFor="champ-montant-depense">Montant</label>
+            <div style={{ display: "flex", gap: "var(--hc-space-2)", alignItems: "center" }}>
+              <input
+                id="champ-montant-depense"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={montant}
+                onChange={(e) => setMontant(e.target.value)}
+                placeholder="0"
+                style={{ flex: 1 }}
+              />
+              <div className="puces" role="group" aria-label="Devise">
+                {[Devise.USD, Devise.CDF].map((d) => (
+                  <button key={d} type="button" className="puce" aria-pressed={devise === d} onClick={() => setDevise(d)}>
+                    {d === Devise.USD ? "USD $" : "CDF FC"}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-
-          {erreurForm && <p role="alert" className="hc-text-body texte-erreur">{erreurForm}</p>}
-
-          <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-2)" }}>
-            <Button type="button" onClick={enregistrer} disabled={enEnvoi}>
-              {enEnvoi ? "Enregistrement…" : "Enregistrer"}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setFormulaireOuvert(false)} disabled={enEnvoi}>
-              Fermer
-            </Button>
-            {edition && (
-              <Button type="button" variant="secondary" onClick={() => annuler(edition)} disabled={enEnvoi} style={{ marginLeft: "auto", color: "var(--hc-danger)" }}>
-                Annuler cette dépense
-              </Button>
-            )}
-          </div>
-        </div>
+        </PanneauFormulaire>
       )}
 
       {erreur && (

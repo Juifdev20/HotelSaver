@@ -42,7 +42,7 @@ const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string }[] = [
   { role: "patron", page: "Réservations", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
   { role: "patron", page: "Menu", bouton: /Nouveau produit/, nom: "formulaire-nouveau-produit" },
   { role: "patron", page: "Stock", bouton: /Nouveau mouvement/, nom: "formulaire-nouveau-mouvement" },
-  { role: "patron", page: "Dépenses", bouton: /Nouvelle dépense|Ajouter/, nom: "formulaire-depense" },
+  { role: "recep", page: "Dépenses", bouton: /Nouvelle dépense/, nom: "formulaire-depense" },
   { role: "recep", page: "Facturation", bouton: /^Détail$/, nom: "detail-recu" },
   { role: "recep", page: "Réservations", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
   { role: "caf", page: "Caisse", bouton: /Vente rapide|Ouvrir le compte/, nom: "caisse-vente-rapide" },

@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowDown, ArrowUp, BarChart2, Package, RefreshCw, Searc
 import { lireQuantite } from "@hotel-chicago/miroir-local";
 import { typesMouvementAutorises } from "@hotel-chicago/regles";
 import { CarteEtiquettes } from "../components/CarteEtiquettes";
+import { PanneauFormulaire } from "../components/PanneauFormulaire";
 
 export interface EcranStockProps {
   client: ClientApi;
@@ -217,46 +218,55 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
 
       {/* Formulaire nouveau mouvement */}
       {formulaireOuvert && (
-        <div className="carte-formulaire formulaire">
-          <p className="hc-text-label texte-discret">Nouveau mouvement de stock</p>
-
-          <label className="hc-text-label" htmlFor="champ-produit-stock">Produit</label>
-          <select id="champ-produit-stock" value={produitId} onChange={(e) => setProduitId(e.target.value)}>
-            <option value="">Choisir un produit</option>
-            {produits.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nom} — stock actuel : {p.stockActuel}
-              </option>
-            ))}
-          </select>
+        <PanneauFormulaire
+          titre="Nouveau mouvement de stock"
+          sousTitre="Le stock du produit est mis à jour aussitôt."
+          onFermer={() => !enEnvoi && setFormulaireOuvert(false)}
+          erreur={erreurForm}
+          actions={
+            <>
+              <Button type="button" variant="secondary" onClick={() => setFormulaireOuvert(false)} disabled={enEnvoi}>
+                Annuler
+              </Button>
+              <Button type="button" onClick={enregistrer} disabled={enEnvoi}>
+                {enEnvoi ? "Enregistrement…" : "Enregistrer"}
+              </Button>
+            </>
+          }
+        >
+          <div className="champ">
+            <label className="hc-text-label" htmlFor="champ-produit-stock">Produit</label>
+            <select id="champ-produit-stock" value={produitId} onChange={(e) => setProduitId(e.target.value)}>
+              <option value="">Choisir un produit</option>
+              {produits.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nom} — stock actuel : {p.stockActuel}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {typesPermis.length > 1 && (
-          <div className="puces" role="group" aria-label="Type de mouvement">
-            {typesPermis.map((t) => (
-              <button key={t.valeur} type="button" className="puce" aria-pressed={type === t.valeur} onClick={() => setType(t.valeur)}>
-                {t.libelle}
-              </button>
-            ))}
-          </div>
+            <div className="puces" role="group" aria-label="Type de mouvement">
+              {typesPermis.map((t) => (
+                <button key={t.valeur} type="button" className="puce" aria-pressed={type === t.valeur} onClick={() => setType(t.valeur)}>
+                  {t.libelle}
+                </button>
+              ))}
+            </div>
           )}
 
-          <label className="hc-text-label" htmlFor="champ-quantite-stock">Quantité</label>
-          <input id="champ-quantite-stock" type="number" step="0.01" min="0.01" value={quantite} onChange={(e) => setQuantite(e.target.value)} placeholder="0" />
-
-          <label className="hc-text-label" htmlFor="champ-motif-stock">Motif (optionnel)</label>
-          <input id="champ-motif-stock" value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Ex. livraison fournisseur, inventaire mensuel…" />
-
-          {erreurForm && <p role="alert" className="hc-text-body texte-erreur">{erreurForm}</p>}
-
-          <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-2)" }}>
-            <Button type="button" onClick={enregistrer} disabled={enEnvoi}>
-              {enEnvoi ? "Enregistrement…" : "Enregistrer"}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setFormulaireOuvert(false)} disabled={enEnvoi}>
-              Annuler
-            </Button>
+          <div className="champs-grille">
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="champ-quantite-stock">Quantité</label>
+              <input id="champ-quantite-stock" type="number" step="0.01" min="0.01" value={quantite} onChange={(e) => setQuantite(e.target.value)} placeholder="0" />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="champ-motif-stock">Motif (optionnel)</label>
+              <input id="champ-motif-stock" value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Ex. livraison fournisseur" />
+            </div>
           </div>
-        </div>
+        </PanneauFormulaire>
       )}
 
       {etiquettes && (
@@ -299,7 +309,7 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
 
           {produitsTriés.length > 0 && (
             <div className="carte-tableau">
-              <table className="tableau">
+              <table className="tableau tableau--une-ligne">
                 <thead>
                   <tr>
                     <th>Produit</th>
@@ -410,7 +420,7 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
 
           {mouvements.length > 0 && (
             <div className="carte-tableau">
-              <table className="tableau">
+              <table className="tableau tableau--une-ligne">
                 <thead>
                   <tr>
                     <th>Date</th>

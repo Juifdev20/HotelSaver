@@ -2,6 +2,7 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_PHOTOS_CHAMBRE } from "@hotel-chicago/types";
 import { SelecteurPhotos, nettoyerImages } from "../components/SelecteurPhotos";
+import { PanneauFormulaire } from "../components/PanneauFormulaire";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Chambre, Devise, Reservation, Role, StatutChambre, UtilisateurAuthentifie, peutOperer } from "@hotel-chicago/types";
 import { Button, RoomCard, StatusBadge, StatusTone, formatMontant } from "@hotel-chicago/ui";
@@ -354,7 +355,7 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
         </div>
       </header>
 
-      {erreur && (
+      {erreur && !chambreEdit && (
         <p role="alert" className="hc-text-body texte-erreur">
           {erreur}
         </p>
@@ -387,22 +388,52 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
       </div>
 
       {chambreEdit && (
-        <div className="carte-formulaire formulaire">
-          <p className="hc-text-label texte-discret">
-            {chambreEdit === "creation" ? "Nouvelle chambre" : `Chambre ${chambreEdit.numero}`}
-          </p>
-          <label className="hc-text-label" htmlFor="chambre-numero">
-            Numéro
-          </label>
-          <input id="chambre-numero" type="text" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Ex. 104" />
-          <label className="hc-text-label" htmlFor="chambre-type">
-            Type
-          </label>
-          <input id="chambre-type" type="text" value={type} onChange={(e) => setType(e.target.value)} placeholder="Ex. Standard, Suite…" />
-          <label className="hc-text-label" htmlFor="chambre-prix">
-            Prix par nuit
-          </label>
-          <input id="chambre-prix" type="text" inputMode="decimal" value={prix} onChange={(e) => setPrix(e.target.value)} placeholder="Ex. 45" />
+        <PanneauFormulaire
+          titre={chambreEdit === "creation" ? "Nouvelle chambre" : `Chambre ${chambreEdit.numero}`}
+          sousTitre={chambreEdit === "creation" ? "Elle apparaîtra aussitôt dans la liste et sur le site de l'hôtel." : undefined}
+          onFermer={fermerFormulaire}
+          erreur={erreur}
+          actions={
+            <>
+              <Button type="button" variant="secondary" onClick={fermerFormulaire}>
+                Annuler
+              </Button>
+              <Button type="button" onClick={enregistrerChambre} disabled={enCours}>
+                {enCours ? "…" : "Enregistrer"}
+              </Button>
+            </>
+          }
+        >
+          <div className="champs-grille">
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="chambre-numero">
+                Numéro
+              </label>
+              <input id="chambre-numero" type="text" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Ex. 104" />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="chambre-type">
+                Type
+              </label>
+              <input id="chambre-type" type="text" value={type} onChange={(e) => setType(e.target.value)} placeholder="Ex. Standard, Suite…" />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="chambre-prix">
+                Prix par nuit
+              </label>
+              <input id="chambre-prix" type="text" inputMode="decimal" value={prix} onChange={(e) => setPrix(e.target.value)} placeholder="Ex. 45" />
+            </div>
+            <div className="champ">
+              <p className="hc-text-label">Devise</p>
+              <div className="puces" role="group" aria-label="Devise">
+                {[Devise.USD, Devise.CDF].map((d) => (
+                  <button key={d} type="button" className="puce" aria-pressed={devise === d} onClick={() => setDevise(d)}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
           <SelecteurPhotos
             client={client}
             usage="chambre"
@@ -412,23 +443,7 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
             onEnvoyee={(url) => setPhotosEnvoyees((liste) => [...liste, url])}
             libelle="Photos de la chambre (visibles sur le site de l'hôtel)"
           />
-          <p className="hc-text-label texte-discret">Devise</p>
-          <div className="puces" role="group" aria-label="Devise">
-            {[Devise.USD, Devise.CDF].map((d) => (
-              <button key={d} type="button" className="puce" aria-pressed={devise === d} onClick={() => setDevise(d)}>
-                {d}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-3)" }}>
-            <Button type="button" onClick={enregistrerChambre} disabled={enCours}>
-              {enCours ? "…" : "Enregistrer"}
-            </Button>
-            <Button type="button" variant="secondary" onClick={fermerFormulaire}>
-              Annuler
-            </Button>
-          </div>
-        </div>
+        </PanneauFormulaire>
       )}
 
       {chambres === null && !erreur && <p className="hc-text-body texte-discret">Chargement des chambres…</p>}
