@@ -698,6 +698,7 @@ export function App() {
     } else if (page === "imprimante") {
       contenu = (
         <EcranImprimante
+          utilisateur={utilisateur}
           interfaceImprimante={configuration.imprimanteInterface}
           onEnregistrer={enregistrerParametres}
           onRetour={() => naviguer("parametres")}

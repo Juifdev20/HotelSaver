@@ -1,6 +1,6 @@
 import { Devise, ModePaiement, StatutChambre } from "@hotel-chicago/types";
 import type { Chambre, Client, Facture, Reservation, VenteCafeteria } from "@hotel-chicago/types";
-import { construireRecuFacture, construireRecuVente, enteteHotel } from "./construire-recu";
+import { construireRecuFacture, construireRecuVente, construireTicketDeTest, enteteHotel } from "./construire-recu";
 
 const HOTEL = { nom: "Hôtel Test", adresse: "Avenue du Lac 12, Goma", telephone: "+243 970 000 000" };
 
@@ -150,6 +150,20 @@ describe("construireRecuFacture", () => {
     };
     const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [vente], HOTEL);
     expect(lignes).toContainEqual({ type: "montant", libelle: "Reçu CAF-20260925-0002", valeur: "5.00 $" });
+  });
+});
+
+describe("ticket de test d'imprimante", () => {
+  it("porte le nom de l'hôtel (jamais un nom en dur) et le remerciement HotelSaver", () => {
+    const lignes = construireTicketDeTest(HOTEL, new Date("2026-10-25T10:30:00.000Z"));
+    expect(lignes[0]).toEqual({ type: "titre", texte: "Hôtel Test" });
+    expect(lignes).toContainEqual({ type: "soustitre", texte: "MERCI D'AVOIR CHOISI" });
+    expect(lignes).toContainEqual({ type: "titre", texte: "L'APPLICATION HOTELSAVER" });
+    expect(JSON.stringify(lignes)).not.toMatch(/CHICAGO/i);
+  });
+
+  it("garde un titre quand le nom de l'hôtel est vide", () => {
+    expect(construireTicketDeTest({ nom: "  " })[0]).toEqual({ type: "titre", texte: "HOTEL" });
   });
 });
 

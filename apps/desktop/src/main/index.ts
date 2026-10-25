@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, screen, session, shell, Tray } from "electron";
 import { join, resolve } from "path";
 import { cleChiffrementLocale, ecrireConfiguration, lireConfiguration } from "./config-store";
-import { imprimerLignes, imprimerTicketDeTest } from "./imprimante";
+import { imprimerLignes } from "./imprimante";
 
 // Permet de lancer une instance isolée (tests E2E, ou deux postes de test sur
 // la même machine) sans toucher à la configuration/session de l'instance
@@ -185,7 +185,10 @@ if (premiereInstance) {
     ipcMain.handle("securite:cle-locale", () => cleChiffrementLocale());
     ipcMain.handle("configuration:ecrire", (_evenement, partielle) => ecrireConfiguration(partielle));
     ipcMain.handle("impression:imprimer", (_evenement, interfaceImprimante, lignes) => imprimerLignes(interfaceImprimante, lignes));
-    ipcMain.handle("impression:test", (_evenement, interfaceImprimante) => imprimerTicketDeTest(interfaceImprimante));
+    // Ouvre la page Bluetooth des paramètres Windows. Adresse fixe, jamais fournie par l'interface.
+    ipcMain.handle("systeme:reglages-bluetooth", async () => {
+      if (process.platform === "win32") await shell.openExternal("ms-settings:bluetooth");
+    });
     // Lien reçu avant que l'interface soit prête : lu une seule fois.
     ipcMain.handle("lien:en-attente", () => {
       const lien = lienEnAttente;

@@ -1,7 +1,7 @@
 import { Buffer } from "buffer";
-import { PermissionsAndroid, Platform } from "react-native";
+import { Linking, PermissionsAndroid, Platform } from "react-native";
 import RNBluetoothClassic, { BluetoothDevice } from "react-native-bluetooth-classic";
-import { genererCommandesEscPos, LigneRecu } from "@hotel-chicago/receipts";
+import { construireTicketDeTest, EnteteHotel, genererCommandesEscPos, LigneRecu } from "@hotel-chicago/receipts";
 import { AppareilImprimante, lireAppareilImprimante } from "./appareilImprimante";
 
 /** Android 12+ (API 31+) traite BLUETOOTH_CONNECT/BLUETOOTH_SCAN comme des
@@ -33,7 +33,7 @@ export async function listerAppareilsAppaires(): Promise<AppareilImprimante[]> {
   await assurerPermissionsBluetooth();
   const active = await RNBluetoothClassic.isBluetoothEnabled();
   if (!active) {
-    throw new Error("Le Bluetooth du téléphone est désactivé.");
+    throw new Error("Le Bluetooth du téléphone est désactivé : activez-le pour retrouver votre imprimante (bouton « Ouvrir les réglages Bluetooth » ci-dessus), puis touchez « Actualiser la liste ».");
   }
   const appareils = await RNBluetoothClassic.getBondedDevices();
   return appareils.map((a) => ({ address: a.address, nom: a.name || a.address }));
@@ -117,12 +117,19 @@ export async function imprimerLignes(lignes: LigneRecu[]): Promise<void> {
 
 /** Ticket de test envoyé directement à une adresse (pas forcément celle déjà
  * mémorisée, pour pouvoir tester avant d'enregistrer). */
-export async function imprimerTicketDeTest(address: string): Promise<void> {
-  const lignes: LigneRecu[] = [
-    { type: "titre", texte: "HOTEL CHICAGO" },
-    { type: "soustitre", texte: "Ticket de test" },
-    { type: "separateur" },
-    { type: "champ", label: "Imprimante", valeur: "Connexion OK" },
-  ];
-  await envoyer(address, genererCommandesEscPos(lignes));
+export async function imprimerTicketDeTest(address: string, hotel: EnteteHotel): Promise<void> {
+  await envoyer(address, genererCommandesEscPos(construireTicketDeTest(hotel)));
+}
+
+/** Ouvre la page Bluetooth des réglages du téléphone (activer le Bluetooth, appairer l'imprimante). Sans cette page (autre système), les réglages généraux. */
+export async function ouvrirReglagesBluetooth(): Promise<void> {
+  if (Platform.OS === "android") {
+    try {
+      await Linking.sendIntent("android.settings.BLUETOOTH_SETTINGS");
+      return;
+    } catch {
+      // Intention refusée par ce téléphone : on retombe sur les réglages généraux.
+    }
+  }
+  await Linking.openSettings();
 }

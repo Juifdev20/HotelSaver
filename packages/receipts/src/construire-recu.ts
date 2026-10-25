@@ -34,6 +34,25 @@ export function enteteHotel(profil: Pick<ProfilConnecte, "hotelNom" | "hotelAdre
   return { nom: profil.hotelNom, adresse: profil.hotelAdresse, telephone: profil.hotelTelephone };
 }
 
+/**
+ * Ticket de test d'imprimante (bureau et mobile) : le nom de l'hôtel, la preuve que la connexion marche, puis le remerciement HotelSaver.
+ * Texte en ASCII/CP850 comme les reçus (pas de « — », pas de « ’ » courbe).
+ */
+export function construireTicketDeTest(hotel: EnteteHotel, maintenant: Date = new Date()): LigneRecu[] {
+  const nom = hotel.nom.trim() || "HOTEL";
+  const iso = maintenant.toISOString();
+  return [
+    { type: "titre", texte: nom },
+    { type: "soustitre", texte: "Ticket de test" },
+    { type: "separateur" },
+    { type: "champ", label: "Imprimante", valeur: "Connexion OK" },
+    { type: "champ", label: "Date", valeur: `${formaterDate(iso)} ${formaterHeure(iso)}` },
+    { type: "separateur" },
+    { type: "soustitre", texte: "MERCI D'AVOIR CHOISI" },
+    { type: "titre", texte: "L'APPLICATION HOTELSAVER" },
+  ];
+}
+
 /** En-tête commun aux deux types de reçu (section 11.2/11.3). Le tiret est un « - » ASCII :
  * le « — » n'existe pas dans la table CP850 de l'imprimante et s'imprimait « ? ». */
 function enTete(hotel: EnteteHotel, sousTitre?: string): LigneRecu[] {

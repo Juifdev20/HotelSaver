@@ -6,10 +6,14 @@ import { couleurs, espacements, rayons } from "../tokens";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { AppareilImprimante, ecrireAppareilImprimante, lireAppareilImprimante } from "../impression/appareilImprimante";
-import { imprimerTicketDeTest, listerAppareilsAppaires } from "../impression/imprimante";
+import { imprimerTicketDeTest, listerAppareilsAppaires, ouvrirReglagesBluetooth } from "../impression/imprimante";
+import { enteteHotel } from "@hotel-chicago/receipts";
+import type { ProfilConnecte } from "@hotel-chicago/types";
 import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
 
 export interface EcranImprimanteProps {
+  /** Le ticket de test porte le nom de l'hôtel de l'utilisateur. */
+  utilisateur: ProfilConnecte;
   onRetour: () => void;
 }
 
@@ -18,7 +22,7 @@ export interface EcranImprimanteProps {
  * appareils déjà appairés au niveau du système Android, aucun appairage
  * possible depuis l'app elle-même (limite documentée dans le plan).
  */
-export function EcranImprimante({ onRetour }: EcranImprimanteProps) {
+export function EcranImprimante({ utilisateur, onRetour }: EcranImprimanteProps) {
   const [appareils, setAppareils] = useState<AppareilImprimante[] | null>(null);
   const [choisi, setChoisi] = useState<AppareilImprimante | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -50,7 +54,7 @@ export function EcranImprimante({ onRetour }: EcranImprimanteProps) {
     setEnTest(appareil.address);
     setMessageTest(null);
     try {
-      await imprimerTicketDeTest(appareil.address);
+      await imprimerTicketDeTest(appareil.address, enteteHotel(utilisateur));
       setMessageTest(messageImpressionEnvoyee("Ticket de test"));
     } catch (e) {
       setMessageTest(`Impression impossible : ${messageErreur(e, "l'imprimante n'a pas répondu.")}`);
@@ -65,10 +69,16 @@ export function EcranImprimante({ onRetour }: EcranImprimanteProps) {
       <EnteteRetour titre="Imprimante" onRetour={onRetour} />
 
       <View style={styles.contenu}>
-        <Text style={styles.aide}>
-          Seuls les appareils déjà appairés dans les réglages Bluetooth du téléphone apparaissent ici. Appairez d'abord
-          l'imprimante depuis les réglages Android, puis revenez ici.
-        </Text>
+        <View style={styles.etapes}>
+          <Text style={styles.etapesTitre}>Pour connecter votre imprimante</Text>
+          <Text style={styles.aide}>1. Allumez l'imprimante et activez le Bluetooth du téléphone.</Text>
+          <Text style={styles.aide}>2. Dans les réglages Bluetooth, appairez l'imprimante (code 0000 ou 1234 si le téléphone le demande).</Text>
+          <Text style={styles.aide}>3. Revenez ici : elle apparaît dans la liste. Touchez-la, puis imprimez un ticket de test.</Text>
+          <Pressable style={styles.boutonBluetooth} onPress={() => void ouvrirReglagesBluetooth()} accessibilityRole="button" accessibilityLabel="Ouvrir les réglages Bluetooth du téléphone">
+            <Bluetooth size={16} color={couleurs.bleu} />
+            <Text style={styles.boutonBluetoothTexte}>Ouvrir les réglages Bluetooth</Text>
+          </Pressable>
+        </View>
 
         {erreur && (
           <Text style={styles.erreur} accessibilityRole="alert">
@@ -137,6 +147,10 @@ const styles = StyleSheet.create({
   chargement: { marginTop: espacements.s6 },
   contenu: { flex: 1, padding: espacements.s4, gap: espacements.s3 },
   aide: { fontSize: 12, color: couleurs.encreAttenuee },
+  etapes: { gap: espacements.s2, padding: espacements.s3, backgroundColor: couleurs.surface200, borderRadius: rayons.lg, borderWidth: 1, borderColor: couleurs.bordure },
+  etapesTitre: { fontSize: 13, fontWeight: "700", color: couleurs.encre },
+  boutonBluetooth: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: espacements.s2, minHeight: 44, marginTop: espacements.s1, borderRadius: rayons.sm, borderWidth: 1, borderColor: couleurs.bleu },
+  boutonBluetoothTexte: { color: couleurs.bleu, fontWeight: "600", fontSize: 14 },
   erreur: { color: couleurs.danger, fontSize: 13 },
   confirmation: { color: couleurs.succes, fontSize: 13 },
   vide: { fontSize: 13, color: couleurs.encreAttenuee, fontStyle: "italic", textAlign: "center", marginTop: espacements.s5 },

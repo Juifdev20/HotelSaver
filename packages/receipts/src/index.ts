@@ -1,5 +1,5 @@
 export type { LigneRecu } from "./types";
-export { construireRecuFacture, construireRecuVente, enteteHotel } from "./construire-recu";
+export { construireRecuFacture, construireRecuVente, construireTicketDeTest, enteteHotel } from "./construire-recu";
 export type { EnteteHotel, OptionsRecu } from "./construire-recu";
 export { genererCommandesEscPos, commandesCodeBarre, nettoyerTexteImpression } from "./esc-pos";
 export {

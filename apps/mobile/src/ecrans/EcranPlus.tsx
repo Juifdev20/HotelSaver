@@ -225,7 +225,7 @@ export function EcranPlus() {
     return <EcranSynchronisation onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "imprimante") {
-    return <EcranImprimante onRetour={() => setVue(VUE_LISTE)} />;
+    return <EcranImprimante utilisateur={utilisateur} onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "menu") {
     return <EcranMenu client={client} utilisateur={utilisateur} onRetour={() => setVue(VUE_LISTE)} />;

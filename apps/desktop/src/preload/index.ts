@@ -11,8 +11,8 @@ const api = {
   lireCleLocale: (): Promise<string> => ipcRenderer.invoke("securite:cle-locale"),
   imprimer: (interfaceImprimante: string, lignes: LigneRecu[]): Promise<void> =>
     ipcRenderer.invoke("impression:imprimer", interfaceImprimante, lignes),
-  imprimerTicketDeTest: (interfaceImprimante: string): Promise<void> =>
-    ipcRenderer.invoke("impression:test", interfaceImprimante),
+  /** Ouvre la page Bluetooth des paramètres Windows (pour activer le Bluetooth et appairer une imprimante). */
+  ouvrirReglagesBluetooth: (): Promise<void> => ipcRenderer.invoke("systeme:reglages-bluetooth"),
   /** Lien hotelsaver:// reçu avant que l'interface soit prête (lu une seule fois). */
   lireLienEnAttente: (): Promise<string | null> => ipcRenderer.invoke("lien:en-attente"),
   /** Lien hotelsaver:// reçu pendant que l'application tourne ; renvoie la fonction de désabonnement. */

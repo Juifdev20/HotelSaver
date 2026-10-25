@@ -56,7 +56,7 @@ export function installerFilSecoursNavigateur(): void {
     lireCleLocale: () => Promise.resolve(""),
     // Pas d'imprimante, ni de lien profond, hors Electron.
     imprimer: () => Promise.reject(new Error("L'impression n'est disponible que dans l'application Windows.")),
-    imprimerTicketDeTest: () => Promise.reject(new Error("L'impression n'est disponible que dans l'application Windows.")),
+    ouvrirReglagesBluetooth: () => Promise.resolve(),
     lireLienEnAttente: () => Promise.resolve(null),
     surLienOuvert: () => () => undefined,
     // Hors Electron : pas de notification Windows (le centre de notifications de la cloche suffit).

@@ -1,9 +1,14 @@
 import * as React from "react";
 import { useState } from "react";
 import { Button } from "@hotel-chicago/ui";
+import { Bluetooth } from "lucide-react";
+import { construireTicketDeTest, enteteHotel } from "@hotel-chicago/receipts";
+import type { ProfilConnecte } from "@hotel-chicago/types";
 import type { ConfigurationApp } from "../../../main/config-store";
 
 export interface EcranImprimanteProps {
+  /** Le ticket de test porte le nom de l'hôtel de l'utilisateur. */
+  utilisateur: ProfilConnecte;
   interfaceImprimante: string | null;
   onEnregistrer: (partielle: Partial<ConfigurationApp>) => void;
   onRetour: () => void;
@@ -16,7 +21,7 @@ export interface EcranImprimanteProps {
  * paquet natif `printer`, un risque de build évité ici (voir `main/imprimante.ts`).
  * Le patron renseigne directement une connexion réseau ou un port.
  */
-export function EcranImprimante({ interfaceImprimante, onEnregistrer, onRetour }: EcranImprimanteProps) {
+export function EcranImprimante({ utilisateur, interfaceImprimante, onEnregistrer, onRetour }: EcranImprimanteProps) {
   const [valeur, setValeur] = useState(interfaceImprimante ?? "");
   const [enregistre, setEnregistre] = useState(false);
   const [enTest, setEnTest] = useState(false);
@@ -26,7 +31,7 @@ export function EcranImprimante({ interfaceImprimante, onEnregistrer, onRetour }
     setEnTest(true);
     setMessageTest(null);
     try {
-      await window.hotelChicago.imprimerTicketDeTest(valeur.trim());
+      await window.hotelChicago.imprimer(valeur.trim(), construireTicketDeTest(enteteHotel(utilisateur)));
       setMessageTest("Ticket de test envoyé.");
     } catch (e) {
       setMessageTest(e instanceof Error ? e.message : "Échec de l'impression.");
@@ -90,6 +95,18 @@ export function EcranImprimante({ interfaceImprimante, onEnregistrer, onRetour }
           </Button>
         </div>
       </div>
+
+      <aside className="carte-formulaire" aria-label="Imprimante Bluetooth">
+        <p className="hc-text-body-strong">Imprimante Bluetooth ?</p>
+        <ol className="aide-etapes hc-text-body">
+          <li>Allumez l'imprimante et activez le Bluetooth de l'ordinateur.</li>
+          <li>Dans les paramètres Bluetooth de Windows, ajoutez l'imprimante (appairage).</li>
+          <li>Windows lui attribue un port COM (par exemple COM5) : saisissez-le ici, sous la forme \\.\COM5.</li>
+        </ol>
+        <Button type="button" variant="secondary" onClick={() => void window.hotelChicago.ouvrirReglagesBluetooth()}>
+          <Bluetooth size={16} aria-hidden="true" /> Ouvrir les réglages Bluetooth
+        </Button>
+      </aside>
 
       <aside className="carte-formulaire" aria-label="Exemples d'adresse">
         <p className="hc-text-body-strong">Quelle adresse saisir ?</p>

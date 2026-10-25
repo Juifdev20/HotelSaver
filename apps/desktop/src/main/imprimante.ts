@@ -75,11 +75,3 @@ export async function imprimerLignes(interfaceImprimante: string, lignes: LigneR
   await imprimante.execute();
 }
 
-export async function imprimerTicketDeTest(interfaceImprimante: string): Promise<void> {
-  await imprimerLignes(interfaceImprimante, [
-    { type: "titre", texte: "HOTEL CHICAGO" },
-    { type: "soustitre", texte: "Ticket de test" },
-    { type: "separateur" },
-    { type: "champ", label: "Imprimante", valeur: "Connexion OK" },
-  ]);
-}
