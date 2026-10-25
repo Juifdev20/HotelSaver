@@ -11,6 +11,7 @@ import { EcranPlanning } from "./EcranPlanning";
 import { BadgePayeEnLigne, useAcomptesEnLigne } from "./PayeEnLigne";
 import { demandesSurChambrePrise } from "@hotel-chicago/regles";
 import { useTri } from "../components/useTri";
+import { usePagination } from "../components/Pagination";
 
 export interface EcranReservationsProps {
   client: ClientApi;
@@ -108,6 +109,8 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
     acompte: (r) => Number(r.acompte),
     statut: (r) => r.statut,
   });
+
+  const { visibles: listeVisible, pied: piedListe } = usePagination(listeTriee);
 
   // Demandes en attente dont la chambre est DÉJÀ prise par un autre client : signalées en rouge dans la liste.
   const demandesBloquees = useMemo(() => demandesSurChambrePrise(reservations ?? []), [reservations]);
@@ -246,7 +249,7 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
               </tr>
             </thead>
             <tbody>
-              {listeTriee.map((r) => (
+              {listeVisible.map((r) => (
                 <tr key={r.id} className="ligne-cliquable" onClick={() => setVue({ id: "detail", reservationId: r.id })}>
                   <td className="hc-text-body-strong">
                     {/* Le clic sur la ligne reste, mais seul ce bouton est atteignable au clavier. */}
@@ -284,6 +287,7 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
               ))}
             </tbody>
           </table>
+          {piedListe}
         </div>
       )}
         </>

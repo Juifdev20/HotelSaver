@@ -13,11 +13,13 @@ import "@hotel-chicago/ui/dist/typography.css";
 import "./styles.css";
 import { installerFilSecoursNavigateur } from "./navigateur-secours";
 import { installerBarresDefilementDiscretes } from "./barres-defilement";
+import { installerDensite } from "./densite";
 import { App } from "./App";
 import { FrontiereErreur } from "./components/FrontiereErreur";
 
 installerFilSecoursNavigateur();
 installerBarresDefilementDiscretes();
+installerDensite();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

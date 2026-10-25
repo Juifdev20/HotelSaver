@@ -5,6 +5,7 @@ import { Role, formaterTelephoneRdc } from "@hotel-chicago/types";
 import { Button, ChampTelephone, StatusBadge, saisieDepuisTelephone, telephoneDepuisSaisie } from "@hotel-chicago/ui";
 import { Users } from "lucide-react";
 import { useConfirmation } from "../components/DialogueConfirmation";
+import { PanneauFormulaire } from "../components/PanneauFormulaire";
 
 export interface EcranUtilisateursProps {
   client: ClientApi;
@@ -184,47 +185,69 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
       )}
 
       {formulaireOuvert && (
-        <div className="carte-formulaire formulaire">
-          <label className="hc-text-label" htmlFor="champ-nom-utilisateur">
-            Nom
-          </label>
-          <input
-            id="champ-nom-utilisateur"
-            value={formulaire.nom}
-            onChange={(e) => setFormulaire((f) => ({ ...f, nom: e.target.value }))}
-            placeholder="Ex. Jeanne Kabila"
-          />
-
-          <label className="hc-text-label" htmlFor="champ-telephone-utilisateur">
-            Numéro de téléphone (pour se connecter)
-          </label>
-          <ChampTelephone
-            id="champ-telephone-utilisateur"
-            value={formulaire.telephone}
-            onChange={(v) => setFormulaire((f) => ({ ...f, telephone: v }))}
-          />
-
-          <label className="hc-text-label" htmlFor="champ-email-utilisateur">
-            Email (optionnel)
-          </label>
-          <input
-            id="champ-email-utilisateur"
-            type="email"
-            value={formulaire.email}
-            onChange={(e) => setFormulaire((f) => ({ ...f, email: e.target.value }))}
-            placeholder="jeanne@exemple.com"
-          />
-
-          <label className="hc-text-label" htmlFor="champ-mot-de-passe-utilisateur">
-            Mot de passe
-          </label>
-          <input
-            id="champ-mot-de-passe-utilisateur"
-            type="password"
-            value={formulaire.motDePasse}
-            onChange={(e) => setFormulaire((f) => ({ ...f, motDePasse: e.target.value }))}
-            placeholder="8 caractères minimum"
-          />
+        <PanneauFormulaire
+          titre="Nouveau compte"
+          sousTitre="Le mot de passe est choisi ici et communiqué à l'employé."
+          onFermer={() => !enEnvoi && setFormulaireOuvert(false)}
+          erreur={erreurFormulaire}
+          actions={
+            <>
+              <Button type="button" variant="secondary" onClick={() => setFormulaireOuvert(false)} disabled={enEnvoi}>
+                Annuler
+              </Button>
+              <Button type="button" onClick={creer} disabled={enEnvoi}>
+                {enEnvoi ? "…" : "Créer le compte"}
+              </Button>
+            </>
+          }
+        >
+          <div className="champs-grille">
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="champ-nom-utilisateur">
+                Nom
+              </label>
+              <input
+                id="champ-nom-utilisateur"
+                value={formulaire.nom}
+                onChange={(e) => setFormulaire((f) => ({ ...f, nom: e.target.value }))}
+                placeholder="Ex. Jeanne Kabila"
+              />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="champ-telephone-utilisateur">
+                Téléphone (pour se connecter)
+              </label>
+              <ChampTelephone
+                id="champ-telephone-utilisateur"
+                value={formulaire.telephone}
+                onChange={(v) => setFormulaire((f) => ({ ...f, telephone: v }))}
+              />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="champ-email-utilisateur">
+                Email (optionnel)
+              </label>
+              <input
+                id="champ-email-utilisateur"
+                type="email"
+                value={formulaire.email}
+                onChange={(e) => setFormulaire((f) => ({ ...f, email: e.target.value }))}
+                placeholder="jeanne@exemple.com"
+              />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="champ-mot-de-passe-utilisateur">
+                Mot de passe
+              </label>
+              <input
+                id="champ-mot-de-passe-utilisateur"
+                type="password"
+                value={formulaire.motDePasse}
+                onChange={(e) => setFormulaire((f) => ({ ...f, motDePasse: e.target.value }))}
+                placeholder="8 caractères minimum"
+              />
+            </div>
+          </div>
 
           <p className="hc-text-label texte-discret" style={{ marginTop: "var(--hc-space-2)" }}>
             Rôle
@@ -253,81 +276,72 @@ export function EcranUtilisateurs({ client }: EcranUtilisateursProps) {
               employé.
             </p>
           )}
-
-          {erreurFormulaire && (
-            <p role="alert" className="hc-text-body texte-erreur">
-              {erreurFormulaire}
-            </p>
-          )}
-
-          <Button type="button" onClick={creer} disabled={enEnvoi} style={{ marginTop: "var(--hc-space-3)" }}>
-            {enEnvoi ? "…" : "Créer le compte"}
-          </Button>
-        </div>
+        </PanneauFormulaire>
       )}
 
       {edition && (
-        <div className="carte-formulaire formulaire">
-          <p className="hc-text-label texte-discret">
-            Modifier — {LIBELLE_ROLE[edition.role]}
-          </p>
-          <p className="hc-text-caption texte-discret">
-            Changez le nom, le numéro ou le mot de passe pour transmettre le compte à un nouvel employé.
-          </p>
-          <label className="hc-text-label" htmlFor="edit-nom-utilisateur">
-            Nom
-          </label>
-          <input
-            id="edit-nom-utilisateur"
-            value={formEdition.nom}
-            onChange={(e) => setFormEdition((f) => ({ ...f, nom: e.target.value }))}
-          />
-
-          <label className="hc-text-label" htmlFor="edit-telephone-utilisateur">
-            Numéro de téléphone (pour se connecter)
-          </label>
-          <ChampTelephone
-            id="edit-telephone-utilisateur"
-            value={formEdition.telephone}
-            onChange={(v) => setFormEdition((f) => ({ ...f, telephone: v }))}
-          />
-
-          <label className="hc-text-label" htmlFor="edit-email-utilisateur">
-            Email (optionnel)
-          </label>
-          <input
-            id="edit-email-utilisateur"
-            type="email"
-            value={formEdition.email}
-            onChange={(e) => setFormEdition((f) => ({ ...f, email: e.target.value }))}
-          />
-
-          <label className="hc-text-label" htmlFor="edit-mdp-utilisateur">
-            Nouveau mot de passe
-          </label>
-          <input
-            id="edit-mdp-utilisateur"
-            type="password"
-            value={formEdition.motDePasse}
-            onChange={(e) => setFormEdition((f) => ({ ...f, motDePasse: e.target.value }))}
-            placeholder="Laisser vide pour ne pas le changer"
-          />
-
-          {erreurEdition && (
-            <p role="alert" className="hc-text-body texte-erreur">
-              {erreurEdition}
-            </p>
-          )}
-
-          <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-3)" }}>
-            <Button type="button" onClick={enregistrerEdition} disabled={enEnvoi}>
-              {enEnvoi ? "…" : "Enregistrer"}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setEdition(null)}>
-              Fermer
-            </Button>
+        <PanneauFormulaire
+          titre={`Modifier — ${LIBELLE_ROLE[edition.role]}`}
+          sousTitre="Changez le nom, le numéro ou le mot de passe pour transmettre le compte à un nouvel employé."
+          onFermer={() => !enEnvoi && setEdition(null)}
+          erreur={erreurEdition}
+          actions={
+            <>
+              <Button type="button" variant="secondary" onClick={() => setEdition(null)}>
+                Fermer
+              </Button>
+              <Button type="button" onClick={enregistrerEdition} disabled={enEnvoi}>
+                {enEnvoi ? "…" : "Enregistrer"}
+              </Button>
+            </>
+          }
+        >
+          <div className="champs-grille">
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="edit-nom-utilisateur">
+                Nom
+              </label>
+              <input
+                id="edit-nom-utilisateur"
+                value={formEdition.nom}
+                onChange={(e) => setFormEdition((f) => ({ ...f, nom: e.target.value }))}
+              />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="edit-telephone-utilisateur">
+                Téléphone (pour se connecter)
+              </label>
+              <ChampTelephone
+                id="edit-telephone-utilisateur"
+                value={formEdition.telephone}
+                onChange={(v) => setFormEdition((f) => ({ ...f, telephone: v }))}
+              />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="edit-email-utilisateur">
+                Email (optionnel)
+              </label>
+              <input
+                id="edit-email-utilisateur"
+                type="email"
+                value={formEdition.email}
+                onChange={(e) => setFormEdition((f) => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <div className="champ">
+              <label className="hc-text-label" htmlFor="edit-mdp-utilisateur">
+                Nouveau mot de passe
+              </label>
+              <input
+                id="edit-mdp-utilisateur"
+                type="password"
+                value={formEdition.motDePasse}
+                onChange={(e) => setFormEdition((f) => ({ ...f, motDePasse: e.target.value }))}
+                placeholder="Laisser vide pour ne pas changer"
+              />
+            </div>
           </div>
-        </div>
+        </PanneauFormulaire>
       )}
 
       {utilisateurs === null && !erreur && <p className="hc-text-body texte-discret">Chargement…</p>}

@@ -4,7 +4,8 @@ import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { Devise, Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import type { ProfilConnecte } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
-import { Bell, ChefHat, Coins, CreditCard, Globe, Moon, Printer, ShieldCheck, Sun, Users } from "lucide-react";
+import { Bell, ChefHat, Coins, CreditCard, Globe, Moon, Printer, Rows3, ShieldCheck, Sun, Users } from "lucide-react";
+import { appliquerDensite, densiteEnregistree, type Densite } from "../densite";
 import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
 import type { IdPage } from "../navigation";
 import { IndicateurConnexion } from "../layout/IndicateurConnexion";
@@ -136,6 +137,7 @@ export function EcranParametres({
   preferencesSecurite,
   onChangerPreferencesSecurite,
 }: EcranParametresProps) {
+  const [densite, setDensite] = useState<Densite>(densiteEnregistree);
   const [enregistrementReglage, setEnregistrementReglage] = useState(false);
   const [erreurReglage, setErreurReglage] = useState<string | null>(null);
   const patronOpere = utilisateur?.patronPeutOperer === true;
@@ -192,6 +194,25 @@ export function EcranParametres({
             Basculer
           </Button>
         </div>
+        <div className="parametres-ligne">
+          <span className="parametres-ligne__icone">
+            <Rows3 size={18} aria-hidden="true" />
+          </span>
+          <span className="hc-text-body">{densite === "compacte" ? "Affichage compact" : "Affichage confortable"}</span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              const suivante = densite === "compacte" ? "confortable" : "compacte";
+              appliquerDensite(suivante);
+              setDensite(suivante);
+            }}
+          >
+            {densite === "compacte" ? "Agrandir" : "Compacter"}
+          </Button>
+        </div>
+        <p className="hc-text-caption texte-discret">Le mode compact affiche plus de lignes dans les tableaux, utile sur un petit écran.</p>
       </div>
 
       <div className="carte-formulaire">

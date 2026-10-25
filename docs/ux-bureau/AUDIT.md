@@ -84,3 +84,10 @@ Reste à faire :
 - **Pagination** et **mode compact** des tableaux (C2, C8) ; défilement horizontal des tableaux larges sur fenêtre étroite (le Stock garde des colonnes coupées sous 1400 px, avec défilement).
 - **C4** (barre latérale), **C7** (message « Lecture seule »), autres raccourcis clavier.
 - **Cuisine** en plein écran et **Caisse** avec catalogue à gauche et ticket à droite (la vente rapide et l'ajout de consommations ont déjà une disposition à deux colonnes).
+
+### Mise à jour (suite, 25/10/2026)
+
+- **C3** — Les formulaires « utilisateurs » (création et modification) et « fiche client » passent aussi en panneau latéral. Restent en place, volontairement : le taux de change (petite carte) et l'assistant d'inventaire (un parcours en trois étapes).
+- **C2** — Pagination (25 lignes, 30 pour le stock) sous les tableaux Réservations, Clients, Dépenses et Stock.
+- **C8** — Option **Affichage compact** dans Paramètres → Apparence (lignes de tableau et espacements réduits, gardée sur le poste).
+- **C4** — La barre latérale garde toujours visible l'entrée de la page ouverte et un fondu en bas signale qu'il y a une suite.

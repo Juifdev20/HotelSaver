@@ -8,6 +8,7 @@ import { typesMouvementAutorises } from "@hotel-chicago/regles";
 import { CarteEtiquettes } from "../components/CarteEtiquettes";
 import { PanneauFormulaire } from "../components/PanneauFormulaire";
 import { useTri } from "../components/useTri";
+import { usePagination } from "../components/Pagination";
 
 export interface EcranStockProps {
   client: ClientApi;
@@ -166,6 +167,7 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
     cout: (p) => (p.prixAchat ? Number(p.prixAchat) * Number(p.stockActuel) : null),
     evolution: (p) => evolutionJour.get(p.id) ?? 0,
   });
+  const { visibles: produitsVisibles, pied: piedProduits } = usePagination(produitsAffiches, 30);
 
   return (
     <div className="page">
@@ -337,7 +339,7 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
                   </tr>
                 </thead>
                 <tbody>
-                  {produitsAffiches.map((p) => {
+                  {produitsVisibles.map((p) => {
                     const niveau    = niveauStock(p);
                     const stock     = Number(p.stockActuel);
                     const seuil     = Number(p.seuilAlerte);
@@ -415,6 +417,7 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
                   </tr>
                 </tfoot>
               </table>
+              {piedProduits}
             </div>
           )}
         </>

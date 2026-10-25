@@ -6,6 +6,8 @@ import { Button, StatusBadge, formatMontant } from "@hotel-chicago/ui";
 import { Pencil, Search, Users } from "lucide-react";
 import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
 import { useTri } from "../components/useTri";
+import { usePagination } from "../components/Pagination";
+import { PanneauFormulaire } from "../components/PanneauFormulaire";
 
 export interface EcranClientsProps {
   client: ClientApi;
@@ -46,6 +48,7 @@ export function EcranClients({ client }: EcranClientsProps) {
     telephone: (c) => c.telephone,
     email: (c) => c.email,
   });
+  const { visibles: clientsVisibles, pied: piedClients } = usePagination(listeTriee);
 
   const sejoursDuClient = useMemo(
     () => [...(clientChoisi?.reservations ?? [])].sort((a, b) => new Date(b.dateArrivee).getTime() - new Date(a.dateArrivee).getTime()),
@@ -145,26 +148,45 @@ export function EcranClients({ client }: EcranClientsProps) {
         </div>
 
         {edition && (
-          <div className="carte-formulaire formulaire">
-            <p className="hc-text-label texte-discret">Compléter la fiche</p>
-            {erreur && <p role="alert" className="hc-text-body texte-erreur">{erreur}</p>}
-            <label className="hc-text-label" htmlFor="cl-nom">Nom</label>
-            <input id="cl-nom" type="text" value={saisie.nom} onChange={(e) => setSaisie({ ...saisie, nom: e.target.value })} />
-            <label className="hc-text-label" htmlFor="cl-tel">Téléphone</label>
-            <input id="cl-tel" type="tel" value={saisie.telephone} onChange={(e) => setSaisie({ ...saisie, telephone: e.target.value })} />
-            <label className="hc-text-label" htmlFor="cl-email">Email</label>
-            <input id="cl-email" type="email" value={saisie.email} onChange={(e) => setSaisie({ ...saisie, email: e.target.value })} />
-            <label className="hc-text-label" htmlFor="cl-type-piece">Type de pièce</label>
-            <input id="cl-type-piece" type="text" value={saisie.typePiece} onChange={(e) => setSaisie({ ...saisie, typePiece: e.target.value })} placeholder="CNI, passeport, permis…" />
-            <label className="hc-text-label" htmlFor="cl-num-piece">N° de pièce</label>
-            <input id="cl-num-piece" type="text" value={saisie.numeroPiece} onChange={(e) => setSaisie({ ...saisie, numeroPiece: e.target.value })} placeholder="Numéro de la pièce" />
-            <label className="hc-text-label" htmlFor="cl-notes">Notes (suivi interne)</label>
-            <textarea id="cl-notes" value={saisie.notes} onChange={(e) => setSaisie({ ...saisie, notes: e.target.value })} placeholder="VIP, habitudes, restrictions…" rows={3} />
-            <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
-              <Button type="button" onClick={enregistrerFiche} disabled={enCours}>{enCours ? "…" : "Enregistrer"}</Button>
-              <Button type="button" variant="secondary" onClick={() => setEdition(false)}>Annuler</Button>
+          <PanneauFormulaire
+            titre="Compléter la fiche"
+            sousTitre={clientChoisi.nom}
+            onFermer={() => !enCours && setEdition(false)}
+            erreur={erreur}
+            actions={
+              <>
+                <Button type="button" variant="secondary" onClick={() => setEdition(false)}>Annuler</Button>
+                <Button type="button" onClick={enregistrerFiche} disabled={enCours}>{enCours ? "…" : "Enregistrer"}</Button>
+              </>
+            }
+          >
+            <div className="champs-grille">
+              <div className="champ champ--large">
+                <label className="hc-text-label" htmlFor="cl-nom">Nom</label>
+                <input id="cl-nom" type="text" value={saisie.nom} onChange={(e) => setSaisie({ ...saisie, nom: e.target.value })} />
+              </div>
+              <div className="champ">
+                <label className="hc-text-label" htmlFor="cl-tel">Téléphone</label>
+                <input id="cl-tel" type="tel" value={saisie.telephone} onChange={(e) => setSaisie({ ...saisie, telephone: e.target.value })} />
+              </div>
+              <div className="champ">
+                <label className="hc-text-label" htmlFor="cl-email">Email</label>
+                <input id="cl-email" type="email" value={saisie.email} onChange={(e) => setSaisie({ ...saisie, email: e.target.value })} />
+              </div>
+              <div className="champ">
+                <label className="hc-text-label" htmlFor="cl-type-piece">Type de pièce</label>
+                <input id="cl-type-piece" type="text" value={saisie.typePiece} onChange={(e) => setSaisie({ ...saisie, typePiece: e.target.value })} placeholder="CNI, passeport, permis…" />
+              </div>
+              <div className="champ">
+                <label className="hc-text-label" htmlFor="cl-num-piece">N° de pièce</label>
+                <input id="cl-num-piece" type="text" value={saisie.numeroPiece} onChange={(e) => setSaisie({ ...saisie, numeroPiece: e.target.value })} placeholder="Numéro de la pièce" />
+              </div>
+              <div className="champ champ--large">
+                <label className="hc-text-label" htmlFor="cl-notes">Notes (suivi interne)</label>
+                <textarea id="cl-notes" value={saisie.notes} onChange={(e) => setSaisie({ ...saisie, notes: e.target.value })} placeholder="VIP, habitudes, restrictions…" rows={3} />
+              </div>
             </div>
-          </div>
+          </PanneauFormulaire>
         )}
 
         <p className="hc-text-label texte-discret">Séjours ({sejoursDuClient.length})</p>
@@ -256,7 +278,7 @@ export function EcranClients({ client }: EcranClientsProps) {
               </tr>
             </thead>
             <tbody>
-              {listeTriee.map((c) => (
+              {clientsVisibles.map((c) => (
                 <tr key={c.id} className="ligne-cliquable" onClick={() => setClientChoisi(c)}>
                   <td className="hc-text-body-strong">
                     <button
@@ -277,6 +299,7 @@ export function EcranClients({ client }: EcranClientsProps) {
               ))}
             </tbody>
           </table>
+          {piedClients}
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ import { FileDown, Plus, Wallet } from "lucide-react";
 import { lireMontant, lireQuantite } from "@hotel-chicago/miroir-local";
 import { PanneauFormulaire } from "../components/PanneauFormulaire";
 import { useTri } from "../components/useTri";
+import { usePagination } from "../components/Pagination";
 
 export interface EcranDepensesProps {
   client: ClientApi;
@@ -169,6 +170,7 @@ export function EcranDepenses({ client, utilisateur }: EcranDepensesProps) {
     montant: (d) => Number(d.montant),
     auteur: (d) => d.creeParNom,
   });
+  const { visibles: depensesVisibles, pied: piedDepenses } = usePagination(depensesTriees);
 
   return (
     <div className="page">
@@ -319,7 +321,7 @@ export function EcranDepenses({ client, utilisateur }: EcranDepensesProps) {
               </tr>
             </thead>
             <tbody>
-              {depensesTriees.map((d) => {
+              {depensesVisibles.map((d) => {
                 const barre = d.annulee ? { textDecoration: "line-through" } : undefined;
                 return (
                   <tr key={d.id} className={d.annulee ? "texte-discret" : ""}>
@@ -343,6 +345,7 @@ export function EcranDepenses({ client, utilisateur }: EcranDepensesProps) {
               })}
             </tbody>
           </table>
+          {piedDepenses}
         </div>
       )}
     </div>

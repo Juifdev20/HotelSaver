@@ -239,6 +239,11 @@ export function Coquille({
   const refContenu = useRef<HTMLElement>(null);
   const refRecherche = useRef<HTMLInputElement>(null);
 
+  // La barre latérale peut être plus longue que la fenêtre : l'entrée de la page ouverte reste toujours visible.
+  useEffect(() => {
+    document.querySelector<HTMLElement>(".coquille__laterale .lien-nav--actif")?.scrollIntoView({ block: "nearest" });
+  }, [pageActive]);
+
   // Raccourci clavier : Ctrl+K (ou Cmd+K) met le curseur dans la recherche, de n'importe quel écran.
   useEffect(() => {
     const surTouche = (e: KeyboardEvent) => {
