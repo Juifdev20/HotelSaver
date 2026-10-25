@@ -209,6 +209,32 @@ describe("MoteurSync", () => {
     expect(await moteur.idsEnAttente("CompteCafeteria")).toEqual(new Set());
   });
 
+  it("une demande de synchronisation pendant un cycle qui conclut « hors ligne » relance un cycle (le réseau vient de revenir)", async () => {
+    const stockage = creerStockageFactice();
+    let appelsPing = 0;
+    let appelsSyncPull = 0;
+    const client = creerClientFactice({
+      estJoignable: async () => {
+        appelsPing += 1;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return appelsPing > 1; // le premier ping (réseau encore coupé) échoue, le suivant passe
+      },
+      syncPull: async () => {
+        appelsSyncPull += 1;
+        return {};
+      },
+    });
+    const moteur = new MoteurSync(client, stockage, ["Chambre"]);
+
+    const premier = moteur.forcerSynchronisation(); // cycle en cours, qui va conclure « hors ligne »
+    await moteur.forcerSynchronisation(); // le réseau est revenu : cette demande ne doit pas être perdue
+    await premier;
+
+    expect(appelsPing).toBe(2);
+    expect(appelsSyncPull).toBe(1);
+    expect(moteur.etatActuel().enLigne).toBe(true);
+  });
+
   it("ne lance qu'un seul cycle à la fois pour des appels concurrents", async () => {
     const stockage = creerStockageFactice();
     let appelsSyncPull = 0;

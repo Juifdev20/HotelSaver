@@ -69,6 +69,8 @@ export class MoteurSync {
    * supplémentaire avant chaque envoi si on vient de lui parler. */
   private dernierContactOk = 0;
   private prochainEssaiAu = 0;
+  /** Le dernier cycle a conclu « hors ligne » (ping sans réponse, ou coupure en cours d'envoi). */
+  private dernierCycleHorsLigne = false;
 
   constructor(
     private readonly client: ClientApi,
@@ -122,7 +124,15 @@ export class MoteurSync {
   async forcerSynchronisation(): Promise<void> {
     // Demande explicite (bouton « Synchroniser maintenant ») : on n'attend pas la fin du délai d'attente après une panne.
     this.prochainEssaiAu = 0;
+    const etaitEnCours = this.cycleEnCours !== null;
     await this.cycle();
+    // Un cycle déjà en route a pu conclure « hors ligne » juste avant le retour du réseau : sa conclusion est périmée. On en refait un
+    // aussitôt, au lieu d'attendre le prochain passage du minuteur (jusqu'à 20 s) en croyant la demande prise en compte.
+    // (Plusieurs demandes simultanées sur un cycle qui aboutit restent un seul cycle.)
+    if (etaitEnCours && this.dernierCycleHorsLigne) {
+      this.prochainEssaiAu = 0;
+      await this.cycle();
+    }
   }
 
   async listerConflits(): Promise<ConflitSync[]> {
@@ -182,6 +192,7 @@ export class MoteurSync {
 
   private async executerCycle(): Promise<void> {
     if (Date.now() < this.prochainEssaiAu) return;
+    this.dernierCycleHorsLigne = false;
 
     // Serveur joint il y a moins de 15 s : pas de ping avant d'envoyer
     // (un aller-retour de moins pour chaque vente) ; un échec réseau de
@@ -189,6 +200,7 @@ export class MoteurSync {
     const recent = this.etat.enLigne && Date.now() - this.dernierContactOk < 15_000;
     const enLigne = recent || (await this.client.estJoignable());
     if (!enLigne) {
+      this.dernierCycleHorsLigne = true;
       this.etat = { ...this.etat, enLigne: false };
       this.emettre();
       return;
@@ -202,7 +214,7 @@ export class MoteurSync {
         // Les écrans rechargent leur miroir sur `dernierePousseeLe` : on les
         // prévient dès que l'envoi est confirmé (ids serveur connus, boutons
         // réactivables) sans attendre la réception des autres données.
-        this.etat = { ...this.etat, enLigne: true, dernierePousseeLe: new Date().toISOString() };
+        this.etat = { ...this.etat, enLigne: true, dernierePousseeLe: new Date().toISOString(), receptionEnCours: true };
         await this.rafraichirCompteurs();
       }
       await this.tirer();
@@ -215,11 +227,14 @@ export class MoteurSync {
         abonnementBloque: false,
         dernierePousseeLe: maintenant,
         derniereSyncReussieLe: maintenant,
+        receptionEnCours: false,
       };
     } catch (erreur) {
+      this.etat = { ...this.etat, receptionEnCours: false };
       // Aucune réponse du tout (réseau coupé en cours de route) : l'appareil est HORS LIGNE, pas « en difficulté ». Le ping périodique
       // détectera le retour du réseau ; inutile d'attendre un délai de réessai.
       if (erreur instanceof ErreurApi && erreur.statusCode === 0) {
+        this.dernierCycleHorsLigne = true;
         this.etat = { ...this.etat, enLigne: false };
         await this.rafraichirCompteurs();
         return;

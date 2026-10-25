@@ -10,6 +10,11 @@ const r = (o: Partial<EtatSync>) => resumerEtatSync({ ...base, ...o }, MAINTENAN
 
 describe("resumerEtatSync", () => {
   it("« À jour » seulement quand tout est vraiment synchronisé", () => expect(r({}).niveau).toBe("ok"));
+  it("jamais « À jour » tant que la réception qui suit un envoi n'est pas terminée", () => {
+    const x = r({ receptionEnCours: true });
+    expect(x.niveau).toBe("attente");
+    expect(x.titre).toContain("Synchronisation en cours");
+  });
   it("jamais « À jour » avec des actions en attente", () => expect(r({ enAttente: 2 }).niveau).toBe("attente"));
   it("hors ligne avec des actions : rassure sur la conservation, sans dire « à jour »", () => {
     const x = r({ enLigne: false, enAttente: 3 });

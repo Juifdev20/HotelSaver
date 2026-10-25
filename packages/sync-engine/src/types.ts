@@ -53,6 +53,8 @@ export interface EtatSync {
   horlogeSuspecte: boolean;
   /** Le serveur refuse tout (402 « abonnement expiré ») : les actions restent sur l'appareil, mais rien ne part tant que le patron n'a pas renouvelé. */
   abonnementBloque?: boolean;
+  /** Des actions viennent d'être envoyées et la réception des données du serveur n'est pas finie : ce n'est pas encore « à jour ». */
+  receptionEnCours?: boolean;
 }
 
 /**

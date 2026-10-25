@@ -53,6 +53,9 @@ export function resumerEtatSync(etat: EtatSync, maintenant: number = Date.now())
   if (etat.horlogeSuspecte) {
     return { niveau: "attention", titre: "Horloge à corriger", detail: "L'heure de cet appareil est différente de celle du serveur de plus de 5 minutes : corrigez-la (dates des ventes, licence)." };
   }
+  if (etat.receptionEnCours) {
+    return { niveau: "attente", titre: "Synchronisation en cours…", detail: "Vos actions sont envoyées ; on récupère maintenant la mise à jour du serveur (numéros de reçu définitifs, etc.)." };
+  }
   if (etat.enAttente > 0) {
     return { niveau: "attente", titre: `${actions(etat.enAttente)} à envoyer`, detail: `${actions(etat.enAttente)} en cours d'envoi au serveur.` };
   }
