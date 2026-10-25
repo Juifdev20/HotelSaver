@@ -2,7 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { StatutLigne } from "@hotel-chicago/types";
-import { ChefHat, Clock, RefreshCw } from "lucide-react";
+import { ChefHat, Clock, Maximize2, Minimize2, RefreshCw } from "lucide-react";
 
 interface LigneCuisine {
   id: string;
@@ -49,6 +49,18 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
   const [maintenant, setMaintenant] = useState(() => Date.now());
   const [enCours, setEnCours] = useState<Set<string>>(new Set());
   const chargementInitial = useRef(true);
+  // Plein écran : l'écran de cuisine se regarde de loin, depuis le poste de préparation.
+  const refPage = useRef<HTMLDivElement>(null);
+  const [pleinEcran, setPleinEcran] = useState(false);
+  useEffect(() => {
+    const maj = () => setPleinEcran(document.fullscreenElement === refPage.current);
+    document.addEventListener("fullscreenchange", maj);
+    return () => document.removeEventListener("fullscreenchange", maj);
+  }, []);
+  function basculerPleinEcran() {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void refPage.current?.requestFullscreen?.();
+  }
 
   const charger = useCallback(
     (silencieux = false) => {
@@ -107,7 +119,7 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
   const enPrep = groupes.flatMap((g) => g.lignes).filter((l) => l.statut === StatutLigne.EN_PREPARATION).length;
 
   return (
-    <div className="page">
+    <div className="page page--cuisine" ref={refPage}>
       <header className="page__entete">
         <div>
           <h1 className="hc-text-display-md page__titre">Cuisine</h1>
@@ -121,15 +133,26 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
             {attente === 0 && enPrep === 0 && "Aucune commande active."}
           </p>
         </div>
-        <button
-          type="button"
-          className="kds-rafraichir"
-          onClick={() => charger()}
-          title="Actualiser maintenant"
-          aria-label="Actualiser"
-        >
-          <RefreshCw size={18} aria-hidden="true" />
-        </button>
+        <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
+          <button
+            type="button"
+            className="kds-rafraichir"
+            onClick={basculerPleinEcran}
+            title={pleinEcran ? "Quitter le plein écran" : "Plein écran"}
+            aria-label={pleinEcran ? "Quitter le plein écran" : "Plein écran"}
+          >
+            {pleinEcran ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
+          </button>
+          <button
+            type="button"
+            className="kds-rafraichir"
+            onClick={() => charger()}
+            title="Actualiser maintenant"
+            aria-label="Actualiser"
+          >
+            <RefreshCw size={18} aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       {erreurAction && (

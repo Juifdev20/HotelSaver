@@ -1954,11 +1954,13 @@ button {
   gap: 12px;
 }
 
+/* Information discrète (pas une alerte) : le patron consulte, le personnel opère. */
 .bandeau-lecture-seule {
   padding: var(--hc-space-2) var(--hc-space-3);
-  border: 1px dashed var(--hc-border);
+  border-left: 3px solid var(--hc-info);
   border-radius: var(--hc-radius-sm);
-  background-color: var(--hc-surface-200);
+  background-color: var(--hc-info-light);
+  color: var(--hc-ink-muted);
 }
 
 /* ============================================================
@@ -2635,4 +2637,25 @@ button {
 :root[data-densite="compacte"] .carte-formulaire,
 :root[data-densite="compacte"] .carte-simple {
   padding: var(--hc-space-4);
+}
+
+/* Cuisine en plein écran : toute la fenêtre, cartes plus grandes. */
+.page--cuisine:fullscreen {
+  max-width: none;
+  padding: var(--hc-space-5);
+  overflow-y: auto;
+  background-color: var(--hc-surface-100);
+}
+
+.page--cuisine:fullscreen .kds-grille {
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+}
+
+.page--cuisine:fullscreen .kds-carte__table,
+.page--cuisine:fullscreen .kds-carte__table--lien {
+  font-size: 22px;
+}
+
+.page--cuisine:fullscreen .kds-ligne {
+  font-size: 19px;
 }

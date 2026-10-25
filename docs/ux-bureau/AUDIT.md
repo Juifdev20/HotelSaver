@@ -91,3 +91,10 @@ Reste à faire :
 - **C2** — Pagination (25 lignes, 30 pour le stock) sous les tableaux Réservations, Clients, Dépenses et Stock.
 - **C8** — Option **Affichage compact** dans Paramètres → Apparence (lignes de tableau et espacements réduits, gardée sur le poste).
 - **C4** — La barre latérale garde toujours visible l'entrée de la page ouverte et un fondu en bas signale qu'il y a une suite.
+
+### Mise à jour (fin, 25/10/2026)
+
+- **Cuisine** : bouton **Plein écran** (cartes plus grandes, lisibles de loin) ; le bouton Échap ou « Quitter » ramène à la fenêtre normale.
+- **Message « Lecture seule »** : bandeau bleu discret à la place du cadre en pointillés.
+- **Caisse** : l'écran d'ajout de consommations avait déjà la bonne disposition de bureau (catalogue à gauche, sélection à droite) ; l'ouverture de compte est à deux colonnes.
+- Reste ouvert : raccourcis clavier au-delà de Ctrl+K, et le défilement horizontal du Stock sous 1400 px.

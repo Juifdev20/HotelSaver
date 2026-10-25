@@ -37,7 +37,7 @@ const PAGES_PAR_ROLE: Record<string, string[]> = {
 };
 
 /** Écrans secondaires : après avoir ouvert la page, on clique sur le bouton puis on photographie le formulaire ou la fenêtre qui s'ouvre. */
-const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string }[] = [
+const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string; ensuite?: RegExp }[] = [
   { role: "patron", page: "Chambres", bouton: /Nouvelle chambre/, nom: "formulaire-nouvelle-chambre" },
   { role: "patron", page: "Réservations", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
   { role: "patron", page: "Menu", bouton: /Nouveau produit/, nom: "formulaire-nouveau-produit" },
@@ -47,6 +47,7 @@ const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string }[] = [
   { role: "recep", page: "Réservations", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
   { role: "caf", page: "Caisse", bouton: /Vente rapide/, nom: "caisse-vente-rapide" },
   { role: "caf", page: "Comptes ouverts", bouton: /^Ouvrir$/, nom: "compte-detail" },
+  { role: "caf", page: "Comptes ouverts", bouton: /^Ouvrir$/, ensuite: /Ajouter/, nom: "compte-ajout-consommation" },
 ];
 
 const slug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -230,6 +231,10 @@ async function remplir(A: JeuHotel) {
           }
           await bouton.click().catch(() => undefined);
           await page.waitForTimeout(1200);
+          if (act.ensuite) {
+            await page.getByRole("button", { name: act.ensuite }).first().click().catch(() => undefined);
+            await page.waitForTimeout(1200);
+          }
           await page.screenshot({ path: join(dossier, `${act.nom}.png`) });
           await page.keyboard.press("Escape");
         }
