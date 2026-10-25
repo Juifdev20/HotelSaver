@@ -46,6 +46,12 @@ const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string; ensuit
   { role: "recep", page: "Facturation", bouton: /^Détail$/, nom: "detail-recu" },
   { role: "recep", page: "Réservations", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
   { role: "caf", page: "Caisse", bouton: /Vente rapide/, nom: "caisse-vente-rapide" },
+  { role: "patron", page: "Réservations", bouton: /Planning/, nom: "reservations-planning" },
+  { role: "patron", page: "Réservations", bouton: /Ouvrir la réservation de Aline/, nom: "reservation-detail" },
+  { role: "patron", page: "Paramètres", bouton: /^Gérer$/, nom: "parametres-utilisateurs" },
+  { role: "patron", page: "Paramètres", bouton: /Configurer/, nom: "parametres-imprimante" },
+  { role: "patron", page: "Inventaire", bouton: /Lancer l'évaluation/, nom: "inventaire-saisie" },
+  { role: "recep", page: "Facturation", bouton: /Facturer|Check-out|^Ouvrir/, nom: "facturation-checkout" },
   { role: "caf", page: "Comptes ouverts", bouton: /^Ouvrir$/, nom: "compte-detail" },
   { role: "caf", page: "Comptes ouverts", bouton: /^Ouvrir$/, ensuite: /Ajouter/, nom: "compte-ajout-consommation" },
 ];

@@ -342,9 +342,20 @@ function DetailFacturation({
       {!reservation && !erreur && <p className="hc-text-body texte-discret">Chargement…</p>}
 
       {reservation && apercu && (
-        <>
+        <div className="reservation-colonnes">
+          <div className="reservation-colonnes__principal">
           <div className="carte-formulaire">
             <p className="hc-text-label texte-discret">Séjour</p>
+            <div className="parametres-ligne">
+              <span className="hc-text-body">Client</span>
+              <span className="hc-text-body-strong">{reservation.client.nom}</span>
+            </div>
+            <div className="parametres-ligne">
+              <span className="hc-text-body">Chambre</span>
+              <span className="hc-text-body-strong">
+                {reservation.chambre.numero} · {reservation.chambre.type}
+              </span>
+            </div>
             <p className="hc-text-body">
               {apercu.nuits} nuit{apercu.nuits > 1 ? "s" : ""} — du{" "}
               {new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(
@@ -375,7 +386,9 @@ function DetailFacturation({
               </div>
             ))}
           </div>
+          </div>
 
+          <div className="reservation-colonnes__lateral">
           <div className="carte-formulaire">
             <p className="hc-text-label texte-discret">Total à payer</p>
             {apercu.totalUSD > 0 && <p className="hc-text-price">{formatMontant(apercu.totalUSD, Devise.USD)}</p>}
@@ -496,7 +509,7 @@ function DetailFacturation({
                 type="button"
                 onClick={facturerEtCheckOut}
                 disabled={enCours || bloquerPaiement}
-                style={{ marginTop: "var(--hc-space-3)" }}
+                style={{ marginTop: "var(--hc-space-3)", width: "100%" }}
               >
                 {enCours ? "Facturation en cours…" : titreAction}
               </Button>
@@ -506,7 +519,8 @@ function DetailFacturation({
               </p>
             )}
           </div>
-        </>
+          </div>
+        </div>
       )}
       {dialogue}
     </div>

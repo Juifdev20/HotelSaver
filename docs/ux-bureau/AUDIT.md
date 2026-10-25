@@ -98,3 +98,7 @@ Reste à faire :
 - **Message « Lecture seule »** : bandeau bleu discret à la place du cadre en pointillés.
 - **Caisse** : l'écran d'ajout de consommations avait déjà la bonne disposition de bureau (catalogue à gauche, sélection à droite) ; l'ouverture de compte est à deux colonnes.
 - Reste ouvert : raccourcis clavier au-delà de Ctrl+K, et le défilement horizontal du Stock sous 1400 px.
+
+### Facturation (25/10/2026)
+
+L'écran de facturation d'un séjour est à deux colonnes : le récapitulatif du séjour (client, chambre, dates, prix, acompte, ventes liées) à gauche, le total, le mode de paiement, le détail du règlement et le bouton « Facturer et check-out » à droite, toujours en vue. La liste des séjours à facturer et le journal des reçus étaient déjà corrects.
