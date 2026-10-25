@@ -3942,3 +3942,9 @@ ligne ; le numéro définitif arrive avec la synchronisation, et le reçu était
 
 - **Applications 1.0.5** (versionCode 6, 22/10/2026) : encaisser le séjour dès l'arrivée, reste à payer visible, reçus imprimés en
   ligne avec leur numéro définitif, suppression du compte par le patron (Paramètres → site).
+
+- **Applications 1.0.6** (versionCode 7, 25/10/2026) : bureau remis en page pour grand écran (fenêtre minimale 880 × 560, formulaires en panneau
+  latéral, deux colonnes, tri et pagination des tableaux, affichage compact, cuisine en plein écran) ; ticket de test d'imprimante au
+  nom de l'hôtel, « Généré par l'application HotelSaver » en pied de tous les tickets, aide et bouton « Ouvrir les réglages Bluetooth »
+  (mobile et bureau). Pourquoi monter la version plutôt que rester en 1.0.5 : Android refuse de mettre à jour une application par un APK
+  de même `versionCode`, et un numéro identique pour deux contenus différents rend le support impossible (« quelle version avez-vous ? »).
