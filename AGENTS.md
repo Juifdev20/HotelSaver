@@ -53,7 +53,8 @@ section pour toute décision non triviale).
   `gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a` (téléphones ARM seulement : sans x86 d'émulateur,
   build bien plus court et APK presque deux fois plus léger) → `app/build/outputs/apk/release/app-release.apk`. Signée avec la clé de `apps/mobile/signature/` (ignorée par Git,
   **à sauvegarder** — voir `plugins/withSignatureRelease.js`) ; sans elle, la release retombe sur la clé de debug.
-- **Publier une version** : monter `version` (`apps/mobile/app.json` + `versionCode`, `apps/desktop/package.json`), construire
+- **Publier une version** : lancer d'abord `pnpm build` à la racine (le mobile et le bureau lisent le `dist/` des paquets `packages/*` : un `dist/` périmé fait planter
+  l'application — écran « Un problème est survenu » — dès qu'un écran utilise une nouveauté d'un paquet, ex. la liste des pièces d'identité de `@hotel-chicago/types`) ; puis monter `version` (`apps/mobile/app.json` + `versionCode`, `apps/desktop/package.json`), construire
   l'APK et l'exe, puis release GitHub `vX.Y.Z` (cochée « Latest ») avec les fichiers versionnés ET deux copies au nom fixe
   `HotelSaver.apk` et `HotelSaver-Setup.exe` : le site pointe sur `releases/latest/download/<nom fixe>` (`render.yaml`,
   `apps/web/src/config.ts`) — rien à redéployer côté site.
