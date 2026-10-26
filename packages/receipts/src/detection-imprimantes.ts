@@ -18,6 +18,13 @@ export interface InfoImprimanteSysteme {
 export interface PortSerie {
   port: string;
   nom: string;
+  /** Port créé par un appareil Bluetooth appairé (identifiant Windows BTHENUM), quelle que soit la langue de Windows. */
+  bluetooth?: boolean;
+  /** Port Bluetooth : nom de l'appareil appairé et son adresse (« 5A:4A:13:4E:3F:47 »), quand Windows les donne. */
+  appareil?: string;
+  adresse?: string;
+  /** Port Bluetooth « entrant » : Windows l'ouvre pour qu'un autre appareil se connecte AU PC ; on ne peut pas imprimer dessus. */
+  entrant?: boolean;
 }
 
 export interface ImprimanteProposee {
@@ -38,7 +45,7 @@ export interface ImprimanteProposee {
 const PRINTER_STATUS_OFFLINE = 0x80;
 
 /** Marques et mots courants des imprimantes de tickets thermiques (58 / 80 mm). */
-const IMPRIMANTE_TICKET = /(pos|thermal|thermique|receipt|ticket|re[cç]u|\b58\b|\b80\b|xprinter|x-printer|xp-?\d{2}|epson\s*tm|tm-t|star\s*(tsp|sp)|rongta|gprinter|goojprt|bixolon|citizen|zjiang|zj-|sunmi|munbyn|hoin|netum|rpp|mpt|pt-?210|bt-?printer)/i;
+const IMPRIMANTE_TICKET = /(pos|thermal|thermique|receipt|ticket|re[cç]u|\b58\b|\b80\b|xprinter|x-printer|xp-?\d{2}|epson\s*tm|tm-t|star\s*(tsp|sp)|rongta|gprinter|goojprt|bixolon|citizen|zjiang|zj-|sunmi|munbyn|hoin|netum|rpp|mpt|pt-?210|bt-?printer|printer|imprimante)/i;
 
 /** Vrai si le nom évoque une imprimante de tickets : sert UNIQUEMENT à classer la liste (toutes les marques restent proposées). */
 export function ressembleAImprimante(nom: string): boolean {
@@ -70,19 +77,26 @@ export function proposerImprimantes(systeme: InfoImprimanteSysteme[], ports: Por
       };
     });
 
-  const serie: ImprimanteProposee[] = ports.map((p) => {
-    const bluetooth = /bluetooth/i.test(p.nom);
-    return {
-      interface: `\\\\.\\${p.port}`,
-      type: "serie" as const,
-      nom: `${bluetooth ? "Imprimante Bluetooth" : "Port série"} (${p.port})`,
-      detail: p.nom,
-      recommandee: bluetooth,
-      parDefaut: false,
-      horsLigne: false,
-      bluetooth,
-    };
-  });
+  const serie: ImprimanteProposee[] = ports
+    // Un port « entrant » sert à un autre appareil qui appelle le PC : il ne mène à aucune imprimante, on ne le propose pas.
+    .filter((p) => !p.entrant)
+    .map((p) => {
+      const bluetooth = p.bluetooth ?? /bluetooth/i.test(p.nom);
+      const nomAppareil = p.appareil?.trim();
+      return {
+        interface: `\\\\.\\${p.port}`,
+        type: "serie" as const,
+        nom: `${nomAppareil || (bluetooth ? "Appareil Bluetooth" : "Port série")} (${p.port})`,
+        detail: bluetooth
+          ? `Appareil Bluetooth appairé${p.adresse ? ` · ${p.adresse}` : ""} · port ${p.port}`
+          : p.nom,
+        // Reconnu comme imprimante d'après son nom ; un appareil dont le nom est inconnu reste proposé, mais sans recommandation.
+        recommandee: nomAppareil ? IMPRIMANTE_TICKET.test(nomAppareil) : false,
+        parDefaut: false,
+        horsLigne: false,
+        bluetooth,
+      };
+    });
 
   // Les imprimantes de tickets d'abord, puis celle par défaut de Windows, puis l'ordre alphabétique.
   const rang = (i: ImprimanteProposee) => (i.recommandee ? 0 : 2) + (i.type === "serie" ? 1 : 0) + (i.parDefaut ? -0.5 : 0);
@@ -102,6 +116,64 @@ export function extrairePortsSerie(lignes: string[]): PortSerie[] {
     ports.push({ port, nom: ligne.trim() });
   }
   return ports.sort((a, b) => Number(a.port.slice(3)) - Number(b.port.slice(3)));
+}
+
+/**
+ * Lit la sortie du script PowerShell de détection : une ligne `PORT|<nom du port>|<identifiant Windows>` par port série et une ligne
+ * `BT|<identifiant Windows>|<nom de l'appareil>` par appareil Bluetooth appairé. Windows crée DEUX ports par appareil Bluetooth :
+ * le port « sortant » (identifiant terminé par `_C00000000`, adresse de l'appareil incluse), seul utile pour imprimer, et un port
+ * « entrant » (`LOCALMFG`). Le nom de l'appareil (« BlueTooth Printer ») est retrouvé par son adresse.
+ */
+export function extrairePortsBluetooth(lignes: string[]): PortSerie[] {
+  const appareils = new Map<string, string>();
+  for (const ligne of lignes) {
+    const [type, identifiant, ...reste] = ligne.split("|");
+    if (type?.trim() !== "BT") continue;
+    const adresse = /DEV_([0-9A-F]{12})/i.exec(identifiant ?? "")?.[1];
+    const nom = reste.join("|").trim();
+    if (adresse && nom) appareils.set(adresse.toUpperCase(), nom);
+  }
+  const ports: PortSerie[] = [];
+  const vus = new Set<string>();
+  for (const ligne of lignes) {
+    const [type, nom, ...reste] = ligne.split("|");
+    if (type?.trim() !== "PORT") continue;
+    const m = /\((COM\d{1,3})\)/i.exec(nom ?? "");
+    if (!m) continue;
+    const port = m[1].toUpperCase();
+    if (vus.has(port)) continue;
+    vus.add(port);
+    const identifiant = reste.join("|");
+    if (!/^BTHENUM/i.test(identifiant)) {
+      ports.push({ port, nom: nom.trim() });
+      continue;
+    }
+    const entrant = /LOCALMFG/i.test(identifiant);
+    const hex = /([0-9A-F]{12})_C0*$/i.exec(identifiant)?.[1]?.toUpperCase();
+    ports.push({
+      port,
+      nom: nom.trim(),
+      bluetooth: true,
+      entrant,
+      appareil: hex ? appareils.get(hex) : undefined,
+      adresse: hex ? (hex.match(/.{2}/g) ?? []).join(":") : undefined,
+    });
+  }
+  return ports.sort((a, b) => Number(a.port.slice(3)) - Number(b.port.slice(3)));
+}
+
+/** Traduit une erreur de l'écriture sur un port série (COM, dont le Bluetooth) en phrase compréhensible. */
+export function libelleErreurPortSerie(typeErreur: string, port: string): string {
+  if (/UnauthorizedAccess/i.test(typeErreur)) {
+    return `Le port ${port} est déjà utilisé : fermez le programme qui s'en sert, ou déconnectez l'imprimante de l'autre appareil, puis réessayez.`;
+  }
+  if (/FileNotFound|ArgumentException|DirectoryNotFound/i.test(typeErreur)) {
+    return `Le port ${port} n'existe plus. Appuyez sur « Actualiser » et choisissez l'imprimante dans la liste.`;
+  }
+  return (
+    `L'imprimante ne répond pas sur ${port}. Allumez-la, rapprochez-la de l'ordinateur et déconnectez-la du téléphone ` +
+    "(une imprimante Bluetooth ne parle qu'à un seul appareil à la fois). Si elle a été réinitialisée, appairez-la de nouveau dans les réglages Bluetooth de Windows."
+  );
 }
 
 /** Traduit un code d'erreur Windows (spouleur d'impression) en phrase compréhensible par l'utilisateur. */

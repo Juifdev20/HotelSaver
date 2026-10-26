@@ -11,5 +11,5 @@ export {
   DetecteurRafale,
   construireEtiquette,
 } from "./code-barres";
-export { proposerImprimantes, extrairePortsSerie, libelleErreurSpouleur, ressembleAImprimante, COLONNES_PAR_LARGEUR } from "./detection-imprimantes";
+export { proposerImprimantes, extrairePortsSerie, libelleErreurSpouleur, extrairePortsBluetooth, libelleErreurPortSerie, ressembleAImprimante, COLONNES_PAR_LARGEUR } from "./detection-imprimantes";
 export type { LargeurPapier, ImprimanteProposee, InfoImprimanteSysteme, PortSerie } from "./detection-imprimantes";

@@ -8,7 +8,8 @@ import { interfaceImprimanteValide, lireConfiguration } from "./config-store";
 import {
   COLONNES_PAR_LARGEUR,
   commandesCodeBarre,
-  extrairePortsSerie,
+  extrairePortsBluetooth,
+  libelleErreurPortSerie,
   libelleErreurSpouleur,
   nettoyerTexteImpression,
   proposerImprimantes,
@@ -143,6 +144,40 @@ try {
 }
 `;
 
+/**
+ * Envoie des octets à un port série Windows (COM), dont le port « sortant » d'une imprimante Bluetooth appairée. On passe par .NET
+ * (System.IO.Ports.SerialPort), qui ouvre le port avec des délais d'attente clairs, plutôt que d'écrire dans le fichier `\\\\.\\COMn` :
+ * ce dernier se fige ou échoue sans explication quand l'imprimante est éteinte ou occupée par un autre appareil.
+ */
+const SCRIPT_IMPRESSION_SERIE = `
+param([string]$Port, [string]$Path)
+$ErrorActionPreference = 'Stop'
+try {
+  $donnees = [System.IO.File]::ReadAllBytes($Path)
+  $sp = New-Object System.IO.Ports.SerialPort $Port, 9600, ([System.IO.Ports.Parity]::None), 8, ([System.IO.Ports.StopBits]::One)
+  $sp.WriteTimeout = 10000
+  $sp.Handshake = [System.IO.Ports.Handshake]::None
+  try {
+    $sp.Open()
+    for ($i = 0; $i -lt $donnees.Length; $i += 512) {
+      $n = [Math]::Min(512, $donnees.Length - $i)
+      $sp.Write($donnees, $i, $n)
+      Start-Sleep -Milliseconds 80
+    }
+    # Les octets sont partis du PC, pas encore imprimés : on laisse à l'imprimante le temps de finir avant de couper la liaison.
+    Start-Sleep -Milliseconds ([Math]::Max(1000, [int]($donnees.Length / 8)))
+  } finally {
+    if ($sp.IsOpen) { $sp.Close() }
+  }
+  exit 0
+} catch {
+  $e = $_.Exception
+  if ($e.InnerException) { $e = $e.InnerException }
+  [Console]::Error.WriteLine("SERIAL|" + $e.GetType().FullName + "|" + $e.Message)
+  exit 2
+}
+`;
+
 function executer(commande: string, args: string[], delaiMs: number): Promise<{ code: number; sortie: string; erreur: string }> {
   return new Promise((resolve) => {
     execFile(commande, args, { windowsHide: true, timeout: delaiMs, encoding: "utf8", maxBuffer: 1024 * 1024 }, (err, sortie, erreur) => {
@@ -182,6 +217,30 @@ async function imprimerParWindows(nomImprimante: string, octets: Buffer): Promis
   }
 }
 
+/** Envoie des octets ESC/POS à un port série Windows (COM3, COM4…). */
+async function imprimerParPortSerie(port: string, octets: Buffer): Promise<void> {
+  if (process.platform !== "win32") throw new Error("Les ports COM Windows ne sont disponibles que sous Windows.");
+  const dossier = mkdtempSync(join(tmpdir(), "hotelsaver-impression-"));
+  const fichierDonnees = join(dossier, "ticket.bin");
+  const fichierScript = join(dossier, "imprimer-serie.ps1");
+  try {
+    writeFileSync(fichierDonnees, octets);
+    writeFileSync(fichierScript, `\uFEFF${SCRIPT_IMPRESSION_SERIE}`, "utf8");
+    const r = await executer(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", fichierScript, "-Port", port, "-Path", fichierDonnees],
+      60_000
+    );
+    if (r.code === 0) return;
+    console.error("[impression serie]", port, r.code, r.erreur.slice(0, 500));
+    if (/ENOENT/i.test(r.erreur)) throw new Error("PowerShell est introuvable sur cet ordinateur : impossible d'imprimer sur un port COM.");
+    const m = /SERIAL\|([^|]*)\|/.exec(r.erreur);
+    throw new Error(libelleErreurPortSerie(m?.[1] ?? "IOException", port));
+  } finally {
+    rmSync(dossier, { recursive: true, force: true });
+  }
+}
+
 export async function imprimerLignes(interfaceImprimante: string, lignes: LigneRecu[]): Promise<void> {
   // Une adresse arbitraire (un chemin de fichier, une URL) ferait écrire ou se connecter n'importe où : liste stricte.
   if (!interfaceImprimanteValide(interfaceImprimante)) throw new Error("Adresse d'imprimante invalide.");
@@ -194,20 +253,37 @@ export async function imprimerLignes(interfaceImprimante: string, lignes: LigneR
     await imprimerParWindows(nom, imprimante.getBuffer());
     return;
   }
+  const port = /^(?:\\\\\.\\)?(COM\d{1,3})$/i.exec(interfaceNettoyee)?.[1];
+  if (port && process.platform === "win32") {
+    const imprimante = construireImprimante("tcp://127.0.0.1:9100");
+    ecrireLignes(imprimante, lignes);
+    await imprimerParPortSerie(port.toUpperCase(), imprimante.getBuffer());
+    return;
+  }
   const imprimante = construireImprimante(interfaceNettoyee);
   ecrireLignes(imprimante, lignes);
   await imprimante.execute();
 }
+
+/**
+ * Une ligne PORT|nom|identifiant par port série, une ligne BT|identifiant|nom par appareil Bluetooth appairé (voir `extrairePortsBluetooth`).
+ * La sortie est forcée en UTF-8 : sinon Windows écrit dans la page de codes de la console et « série » devient « s�rie ».
+ */
+const SCRIPT_LISTE_PORTS =
+  "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
+  "Get-CimInstance Win32_PnPEntity | ForEach-Object { " +
+  "if ($_.Name -match '\\(COM\\d+\\)') { 'PORT|' + $_.Name + '|' + $_.DeviceID } " +
+  "elseif ($_.DeviceID -like 'BTHENUM\\DEV_*') { 'BT|' + $_.DeviceID + '|' + $_.Name } }";
 
 /** Ports série vus par Windows (dont les imprimantes Bluetooth appairées, qui apparaissent comme un port COM). */
 async function listerPortsSerie() {
   if (process.platform !== "win32") return [];
   const r = await executer(
     "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", "Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -match '\\(COM\\d+\\)' } | ForEach-Object { $_.Name }"],
-    15_000
+    ["-NoProfile", "-NonInteractive", "-Command", SCRIPT_LISTE_PORTS],
+    20_000
   );
-  return r.code === 0 ? extrairePortsSerie(r.sortie.split(/\r?\n/).filter(Boolean)) : [];
+  return r.code === 0 ? extrairePortsBluetooth(r.sortie.split(/\r?\n/).filter(Boolean)) : [];
 }
 
 /** Toutes les imprimantes que l'on peut proposer à l'utilisateur sur ce poste (Windows : installées + ports série). */

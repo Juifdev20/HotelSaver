@@ -3982,3 +3982,12 @@ oublié, tous les écrans des trois rôles, deux tailles de fenêtre). Le mobile
 - **Applications 1.0.7** (versionCode 8, 26/10/2026) : imprimantes trouvées et connectées sans adresse à connaître (liste Windows + ports COM + impression RAW par le spouleur au bureau ;
   activation, recherche et appairage Bluetooth dans l'application, connexion plus patiente et mode RawBT de secours au mobile ; largeur de papier 58/80 mm), type de pièce
   d'identité choisi dans une liste à la réception, mode sombre du bureau lisible partout, et corrections de synchronisation de la 1.0.6.
+
+## Bureau : ports Bluetooth nommés, port « entrant » écarté, envoi COM par .NET (26/10/2026)
+
+Premier essai réel (POS-5811DD, Windows) : la liste montrait « Imprimante Bluetooth (COM3) » et « (COM4) » sans nom d'appareil, avec « s�rie » (sortie PowerShell
+lue dans la mauvaise page de codes), et le test échouait sur « Printer Error ». Windows crée DEUX ports par appareil Bluetooth appairé : un port « sortant »
+(identifiant `…_C00000000`, adresse de l'appareil incluse) et un port « entrant » (`LOCALMFG`) sur lequel on ne peut pas imprimer. Désormais : l'identifiant Windows
+permet de retrouver le nom de l'appareil (« BlueTooth Printer (COM4) ») et son adresse, le port entrant n'est plus proposé, la sortie est lue en UTF-8, et l'envoi
+sur un port COM passe par `System.IO.Ports.SerialPort` (délais d'attente, erreurs expliquées : port occupé, port disparu, imprimante muette) au lieu d'écrire dans le
+fichier `\\.\COMn`. Une imprimante Bluetooth ne parle qu'à un appareil à la fois : si elle est connectée au téléphone, le PC échoue.
