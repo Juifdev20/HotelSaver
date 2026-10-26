@@ -23,6 +23,7 @@ const VALEURS_PAR_DEFAUT: ConfigurationApp = {
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdsa21oZXN2bWJ4bXJ5b3diaGtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyNjkzMTgsImV4cCI6MjEwNzg0NTMxOH0.b-jVA2ElhxO_1uUblGRhFbZmLCx2XBXM_61SGQ2avpo",
   refreshToken: null,
   imprimanteInterface: null,
+  imprimanteLargeur: 58,
   comptesLocaux: {},
   compteActif: null,
 };

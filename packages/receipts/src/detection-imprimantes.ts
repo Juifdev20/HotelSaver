@@ -40,6 +40,15 @@ const PRINTER_STATUS_OFFLINE = 0x80;
 /** Marques et mots courants des imprimantes de tickets thermiques (58 / 80 mm). */
 const IMPRIMANTE_TICKET = /(pos|thermal|thermique|receipt|ticket|re[cç]u|\b58\b|\b80\b|xprinter|x-printer|xp-?\d{2}|epson\s*tm|tm-t|star\s*(tsp|sp)|rongta|gprinter|goojprt|bixolon|citizen|zjiang|zj-|sunmi|munbyn|hoin|netum|rpp|mpt|pt-?210|bt-?printer)/i;
 
+/** Vrai si le nom évoque une imprimante de tickets : sert UNIQUEMENT à classer la liste (toutes les marques restent proposées). */
+export function ressembleAImprimante(nom: string): boolean {
+  return IMPRIMANTE_TICKET.test(nom);
+}
+
+/** Largeur du papier des imprimantes de tickets : 58 mm (≈ 32 caractères) ou 80 mm (≈ 48 caractères). */
+export type LargeurPapier = 58 | 80;
+export const COLONNES_PAR_LARGEUR: Record<LargeurPapier, number> = { 58: 32, 80: 48 };
+
 /** Imprimantes virtuelles : elles ne reçoivent pas d'octets d'imprimante de tickets. */
 const IMPRIMANTE_VIRTUELLE = /(pdf|xps|onenote|fax|microsoft print|document writer|send to|anydesk|snagit|cutepdf|bullzip|webex|teams)/i;
 

@@ -10,6 +10,7 @@ export interface EcranImprimanteProps {
   /** Le ticket de test porte le nom de l'hôtel de l'utilisateur. */
   utilisateur: ProfilConnecte;
   interfaceImprimante: string | null;
+  largeurPapier: 58 | 80;
   onEnregistrer: (partielle: Partial<ConfigurationApp>) => void;
   onRetour: () => void;
 }
@@ -27,7 +28,7 @@ function IconeImprimante({ type, bluetooth }: { type: ImprimanteProposee["type"]
  * série ; l'utilisateur choisit dans la liste, imprime un ticket de test, et confirme que le ticket est bien sorti. Plus d'adresse à
  * connaître : la saisie manuelle (réseau, port) reste disponible sous « Réglage avancé ».
  */
-export function EcranImprimante({ utilisateur, interfaceImprimante, onEnregistrer, onRetour }: EcranImprimanteProps) {
+export function EcranImprimante({ utilisateur, interfaceImprimante, largeurPapier, onEnregistrer, onRetour }: EcranImprimanteProps) {
   const [liste, setListe] = useState<ImprimanteProposee[] | null>(null);
   const [erreurListe, setErreurListe] = useState<string | null>(null);
   const [choisie, setChoisie] = useState<string | null>(interfaceImprimante);
@@ -99,6 +100,19 @@ export function EcranImprimante({ utilisateur, interfaceImprimante, onEnregistre
       <div className="page__colonnes">
         <div className="carte-formulaire">
           <div className="parametres-ligne">
+            <div>
+              <p className="hc-text-body-strong">Largeur du papier</p>
+              <p className="hc-text-caption texte-discret">Mesurez le rouleau. Si le ticket est coupé ou trop étroit, changez ce réglage.</p>
+            </div>
+            <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
+              {([58, 80] as const).map((l) => (
+                <Button key={l} type="button" size="sm" variant={largeurPapier === l ? "primary" : "secondary"} onClick={() => onEnregistrer({ imprimanteLargeur: l })}>
+                  {l} mm
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="parametres-ligne">
             <p className="hc-text-body-strong">Imprimantes trouvées</p>
             <Button type="button" variant="secondary" size="sm" onClick={charger} disabled={liste === null}>
               <RefreshCw size={14} aria-hidden="true" /> Actualiser
@@ -113,7 +127,7 @@ export function EcranImprimante({ utilisateur, interfaceImprimante, onEnregistre
           )}
           {liste?.length === 0 && !erreurListe && (
             <p className="hc-text-body texte-discret">
-              Aucune imprimante trouvée sur cet ordinateur. Branchez-la ou appairez-la en Bluetooth (voir à droite), puis touchez « Actualiser ».
+              Aucune imprimante trouvée sur cet ordinateur. Toutes les marques fonctionnent : il suffit que Windows la connaisse. Branchez-la ou appairez-la en Bluetooth (voir à droite), puis touchez « Actualiser ».
             </p>
           )}
 

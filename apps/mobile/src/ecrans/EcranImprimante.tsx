@@ -8,13 +8,15 @@ import { EnteteRetour } from "../composants/EnteteRetour";
 import {
   AppareilImprimante,
   ecrireAppareilImprimante,
+  ecrireLargeurPapier,
   ecrireModeImpression,
   lireAppareilImprimante,
+  lireLargeurPapier,
   lireModeImpression,
   ModeImpression,
 } from "../impression/appareilImprimante";
 import { activerBluetooth, appairerAppareil, AppareilTrouve, chercherAppareils, imprimerTicketDeTest, ouvrirReglagesBluetooth } from "../impression/imprimante";
-import { enteteHotel } from "@hotel-chicago/receipts";
+import { enteteHotel, type LargeurPapier } from "@hotel-chicago/receipts";
 import type { ProfilConnecte } from "@hotel-chicago/types";
 import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
 
@@ -34,6 +36,7 @@ export function EcranImprimante({ utilisateur, onRetour }: EcranImprimanteProps)
   const [recherche, setRecherche] = useState(false);
   const [choisi, setChoisi] = useState<AppareilImprimante | null>(null);
   const [mode, setMode] = useState<ModeImpression>("bluetooth");
+  const [largeur, setLargeur] = useState<LargeurPapier>(58);
   const [erreur, setErreur] = useState<string | null>(null);
   const [occupe, setOccupe] = useState<string | null>(null);
   const [messageTest, setMessageTest] = useState<{ adresse: string | null; texte: string; ok: boolean } | null>(null);
@@ -63,6 +66,7 @@ export function EcranImprimante({ utilisateur, onRetour }: EcranImprimanteProps)
   useEffect(() => {
     void lireAppareilImprimante().then(setChoisi);
     void lireModeImpression().then(setMode);
+    void lireLargeurPapier().then(setLargeur);
     charger();
   }, [charger]);
 
@@ -71,6 +75,12 @@ export function EcranImprimante({ utilisateur, onRetour }: EcranImprimanteProps)
     setMessageTest(null);
     setAConfirmer(null);
     await ecrireModeImpression(nouveau);
+  }
+
+  async function changerLargeur(nouvelle: LargeurPapier) {
+    setLargeur(nouvelle);
+    setMessageTest(null);
+    await ecrireLargeurPapier(nouvelle);
   }
 
   async function choisir(appareil: AppareilTrouve) {
@@ -188,6 +198,24 @@ export function EcranImprimante({ utilisateur, onRetour }: EcranImprimanteProps)
           </View>
         )}
 
+        <View style={styles.etapes}>
+          <Text style={styles.etapesTitre}>Largeur du papier</Text>
+          <Text style={styles.aide}>Mesurez le rouleau : 58 mm (petites imprimantes) ou 80 mm (grandes). Si le ticket est coupé ou trop étroit, changez ce réglage.</Text>
+          <View style={styles.rangee}>
+            {([58, 80] as LargeurPapier[]).map((l) => (
+              <Pressable
+                key={l}
+                style={[styles.mode, largeur === l && styles.modeChoisi]}
+                onPress={() => void changerLargeur(l)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: largeur === l }}
+              >
+                <Text style={[styles.modeTexte, largeur === l && styles.modeTexteChoisi]}>{l} mm</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
         {erreur && (
           <Text style={styles.erreur} accessibilityRole="alert">
             {erreur}
@@ -216,7 +244,7 @@ export function EcranImprimante({ utilisateur, onRetour }: EcranImprimanteProps)
               {recherche && <ActivityIndicator color={couleurs.bleu} accessibilityLabel="Recherche en cours" />}
             </View>
             {appareils?.length === 0 && !recherche && !erreur && (
-              <Text style={styles.vide}>Aucun appareil trouvé. Allumez l'imprimante, rapprochez-la et touchez « Chercher à nouveau ».</Text>
+              <Text style={styles.vide}>Aucun appareil trouvé. Allumez l'imprimante (voyant Bluetooth qui clignote), rapprochez-la et touchez « Chercher à nouveau ». Toutes les marques fonctionnent : choisissez simplement l'appareil qui porte le nom de votre imprimante.</Text>
             )}
             {appareils?.map((item) => {
               const estChoisi = choisi?.address === item.address;
@@ -233,7 +261,7 @@ export function EcranImprimante({ utilisateur, onRetour }: EcranImprimanteProps)
                   >
                     <Bluetooth size={18} color={estChoisi ? couleurs.bleu : couleurs.encreAttenuee} />
                     <View style={styles.carteTexte}>
-                      <Text style={styles.nom}>{item.nom}</Text>
+                      <Text style={styles.nom}>{item.nom}{item.probable ? "  · imprimante de tickets" : ""}</Text>
                       <Text style={styles.adresse}>
                         {enCours ? "Appairage en cours…" : item.appairee ? `Appairée · ${item.address}` : `Touchez pour appairer · ${item.address}`}
                       </Text>

@@ -17,6 +17,8 @@ export interface ConfigurationApp {
    * chemin de périphérique brut (`\\.\COM5`, `/dev/usb/lp0`), voir
    * `main/imprimante.ts`. `null` tant qu'aucune imprimante n'est configurée. */
   imprimanteInterface: string | null;
+  /** Largeur du papier de l'imprimante : 58 mm (≈ 32 caractères) ou 80 mm (≈ 48 caractères). */
+  imprimanteLargeur: 58 | 80;
   /** Comptes déjà connectés sur ce poste (empreinte du mot de passe, dernier profil, jeton de renouvellement) : permettent d'ouvrir
    * l'application sans connexion Internet. Géré par GestionnaireSession (@hotel-chicago/miroir-local). */
   comptesLocaux: Record<string, unknown>;
@@ -42,6 +44,7 @@ const VALEURS_PAR_DEFAUT: ConfigurationApp = {
   supabaseAnonKey: import.meta.env.MAIN_VITE_SUPABASE_ANON_KEY || SUPABASE_TEST_ANON_KEY,
   refreshToken: null,
   imprimanteInterface: null,
+  imprimanteLargeur: 58,
   comptesLocaux: {},
   compteActif: null,
 };
@@ -120,7 +123,7 @@ export function cleChiffrementLocale(): string {
 
 /** Seules ces clés peuvent être écrites depuis l'interface. L'adresse de l'API et les paramètres Supabase viennent TOUJOURS du build :
  * sinon une page compromise pourrait pointer l'application vers un faux serveur de connexion. */
-const CLES_ECRITES_PAR_L_INTERFACE = ["refreshToken", "imprimanteInterface", "comptesLocaux", "compteActif"] as const;
+const CLES_ECRITES_PAR_L_INTERFACE = ["refreshToken", "imprimanteInterface", "imprimanteLargeur", "comptesLocaux", "compteActif"] as const;
 
 /** `tcp://hôte:port`, port série Windows (`COM5`, `\\\\.\\COM5`) ou périphérique Linux (`/dev/usb/lp0`, `/dev/ttyUSB0`, `/dev/rfcomm0`). */
 const INTERFACE_IMPRIMANTE_VALIDE = /^(tcp:\/\/[A-Za-z0-9.-]{1,253}:\d{1,5}|(\\\\\.\\)?COM\d{1,3}|\/dev\/(usb\/lp|ttyUSB|ttyS|ttyACM|rfcomm)\d{1,2})$/;
@@ -138,6 +141,9 @@ export function ecrireConfiguration(partielle: Partial<ConfigurationApp>): Confi
   }
   if (autorisee.imprimanteInterface != null && !interfaceImprimanteValide(autorisee.imprimanteInterface)) {
     throw new Error("Adresse d'imprimante invalide. Choisissez votre imprimante dans la liste, ou saisissez une adresse réseau (tcp://192.168.1.50:9100) ou un port (COM5).");
+  }
+  if (autorisee.imprimanteLargeur !== undefined && autorisee.imprimanteLargeur !== 58 && autorisee.imprimanteLargeur !== 80) {
+    throw new Error("Largeur de papier invalide (58 ou 80 mm).");
   }
   // On réécrit à partir du contenu brut pour conserver la clé de chiffrement de la copie locale.
   ecrireJson(cheminFichierConfiguration(), { ...lireBrut(), ...autorisee });

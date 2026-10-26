@@ -1,8 +1,8 @@
 import { Buffer } from "buffer";
 import { Linking, PermissionsAndroid, Platform } from "react-native";
 import RNBluetoothClassic, { BluetoothDevice } from "react-native-bluetooth-classic";
-import { construireTicketDeTest, EnteteHotel, genererCommandesEscPos, LigneRecu } from "@hotel-chicago/receipts";
-import { AppareilImprimante, lireAppareilImprimante, lireModeImpression } from "./appareilImprimante";
+import { COLONNES_PAR_LARGEUR, construireTicketDeTest, EnteteHotel, genererCommandesEscPos, LigneRecu, ressembleAImprimante } from "@hotel-chicago/receipts";
+import { AppareilImprimante, lireAppareilImprimante, lireLargeurPapier, lireModeImpression } from "./appareilImprimante";
 
 /** Android 12+ (API 31+) traite BLUETOOTH_CONNECT/BLUETOOTH_SCAN comme des
  * permissions dangereuses à demander à l'exécution — la déclaration dans le
@@ -69,6 +69,14 @@ export async function listerAppareilsAppaires(): Promise<AppareilImprimante[]> {
 /** Imprimante vue pendant la recherche ; `appairee` : déjà enregistrée dans le téléphone (donc prête à imprimer). */
 export interface AppareilTrouve extends AppareilImprimante {
   appairee: boolean;
+  /** Le nom évoque une imprimante de tickets (classement seulement : tous les appareils restent proposés, quelle que soit la marque). */
+  probable: boolean;
+}
+
+/** Appairées d'abord, puis imprimantes probables, puis le reste par nom. */
+function classer(appareils: AppareilTrouve[]): AppareilTrouve[] {
+  const rang = (a: AppareilTrouve) => (a.probable ? 0 : 2) + (a.appairee ? 0 : 1);
+  return [...appareils].sort((a, b) => rang(a) - rang(b) || a.nom.localeCompare(b.nom));
 }
 
 /**
@@ -81,16 +89,16 @@ export async function chercherAppareils(surTrouve: (appareils: AppareilTrouve[])
   await exigerBluetoothActif();
 
   const par: Map<string, AppareilTrouve> = new Map();
-  const publier = () => surTrouve([...par.values()]);
+  const publier = () => surTrouve(classer([...par.values()]));
   for (const a of await RNBluetoothClassic.getBondedDevices()) {
-    par.set(a.address, { address: a.address, nom: a.name || a.address, appairee: true });
+    par.set(a.address, { address: a.address, nom: a.name || a.address, appairee: true, probable: ressembleAImprimante(a.name ?? "") });
   }
   publier();
 
   const abonnement = RNBluetoothClassic.onDeviceDiscovered((evenement) => {
     const a = evenement.device;
     if (!a?.address || par.has(a.address)) return;
-    par.set(a.address, { address: a.address, nom: a.name || a.address, appairee: false });
+    par.set(a.address, { address: a.address, nom: a.name || a.address, appairee: false, probable: ressembleAImprimante(a.name ?? "") });
     publier();
   });
   try {
@@ -102,7 +110,7 @@ export async function chercherAppareils(surTrouve: (appareils: AppareilTrouve[])
   } finally {
     abonnement.remove();
   }
-  return [...par.values()];
+  return classer([...par.values()]);
 }
 
 /** Appaire l'imprimante depuis l'application (le téléphone demande le code 0000 ou 1234 si l'imprimante en veut un). */
@@ -234,13 +242,13 @@ export async function imprimerLignes(lignes: LigneRecu[]): Promise<void> {
   if (!appareil && mode !== "rawbt") {
     throw new Error("Aucune imprimante configurée — réglez-la depuis Plus > Imprimante.");
   }
-  await envoyer(appareil?.address ?? null, genererCommandesEscPos(lignes));
+  await envoyer(appareil?.address ?? null, genererCommandesEscPos(lignes, COLONNES_PAR_LARGEUR[await lireLargeurPapier()]));
 }
 
 /** Ticket de test envoyé directement à une adresse (pas forcément celle déjà
  * mémorisée, pour pouvoir tester avant d'enregistrer). */
 export async function imprimerTicketDeTest(address: string | null, hotel: EnteteHotel): Promise<void> {
-  await envoyer(address, genererCommandesEscPos(construireTicketDeTest(hotel)));
+  await envoyer(address, genererCommandesEscPos(construireTicketDeTest(hotel), COLONNES_PAR_LARGEUR[await lireLargeurPapier()]));
 }
 
 /** Ouvre la page Bluetooth des réglages du téléphone (activer le Bluetooth, appairer l'imprimante). Sans cette page (autre système), les réglages généraux. */

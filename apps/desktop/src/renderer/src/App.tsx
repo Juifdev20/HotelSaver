@@ -700,6 +700,7 @@ export function App() {
         <EcranImprimante
           utilisateur={utilisateur}
           interfaceImprimante={configuration.imprimanteInterface}
+          largeurPapier={configuration.imprimanteLargeur}
           onEnregistrer={enregistrerParametres}
           onRetour={() => naviguer("parametres")}
         />

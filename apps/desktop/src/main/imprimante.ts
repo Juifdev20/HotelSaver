@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WebContents } from "electron";
 import { printer as ThermalPrinter, types as PrinterTypes, characterSet as CharacterSet } from "node-thermal-printer";
-import { interfaceImprimanteValide } from "./config-store";
+import { interfaceImprimanteValide, lireConfiguration } from "./config-store";
 import {
+  COLONNES_PAR_LARGEUR,
   commandesCodeBarre,
   extrairePortsSerie,
   libelleErreurSpouleur,
@@ -35,6 +36,8 @@ function construireImprimante(interfaceImprimante: string) {
     type: PrinterTypes.EPSON,
     interface: interfaceImprimante,
     characterSet: CharacterSet.PC850_MULTILINGUAL,
+    // Les lignes de tirets et les montants alignés suivent la largeur du papier (58 ou 80 mm) choisie par l'utilisateur.
+    width: COLONNES_PAR_LARGEUR[lireConfiguration().imprimanteLargeur === 80 ? 80 : 58],
   });
 }
 

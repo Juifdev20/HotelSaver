@@ -3963,3 +3963,7 @@ d'enregistrer. La saisie manuelle reste sous « Réglage avancé ». Non testé 
 (sécurisée / non sécurisée, pauses croissantes), envois en blocs de 1 Ko, une seule impression à la fois, répit après déconnexion, message précis
 (imprimante occupée par un autre appareil, plus appairée, éteinte). Mode de secours « Application RawBT » (`rawbt:base64,…`) pour les imprimantes
 qui refusent la connexion directe (Bluetooth basse consommation par exemple). À valider sur de vraies imprimantes avant publication.
+
+**Toutes marques, pas seulement une (26/10/2026)** : aucune liste de marques n'est exigée pour imprimer. Le mobile affiche TOUS les appareils Bluetooth
+(appairés d'abord, « imprimante de tickets » en tête d'après le nom, simple classement) ; le bureau affiche toutes les imprimantes Windows. Le seul
+réglage qui change d'un modèle à l'autre est la largeur du papier : choix 58 mm (32 colonnes, défaut) ou 80 mm (48 colonnes), mobile et bureau.

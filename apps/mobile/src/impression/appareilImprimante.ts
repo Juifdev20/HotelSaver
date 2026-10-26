@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { LargeurPapier } from "@hotel-chicago/receipts";
 
 /** Imprimante Bluetooth mémorisée (adresse MAC + nom d'affichage) — même
  * principe que `stockage/configuration.ts`, une seule imprimante à la fois
@@ -47,4 +48,19 @@ export async function lireModeImpression(): Promise<ModeImpression> {
 
 export async function ecrireModeImpression(mode: ModeImpression): Promise<void> {
   await AsyncStorage.setItem(CLE_MODE, mode);
+}
+
+/** Largeur du papier de l'imprimante (58 mm par défaut : les petites imprimantes Bluetooth ; 80 mm pour les grandes). Varie selon les marques et modèles. */
+const CLE_LARGEUR = "hotel-chicago:imprimante-largeur";
+
+export async function lireLargeurPapier(): Promise<LargeurPapier> {
+  try {
+    return (await AsyncStorage.getItem(CLE_LARGEUR)) === "80" ? 80 : 58;
+  } catch {
+    return 58;
+  }
+}
+
+export async function ecrireLargeurPapier(largeur: LargeurPapier): Promise<void> {
+  await AsyncStorage.setItem(CLE_LARGEUR, String(largeur));
 }
