@@ -124,9 +124,11 @@ const CLES_ECRITES_PAR_L_INTERFACE = ["refreshToken", "imprimanteInterface", "co
 
 /** `tcp://hôte:port`, port série Windows (`COM5`, `\\\\.\\COM5`) ou périphérique Linux (`/dev/usb/lp0`, `/dev/ttyUSB0`, `/dev/rfcomm0`). */
 const INTERFACE_IMPRIMANTE_VALIDE = /^(tcp:\/\/[A-Za-z0-9.-]{1,253}:\d{1,5}|(\\\\\.\\)?COM\d{1,3}|\/dev\/(usb\/lp|ttyUSB|ttyS|ttyACM|rfcomm)\d{1,2})$/;
+/** `windows:<nom>` : une imprimante installée dans Windows (le nom est comparé à celles que Windows déclare ; aucun caractère de contrôle). */
+const INTERFACE_IMPRIMANTE_WINDOWS = /^windows:[^\u0000-\u001f]{1,200}$/;
 
 export function interfaceImprimanteValide(valeur: unknown): valeur is string {
-  return typeof valeur === "string" && INTERFACE_IMPRIMANTE_VALIDE.test(valeur.trim());
+  return typeof valeur === "string" && (INTERFACE_IMPRIMANTE_VALIDE.test(valeur.trim()) || INTERFACE_IMPRIMANTE_WINDOWS.test(valeur.trim()));
 }
 
 export function ecrireConfiguration(partielle: Partial<ConfigurationApp>): ConfigurationApp {
@@ -135,7 +137,7 @@ export function ecrireConfiguration(partielle: Partial<ConfigurationApp>): Confi
     if (partielle && cle in partielle) (autorisee as Record<string, unknown>)[cle] = (partielle as Record<string, unknown>)[cle];
   }
   if (autorisee.imprimanteInterface != null && !interfaceImprimanteValide(autorisee.imprimanteInterface)) {
-    throw new Error("Adresse d'imprimante invalide. Exemples : tcp://192.168.1.50:9100 ou COM5.");
+    throw new Error("Adresse d'imprimante invalide. Choisissez votre imprimante dans la liste, ou saisissez une adresse réseau (tcp://192.168.1.50:9100) ou un port (COM5).");
   }
   // On réécrit à partir du contenu brut pour conserver la clé de chiffrement de la copie locale.
   ecrireJson(cheminFichierConfiguration(), { ...lireBrut(), ...autorisee });

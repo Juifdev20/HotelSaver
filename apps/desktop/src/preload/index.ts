@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { ConfigurationApp } from "../main/config-store";
-import type { LigneRecu } from "@hotel-chicago/receipts";
+import type { ImprimanteProposee, LigneRecu } from "@hotel-chicago/receipts";
 import type { LienNotification } from "@hotel-chicago/types";
 
 const api = {
@@ -11,8 +11,10 @@ const api = {
   lireCleLocale: (): Promise<string> => ipcRenderer.invoke("securite:cle-locale"),
   imprimer: (interfaceImprimante: string, lignes: LigneRecu[]): Promise<void> =>
     ipcRenderer.invoke("impression:imprimer", interfaceImprimante, lignes),
-  /** Ouvre la page Bluetooth des paramètres Windows (pour activer le Bluetooth et appairer une imprimante). */
-  ouvrirReglagesBluetooth: (): Promise<void> => ipcRenderer.invoke("systeme:reglages-bluetooth"),
+  /** Imprimantes proposées sur ce poste : installées dans Windows + ports série (dont le Bluetooth appairé). */
+  listerImprimantes: (): Promise<ImprimanteProposee[]> => ipcRenderer.invoke("impression:lister"),
+  /** Ouvre une page des paramètres Windows : Bluetooth (activer, appairer) ou Imprimantes (ajouter un pilote). */
+  ouvrirReglages: (page: "bluetooth" | "imprimantes"): Promise<void> => ipcRenderer.invoke("systeme:ouvrir-reglages", page),
   /** Lien hotelsaver:// reçu avant que l'interface soit prête (lu une seule fois). */
   lireLienEnAttente: (): Promise<string | null> => ipcRenderer.invoke("lien:en-attente"),
   /** Lien hotelsaver:// reçu pendant que l'application tourne ; renvoie la fonction de désabonnement. */

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, screen, session, shell, Tray } from "electron";
 import { join, resolve } from "path";
 import { cleChiffrementLocale, ecrireConfiguration, lireConfiguration } from "./config-store";
-import { imprimerLignes } from "./imprimante";
+import { imprimerLignes, listerImprimantes } from "./imprimante";
 
 // Permet de lancer une instance isolée (tests E2E, ou deux postes de test sur
 // la même machine) sans toucher à la configuration/session de l'instance
@@ -185,9 +185,13 @@ if (premiereInstance) {
     ipcMain.handle("securite:cle-locale", () => cleChiffrementLocale());
     ipcMain.handle("configuration:ecrire", (_evenement, partielle) => ecrireConfiguration(partielle));
     ipcMain.handle("impression:imprimer", (_evenement, interfaceImprimante, lignes) => imprimerLignes(interfaceImprimante, lignes));
-    // Ouvre la page Bluetooth des paramètres Windows. Adresse fixe, jamais fournie par l'interface.
-    ipcMain.handle("systeme:reglages-bluetooth", async () => {
-      if (process.platform === "win32") await shell.openExternal("ms-settings:bluetooth");
+    // Imprimantes proposées à l'utilisateur : celles installées dans Windows et les ports série (dont le Bluetooth appairé).
+    ipcMain.handle("impression:lister", () => (fenetrePrincipale && !fenetrePrincipale.isDestroyed() ? listerImprimantes(fenetrePrincipale.webContents) : []));
+    // Ouvre une page des paramètres Windows. Liste fermée : l'interface ne fournit jamais d'adresse.
+    const PAGES_REGLAGES: Record<string, string> = { bluetooth: "ms-settings:bluetooth", imprimantes: "ms-settings:printers" };
+    ipcMain.handle("systeme:ouvrir-reglages", async (_evenement, page: unknown) => {
+      const adresse = typeof page === "string" ? PAGES_REGLAGES[page] : undefined;
+      if (adresse && process.platform === "win32") await shell.openExternal(adresse);
     });
     // Lien reçu avant que l'interface soit prête : lu une seule fois.
     ipcMain.handle("lien:en-attente", () => {

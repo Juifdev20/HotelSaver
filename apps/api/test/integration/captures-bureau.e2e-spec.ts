@@ -193,6 +193,12 @@ async function remplir(A: JeuHotel) {
     await page.getByRole("button", { name: "Se connecter", exact: true }).click();
     await page.getByTestId("utilisateur-connecte").waitFor({ state: "attached", timeout: 30_000 });
     await page.waitForTimeout(2500);
+    // Hors Electron il n'y a pas d'imprimante : on en simule trois pour photographier l'écran de choix.
+    await page.evaluate(`window.hotelChicago.listerImprimantes = () => Promise.resolve([
+      { interface: "windows:POS-58 Series", type: "windows", nom: "POS-58 Series", detail: "Imprimante installée dans Windows (USB, réseau ou Bluetooth)", recommandee: true, parDefaut: false, horsLigne: false, bluetooth: false },
+      { interface: "\\\\.\\COM7", type: "serie", nom: "Imprimante Bluetooth (COM7)", detail: "Standard Serial over Bluetooth link (COM7)", recommandee: true, parDefaut: false, horsLigne: false, bluetooth: true },
+      { interface: "windows:HP LaserJet 1020", type: "windows", nom: "HP LaserJet 1020", detail: "Imprimante installée dans Windows (USB, réseau ou Bluetooth)", recommandee: false, parDefaut: true, horsLigne: false, bluetooth: false }
+    ]); window.hotelChicago.imprimer = () => Promise.resolve();`);
     return page;
   }
 
