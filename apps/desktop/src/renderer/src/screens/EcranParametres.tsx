@@ -178,194 +178,201 @@ export function EcranParametres({
 
       {client && (
         <div className="carte-formulaire">
-          <p className="hc-text-label texte-discret">État du serveur</p>
           <IndicateurConnexion client={client} />
         </div>
       )}
 
-      <div className="carte-formulaire">
-        <p className="hc-text-label texte-discret">Apparence</p>
-        <div className="parametres-ligne">
-          <span className="parametres-ligne__icone">
-            {themeSombre ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
-          </span>
-          <span className="hc-text-body">{themeSombre ? "Mode sombre" : "Mode clair"}</span>
-          <Button type="button" variant="secondary" size="sm" onClick={onBasculerTheme}>
-            Basculer
-          </Button>
-        </div>
-        <div className="parametres-ligne">
-          <span className="parametres-ligne__icone">
-            <Rows3 size={18} aria-hidden="true" />
-          </span>
-          <span className="hc-text-body">{densite === "compacte" ? "Affichage compact" : "Affichage confortable"}</span>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              const suivante = densite === "compacte" ? "confortable" : "compacte";
-              appliquerDensite(suivante);
-              setDensite(suivante);
-            }}
-          >
-            {densite === "compacte" ? "Agrandir" : "Compacter"}
-          </Button>
-        </div>
-        <p className="hc-text-caption texte-discret">Le mode compact affiche plus de lignes dans les tableaux, utile sur un petit écran.</p>
-      </div>
+      {/* ── CE POSTE ─────────────────────────────────────────── */}
+      <div className="parametres-section">
+        <h2 className="parametres-section__titre">Ce poste</h2>
 
-      <div className="carte-formulaire">
-        <p className="hc-text-label texte-discret">Notifications</p>
-        <div className="parametres-ligne">
-          <span className="parametres-ligne__icone">
-            <Bell size={18} aria-hidden="true" />
-          </span>
-          <span className="hc-text-body">
-            {lancerAuDemarrage ? "Démarre avec Windows" : "Ne démarre pas avec Windows"}
-          </span>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => void window.hotelChicago.ecrireLancerAuDemarrage(!lancerAuDemarrage).then(setLancerAuDemarrage)}
-          >
-            {lancerAuDemarrage ? "Désactiver" : "Activer"}
-          </Button>
-        </div>
-        <p className="hc-text-caption texte-discret">
-          Fermer la fenêtre garde HotelSaver actif près de l'horloge pour recevoir les alertes. Activez le démarrage
-          avec Windows pour ne jamais les manquer.
-        </p>
-      </div>
-
-      {client && preferencesSecurite && onChangerPreferencesSecurite && (
-        <BlocSecurite client={client} preferences={preferencesSecurite} onChangerPreferences={onChangerPreferencesSecurite} />
-      )}
-
-      {/* Visible pour tous : chacun voit l'état de l'abonnement ; seul le patron peut payer (l'écran Abonnement le dit aux autres). */}
-      {onNaviguer && utilisateur && (
-        <div className="carte-formulaire" data-testid="parametres-abonnement">
-          <p className="hc-text-label texte-discret">Abonnement</p>
+        <div className="carte-formulaire">
+          <p className="hc-text-label texte-discret">Apparence</p>
           <div className="parametres-ligne">
             <span className="parametres-ligne__icone">
-              <CreditCard size={18} aria-hidden="true" />
+              {themeSombre ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
             </span>
-            <span className="hc-text-body">
-              {utilisateur.abonnement ? resumerAbonnement(actualiserEtatAbonnement(utilisateur.abonnement)).titre : "État de l'abonnement"}
-            </span>
-            <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("abonnement")}>
-              {utilisateur.role === Role.PATRON ? "Gérer" : "Voir"}
+            <span className="hc-text-body">{themeSombre ? "Mode sombre" : "Mode clair"}</span>
+            <Button type="button" variant="secondary" size="sm" onClick={onBasculerTheme}>
+              Basculer
             </Button>
           </div>
-        </div>
-      )}
-
-      {/* Compte ScanLinkPay de l'hôtel et acompte demandé en ligne : l'argent du patron, lui seul y touche. */}
-      {client && utilisateur?.role === Role.PATRON && <BlocPaiementEnLigne client={client} onNaviguer={onNaviguer} />}
-
-      {onNaviguer && (
-        <div className="carte-formulaire">
-          <p className="hc-text-label texte-discret">Impression</p>
           <div className="parametres-ligne">
             <span className="parametres-ligne__icone">
-              <Printer size={18} aria-hidden="true" />
+              <Rows3 size={18} aria-hidden="true" />
             </span>
-            <span className="hc-text-body">Imprimante (reçu chambre)</span>
-            <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("imprimante")}>
-              Configurer
+            <span className="hc-text-body">{densite === "compacte" ? "Affichage compact" : "Affichage confortable"}</span>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const suivante = densite === "compacte" ? "confortable" : "compacte";
+                appliquerDensite(suivante);
+                setDensite(suivante);
+              }}
+            >
+              {densite === "compacte" ? "Agrandir" : "Compacter"}
             </Button>
           </div>
+          <p className="hc-text-caption texte-discret">Le mode compact affiche plus de lignes dans les tableaux, utile sur un petit écran.</p>
         </div>
-      )}
 
-      {/* Utilisateurs et Taux de change vivent ici plutôt que dans la barre
-          latérale, pour la garder courte (demande du client du 25/09/2026) —
-          PATRON uniquement, comme dans la matrice 9.3. */}
-      {utilisateur?.role === Role.PATRON && (
         <div className="carte-formulaire">
-          <p className="hc-text-label texte-discret">Administration</p>
+          <p className="hc-text-label texte-discret">Notifications</p>
           <div className="parametres-ligne">
             <span className="parametres-ligne__icone">
-              <Users size={18} aria-hidden="true" />
-            </span>
-            <span className="hc-text-body">Utilisateurs</span>
-            {onNaviguer && (
-              <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("utilisateurs")}>
-                Gérer
-              </Button>
-            )}
-          </div>
-          <div className="parametres-ligne">
-            <span className="parametres-ligne__icone">
-              <ShieldCheck size={18} aria-hidden="true" />
-            </span>
-            <span className="hc-text-body">{patronOpere ? "Le patron peut aussi opérer" : "Le patron n'opère pas"}</span>
-            {client && (
-              <Button type="button" variant="secondary" size="sm" onClick={() => void basculerPatronOpere()} disabled={enregistrementReglage}>
-                {enregistrementReglage ? "…" : patronOpere ? "Désactiver" : "Activer"}
-              </Button>
-            )}
-          </div>
-          <p className="hc-text-caption texte-discret">
-            Réserver, faire les check-in/out, facturer et tenir la caisse sont réservés au personnel (réception, cafétaria) pour éviter toute
-            confusion. Activez ce réglage seulement si vous travaillez seul : le patron garde dans tous les cas l'administration, les rapports
-            et les annulations avec motif.
-          </p>
-          <div className="parametres-ligne">
-            <span className="parametres-ligne__icone">
-              <ChefHat size={18} aria-hidden="true" />
-            </span>
-            <span className="hc-text-body">{cuisineActivee ? "Suivi cuisine activé" : "Suivi cuisine désactivé"}</span>
-            {client && (
-              <Button type="button" variant="secondary" size="sm" onClick={() => void basculerCuisine()} disabled={enregistrementReglage}>
-                {enregistrementReglage ? "…" : cuisineActivee ? "Désactiver" : "Activer"}
-              </Button>
-            )}
-          </div>
-          <p className="hc-text-caption texte-discret">
-            Activez si des plats sont préparés par une équipe séparée : les commandes partent sur l'écran Cuisine jusqu'à leur service. Laissez
-            désactivé pour une vente au comptoir (articles servis immédiatement — l'écran Cuisine et les statuts sont masqués).
-          </p>
-          <div className="parametres-ligne">
-            <span className="parametres-ligne__icone">
-              <Globe size={18} aria-hidden="true" />
+              <Bell size={18} aria-hidden="true" />
             </span>
             <span className="hc-text-body">
-              {commandeWebActivee ? "Commande en ligne activée" : "Commande en ligne désactivée"}
+              {lancerAuDemarrage ? "Démarre avec Windows" : "Ne démarre pas avec Windows"}
             </span>
-            {client && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => void basculerCommandeWeb()}
-                disabled={enregistrementReglage}
-              >
-                {enregistrementReglage ? "…" : commandeWebActivee ? "Désactiver" : "Activer"}
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void window.hotelChicago.ecrireLancerAuDemarrage(!lancerAuDemarrage).then(setLancerAuDemarrage)}
+            >
+              {lancerAuDemarrage ? "Désactiver" : "Activer"}
+            </Button>
           </div>
           <p className="hc-text-caption texte-discret">
-            Affiche la page « Cuisine » sur le site web de l'hôtel : les clients y commandent et paient au comptoir. Publiez les produits dans
-            Menu (« Visible et commandable sur le site ») — la cafétaria est notifiée de chaque commande et les retrouve dans Comptes ouverts.
+            Fermer la fenêtre garde HotelSaver actif près de l'horloge pour recevoir les alertes. Activez le démarrage
+            avec Windows pour ne jamais les manquer.
           </p>
-          {erreurReglage && (
-            <p role="alert" className="hc-text-body texte-erreur">
-              {erreurReglage}
-            </p>
-          )}
-          {client ? (
-            <GestionTauxChange client={client} />
-          ) : (
+        </div>
+
+        {onNaviguer && (
+          <div className="carte-formulaire">
+            <p className="hc-text-label texte-discret">Impression</p>
             <div className="parametres-ligne">
               <span className="parametres-ligne__icone">
-                <Coins size={18} aria-hidden="true" />
+                <Printer size={18} aria-hidden="true" />
               </span>
-              <span className="hc-text-body">Taux de change</span>
-              <span className="hc-text-caption texte-discret">disponible une fois connecté</span>
+              <span className="hc-text-body">Imprimante (reçu chambre)</span>
+              <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("imprimante")}>
+                Configurer
+              </Button>
             </div>
-          )}
+          </div>
+        )}
+      </div>
+
+      {/* ── SÉCURITÉ ─────────────────────────────────────────── */}
+      {client && preferencesSecurite && onChangerPreferencesSecurite && (
+        <div className="parametres-section">
+          <h2 className="parametres-section__titre">Sécurité</h2>
+          <BlocSecurite client={client} preferences={preferencesSecurite} onChangerPreferences={onChangerPreferencesSecurite} />
+        </div>
+      )}
+
+      {/* ── HÔTEL (PATRON) ───────────────────────────────────── */}
+      {utilisateur?.role === Role.PATRON && (
+        <div className="parametres-section">
+          <h2 className="parametres-section__titre">Hôtel</h2>
+
+          {/* Utilisateurs et toggles */}
+          <div className="carte-formulaire">
+            <p className="hc-text-label texte-discret">Administration</p>
+            <div className="parametres-ligne">
+              <span className="parametres-ligne__icone">
+                <Users size={18} aria-hidden="true" />
+              </span>
+              <span className="hc-text-body">Utilisateurs</span>
+              {onNaviguer && (
+                <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("utilisateurs")}>
+                  Gérer
+                </Button>
+              )}
+            </div>
+            <div className="parametres-ligne">
+              <span className="parametres-ligne__icone">
+                <ShieldCheck size={18} aria-hidden="true" />
+              </span>
+              <span className="hc-text-body">{patronOpere ? "Le patron peut aussi opérer" : "Le patron n'opère pas"}</span>
+              {client && (
+                <Button type="button" variant="secondary" size="sm" onClick={() => void basculerPatronOpere()} disabled={enregistrementReglage}>
+                  {enregistrementReglage ? "…" : patronOpere ? "Désactiver" : "Activer"}
+                </Button>
+              )}
+            </div>
+            <p className="hc-text-caption texte-discret">
+              Réserver, faire les check-in/out, facturer et tenir la caisse sont réservés au personnel. Activez seulement si vous travaillez seul.
+            </p>
+            <div className="parametres-ligne">
+              <span className="parametres-ligne__icone">
+                <ChefHat size={18} aria-hidden="true" />
+              </span>
+              <span className="hc-text-body">{cuisineActivee ? "Suivi cuisine activé" : "Suivi cuisine désactivé"}</span>
+              {client && (
+                <Button type="button" variant="secondary" size="sm" onClick={() => void basculerCuisine()} disabled={enregistrementReglage}>
+                  {enregistrementReglage ? "…" : cuisineActivee ? "Désactiver" : "Activer"}
+                </Button>
+              )}
+            </div>
+            <div className="parametres-ligne">
+              <span className="parametres-ligne__icone">
+                <Globe size={18} aria-hidden="true" />
+              </span>
+              <span className="hc-text-body">
+                {commandeWebActivee ? "Commande en ligne activée" : "Commande en ligne désactivée"}
+              </span>
+              {client && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void basculerCommandeWeb()}
+                  disabled={enregistrementReglage}
+                >
+                  {enregistrementReglage ? "…" : commandeWebActivee ? "Désactiver" : "Activer"}
+                </Button>
+              )}
+            </div>
+            {erreurReglage && (
+              <p role="alert" className="hc-text-body texte-erreur">
+                {erreurReglage}
+              </p>
+            )}
+          </div>
+
+          {/* Taux de change dans sa propre carte */}
+          <div className="carte-formulaire">
+            <p className="hc-text-label texte-discret">Taux de change</p>
+            {client ? (
+              <GestionTauxChange client={client} />
+            ) : (
+              <div className="parametres-ligne">
+                <span className="parametres-ligne__icone">
+                  <Coins size={18} aria-hidden="true" />
+                </span>
+                <span className="hc-text-body texte-discret">Disponible une fois connecté</span>
+              </div>
+            )}
+          </div>
+
+          {/* Paiement en ligne ScanLinkPay */}
+          {client && <BlocPaiementEnLigne client={client} onNaviguer={onNaviguer} />}
+        </div>
+      )}
+
+      {/* ── ABONNEMENT ───────────────────────────────────────── */}
+      {onNaviguer && utilisateur && (
+        <div className="parametres-section">
+          <h2 className="parametres-section__titre">Abonnement</h2>
+          <div className="carte-formulaire" data-testid="parametres-abonnement">
+            <div className="parametres-ligne">
+              <span className="parametres-ligne__icone">
+                <CreditCard size={18} aria-hidden="true" />
+              </span>
+              <span className="hc-text-body">
+                {utilisateur.abonnement ? resumerAbonnement(actualiserEtatAbonnement(utilisateur.abonnement)).titre : "État de l'abonnement"}
+              </span>
+              <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("abonnement")}>
+                {utilisateur.role === Role.PATRON ? "Gérer" : "Voir"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

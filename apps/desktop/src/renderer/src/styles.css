@@ -2451,12 +2451,34 @@ button {
   align-items: start;
 }
 
-.page--colonnes > :not(.carte-formulaire) {
+.page--colonnes > :not(.carte-formulaire):not(.parametres-section) {
   grid-column: 1 / -1;
 }
 
 .page--colonnes > .carte-formulaire {
   max-width: none;
+}
+
+/* Sections titrées dans l'écran Paramètres */
+.parametres-section {
+  display: contents;
+}
+
+.parametres-section__titre {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--hc-encre-attenuee);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding-top: var(--hc-space-5);
+  border-top: 1px solid var(--hc-border);
+  margin-top: var(--hc-space-1);
+}
+
+.parametres-section:first-of-type .parametres-section__titre {
+  border-top: none;
+  padding-top: 0;
 }
 
 /* Compte cafétaria ouvert : les personnes et leurs consommations à gauche, le total et le règlement (toujours visibles) à droite. */
