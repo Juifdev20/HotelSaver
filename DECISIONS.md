@@ -3991,3 +3991,6 @@ lue dans la mauvaise page de codes), et le test échouait sur « Printer Error �
 permet de retrouver le nom de l'appareil (« BlueTooth Printer (COM4) ») et son adresse, le port entrant n'est plus proposé, la sortie est lue en UTF-8, et l'envoi
 sur un port COM passe par `System.IO.Ports.SerialPort` (délais d'attente, erreurs expliquées : port occupé, port disparu, imprimante muette) au lieu d'écrire dans le
 fichier `\\.\COMn`. Une imprimante Bluetooth ne parle qu'à un appareil à la fois : si elle est connectée au téléphone, le PC échoue.
+
+- **Applications 1.0.8** (versionCode 9, 26/10/2026) : essai réel de l'imprimante sur PC (ports Bluetooth nommés, port entrant écarté, envoi COM par .NET, accents corrects) ;
+  mobile : le type de pièce d'identité devient un champ qui ouvre une liste.
