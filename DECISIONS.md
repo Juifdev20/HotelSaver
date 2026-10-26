@@ -3978,3 +3978,7 @@ ne jamais écrire de couleur claire en dur, toujours un jeton (`--hc-*-light`, `
 **Contrôle** : `CAPTURES_THEME=dark` sur `captures-bureau.e2e-spec.ts` photographie tous les écrans en thème sombre ET signale tout texte dont le
 contraste est inférieur à 3 (rubrique `CONTRASTE` du rapport). Résultat après correction : aucun texte signalé (connexion, inscription, mot de passe
 oublié, tous les écrans des trois rôles, deux tailles de fenêtre). Le mobile n'a pas de thème sombre (constantes claires) : non concerné.
+
+- **Applications 1.0.7** (versionCode 8, 26/10/2026) : imprimantes trouvées et connectées sans adresse à connaître (liste Windows + ports COM + impression RAW par le spouleur au bureau ;
+  activation, recherche et appairage Bluetooth dans l'application, connexion plus patiente et mode RawBT de secours au mobile ; largeur de papier 58/80 mm), type de pièce
+  d'identité choisi dans une liste à la réception, mode sombre du bureau lisible partout, et corrections de synchronisation de la 1.0.6.

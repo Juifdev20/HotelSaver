@@ -2,7 +2,7 @@
   "name": "@hotel-chicago/desktop",
   "private": true,
   "productName": "HotelSaver",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Application desktop HotelSaver (Electron) — Réception & administration",
   "main": "./out/main/index.js",
   "scripts": {
