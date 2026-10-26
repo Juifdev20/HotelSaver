@@ -8,6 +8,7 @@ import { LABEL_STATUT, TONE_STATUT, dateCourte } from "./EcranReservations";
 import { useTri } from "../components/useTri";
 import { usePagination } from "../components/Pagination";
 import { PanneauFormulaire } from "../components/PanneauFormulaire";
+import { ChampTypePiece } from "../components/ChampTypePiece";
 
 export interface EcranClientsProps {
   client: ClientApi;
@@ -175,10 +176,7 @@ export function EcranClients({ client }: EcranClientsProps) {
                 <label className="hc-text-label" htmlFor="cl-email">Email</label>
                 <input id="cl-email" type="email" value={saisie.email} onChange={(e) => setSaisie({ ...saisie, email: e.target.value })} />
               </div>
-              <div className="champ">
-                <label className="hc-text-label" htmlFor="cl-type-piece">Type de pièce</label>
-                <input id="cl-type-piece" type="text" value={saisie.typePiece} onChange={(e) => setSaisie({ ...saisie, typePiece: e.target.value })} placeholder="CNI, passeport, permis…" />
-              </div>
+              <ChampTypePiece id="cl-type-piece" libelle="Type de pièce" valeur={saisie.typePiece} onChange={(v) => setSaisie({ ...saisie, typePiece: v })} />
               <div className="champ">
                 <label className="hc-text-label" htmlFor="cl-num-piece">N° de pièce</label>
                 <input id="cl-num-piece" type="text" value={saisie.numeroPiece} onChange={(e) => setSaisie({ ...saisie, numeroPiece: e.target.value })} placeholder="Numéro de la pièce" />

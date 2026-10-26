@@ -1398,3 +1398,53 @@ export function formaterTelephoneRdc(telephone: string | null | undefined): stri
   if (!normalise) return telephone ?? "";
   return `${INDICATIF_RDC} ${formaterSaisieRdc(normalise.slice(INDICATIF_RDC.length))}`;
 }
+
+/**
+ * Pièces d'identité proposées à la réception, les plus courantes en premier (RDC et voyageurs étrangers). Le champ `typePiece` reste un
+ * texte libre côté serveur : la liste accélère la saisie, « Autre » laisse écrire n'importe quelle pièce.
+ */
+export const TYPES_PIECE_IDENTITE = [
+  "Carte d'électeur",
+  "Carte nationale d'identité",
+  "Passeport",
+  "Permis de conduire",
+  "Carte de service",
+  "Visa",
+  "Carte de séjour",
+  "Carte consulaire",
+  "Carte d'étudiant",
+  "Carte professionnelle",
+  "Attestation de perte de pièce",
+] as const;
+
+/** Libellé du choix « autre pièce » (le texte est alors saisi à la main). */
+export const TYPE_PIECE_AUTRE = "Autre";
+
+const SANS_ACCENT = (t: string) =>
+  t
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[’`]/g, "'")
+    .trim()
+    .toLowerCase();
+
+/** Anciennes abréviations déjà enregistrées (commentaire du schéma : CNI, PASSEPORT, PERMIS). */
+const ALIAS_PIECE: Record<string, (typeof TYPES_PIECE_IDENTITE)[number]> = {
+  cni: "Carte nationale d'identité",
+  "carte d'identite": "Carte nationale d'identité",
+  "carte nationale": "Carte nationale d'identité",
+  permis: "Permis de conduire",
+  "carte electeur": "Carte d'électeur",
+  "carte d'electeur": "Carte d'électeur",
+};
+
+/**
+ * Pour une valeur enregistrée (peut être une saisie libre ancienne) : le choix de la liste correspondant, ou `null` si c'est une pièce hors
+ * liste (à montrer sous « Autre » avec son texte).
+ */
+export function typePieceDeLaListe(valeur: string): (typeof TYPES_PIECE_IDENTITE)[number] | null {
+  const v = SANS_ACCENT(valeur);
+  if (!v) return null;
+  const trouvee = TYPES_PIECE_IDENTITE.find((t) => SANS_ACCENT(t) === v);
+  return trouvee ?? ALIAS_PIECE[v] ?? null;
+}

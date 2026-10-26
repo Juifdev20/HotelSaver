@@ -14,6 +14,7 @@ import { lireMontant } from "@hotel-chicago/regles";
 import { ajouterJours, dateComplete, midiLubumbashi } from "../dates";
 import { confirmerAction } from "../confirmer";
 import { messageErreur } from "../messagesErreur";
+import { ChampTypePiece } from "../composants/ChampTypePiece";
 
 export interface EcranNouvelleReservationProps {
   onRetour: () => void;
@@ -322,8 +323,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
               <TextInput style={styles.champ} value={telephone} onChangeText={setTelephone} accessibilityLabel="Téléphone du client" autoComplete="tel" placeholder="+243 …" placeholderTextColor={couleurs.encreFaible} keyboardType="phone-pad" />
               <Text style={styles.champLabel}>Email</Text>
               <TextInput style={styles.champ} value={email} onChangeText={setEmail} accessibilityLabel="Email du client" autoComplete="email" placeholder="Optionnel" placeholderTextColor={couleurs.encreFaible} keyboardType="email-address" autoCapitalize="none" />
-              <Text style={styles.champLabel}>Type de pièce (optionnel)</Text>
-              <TextInput style={styles.champ} value={typePiece} onChangeText={setTypePiece} accessibilityLabel="Type de pièce d'identité" placeholder="CNI, passeport, permis…" placeholderTextColor={couleurs.encreFaible} />
+              <ChampTypePiece valeur={typePiece} onChange={setTypePiece} />
               <Text style={styles.champLabel}>N° de pièce (optionnel)</Text>
               <TextInput style={styles.champ} value={numeroPiece} onChangeText={setNumeroPiece} accessibilityLabel="Numéro de la pièce d'identité" placeholder="Numéro de la pièce d'identité" placeholderTextColor={couleurs.encreFaible} />
             </>

@@ -11,6 +11,7 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { dateComplete } from "../dates";
 import { messageErreur } from "../messagesErreur";
 import type { ClientAvecSejours } from "@hotel-chicago/api-client";
+import { ChampTypePiece } from "../composants/ChampTypePiece";
 
 export interface EcranClientsProps {
   onRetour: () => void;
@@ -191,8 +192,7 @@ export function EcranClients({ onRetour }: EcranClientsProps) {
           <TextInput style={styles.champ} value={saisie.telephone} onChangeText={(v) => setSaisie((s) => ({ ...s, telephone: v }))} accessibilityLabel="Téléphone du client" autoComplete="tel" placeholder="+243 …" placeholderTextColor={couleurs.encreFaible} keyboardType="phone-pad" />
           <Text style={styles.champLabel}>Email</Text>
           <TextInput style={styles.champ} value={saisie.email} onChangeText={(v) => setSaisie((s) => ({ ...s, email: v }))} accessibilityLabel="Email du client" autoComplete="email" placeholder="Optionnel" placeholderTextColor={couleurs.encreFaible} keyboardType="email-address" autoCapitalize="none" />
-          <Text style={styles.champLabel}>Type de pièce</Text>
-          <TextInput style={styles.champ} value={saisie.typePiece} onChangeText={(v) => setSaisie((s) => ({ ...s, typePiece: v }))} accessibilityLabel="Type de pièce d'identité" placeholder="CNI, passeport, permis…" placeholderTextColor={couleurs.encreFaible} />
+          <ChampTypePiece key={clientChoisi?.id ?? "nouveau"} libelle="Type de pièce" valeur={saisie.typePiece} onChange={(v) => setSaisie((s) => ({ ...s, typePiece: v }))} />
           <Text style={styles.champLabel}>N° de pièce</Text>
           <TextInput style={styles.champ} value={saisie.numeroPiece} onChangeText={(v) => setSaisie((s) => ({ ...s, numeroPiece: v }))} accessibilityLabel="Numéro de la pièce d'identité" placeholder="Numéro de la pièce" placeholderTextColor={couleurs.encreFaible} />
           <Text style={styles.champLabel}>Notes (suivi interne)</Text>

@@ -6,6 +6,7 @@ import type { Client as ClientHotel } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { lireMontant } from "@hotel-chicago/miroir-local";
 
+import { ChampTypePiece } from "../components/ChampTypePiece";
 export interface EcranNouvelleReservationProps {
   client: ClientApi;
   onRetour: () => void;
@@ -253,12 +254,7 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
                   </label>
                   <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
-                <div className="champ">
-                  <label className="hc-text-label" htmlFor="type-piece">
-                    Type de pièce (optionnel)
-                  </label>
-                  <input id="type-piece" type="text" value={typePiece} onChange={(e) => setTypePiece(e.target.value)} placeholder="CNI, passeport, permis…" />
-                </div>
+                <ChampTypePiece id="type-piece" valeur={typePiece} onChange={setTypePiece} />
                 <div className="champ">
                   <label className="hc-text-label" htmlFor="numero-piece">
                     N° de pièce (optionnel)
