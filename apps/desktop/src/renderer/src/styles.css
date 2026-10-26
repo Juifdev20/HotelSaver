@@ -187,13 +187,13 @@ p {
 .hc-auth__marque {
   font-size: 18px;
   text-align: center;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
   margin-bottom: var(--hc-space-4);
 }
 
 .hc-auth__titre {
   font-size: 26px;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
   margin-bottom: 4px;
   text-align: center;
 }
@@ -209,7 +209,7 @@ p {
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
   margin: var(--hc-space-3) 0 6px;
 }
 
@@ -263,7 +263,7 @@ p {
   padding: 10px 12px;
   border-radius: var(--hc-radius-sm);
   background: var(--hc-danger-light);
-  color: #b42318;
+  color: var(--hc-danger);
   font-size: 13px;
 }
 
@@ -1345,7 +1345,7 @@ p {
   padding: 10px 12px;
   border-radius: var(--hc-radius-sm);
   background: var(--hc-info-light);
-  color: #175cd3;
+  color: var(--hc-info);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -1428,7 +1428,7 @@ p {
 }
 
 .hc-auth__etape--actif {
-  color: var(--hc-navy);
+  color: var(--hc-titre);
 }
 
 .hc-auth__etape--actif span {
@@ -1492,7 +1492,7 @@ button {
   white-space: pre-wrap;
   border-radius: var(--hc-radius-sm);
   background-color: var(--hc-danger-light);
-  color: #b42318;
+  color: var(--hc-danger);
   font-size: 12px;
 }
 
@@ -1983,8 +1983,8 @@ button {
   border: 1px solid var(--hc-border);
   border-radius: var(--hc-radius-lg);
 }
-.stock-tuile--alerte { border-color: #fec84b; background: #fffaeb; }
-.stock-tuile--danger  { border-color: #fda29b; background: #fff1f0; }
+.stock-tuile--alerte { border-color: var(--hc-warning); background: var(--hc-warning-light); }
+.stock-tuile--danger  { border-color: var(--hc-danger); background: var(--hc-danger-light); }
 
 .stock-tuile__icone--ok      { color: var(--hc-blue); }
 .stock-tuile__icone--alerte  { color: var(--hc-warning-vif); }
@@ -2015,8 +2015,8 @@ button {
 }
 
 /* Lignes colorées dans le tableau inventaire */
-.ligne-alerte td { background: #fffdf5; }
-.ligne-danger td  { background: #fff8f8; }
+.ligne-alerte td { background: var(--hc-warning-light); }
+.ligne-danger td  { background: var(--hc-danger-light); }
 
 /* Badges type de mouvement */
 .badge-mouvement {
@@ -2030,7 +2030,7 @@ button {
 .badge-mouvement--entree       { background: var(--hc-success-light); color: var(--hc-success); }
 .badge-mouvement--sortie-vente { background: var(--hc-info-light); color: var(--hc-info); }
 .badge-mouvement--perte        { background: var(--hc-danger-light); color: var(--hc-danger); }
-.badge-mouvement--ajustement   { background: #f4f4f5; color: #52525b; }
+.badge-mouvement--ajustement   { background: var(--hc-surface-300); color: var(--hc-ink-muted); }
 
 /* Badges statut inventaire */
 .badge-stock {
@@ -2114,8 +2114,8 @@ button {
 }
 
 /* Lignes du tableau de saisie colorées selon l'écart */
-.inv-ligne--manque  { background: #fff1f0 !important; }
-.inv-ligne--surplus { background: #ecfdf3 !important; }
+.inv-ligne--manque  { background: var(--hc-danger-light) !important; }
+.inv-ligne--surplus { background: var(--hc-success-light) !important; }
 
 /* Champs inline du tableau de saisie */
 .inv-input-physique {

@@ -15,19 +15,19 @@ export interface EcranPlanningProps {
 const NB_JOURS = 14;
 
 const FOND_STATUT: Record<StatutReservation, string> = {
-  EN_ATTENTE: "var(--hc-color-warning-soft, #fef0c7)",
-  CONFIRMEE: "var(--hc-color-info-soft, #d1e0ff)",
-  EN_COURS: "var(--hc-color-success-soft, #d1fadf)",
-  TERMINEE: "var(--hc-color-neutral-soft, #e5e5e5)",
-  ANNULEE: "var(--hc-color-danger-soft, #fee4e2)",
+  EN_ATTENTE: "var(--hc-warning-light)",
+  CONFIRMEE: "var(--hc-info-light)",
+  EN_COURS: "var(--hc-success-light)",
+  TERMINEE: "var(--hc-surface-300)",
+  ANNULEE: "var(--hc-danger-light)",
 };
 
 const TEXTE_STATUT: Record<StatutReservation, string> = {
-  EN_ATTENTE: "var(--hc-color-warning, #b54708)",
-  CONFIRMEE: "var(--hc-color-info, #175cd3)",
-  EN_COURS: "var(--hc-color-success, #067647)",
-  TERMINEE: "var(--hc-color-neutral, #6b6b6b)",
-  ANNULEE: "var(--hc-color-danger, #b42318)",
+  EN_ATTENTE: "var(--hc-warning)",
+  CONFIRMEE: "var(--hc-info)",
+  EN_COURS: "var(--hc-success)",
+  TERMINEE: "var(--hc-neutral)",
+  ANNULEE: "var(--hc-danger)",
 };
 
 const STATUTS_VISIBLES = new Set<StatutReservation>(["EN_ATTENTE", "CONFIRMEE", "EN_COURS"]);
@@ -96,7 +96,7 @@ export function EcranPlanning({ client, onNouvelleReservation, onOuvrirReservati
       <table className="tableau tableau-planning">
         <thead>
           <tr>
-            <th style={{ position: "sticky", left: 0, background: "var(--hc-color-surface, #fff)", zIndex: 1 }}>Chambre</th>
+            <th style={{ position: "sticky", left: 0, background: "var(--hc-surface-200)", zIndex: 1 }}>Chambre</th>
             {jours.map((j) => (
               <th key={j} style={{ minWidth: 44, textAlign: "center", fontWeight: 600 }}>
                 {new Date(j + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short" })}{" "}
@@ -110,8 +110,8 @@ export function EcranPlanning({ client, onNouvelleReservation, onOuvrirReservati
                           borderRadius: "50%",
                           alignItems: "center",
                           justifyContent: "center",
-                          background: "var(--hc-color-primary, #1d4ed8)",
-                          color: "#fff",
+                          background: "var(--hc-blue)",
+                          color: "var(--hc-on-accent)",
                         }
                       : undefined
                   }
@@ -127,7 +127,7 @@ export function EcranPlanning({ client, onNouvelleReservation, onOuvrirReservati
             <tr key={chambre.id}>
               <td
                 className="hc-text-body-strong"
-                style={{ position: "sticky", left: 0, background: "var(--hc-color-surface, #fff)", zIndex: 1, whiteSpace: "nowrap" }}
+                style={{ position: "sticky", left: 0, background: "var(--hc-surface-200)", zIndex: 1, whiteSpace: "nowrap" }}
               >
                 {chambre.numero} <span className="texte-discret">{chambre.type}</span>
               </td>

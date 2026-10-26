@@ -3,7 +3,7 @@
  * Sert à contrôler l'ergonomie : à lancer après `pnpm --filter @hotel-chicago/desktop build`.
  *
  *   TEST_INTEGRATION=1 TEST_CAPTURES=1 CAPTURES_DIR=/chemin DATABASE_URL=… pnpm --filter @hotel-chicago/api test:integration -- captures-bureau
- *   Variables facultatives : CAPTURES_ROLES=patron,recep,caf · CAPTURES_TAILLES=1440x900,1280x720,1920x1080 · CAPTURES_PAGES="Chambres,Stock"
+ *   Variables facultatives : CAPTURES_THEME=dark (thème sombre + audit des contrastes de texte, rapporté dans RAPPORT) · CAPTURES_ROLES=patron,recep,caf · CAPTURES_TAILLES=1440x900,1280x720,1920x1080 · CAPTURES_PAGES="Chambres,Stock"
  */
 import { createServer, type Server } from "node:http";
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
@@ -58,6 +58,56 @@ const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string; ensuit
   { role: "caf", page: "Comptes ouverts", bouton: /^Ouvrir$/, nom: "compte-detail" },
   { role: "caf", page: "Comptes ouverts", bouton: /^Ouvrir$/, ensuite: /Ajouter/, nom: "compte-ajout-consommation" },
 ];
+
+const SOMBRE = process.env.CAPTURES_THEME === "dark";
+
+/**
+ * Parcourt le texte visible de la page et signale celui dont le contraste avec son fond est insuffisant (< 3 : illisible, ou presque).
+ * Un fond en dégradé ou en image est ignoré (le contraste n'y est pas calculable simplement) ; le texte sur photo de la page de connexion aussi.
+ */
+const AUDIT_CONTRASTE = `(() => {
+  const parse = (c) => { const m = c.match(/rgba?\\(([^)]+)\\)/); if (!m) return null; const v = m[1].split(/[ ,\\/]+/).filter(Boolean).map(Number); return { r: v[0], g: v[1], b: v[2], a: v.length > 3 ? v[3] : 1 }; };
+  const lum = (c) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+  const sur = (fg, bg) => ({ r: fg.r * fg.a + bg.r * (1 - fg.a), g: fg.g * fg.a + bg.g * (1 - fg.a), b: fg.b * fg.a + bg.b * (1 - fg.a), a: 1 });
+  const fondDe = (el) => {
+    const pile = [];
+    for (let e = el; e; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (cs.backgroundImage !== 'none') return null;
+      const c = parse(cs.backgroundColor);
+      if (c && c.a > 0) { pile.push(c); if (c.a >= 1) break; }
+    }
+    let fond = { r: 255, g: 255, b: 255, a: 1 };
+    if (document.documentElement.dataset.theme === 'dark') fond = { r: 11, g: 18, b: 32, a: 1 };
+    for (const c of pile.reverse()) fond = sur(c, fond);
+    return fond;
+  };
+  const vus = new Map();
+  for (const el of document.querySelectorAll('body *')) {
+    if (el.closest('.hc-auth__texte, .hc-auth__photo, svg, [aria-hidden="true"]')) continue;
+    const texte = Array.from(el.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(' ').trim();
+    if (!texte) continue;
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    if (r.width < 2 || r.height < 2 || cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) === 0) continue;
+    const fond = fondDe(el);
+    if (!fond) continue;
+    let fg = parse(cs.color); if (!fg) continue;
+    fg = sur(fg, fond);
+    const l1 = lum(fg), l2 = lum(fond);
+    const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    if (ratio < 3) {
+      const cle = el.tagName.toLowerCase() + '.' + String(el.className).split(' ').filter(Boolean).slice(0, 2).join('.') + ' ' + cs.color + ' sur rgb(' + Math.round(fond.r) + ',' + Math.round(fond.g) + ',' + Math.round(fond.b) + ')';
+      if (!vus.has(cle)) vus.set(cle, ratio.toFixed(2) + ' « ' + texte.slice(0, 40) + ' »');
+    }
+  }
+  return Array.from(vus.entries()).slice(0, 30).map(([k, v]) => k + ' → ' + v);
+})()`;
+
+async function auditer(page: Page, ou: string, rapport: string[]) {
+  const trouves = (await page.evaluate(AUDIT_CONTRASTE)) as string[];
+  for (const t of trouves) rapport.push(`CONTRASTE ${ou} : ${t}`);
+}
 
 const slug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
@@ -173,9 +223,9 @@ async function remplir(A: JeuHotel) {
     await app?.close();
   });
 
-  async function ouvrirSession(role: typeof qui, largeur: number, hauteur: number): Promise<Page> {
+  async function ouvrirSession(role: typeof qui, largeur: number, hauteur: number, rapport: string[] = []): Promise<Page> {
     qui = role;
-    const contexte = await navigateur.newContext({ viewport: { width: largeur, height: hauteur } });
+    const contexte = await navigateur.newContext({ viewport: { width: largeur, height: hauteur }, colorScheme: SOMBRE ? "dark" : "light" });
     await contexte.addInitScript({
       content: `if (!localStorage.getItem("hotel-chicago:config-navigateur")) localStorage.setItem("hotel-chicago:config-navigateur", ${JSON.stringify(
         JSON.stringify({ apiUrl, supabaseUrl, supabaseAnonKey: "anon", refreshToken: null, imprimanteInterface: null }),
@@ -186,6 +236,21 @@ async function remplir(A: JeuHotel) {
     await page.waitForTimeout(1200);
     mkdirSync(join(SORTIE, `${largeur}x${hauteur}`), { recursive: true });
     if (role === "patron") await page.screenshot({ path: join(SORTIE, `${largeur}x${hauteur}`, "connexion.png") });
+    if (SOMBRE && role === "patron") await auditer(page, "connexion", rapport);
+    if (SOMBRE && role === "patron") {
+      await page.getByRole("button", { name: /Mot de passe oublié/ }).first().click().catch(() => undefined);
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: join(SORTIE, `${largeur}x${hauteur}`, "mot-de-passe-oublie.png") });
+      await auditer(page, "mot de passe oublié", rapport);
+      await page.reload();
+      await page.waitForTimeout(1200);
+      await page.getByRole("button", { name: /Créez votre hôtel/ }).first().click().catch(() => undefined);
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: join(SORTIE, `${largeur}x${hauteur}`, "inscription.png") });
+      await auditer(page, "inscription étape 1", rapport);
+      await page.reload();
+      await page.waitForTimeout(1200);
+    }
     const champ = page.getByLabel("Adresse e-mail");
     if (!(await champ.isVisible().catch(() => false))) await page.getByRole("button", { name: /Ancien compte \? Se connecter avec un e-mail/ }).click();
     await champ.fill(`${A.auth[role]}@exemple.test`);
@@ -207,7 +272,7 @@ async function remplir(A: JeuHotel) {
     const rapport: string[] = [];
     for (const role of ROLES as (typeof qui)[]) {
       for (const [l, h] of TAILLES) {
-        const page = await ouvrirSession(role, l, h);
+        const page = await ouvrirSession(role, l, h, rapport);
         const dossier = join(SORTIE, `${l}x${h}`, role);
         mkdirSync(dossier, { recursive: true });
         const erreurs: string[] = [];
@@ -233,6 +298,7 @@ async function remplir(A: JeuHotel) {
           }
           await page.waitForTimeout(1200);
           await page.screenshot({ path: join(dossier, `${slug(libelle)}.png`) });
+          if (SOMBRE) await auditer(page, `${role} ${libelle}`, rapport);
           // Défilement horizontal parasite : signe d'une page qui dépasse de la fenêtre.
           const debord = (await page.evaluate("({ x: document.documentElement.scrollWidth - window.innerWidth, hauteur: document.documentElement.scrollHeight })")) as { x: number; hauteur: number };
           if (debord.x > 2) rapport.push(`${role} ${l}x${h} ${libelle} : la page déborde de ${debord.x}px en largeur`);
@@ -254,6 +320,7 @@ async function remplir(A: JeuHotel) {
             await page.waitForTimeout(1200);
           }
           await page.screenshot({ path: join(dossier, `${act.nom}.png`) });
+          if (SOMBRE) await auditer(page, `${role} ${act.nom}`, rapport);
           await page.keyboard.press("Escape");
         }
         if (erreurs.length) rapport.push(`${role} ${l}x${h} : erreurs JS ${erreurs.slice(0, 3).join(" | ")}`);

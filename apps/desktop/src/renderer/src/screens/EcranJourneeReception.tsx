@@ -70,7 +70,7 @@ export function EcranJourneeReception({ client }: EcranJourneeReceptionProps) {
                 {journal.recette.cafeteria.montantCDF > 0 ? ` + ${formatMontant(journal.recette.cafeteria.montantCDF, Devise.CDF)}` : ""}
               </span>
             </div>
-            <div className="parametres-ligne" style={{ borderTop: "1px solid var(--hc-color-border, #e5e5e5)", paddingTop: "var(--hc-space-2)" }}>
+            <div className="parametres-ligne" style={{ borderTop: "1px solid var(--hc-border)", paddingTop: "var(--hc-space-2)" }}>
               <span className="hc-text-body-strong">Total</span>
               <span className="hc-text-price">
                 {formatMontant(journal.recette.total.montantUSD, Devise.USD)}

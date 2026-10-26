@@ -89,7 +89,7 @@
   font-family: var(--hc-font-display, inherit);
   font-size: 22px;
   line-height: 1.2;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
 }
 .ap-hero__detail {
   margin: 0;
@@ -145,7 +145,7 @@
 .ap-hero__faits dd {
   margin: 0;
   font-weight: 700;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
 }
 
 @container (max-width: 560px) {
@@ -204,7 +204,7 @@
 .ap-carte__titre {
   margin: 0;
   font-size: 17px;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
 }
 .ap-carte__sous-titre {
   margin: 2px 0 0;
@@ -244,7 +244,7 @@
 .ap-paiement__titre {
   margin: 0;
   font-size: 20px;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
 }
 .ap-paiement__titre:focus {
   outline: none;
@@ -289,7 +289,7 @@
   margin-bottom: var(--hc-space-4);
   font-size: 16px;
   font-weight: 700;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
   /* Une légende ne suit pas le padding du fieldset : on la fait flotter pour qu'elle s'aligne avec le contenu. */
   float: left;
   width: 100%;
@@ -431,7 +431,7 @@
 .ap-formule__nom {
   font-size: 18px;
   font-weight: 800;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
 }
 .ap-formule__detail {
   display: flex;
@@ -518,7 +518,7 @@
 }
 .ap-tuile__titre {
   font-weight: 800;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
 }
 .ap-tuile__prix {
   font-size: 18px;
@@ -571,7 +571,7 @@
 }
 .ap-segment__option--active {
   background: var(--hc-surface-200);
-  color: var(--hc-navy);
+  color: var(--hc-titre);
   box-shadow: var(--hc-shadow-card);
 }
 .ap-segment__symbole {
@@ -742,7 +742,7 @@
   padding-top: var(--hc-space-3);
   border-top: 1px dashed var(--hc-border);
   font-weight: 700;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
 }
 .ap-commande__total strong {
   font-size: 28px;
@@ -845,7 +845,7 @@
 .ap-phase__titre {
   margin: 0;
   font-size: 21px;
-  color: var(--hc-navy);
+  color: var(--hc-titre);
 }
 .ap-phase__titre:focus {
   outline: none;

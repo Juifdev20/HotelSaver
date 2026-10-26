@@ -3967,3 +3967,14 @@ qui refusent la connexion directe (Bluetooth basse consommation par exemple). À
 **Toutes marques, pas seulement une (26/10/2026)** : aucune liste de marques n'est exigée pour imprimer. Le mobile affiche TOUS les appareils Bluetooth
 (appairés d'abord, « imprimante de tickets » en tête d'après le nom, simple classement) ; le bureau affiche toutes les imprimantes Windows. Le seul
 réglage qui change d'un modèle à l'autre est la largeur du papier : choix 58 mm (32 colonnes, défaut) ou 80 mm (48 colonnes), mobile et bureau.
+
+## Mode sombre du bureau : textes invisibles (26/10/2026)
+
+**Cause** : les titres, libellés et l'indicatif +243 de la connexion/inscription utilisaient `--hc-navy` (bleu nuit FIXE) comme couleur de texte, donc
+bleu nuit sur fond bleu nuit en mode sombre. Le planning utilisait des variables inexistantes (`--hc-color-*`, repli blanc), et le Stock des fonds
+clairs écrits en dur (texte clair sur fond clair).
+**Règle** : `--hc-navy` sert aux FONDS fixes (barre latérale) ; un titre ou libellé utilise `--hc-titre` (bleu nuit en clair, presque blanc en sombre) ;
+ne jamais écrire de couleur claire en dur, toujours un jeton (`--hc-*-light`, `--hc-danger`…).
+**Contrôle** : `CAPTURES_THEME=dark` sur `captures-bureau.e2e-spec.ts` photographie tous les écrans en thème sombre ET signale tout texte dont le
+contraste est inférieur à 3 (rubrique `CONTRASTE` du rapport). Résultat après correction : aucun texte signalé (connexion, inscription, mot de passe
+oublié, tous les écrans des trois rôles, deux tailles de fenêtre). Le mobile n'a pas de thème sombre (constantes claires) : non concerné.

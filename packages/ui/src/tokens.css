@@ -30,6 +30,10 @@
 
   --hc-on-accent: #ffffff;
 
+  /* Couleur des titres et libellés posés sur une surface : bleu nuit en clair, presque blanc en sombre.
+   * (--hc-navy reste le bleu nuit FIXE, pour les fonds comme la barre latérale : ne jamais l'utiliser comme couleur de texte.) */
+  --hc-titre: var(--hc-navy);
+
   /* États — teintes TEXTE/remplissage assez sombres pour porter du texte (≥ 4,5:1 sur leur fond clair ET sur blanc,
    * texte blanc dessus ≥ 4,5:1). Les teintes vives d'origine (#12b76a, #f79009, #f04438, #2e90fa) restent
    * réservées aux icônes/fonds décoratifs : --hc-*-vif. */
@@ -80,6 +84,7 @@
   --hc-ink: #f8fafc;
   --hc-ink-muted: #a3adbd;
   --hc-ink-faint: #98a2b3;
+  --hc-titre: #f8fafc;
 
   /* Bleu d'action plus clair en sombre (texte/lien ≥ 4,5:1 sur les surfaces) : le texte DESSUS devient foncé. */
   --hc-blue: #5b93f5;

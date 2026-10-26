@@ -22,7 +22,7 @@
   padding: 0 12px;
   border-right: 1px solid var(--hc-border, #e4eaf2);
   background: var(--hc-surface-100, #f6f8fc);
-  color: var(--hc-navy, #0f2742);
+  color: var(--hc-titre, #0f2742);
   font-size: 14px;
   white-space: nowrap;
 }
