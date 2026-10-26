@@ -26,3 +26,25 @@ export async function ecrireAppareilImprimante(appareil: AppareilImprimante | nu
     await AsyncStorage.removeItem(CLE);
   }
 }
+
+/**
+ * Comment les tickets partent :
+ * - « bluetooth » : directement de HotelSaver vers l'imprimante appairée (par défaut) ;
+ * - « rawbt » : HotelSaver confie le ticket à l'application gratuite RawBT, qui gère elle-même la connexion (Bluetooth classique,
+ *   Bluetooth basse consommation, USB). Solution de secours pour les imprimantes qui refusent la connexion directe.
+ */
+export type ModeImpression = "bluetooth" | "rawbt";
+
+const CLE_MODE = "hotel-chicago:imprimante-mode";
+
+export async function lireModeImpression(): Promise<ModeImpression> {
+  try {
+    return (await AsyncStorage.getItem(CLE_MODE)) === "rawbt" ? "rawbt" : "bluetooth";
+  } catch {
+    return "bluetooth";
+  }
+}
+
+export async function ecrireModeImpression(mode: ModeImpression): Promise<void> {
+  await AsyncStorage.setItem(CLE_MODE, mode);
+}

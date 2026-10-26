@@ -3948,3 +3948,18 @@ ligne ; le numéro définitif arrive avec la synchronisation, et le reçu était
   nom de l'hôtel, « Généré par l'application HotelSaver » en pied de tous les tickets, aide et bouton « Ouvrir les réglages Bluetooth »
   (mobile et bureau). Pourquoi monter la version plutôt que rester en 1.0.5 : Android refuse de mettre à jour une application par un APK
   de même `versionCode`, et un numéro identique pour deux contenus différents rend le support impossible (« quelle version avez-vous ? »).
+
+## Imprimantes : trouver et connecter sans adresse à connaître (26/10/2026)
+
+**Problème** : l'imprimante Bluetooth était vue par le téléphone/PC mais la connexion échouait souvent (« imprimante n'a pas répondu »), et le bureau
+ne la trouvait pas toujours (il fallait saisir une adresse `\\.\COMn` ou `tcp://…`).
+
+**Bureau** : l'écran Imprimante liste les imprimantes installées dans Windows (`webContents.getPrintersAsync()`, imprimantes virtuelles masquées,
+imprimantes de tickets recommandées en tête) et les ports COM (dont « Standard Serial over Bluetooth »). L'impression passe par le spouleur Windows
+en mode RAW (`winspool.drv` via PowerShell, aucun module natif), interface `windows:<nom>`. Ticket de test puis « Le ticket est-il sorti ? » avant
+d'enregistrer. La saisie manuelle reste sous « Réglage avancé ». Non testé sur un vrai Windows dans l'environnement de développement.
+
+**Mobile** : activation du Bluetooth depuis l'application, recherche et appairage dans l'application (plus besoin des réglages), 5 essais de connexion
+(sécurisée / non sécurisée, pauses croissantes), envois en blocs de 1 Ko, une seule impression à la fois, répit après déconnexion, message précis
+(imprimante occupée par un autre appareil, plus appairée, éteinte). Mode de secours « Application RawBT » (`rawbt:base64,…`) pour les imprimantes
+qui refusent la connexion directe (Bluetooth basse consommation par exemple). À valider sur de vraies imprimantes avant publication.
