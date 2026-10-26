@@ -12,6 +12,7 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { confirmerAction } from "../confirmer";
 import { messageErreur } from "../messagesErreur";
 import { heureCourte } from "../dates";
+import { testerServeur, type ResultatTestServeur } from "../stockage/diagnosticServeur";
 
 export interface EcranSynchronisationProps {
   onRetour: () => void;
@@ -59,6 +60,20 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
   const [actionsEchouees, setActionsEchouees] = useState<LigneFileAttente[]>([]);
   const [enResolution, setEnResolution] = useState<string | null>(null);
   const [erreurAction, setErreurAction] = useState<string | null>(null);
+  const [testEnCours, setTestEnCours] = useState(false);
+  const [resultatsTest, setResultatsTest] = useState<ResultatTestServeur[] | null>(null);
+
+  async function lancerTest() {
+    setTestEnCours(true);
+    setResultatsTest(null);
+    try {
+      setResultatsTest(await testerServeur());
+      // Si le serveur répond, on relance aussitôt une synchronisation : l'état « Hors ligne » se corrige sans attendre.
+      moteurSync.forcerSynchronisation();
+    } finally {
+      setTestEnCours(false);
+    }
+  }
   // Identifiants → noms (numéro de chambre, nom du client), lus dans la copie locale : jamais d'identifiant brut à l'écran.
   const [noms, setNoms] = useState<Record<string, string>>({});
   const resumerChamps = (donnees: unknown) => decrireChangement(donnees, noms) || "—";
@@ -163,6 +178,24 @@ export function EcranSynchronisation({ onRetour }: EcranSynchronisationProps) {
             {erreurAction}
           </Text>
         )}
+
+        <View style={styles.carteEtat}>
+          <Text style={styles.valeur}>Problème de connexion ?</Text>
+          <Text style={styles.label}>Teste si ce téléphone joint le serveur HotelSaver et dit pourquoi ça ne marche pas.</Text>
+          <Pressable style={styles.bouton} onPress={() => void lancerTest()} disabled={testEnCours} accessibilityRole="button" accessibilityState={{ disabled: testEnCours, busy: testEnCours }}>
+            <Text style={styles.boutonTexte}>{testEnCours ? "Test en cours…" : "Tester la connexion au serveur"}</Text>
+          </Pressable>
+          {resultatsTest?.map((r) => (
+            <View key={r.adresse} style={styles.ligneEtat}>
+              <Text style={[styles.label, { flex: 1 }]}>
+                {r.adresse}
+                {r.local ? "\n⚠ Adresse locale : cette application n'a pas été fabriquée avec l'adresse du serveur publié. Il faut la reconstruire." : ""}
+                {"\n"}
+                <Text style={{ color: r.ok ? couleurs.succes : couleurs.danger }}>{r.ok ? "✓ " : "✗ "}{r.detail}</Text>
+              </Text>
+            </View>
+          ))}
+        </View>
 
         <Text style={styles.titreSection} accessibilityRole="header">
           Conflits à vérifier
