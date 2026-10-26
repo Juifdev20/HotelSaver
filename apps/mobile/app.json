@@ -29,6 +29,7 @@
     "plugins": [
       "./plugins/withSurfaceTranslucide",
       "./plugins/withSignatureRelease",
+      "./plugins/withGardeAdresseServeur",
       "./plugins/withCxxCourt",
       "expo-secure-store",
       "expo-sqlite",

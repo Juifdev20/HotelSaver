@@ -53,6 +53,9 @@ section pour toute décision non triviale).
   `gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a` (téléphones ARM seulement : sans x86 d'émulateur,
   build bien plus court et APK presque deux fois plus léger) → `app/build/outputs/apk/release/app-release.apk`. Signée avec la clé de `apps/mobile/signature/` (ignorée par Git,
   **à sauvegarder** — voir `plugins/withSignatureRelease.js`) ; sans elle, la release retombe sur la clé de debug.
+- **Garde de l'APK publiée** : `assembleRelease` / `bundleRelease` s'arrêtent avec un message clair si `EXPO_PUBLIC_API_URL` (variable d'environnement ou `apps/mobile/.env`) n'est pas en `https://` — sans elle
+  l'application cherche le serveur sur le téléphone et reste « Hors ligne ». Posée automatiquement par `expo prebuild` ; sur un dossier `android/` déjà généré, lancer UNE fois
+  `pnpm --filter mobile garde-apk`.
 - **Publier une version** : lancer d'abord `pnpm build` à la racine (le mobile et le bureau lisent le `dist/` des paquets `packages/*` : un `dist/` périmé fait planter
   l'application — écran « Un problème est survenu » — dès qu'un écran utilise une nouveauté d'un paquet, ex. la liste des pièces d'identité de `@hotel-chicago/types`) ; puis monter `version` (`apps/mobile/app.json` + `versionCode`, `apps/desktop/package.json`), construire
   l'APK et l'exe, puis release GitHub `vX.Y.Z` (cochée « Latest ») avec les fichiers versionnés ET deux copies au nom fixe

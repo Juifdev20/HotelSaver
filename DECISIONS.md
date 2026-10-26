@@ -3994,3 +3994,11 @@ fichier `\\.\COMn`. Une imprimante Bluetooth ne parle qu'à un appareil à la fo
 
 - **Applications 1.0.8** (versionCode 9, 26/10/2026) : essai réel de l'imprimante sur PC (ports Bluetooth nommés, port entrant écarté, envoi COM par .NET, accents corrects) ;
   mobile : le type de pièce d'identité devient un champ qui ouvre une liste.
+
+## Garde de l'adresse du serveur dans l'APK publiée (26/10/2026)
+
+Un APK « release » construit sans `EXPO_PUBLIC_API_URL` se compilait sans erreur et cherchait le serveur sur le téléphone (`localhost`) : l'application restait « Hors ligne »
+sans aucune explication (le PC, lui, est protégé par `empaqueter.cjs`). `plugins/withGardeAdresseServeur.js` ajoute au `build.gradle` une vérification qui fait échouer
+`assemble*Release` / `bundle*Release` si l'adresse n'est pas en https (variable d'environnement, puis `.env`). Vérifiée avec un vrai Gradle sur cinq cas : debug sans adresse (passe),
+release sans adresse (refus), release en http (refus), release en https par variable (passe), release en https par `.env` (passe). Un bouton « Tester la connexion » pour l'utilisateur
+a été écarté : l'utilisateur final n'a pas à diagnostiquer, la prévention se fait à la fabrication.
