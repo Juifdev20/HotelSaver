@@ -4018,3 +4018,6 @@ quantité qui remonte au-dessus du seuil l'arrête toute seule. **Coupure** : ta
 n'a plus ni la voix ni la notification sonore (filtré à l'émission), les autres continuent. **Application fermée** : notification push avec un CANAL Android à sonnerie personnalisée
 (`stock_bas`, `stock_epuise`, fichiers `res/raw`) — le son d'un canal ne peut plus changer une fois créé, d'où un canal par alerte. Premier plan : l'application annonce elle-même (pas de doublon avec la sonnerie).
 Sur un `android/` déjà généré : `pnpm --filter mobile sons-android` (copie des sons dans `res/raw`) ; `expo prebuild` le fait aussi.
+
+- **Applications 1.0.9** (versionCode 10, 27/10/2026) : sons et voix (bip de scan, voix de femme, « Please try again »), alertes de stock vocales rappelées toutes les 24 h et coupables par
+  l'utilisateur, notification sonore application fermée, type de pièce en liste, imprimante PC (ports Bluetooth nommés). Nouveaux modules natifs mobile (`expo-audio`, `expo-speech`) : APK à reconstruire.
