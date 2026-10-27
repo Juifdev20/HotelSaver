@@ -26,6 +26,7 @@ import {
   HandCoins,
   Users,
   UtensilsCrossed,
+  Volume2,
 } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE, fonctionManquante, sectionsPlusPourRole } from "../navigation";
@@ -46,6 +47,7 @@ import { EcranCaisse } from "./EcranCaisse";
 import { EcranCompteCafeteria } from "./EcranCompteCafeteria";
 import { EcranSynchronisation } from "./EcranSynchronisation";
 import { EcranImprimante } from "./EcranImprimante";
+import { EcranSons } from "./EcranSons";
 import { EcranUtilisateurs } from "./EcranUtilisateurs";
 import { EcranSiteHotel } from "./EcranSiteHotel";
 import { EcranReservations } from "./EcranReservations";
@@ -75,6 +77,7 @@ type VuePlus =
   /** Écran fermé par la formule de l'hôtel (notification, lien) : explique et mène aux formules. */
   | { id: "fonction-non-incluse"; fonction: CodeFonction }
   | { id: "imprimante" }
+  | { id: "sons" }
   | { id: "guides" }
   | { id: "menu" }
   | { id: "stock" }
@@ -223,6 +226,9 @@ export function EcranPlus() {
   }
   if (vue.id === "synchronisation") {
     return <EcranSynchronisation onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "sons") {
+    return <EcranSons client={client} alertesStock={utilisateur.role === Role.CAFETARIA || utilisateur.role === Role.PATRON} onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "imprimante") {
     return <EcranImprimante utilisateur={utilisateur} onRetour={() => setVue(VUE_LISTE)} />;
@@ -397,6 +403,7 @@ export function EcranPlus() {
           <Text style={styles.titreSection}>Appareil</Text>
           <LigneMenu icone={Settings} libelle="Paramètres" onPress={() => setVue({ id: "parametres" })} />
           <LigneMenu icone={Printer} libelle="Imprimante" onPress={() => setVue({ id: "imprimante" })} />
+          <LigneMenu icone={Volume2} libelle="Sons et voix" onPress={() => setVue({ id: "sons" })} />
           <LigneMenu icone={BookOpen} libelle="Guide d'utilisation" onPress={() => setVue({ id: "guides" })} />
           <LigneMenu
             icone={RefreshCw}

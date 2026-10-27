@@ -4,7 +4,7 @@ import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { Devise, Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import type { ProfilConnecte } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
-import { Bell, ChefHat, Coins, CreditCard, Globe, Moon, Printer, Rows3, ShieldCheck, Sun, Users } from "lucide-react";
+import { Bell, ChefHat, Coins, CreditCard, Globe, Moon, Printer, Rows3, ShieldCheck, Sun, Users, Volume2 } from "lucide-react";
 import { appliquerDensite, densiteEnregistree, type Densite } from "../densite";
 import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
 import type { IdPage } from "../navigation";
@@ -12,6 +12,7 @@ import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 import { lireTauxChange } from "@hotel-chicago/miroir-local";
 import { BlocSecurite, type PreferencesSecurite } from "./BlocSecurite";
 import { BlocPaiementEnLigne } from "./BlocPaiementEnLigne";
+import { ecouterExemple, ecrirePreferencesSons, preferencesSons } from "../sons";
 
 export interface EcranParametresProps {
   /** Présent seulement une fois connecté. */
@@ -163,6 +164,24 @@ export function EcranParametres({
   const basculerCommandeWeb = () => basculerReglage({ commandeWebActivee: !commandeWebActivee });
 
   const [lancerAuDemarrage, setLancerAuDemarrage] = useState(false);
+  const [sons, setSons] = useState(preferencesSons);
+  const [stockCoupe, setStockCoupe] = useState(false);
+
+  useEffect(() => {
+    if (!client) return;
+    client.listerCoupuresAlertesStock().then((c) => setStockCoupe(c.toutes), () => undefined);
+  }, [client]);
+
+  /** Alertes de stock : couper / réactiver TOUTES celles de cet utilisateur (un produit seul se coupe depuis sa notification). */
+  async function basculerAlertesStock() {
+    if (!client) return;
+    try {
+      const c = stockCoupe ? await client.reactiverAlerteStock() : await client.couperAlerteStock();
+      setStockCoupe(c.toutes);
+    } catch {
+      // Le réglage reste où il était : le prochain essai réessaie.
+    }
+  }
   useEffect(() => {
     void window.hotelChicago.lireLancerAuDemarrage().then(setLancerAuDemarrage, () => undefined);
   }, []);
@@ -239,6 +258,46 @@ export function EcranParametres({
           <p className="hc-text-caption texte-discret">
             Fermer la fenêtre garde HotelSaver actif près de l'horloge pour recevoir les alertes. Activez le démarrage
             avec Windows pour ne jamais les manquer.
+          </p>
+        </div>
+
+        <div className="carte-formulaire">
+          <p className="hc-text-label texte-discret">Sons et voix</p>
+          <div className="parametres-ligne">
+            <span className="parametres-ligne__icone">
+              <Volume2 size={18} aria-hidden="true" />
+            </span>
+            <span className="hc-text-body">{sons.bip ? "Bip de scan activé" : "Bip de scan coupé"}</span>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setSons(ecrirePreferencesSons({ bip: !sons.bip }))}>
+              {sons.bip ? "Couper" : "Activer"}
+            </Button>
+          </div>
+          <div className="parametres-ligne">
+            <span className="parametres-ligne__icone">
+              <Volume2 size={18} aria-hidden="true" />
+            </span>
+            <span className="hc-text-body">{sons.voix ? "Voix activée" : "Voix coupée"}</span>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setSons(ecrirePreferencesSons({ voix: !sons.voix }))}>
+              {sons.voix ? "Couper" : "Activer"}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={ecouterExemple}>
+              Écouter
+            </Button>
+          </div>
+          {(utilisateur?.role === Role.CAFETARIA || utilisateur?.role === Role.PATRON) && (
+            <div className="parametres-ligne">
+              <span className="parametres-ligne__icone">
+                <Bell size={18} aria-hidden="true" />
+              </span>
+              <span className="hc-text-body">{stockCoupe ? "Alertes de stock coupées" : "Alertes de stock activées"}</span>
+              <Button type="button" variant="secondary" size="sm" disabled={!client} onClick={() => void basculerAlertesStock()}>
+                {stockCoupe ? "Activer" : "Couper"}
+              </Button>
+            </div>
+          )}
+          <p className="hc-text-caption texte-discret">
+            Un bip à chaque article scanné et « Please try again » quand un scan échoue. Une alerte de stock bas est annoncée à la voix, puis rappelée toutes
+            les 24 h tant que le stock n'est pas rechargé, jusqu'à ce que vous la coupiez.
           </p>
         </div>
 

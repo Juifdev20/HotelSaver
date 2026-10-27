@@ -157,6 +157,8 @@ export interface CoquilleProps {
   nonLues: number;
   onOuvrirNotification: (notification: NotificationApp) => void;
   onToutMarquerLu: () => void;
+  /** Alerte de stock : « Ne plus m'alerter pour ce produit » (pour moi seul). */
+  onCouperAlerteStock?: (produitId: string) => Promise<void>;
   /** Petits nombres affichés sur une entrée de la navigation (ex. remboursements à faire). */
   pastilles?: Partial<Record<IdPage, number>>;
   /** Indicateur de synchronisation (en-tête) et bandeau « sans Internet » ; fournis par l'application. */
@@ -214,6 +216,7 @@ export function Coquille({
   notifications,
   nonLues,
   onOuvrirNotification,
+  onCouperAlerteStock,
   onToutMarquerLu,
   pastilles,
   indicateurSynchro,
@@ -223,6 +226,7 @@ export function Coquille({
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
   const [menuProfilOuvert, setMenuProfilOuvert] = useState(false);
   const [notificationsOuvertes, setNotificationsOuvertes] = useState(false);
+  const [coupes, setCoupes] = useState<Record<string, "occupe" | "fait">>({});
   const [recherche, setRecherche] = useState("");
   const [barreReduitePrefereeParUtilisateur, setBarreReduite] = useState(barreReduitePreferee);
   const fenetreCompacte = useFenetreCompacte();
@@ -453,6 +457,27 @@ export function Coquille({
                             <span className="hc-text-caption">{n.corps}</span>
                             <span className="hc-text-caption texte-discret">{formaterDateNotification(n.createdAt)}</span>
                           </button>
+                          {onCouperAlerteStock && (n.type === "STOCK_BAS" || n.type === "STOCK_EPUISE") && n.lien.id && (
+                            <button
+                              type="button"
+                              className="coquille__notification-couper hc-text-caption"
+                              disabled={coupes[n.lien.id] !== undefined}
+                              onClick={() => {
+                                const produitId = n.lien.id!;
+                                setCoupes((c) => ({ ...c, [produitId]: "occupe" }));
+                                void onCouperAlerteStock(produitId).then(
+                                  () => setCoupes((c) => ({ ...c, [produitId]: "fait" })),
+                                  () =>
+                                    setCoupes((c) => {
+                                      const { [produitId]: _retire, ...reste } = c;
+                                      return reste;
+                                    })
+                                );
+                              }}
+                            >
+                              {coupes[n.lien.id] === "fait" ? "C'est coupé : ce produit ne vous sera plus annoncé" : "Ne plus m'alerter pour ce produit"}
+                            </button>
+                          )}
                         </li>
                       ))}
                     </ul>

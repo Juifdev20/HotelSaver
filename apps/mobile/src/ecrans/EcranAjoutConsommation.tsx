@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, Vibration, View } from "react-native";
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Camera, Minus, Plus, ScanBarcode, Search, Star, X } from "lucide-react-native";
 import { normaliserCodeBarres, trouverProduitParCode } from "@hotel-chicago/receipts";
@@ -14,6 +14,7 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { ScannerCodeBarres } from "../composants/ScannerCodeBarres";
 import { SelecteurProduit } from "../composants/SelecteurProduit";
 import { messageErreur } from "../messagesErreur";
+import { annoncerStock, signalErreur, signalOk } from "../sons/sons";
 
 export interface EcranAjoutConsommationProps {
   compte: CompteCafeteria;
@@ -35,8 +36,6 @@ export interface EcranAjoutConsommationProps {
 
 /** Retour tactile à la caissière (sans dépendance) : court = ajouté,
  * double long = code inconnu ou article épuisé. */
-const VIBRATION_OK = 60;
-const VIBRATION_ERREUR = [0, 180, 120, 180];
 
 const NB_POPULAIRES = 6;
 const TOUTES = "Tous";
@@ -165,7 +164,7 @@ export function EcranAjoutConsommation({
     const idAssocie = codesAssocies[code];
     const produit = (idAssocie && produitsParId.get(idAssocie)) || trouverProduitParCode(produits, code);
     if (!produit) {
-      Vibration.vibrate(VIBRATION_ERREUR);
+      signalErreur();
       setCodeInconnu(code);
       const message = `Code ${code} inconnu`;
       setInfoScan(message);
@@ -174,13 +173,15 @@ export function EcranAjoutConsommation({
     const limite = limiteDisponible(produit);
     const deja = panierRef.current[produit.id] ?? 0;
     if (limite != null && deja + 1 > limite) {
-      Vibration.vibrate(VIBRATION_ERREUR);
+      // Épuisé : la voix l'annonce par son nom ; plus que quelques-uns : « Please try again » (l'article est refusé).
+      if (limite <= 0) annoncerStock(produit.nom, true);
+      else signalErreur();
       const message = limite <= 0 ? `${produit.nom} : épuisé` : `${produit.nom} : plus que ${limite} en stock`;
       setInfoScan(message);
       return message;
     }
     changer(produit, 1);
-    Vibration.vibrate(VIBRATION_OK);
+    signalOk();
     setCodeInconnu(null);
     const message = `${produit.nom} ajouté (${deja + 1})`;
     setInfoScan(message);
@@ -199,7 +200,7 @@ export function EcranAjoutConsommation({
       setCodesAssocies((courant) => ({ ...courant, [code]: produit.id }));
       setCodeInconnu(null);
       changer(produit, 1);
-      Vibration.vibrate(VIBRATION_OK);
+      signalOk();
       setInfoScan(`Code associé à ${produit.nom} — ajouté au panier.`);
     } catch (e) {
       setInfoScan(messageErreur(e, "Association impossible."));

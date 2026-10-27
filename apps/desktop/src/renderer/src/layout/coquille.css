@@ -812,3 +812,19 @@
   mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
   padding-bottom: var(--hc-space-5);
 }
+
+/* Alerte de stock du panneau de notifications : couper pour ce produit. */
+.coquille__notification-couper {
+  display: block;
+  margin: -2px 0 var(--hc-space-2) var(--hc-space-3);
+  padding: 2px 0;
+  background: none;
+  border: none;
+  color: var(--hc-ink-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.coquille__notification-couper:disabled {
+  cursor: default;
+  text-decoration: none;
+}

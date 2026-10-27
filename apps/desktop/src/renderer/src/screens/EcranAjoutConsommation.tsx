@@ -7,6 +7,7 @@ import { Button, formatMontant } from "@hotel-chicago/ui";
 import { Camera, Minus, Plus, ScanBarcode, Search, Star, X } from "lucide-react";
 import { ScannerWebcam } from "../components/ScannerWebcam";
 import { bip, useDouchette } from "../components/scan";
+import { annoncerStock, bipSimple } from "../sons";
 
 export interface EcranAjoutConsommationProps {
   client: ClientApi;
@@ -130,7 +131,11 @@ export function EcranAjoutConsommation({
     const stock = Number(produit.stockActuel);
     const deja = panierRef.current[produit.id] ?? 0;
     if (produit.typeProduit !== TypeProduit.PLAT && deja + 1 > stock) {
-      bip("erreur");
+      // Épuisé : la voix l'annonce par son nom ; plus que quelques-uns : « Please try again » (l'article est refusé).
+      if (stock <= 0) {
+        bipSimple("erreur");
+        annoncerStock(produit.nom, true);
+      } else bip("erreur");
       const message = stock <= 0 ? `${produit.nom} : épuisé` : `${produit.nom} : plus que ${stock} en stock`;
       setInfoScan(message);
       return message;

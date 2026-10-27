@@ -757,6 +757,7 @@ export function App() {
         notifications={centre.notifications}
         nonLues={centre.nonLues}
         onOuvrirNotification={ouvrirNotification}
+        onCouperAlerteStock={centre.couperAlerteStock}
         onToutMarquerLu={() => void centre.toutMarquerLu()}
         pastilles={{ remboursements: nbRemboursements }}
         indicateurSynchro={<IndicateurSynchro etat={etatSync} joursRestants={modeHorsLigne ? joursRestants : null} onOuvrir={() => naviguer("synchronisation")} />}

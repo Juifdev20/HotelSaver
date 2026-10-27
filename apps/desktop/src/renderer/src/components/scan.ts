@@ -1,24 +1,11 @@
 import { useEffect, useRef } from "react";
 import { DetecteurRafale } from "@hotel-chicago/receipts";
+import { bipSimple, signalErreur } from "../sons";
 
-let contexteAudio: AudioContext | null = null;
-
-/** Bip court généré (WebAudio, aucun fichier) : aigu = article ajouté,
- * grave = code inconnu ou article épuisé. */
+/** Bip du scan : aigu = article ajouté ; grave + « Please try again » = code inconnu ou article refusé (voir ../sons.ts). */
 export function bip(type: "ok" | "erreur"): void {
-  try {
-    contexteAudio ??= new AudioContext();
-    const oscillateur = contexteAudio.createOscillator();
-    const volume = contexteAudio.createGain();
-    oscillateur.frequency.value = type === "ok" ? 1400 : 300;
-    volume.gain.value = 0.15;
-    oscillateur.connect(volume).connect(contexteAudio.destination);
-    const debut = contexteAudio.currentTime;
-    oscillateur.start(debut);
-    oscillateur.stop(debut + (type === "ok" ? 0.08 : 0.35));
-  } catch {
-    /* pas de son disponible : le message à l'écran suffit */
-  }
+  if (type === "ok") bipSimple("ok");
+  else signalErreur();
 }
 
 /**

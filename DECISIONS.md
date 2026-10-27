@@ -4002,3 +4002,19 @@ sans aucune explication (le PC, lui, est protégé par `empaqueter.cjs`). `plugi
 `assemble*Release` / `bundle*Release` si l'adresse n'est pas en https (variable d'environnement, puis `.env`). Vérifiée avec un vrai Gradle sur cinq cas : debug sans adresse (passe),
 release sans adresse (refus), release en http (refus), release en https par variable (passe), release en https par `.env` (passe). Un bouton « Tester la connexion » pour l'utilisateur
 a été écarté : l'utilisateur final n'a pas à diagnostiquer, la prévention se fait à la fabrication.
+
+## Sons et voix : bip de scan, voix de femme, alertes de stock répétées (27/10/2026)
+
+**Demande** : un bip à chaque scan (au volume du téléphone), une voix de femme qui dit « Please try again » quand un scan échoue et qui annonce les stocks bas, rappelés
+toutes les 24 h jusqu'à ce que le stock soit rechargé ou que l'utilisateur les coupe lui-même, même application fermée.
+
+**Choix** : la voix est ENREGISTRÉE (ElevenLabs, voix « Delphine » : français ; « Please try again » en anglais), pas celle du téléphone : même voix de femme partout, sans connexion.
+Seul le nom du produit est lu par la voix du téléphone / de Windows (on ne peut pas l'enregistrer), entre deux phrases enregistrées (« Attention, stock bas. » … « Pensez à vous approvisionner. »).
+Le bip est un petit fichier (mobile) ou un son généré (bureau). Mobile : `expo-audio` + `expo-speech` (nouveaux modules natifs : reconstruire l'APK) ; sons dans `apps/mobile/assets/sons`.
+Bureau : `renderer/src/sons.ts`. Réglages : Plus › Sons et voix (mobile), Paramètres › Sons et voix (bureau).
+
+**Rappel 24 h (serveur)** : `NotificationsSchedulerService.rappelsStock`, toutes les heures : tout article stocké encore au seuil d'alerte (ou épuisé) sans alerte depuis 24 h est annoncé de nouveau ; la
+quantité qui remonte au-dessus du seuil l'arrête toute seule. **Coupure** : table `AlerteStockCoupee` (produitId, ou « * » = toutes), routes `/notifications/alertes-stock/coupures` ; l'utilisateur qui a coupé
+n'a plus ni la voix ni la notification sonore (filtré à l'émission), les autres continuent. **Application fermée** : notification push avec un CANAL Android à sonnerie personnalisée
+(`stock_bas`, `stock_epuise`, fichiers `res/raw`) — le son d'un canal ne peut plus changer une fois créé, d'où un canal par alerte. Premier plan : l'application annonce elle-même (pas de doublon avec la sonnerie).
+Sur un `android/` déjà généré : `pnpm --filter mobile sons-android` (copie des sons dans `res/raw`) ; `expo prebuild` le fait aussi.

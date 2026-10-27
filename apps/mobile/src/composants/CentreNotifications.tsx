@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft, Bell, CalendarDays, Package, ShieldAlert, Sun } from "lucide-react-native";
@@ -26,7 +26,22 @@ type Ligne = { cle: string; jour: string } | { cle: string; notification: Notifi
 
 /** Centre de notifications plein écran, groupé par jour (ouvert par la cloche de l'en-tête). */
 export function CentreNotifications() {
-  const { notifications, nonLues, centreOuvert, fermerCentre, toutMarquerLu, ouvrirNotification } = useNotifications();
+  const { notifications, nonLues, centreOuvert, fermerCentre, toutMarquerLu, ouvrirNotification, couperAlerteStock } = useNotifications();
+  // Produits dont l'alerte vient d'être coupée depuis cette liste (le bouton devient une confirmation).
+  const [coupes, setCoupes] = useState<Record<string, "occupe" | "fait">>({});
+
+  async function couper(produitId: string) {
+    setCoupes((c) => ({ ...c, [produitId]: "occupe" }));
+    try {
+      await couperAlerteStock(produitId);
+      setCoupes((c) => ({ ...c, [produitId]: "fait" }));
+    } catch {
+      setCoupes((c) => {
+        const { [produitId]: _retire, ...reste } = c;
+        return reste;
+      });
+    }
+  }
   const insets = useSafeAreaInsets();
 
   const lignes = useMemo<Ligne[]>(() => {
@@ -74,7 +89,9 @@ export function CentreNotifications() {
               if ("jour" in item) return <Text style={styles.jour}>{item.jour}</Text>;
               const n = item.notification;
               const Icone = ICONES[CATEGORIE_PAR_TYPE[n.type]];
+              const produitId = (n.type === "STOCK_BAS" || n.type === "STOCK_EPUISE") && n.lien.id ? n.lien.id : null;
               return (
+                <View>
                 <Pressable
                   style={[styles.carte, !n.lue && styles.carteNonLue]}
                   onPress={() => ouvrirNotification(n)}
@@ -93,6 +110,20 @@ export function CentreNotifications() {
                     {!n.lue && <View style={styles.point} />}
                   </View>
                 </Pressable>
+                {produitId && (
+                  <Pressable
+                    style={styles.couper}
+                    onPress={() => void couper(produitId)}
+                    disabled={coupes[produitId] !== undefined}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ne plus m'alerter pour ${n.lien.nom ?? "ce produit"}`}
+                  >
+                    <Text style={styles.couperTexte}>
+                      {coupes[produitId] === "fait" ? "C'est coupé : ce produit ne vous sera plus annoncé" : "Ne plus m'alerter pour ce produit"}
+                    </Text>
+                  </Pressable>
+                )}
+                </View>
               );
             }}
           />
@@ -118,6 +149,8 @@ const styles = StyleSheet.create({
   cote: { width: 100, minHeight: 44, justifyContent: "center", alignItems: "flex-end" },
   titre: { color: couleurs.navy, fontSize: 17, fontWeight: "700" },
   toutLire: { color: couleurs.bleu, fontWeight: "600", fontSize: 12 },
+  couper: { marginHorizontal: espacements.s4, marginTop: -4, marginBottom: espacements.s2, minHeight: 32, justifyContent: "center" },
+  couperTexte: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee, textDecorationLine: "underline" },
   jour: {
     fontSize: 12,
     fontWeight: "700",

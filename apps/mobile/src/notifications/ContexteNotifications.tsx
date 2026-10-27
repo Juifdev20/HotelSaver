@@ -9,6 +9,7 @@ import type { CodeFonction } from "../fonctions";
 import { enregistrerAppareil } from "./push";
 import { navigationRef } from "./navigationRef";
 import { consommerPayerMaintenant } from "../stockage/payerMaintenant";
+import { annoncerStock } from "../sons/sons";
 
 const INTERVALLE_MS = 30_000;
 
@@ -61,6 +62,8 @@ interface ValeurNotifications {
   ouvrirAbonnement: () => void;
   /** Ouvre l'écran « Remboursements » (onglet Plus) — acomptes payés en ligne à rendre ou à garder. */
   ouvrirRemboursements: () => void;
+  /** « Ne plus m'alerter pour ce produit » : coupe, pour moi seul, la voix et la notification de ce produit. */
+  couperAlerteStock: (produitId: string) => Promise<void>;
 }
 
 const Contexte = createContext<ValeurNotifications | null>(null);
@@ -123,15 +126,52 @@ export function FournisseurNotifications({
   const compteurDemandes = useRef(0);
   const enAttente = useRef<{ lien: LienNotification; type?: string } | null>(null);
 
+  // Notifications déjà vues : la première lecture apprend seulement ce qui existe (pas de voix pour l'ancien).
+  const dejaVues = useRef<Set<string> | null>(null);
+
+  /**
+   * Alerte de stock (première, ou rappel de 24 h envoyé par le serveur) arrivée pendant que l'application est ouverte : la voix l'annonce, avec le
+   * nom du produit — sauf si CET utilisateur l'a coupée (ce produit, ou toutes). Application fermée : c'est la notification sonore qui prévient.
+   */
+  const annoncerNouvellesAlertesStock = useCallback(
+    async (nouvelles: NotificationApp[]) => {
+      const alertes = nouvelles.filter((n) => !n.lue && (n.type === "STOCK_BAS" || n.type === "STOCK_EPUISE"));
+      if (alertes.length === 0) return;
+      let coupures: { toutes: boolean; produitIds: string[] } = { toutes: false, produitIds: [] };
+      try {
+        coupures = await client.listerCoupuresAlertesStock();
+      } catch {
+        // Hors ligne : on annonce, mieux vaut une alerte de trop qu'une rupture manquée.
+      }
+      if (coupures.toutes) return;
+      // Une seule annonce par produit (deux rappels arrivés ensemble ne sont dits qu'une fois), la plus récente en premier.
+      const produits = new Set<string>();
+      for (const n of alertes) {
+        const cle = n.lien.id ?? n.id;
+        if (produits.has(cle) || (n.lien.id && coupures.produitIds.includes(n.lien.id))) continue;
+        produits.add(cle);
+        annoncerStock(n.lien.nom, n.type === "STOCK_EPUISE");
+      }
+    },
+    [client]
+  );
+
   const charger = useCallback(async () => {
     try {
       const reponse = await client.listerNotifications({ limite: 60 });
+      if (dejaVues.current === null) dejaVues.current = new Set(reponse.notifications.map((n) => n.id));
+      else {
+        const vues = dejaVues.current;
+        const nouvelles = reponse.notifications.filter((n) => !vues.has(n.id));
+        for (const n of nouvelles) vues.add(n.id);
+        if (nouvelles.length > 0) void annoncerNouvellesAlertesStock(nouvelles);
+      }
       setNotifications(reponse.notifications);
       setNonLues(reponse.nonLues);
     } catch {
       // Hors ligne : la liste précédente reste affichée.
     }
-  }, [client]);
+  }, [client, annoncerNouvellesAlertesStock]);
 
   const naviguer = useCallback(
     (lien: LienNotification, type?: string) => {
@@ -278,6 +318,13 @@ export function FournisseurNotifications({
     if (navigationRef.isReady()) navigationRef.navigate("plus" as never);
   }, []);
 
+  const couperAlerteStock = useCallback(
+    async (produitId: string) => {
+      await client.couperAlerteStock(produitId);
+    },
+    [client]
+  );
+
   const valeur = useMemo<ValeurNotifications>(
     () => ({
       notifications,
@@ -302,8 +349,9 @@ export function FournisseurNotifications({
       ouvrirSynchronisation,
       ouvrirAbonnement,
       ouvrirRemboursements,
+      couperAlerteStock,
     }),
-    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, ouvrirSynchronisation, ouvrirAbonnement, ouvrirRemboursements, demandePlus, demandeCompte, demandeReservation]
+    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, ouvrirSynchronisation, ouvrirAbonnement, ouvrirRemboursements, couperAlerteStock, demandePlus, demandeCompte, demandeReservation]
   );
 
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;

@@ -8,7 +8,8 @@
     "dev:reset": "expo start --clear",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "prebuild": "expo prebuild && node scripts/patch-native-splash.js && node scripts/appliquer-garde-apk.js",
+    "prebuild": "expo prebuild && node scripts/patch-native-splash.js && node scripts/appliquer-garde-apk.js && node scripts/copier-sons-android.js",
+    "sons-android": "node scripts/copier-sons-android.js",
     "garde-apk": "node scripts/appliquer-garde-apk.js",
     "lint": "tsc --noEmit"
   },

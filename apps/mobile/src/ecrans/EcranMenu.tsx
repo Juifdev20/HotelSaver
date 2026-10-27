@@ -1,4 +1,5 @@
 import * as React from "react";
+import { signalOk } from "../sons/sons";
 import { useRef, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { ErreurApi, type ClientApi } from "@hotel-chicago/api-client";
@@ -651,6 +652,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
               visible={scannerOuvert}
               mode="unique"
               onCode={(code) => {
+                signalOk();
                 setCodeGenere(false);
                 setFormulaire((f) => ({ ...f, codeBarres: code }));
               }}

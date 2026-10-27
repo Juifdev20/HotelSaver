@@ -5,13 +5,18 @@ import type { ClientApi } from "@hotel-chicago/api-client";
 import type { CategorieNotification } from "@hotel-chicago/types";
 
 // Application au premier plan : la notification s'affiche quand même (bannière + son).
+// Alerte de stock : au premier plan, c'est l'application elle-même qui l'annonce à la voix (avec le nom du produit) ; la sonnerie du canal
+// ferait un doublon. Application fermée ou en arrière-plan, le canal sonne avec la voix.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    const type = (notification.request.content.data as { type?: string } | undefined)?.type;
+    return {
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: type !== "STOCK_BAS" && type !== "STOCK_EPUISE",
+      shouldSetBadge: false,
+    };
+  },
 });
 
 /** Un canal par catégorie : l'utilisateur règle son et importance de chacun dans les réglages Android. */
@@ -22,8 +27,27 @@ const CANAUX: { id: CategorieNotification; nom: string; importance: Notification
   { id: "securite", nom: "Sécurité et abonnement", importance: Notifications.AndroidImportance.HIGH },
 ];
 
+/**
+ * Les alertes de stock sonnent avec la voix (fichiers res/raw copiés par le plugin expo-notifications, voir app.json) : un canal chacune, car le
+ * son d'un canal Android ne peut plus changer une fois créé. Mêmes identifiants que le serveur (push.service.ts).
+ */
+const CANAUX_VOIX = [
+  { id: "stock_bas", nom: "Stock bas", son: "stock_bas.mp3" },
+  { id: "stock_epuise", nom: "Rupture de stock", son: "stock_epuise.mp3" },
+];
+
 export async function creerCanaux(): Promise<void> {
   if (Platform.OS !== "android") return;
+  for (const canal of CANAUX_VOIX) {
+    await Notifications.setNotificationChannelAsync(canal.id, {
+      name: canal.nom,
+      importance: Notifications.AndroidImportance.MAX,
+      sound: canal.son,
+      vibrationPattern: [0, 250, 150, 250],
+      lightColor: "#053483",
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
+    });
+  }
   for (const canal of CANAUX) {
     await Notifications.setNotificationChannelAsync(canal.id, {
       name: canal.nom,
