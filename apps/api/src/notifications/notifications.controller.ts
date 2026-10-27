@@ -5,6 +5,8 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { NotificationsService } from "./notifications.service";
 import { ListerNotificationsQueryDto } from "./dto/lister-notifications.query.dto";
 import { EnregistrerAppareilDto, RetirerAppareilDto } from "./dto/appareil.dto";
+import { CouperAlerteStockDto } from "./dto/alerte-stock.dto";
+import { AlertesStockService } from "./alertes-stock.service";
 
 /**
  * Tout utilisateur connecté (tout rôle) lit les notifications de SON hôtel destinées à SON
@@ -13,7 +15,10 @@ import { EnregistrerAppareilDto, RetirerAppareilDto } from "./dto/appareil.dto";
 @Controller("notifications")
 @UseGuards(SupabaseAuthGuard)
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly alertesStock: AlertesStockService
+  ) {}
 
   @Get()
   lister(@Query() query: ListerNotificationsQueryDto, @CurrentUser() utilisateur: UtilisateurAuthentifie) {
@@ -39,6 +44,23 @@ export class NotificationsController {
   async retirerAppareil(@Body() dto: RetirerAppareilDto, @CurrentUser() utilisateur: UtilisateurAuthentifie) {
     await this.notificationsService.retirerAppareil(utilisateur, dto.jeton);
     return { ok: true };
+  }
+
+  // ── Alertes de stock : ce que MOI j'ai coupé (jamais ce que coupent les autres) ──
+  @Get("alertes-stock/coupures")
+  coupures(@CurrentUser() utilisateur: UtilisateurAuthentifie) {
+    return this.alertesStock.lister(utilisateur);
+  }
+
+  @Post("alertes-stock/coupures")
+  @HttpCode(200)
+  couper(@Body() dto: CouperAlerteStockDto, @CurrentUser() utilisateur: UtilisateurAuthentifie) {
+    return this.alertesStock.couper(utilisateur, dto.produitId ?? null);
+  }
+
+  @Delete("alertes-stock/coupures")
+  reactiver(@Body() dto: CouperAlerteStockDto, @CurrentUser() utilisateur: UtilisateurAuthentifie) {
+    return this.alertesStock.reactiver(utilisateur, dto.produitId ?? null);
   }
 
   @Post(":id/lue")

@@ -786,6 +786,16 @@ export interface LienNotification {
   ecran: EcranNotification;
   /** Identifiant à ouvrir directement (réservation, produit…). */
   id?: string;
+  /** Nom du produit d'une alerte de stock : la voix l'annonce (« Attention, stock bas : Fanta »). */
+  nom?: string;
+}
+
+/** GET /notifications/alertes-stock/coupures — les alertes de stock que CET utilisateur a coupées lui-même. */
+export interface CoupuresAlertesStock {
+  /** Toutes les alertes de stock sont coupées. */
+  toutes: boolean;
+  /** Les produits dont l'alerte est coupée. */
+  produitIds: string[];
 }
 
 /** GET /notifications — `lue` est propre à l'utilisateur connecté. */

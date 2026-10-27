@@ -49,7 +49,7 @@ export const messages = {
       type: "STOCK_BAS",
       titre: "Stock bas",
       corps: `${p.produit} : plus que ${nombre(p.stock)} en stock`,
-      lien: { ecran: "stock", id: p.produitId },
+      lien: { ecran: "stock", id: p.produitId, nom: p.produit },
     };
   },
 
@@ -58,7 +58,7 @@ export const messages = {
       type: "STOCK_EPUISE",
       titre: "Rupture de stock",
       corps: `${p.produit} est épuisé`,
-      lien: { ecran: "stock", id: p.produitId },
+      lien: { ecran: "stock", id: p.produitId, nom: p.produit },
     };
   },
 

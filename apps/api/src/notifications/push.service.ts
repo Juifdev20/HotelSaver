@@ -11,6 +11,20 @@ export interface NotificationAEnvoyer {
   lien: { ecran: string; id?: string };
 }
 
+/** Canal Android d'une notification. Les alertes de stock ont un canal chacune : le son d'un canal ne peut plus changer une fois créé. */
+function canalDe(type: TypeNotification): string {
+  if (type === "STOCK_BAS") return "stock_bas";
+  if (type === "STOCK_EPUISE") return "stock_epuise";
+  return CATEGORIE_PAR_TYPE[type];
+}
+
+/** Nom du fichier son (sans extension, dans res/raw) d'une alerte qui sonne avec la voix. */
+function sonDe(type: TypeNotification): string | undefined {
+  if (type === "STOCK_BAS") return "stock_bas";
+  if (type === "STOCK_EPUISE") return "stock_epuise";
+  return undefined;
+}
+
 /** Codes FCM d'un jeton mort (app désinstallée, jeton périmé) : à supprimer de la base. */
 const CODES_JETON_INVALIDE = new Set(["messaging/registration-token-not-registered", "messaging/invalid-registration-token"]);
 
@@ -70,7 +84,8 @@ export class PushService {
           android: {
             priority: "high",
             // Le canal (créé par l app) détermine le son et l importance. Une étiquette UNIQUE par notification : avec une étiquette par type, la 2e demande de réservation remplaçait la 1re sur le téléphone.
-            notification: { channelId: CATEGORIE_PAR_TYPE[notification.type], tag: notification.id },
+            // Alertes de stock : canaux « voix » (sonnerie = la voix de Delphine, fichier res/raw créé par l'app) ; les autres, leur canal de catégorie.
+            notification: { channelId: canalDe(notification.type), tag: notification.id, ...(sonDe(notification.type) ? { sound: sonDe(notification.type) } : {}) },
           },
         },
         aBlanc

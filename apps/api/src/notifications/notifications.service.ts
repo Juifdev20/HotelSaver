@@ -5,6 +5,7 @@ import type { ListeNotifications, LienNotification, NotificationApp, Role, TypeN
 import { PRISMA } from "../prisma/prisma.module";
 import type { MessageNotification } from "./messages";
 import { PushService } from "./push.service";
+import { AlertesStockService } from "./alertes-stock.service";
 
 export interface EmissionNotification extends MessageNotification {
   hotelId: string;
@@ -26,7 +27,8 @@ export class NotificationsService {
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
-    private readonly push: PushService
+    private readonly push: PushService,
+    private readonly alertesStock: AlertesStockService
   ) {}
 
   /**
@@ -55,11 +57,16 @@ export class NotificationsService {
         throw erreur;
       }
 
+      // Alerte de stock : celui qui l'a coupée (ce produit, ou tout) ne reçoit pas la notification sonore.
+      const ayantCoupe =
+        emission.type === "STOCK_BAS" || emission.type === "STOCK_EPUISE"
+          ? await this.alertesStock.utilisateursAyantCoupe(emission.hotelId, emission.lien.id)
+          : new Set<string>();
       const appareils = await this.prisma.appareilPush.findMany({
         where: {
           hotelId: emission.hotelId,
           actif: true,
-          utilisateur: { actif: true, role: { in: emission.roles.map(enRole) } },
+          utilisateur: { actif: true, role: { in: emission.roles.map(enRole) }, ...(ayantCoupe.size > 0 ? { id: { notIn: [...ayantCoupe] } } : {}) },
         },
         select: { jeton: true },
       });

@@ -24,7 +24,8 @@ function creer() {
     },
   } as any;
   const push = { envoyer: jest.fn().mockResolvedValue({ envoyes: 2, invalides: [] }) } as any;
-  return { prisma, push, service: new NotificationsService(prisma, push) };
+  const alertesStock = { utilisateursAyantCoupe: jest.fn(async () => new Set<string>()) };
+  return { prisma, push, alertesStock, service: new NotificationsService(prisma, push, alertesStock as never) };
 }
 
 const emission = (surcharge: Partial<EmissionNotification> = {}): EmissionNotification => ({
@@ -40,7 +41,7 @@ describe("NotificationsService.emettre", () => {
     await service.emettre(emission());
 
     expect(prisma.notification.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ hotelId: "hotel-A", roles: ["CAFETARIA", "PATRON"], type: "STOCK_BAS", lien: { ecran: "stock", id: "p-1" } }),
+      data: expect.objectContaining({ hotelId: "hotel-A", roles: ["CAFETARIA", "PATRON"], type: "STOCK_BAS", lien: { ecran: "stock", id: "p-1", nom: "Coca-Cola" } }),
     });
     // Isolation : seuls les appareils de l'hôtel émetteur, des rôles ciblés, de comptes actifs.
     expect(prisma.appareilPush.findMany).toHaveBeenCalledWith({
@@ -184,5 +185,23 @@ describe("messages — textes en français", () => {
     expect(messages.recapQuotidien({ usd: 120, cdf: 45000 }).corps).toBe("Recette : 120.00 $ · 45 000 FC");
     expect(messages.licenceBientotExpiree({ jours: 1 }).corps).toContain("1 jour");
     expect(messages.licenceBientotExpiree({ jours: 7 }).corps).toContain("7 jours");
+  });
+});
+
+describe("NotificationsService.emettre — alerte de stock coupée par un utilisateur", () => {
+  it("n'envoie pas la notification sonore à celui qui a coupé l'alerte (ce produit ou toutes)", async () => {
+    const { service, prisma, alertesStock } = creer();
+    alertesStock.utilisateursAyantCoupe.mockResolvedValue(new Set(["u-caf"]));
+    await service.emettre(emission());
+    expect(alertesStock.utilisateursAyantCoupe).toHaveBeenCalledWith("hotel-A", "p-1");
+    expect(prisma.appareilPush.findMany.mock.calls[0][0].where.utilisateur).toEqual(
+      expect.objectContaining({ id: { notIn: ["u-caf"] } })
+    );
+  });
+
+  it("ne demande rien aux coupures pour une autre notification", async () => {
+    const { service, alertesStock } = creer();
+    await service.emettre(emission(messages.arriveesDuJour({ arrivees: 1, departs: 0 })));
+    expect(alertesStock.utilisateursAyantCoupe).not.toHaveBeenCalled();
   });
 });

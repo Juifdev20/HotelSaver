@@ -4,6 +4,8 @@ function creer() {
   const prisma = {
     hotel: { findMany: jest.fn().mockResolvedValue([{ id: "hotel-A" }, { id: "hotel-B" }]) },
     reservation: { count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    produit: { findMany: jest.fn().mockResolvedValue([]) },
+    notification: { findMany: jest.fn().mockResolvedValue([]) },
   } as any;
   const notifications = { emettre: jest.fn().mockResolvedValue(undefined) } as any;
   const dashboard = { recetteDuJour: jest.fn() } as any;
@@ -79,5 +81,41 @@ describe("NotificationsSchedulerService", () => {
     await service.licencesBientotExpirees(maintenant);
     expect(notifications.emettre).toHaveBeenCalledTimes(1);
     expect(notifications.emettre).toHaveBeenCalledWith(expect.objectContaining({ hotelId: "h3", roles: ["PATRON"], type: "LICENCE_BIENTOT_EXPIREE" }));
+  });
+});
+
+describe("NotificationsSchedulerService.rappelsStock — le rappel des 24 h", () => {
+  const produit = (id: string, nom: string, stockActuel: number, seuilAlerte = 5) => ({ id, nom, stockActuel, seuilAlerte });
+  const MAINTENANT = new Date("2026-10-27T10:30:00Z");
+
+  it("annonce de nouveau un produit toujours au seuil, avec son nom pour la voix, et un produit épuisé comme une rupture", async () => {
+    const { service, prisma, notifications } = creer();
+    prisma.hotel.findMany.mockResolvedValue([{ id: "hotel-A" }]);
+    prisma.produit.findMany.mockResolvedValue([produit("p1", "Fanta", 3), produit("p2", "Primus", 0), produit("p3", "Eau", 40)]);
+    expect(await service.rappelsStock(MAINTENANT)).toBe(2);
+    expect(notifications.emettre).toHaveBeenCalledWith(
+      expect.objectContaining({ hotelId: "hotel-A", roles: ["CAFETARIA", "PATRON"], type: "STOCK_BAS", lien: { ecran: "stock", id: "p1", nom: "Fanta" } })
+    );
+    expect(notifications.emettre).toHaveBeenCalledWith(expect.objectContaining({ type: "STOCK_EPUISE", lien: expect.objectContaining({ id: "p2", nom: "Primus" }) }));
+  });
+
+  it("n'annonce pas ce qui l'a été il y a moins de 24 h, et s'arrête tout seul quand le stock est rechargé", async () => {
+    const { service, prisma, notifications } = creer();
+    prisma.hotel.findMany.mockResolvedValue([{ id: "hotel-A" }]);
+    prisma.produit.findMany.mockResolvedValue([produit("p1", "Fanta", 3), produit("p2", "Primus", 60)]);
+    prisma.notification.findMany.mockResolvedValue([{ lien: { ecran: "stock", id: "p1" } }]);
+    expect(await service.rappelsStock(MAINTENANT)).toBe(0);
+    expect(notifications.emettre).not.toHaveBeenCalled();
+    // la recherche des alertes récentes ne regarde que les dernières 24 h de CET hôtel
+    const filtre = prisma.notification.findMany.mock.calls[0][0].where;
+    expect(filtre.hotelId).toBe("hotel-A");
+    expect(filtre.createdAt.gt.toISOString()).toBe("2026-10-26T10:30:00.000Z");
+  });
+
+  it("ne regarde que les articles stockés (un plat préparé n'a pas de stock)", async () => {
+    const { service, prisma } = creer();
+    prisma.hotel.findMany.mockResolvedValue([{ id: "hotel-A" }]);
+    await service.rappelsStock(MAINTENANT);
+    expect(prisma.produit.findMany.mock.calls[0][0].where).toEqual({ hotelId: "hotel-A", actif: true, typeProduit: "ARTICLE" });
   });
 });

@@ -156,6 +156,7 @@ model Hotel {
   site          HotelSite?
   notifications Notification[]
   appareilsPush AppareilPush[]
+  alertesStockCoupees AlerteStockCoupee[]
 
   utilisateurs         Utilisateur[]
   chambres             Chambre[]
@@ -271,6 +272,21 @@ model AppareilPush {
 
   @@index([hotelId])
   @@index([utilisateurId])
+}
+
+/// Alerte de stock qu'un utilisateur a coupée lui-même (« Ne plus me prévenir »). L'alerte revient toutes les 24 h tant que le stock n'est
+/// pas rechargé, jusqu'à ce que l'utilisateur la coupe. produitId = l'id du produit, ou "*" pour toutes les alertes de stock.
+model AlerteStockCoupee {
+  id            String      @id @default(uuid())
+  hotel         Hotel       @relation(fields: [hotelId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  hotelId       String
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  utilisateurId String
+  produitId     String
+  createdAt     DateTime    @default(now())
+
+  @@unique([utilisateurId, produitId])
+  @@index([hotelId, produitId])
 }
 
 /// Administrateur de la plateforme HotelSaver, indépendant de tout hôtel —
@@ -407,6 +423,7 @@ model Utilisateur {
   /// antérieurs se connectent encore par e-mail jusqu'à l'ajout d'un numéro.
   telephone      String?  @unique
   appareilsPush  AppareilPush[]
+  alertesStockCoupees AlerteStockCoupee[]
   sessions       SessionUtilisateur[]
 
   @@index([hotelId])

@@ -20,6 +20,7 @@ import {
   MenuDuJour,
   ModePaiement,
   MouvementStock,
+  CoupuresAlertesStock,
   ListeNotifications,
   ProduitPopulaire,
   Occupation,
@@ -516,6 +517,20 @@ export class ClientApi {
     if (options.limite) params.set("limite", String(options.limite));
     const requete = params.toString();
     return this.requete<ListeNotifications>(`/notifications${requete ? `?${requete}` : ""}`);
+  }
+
+  /** Les alertes de stock que j'ai coupées (la voix et la notification sonore ne les annoncent plus pour moi). */
+  async listerCoupuresAlertesStock(): Promise<CoupuresAlertesStock> {
+    return this.requete<CoupuresAlertesStock>("/notifications/alertes-stock/coupures");
+  }
+
+  /** Coupe l'alerte d'un produit (ou toutes si `produitId` est absent), pour moi seul. */
+  async couperAlerteStock(produitId?: string): Promise<CoupuresAlertesStock> {
+    return this.requete<CoupuresAlertesStock>("/notifications/alertes-stock/coupures", { method: "POST", body: JSON.stringify(produitId ? { produitId } : {}) });
+  }
+
+  async reactiverAlerteStock(produitId?: string): Promise<CoupuresAlertesStock> {
+    return this.requete<CoupuresAlertesStock>("/notifications/alertes-stock/coupures", { method: "DELETE", body: JSON.stringify(produitId ? { produitId } : {}) });
   }
 
   async marquerNotificationLue(id: string): Promise<void> {

@@ -104,6 +104,55 @@ export class NotificationsSchedulerService {
     }
   }
 
+  /**
+   * Toutes les heures — le rappel des 24 h : un produit TOUJOURS au seuil d'alerte (ou épuisé) dont la dernière alerte date de plus de 24 h
+   * est annoncé de nouveau (voix dans l'application, notification sonore téléphone éteint), jusqu'à ce que le stock soit rechargé — la quantité
+   * remonte au-dessus du seuil et plus rien ne part — ou que l'utilisateur coupe l'alerte (alerte-stock.service : ceux qui l'ont coupée sont
+   * écartés à l'émission). Retourne le nombre de produits annoncés.
+   */
+  @Cron("30 * * * *", { timeZone: FUSEAU })
+  async rappelsStock(maintenant = new Date()): Promise<number> {
+    let annonces = 0;
+    try {
+      const limite = new Date(maintenant.getTime() - JOUR_MS);
+      for (const hotel of await this.hotelsActifs()) {
+        try {
+          const produits = await this.prisma.produit.findMany({
+            where: { hotelId: hotel.id, actif: true, typeProduit: "ARTICLE" },
+            select: { id: true, nom: true, stockActuel: true, seuilAlerte: true },
+            take: 2000,
+          });
+          // Comparaison en JS : Prisma ne compare pas deux colonnes entre elles dans un where.
+          const bas = produits.filter((p) => Number(p.stockActuel) <= Number(p.seuilAlerte));
+          if (bas.length === 0) continue;
+          const recentes = await this.prisma.notification.findMany({
+            where: { hotelId: hotel.id, type: { in: ["STOCK_BAS", "STOCK_EPUISE"] }, createdAt: { gt: limite } },
+            select: { lien: true },
+          });
+          const dejaAnnonces = new Set(recentes.map((n) => (n.lien as { id?: string } | null)?.id).filter((id): id is string => !!id));
+          for (const produit of bas) {
+            if (dejaAnnonces.has(produit.id)) continue;
+            const stock = Number(produit.stockActuel);
+            await this.notifications.emettre({
+              hotelId: hotel.id,
+              roles: [Role.CAFETARIA, Role.PATRON],
+              cleDedup: `stock-rappel:${produit.id}:${maintenant.getTime()}`,
+              ...(stock <= 0
+                ? messages.stockEpuise({ produit: produit.nom, produitId: produit.id })
+                : messages.stockBas({ produit: produit.nom, stock, produitId: produit.id })),
+            });
+            annonces += 1;
+          }
+        } catch (erreur) {
+          this.logger.error(`Rappels de stock (hôtel ${hotel.id}) : ${(erreur as Error).message}`);
+        }
+      }
+    } catch (erreur) {
+      this.logger.error(`Rappels de stock : ${(erreur as Error).message}`);
+    }
+    return annonces;
+  }
+
   /** 20:00 — récap de la recette du jour au patron. */
   @Cron("0 20 * * *", { timeZone: FUSEAU })
   async recapDuSoir(maintenant = new Date()): Promise<void> {
