@@ -1,0 +1,70 @@
+{
+ "fps": 30,
+ "total": 83.888,
+ "endVoice": 78.888,
+ "lines": [
+  {
+   "i": 0,
+   "text": "Et si votre hôtel ne s'arrêtait plus jamais… même quand le réseau tombe ?",
+   "start": 1.0,
+   "dur": 4.202,
+   "end": 5.202
+  },
+  {
+   "i": 1,
+   "text": "Voici HotelSaver. La réception, la cafétaria et les réservations de votre hôtel, réunies dans une seule application, sur téléphone comme sur ordinateur.",
+   "start": 5.802,
+   "dur": 9.844,
+   "end": 15.646
+  },
+  {
+   "i": 2,
+   "text": "Pas d'Internet ? Aucun problème. Réservez, installez vos clients et encaissez : tout fonctionne hors ligne. Au retour du réseau, tout se synchronise automatiquement.",
+   "start": 16.246,
+   "dur": 10.094,
+   "end": 26.34
+  },
+  {
+   "i": 3,
+   "text": "À la réception, suivez vos chambres en un coup d'œil, enregistrez les arrivées et les départs, et facturez en dollars comme en francs congolais.",
+   "start": 26.94,
+   "dur": 8.33,
+   "end": 35.27
+  },
+  {
+   "i": 4,
+   "text": "À la cafétaria, ouvrez un compte par table, scannez les articles, envoyez la commande en cuisine, et gardez un stock toujours à jour.",
+   "start": 35.87,
+   "dur": 8.076,
+   "end": 43.947
+  },
+  {
+   "i": 5,
+   "text": "Le patron garde le contrôle : tableau de bord, dépenses, rapports mensuels, et un accès sécurisé pour chaque employé.",
+   "start": 44.547,
+   "dur": 7.819,
+   "end": 52.366
+  },
+  {
+   "i": 6,
+   "text": "Dès l'inscription, votre hôtel reçoit son propre site de réservation, à ses couleurs, où vos clients réservent et paient leur acompte en ligne.",
+   "start": 52.966,
+   "dur": 8.16,
+   "end": 61.125
+  },
+  {
+   "i": 7,
+   "text": "Démarrer est simple : créez votre hôtel, configurez vos chambres, puis ouvrez l'accès à votre équipe.",
+   "start": 61.725,
+   "dur": 6.052,
+   "end": 67.777
+  },
+  {
+   "i": 8,
+   "text": "Essayez HotelSaver gratuitement pendant quatorze jours, sans carte bancaire. Écrivez-nous sur WhatsApp : plus deux quatre trois, huit deux huit, quatre neuf sept, deux un huit.",
+   "start": 68.377,
+   "dur": 10.511,
+   "end": 78.888
+  }
+ ]
+}

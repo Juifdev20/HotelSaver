@@ -1,0 +1,227 @@
+{
+"logo": {
+"file": "logo.png",
+"w": 512,
+"h": 512
+},
+"pc-arrivees": {
+"file": "pc-arrivees.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-chambres": {
+"file": "pc-chambres.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-clients": {
+"file": "pc-clients.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-comptes": {
+"file": "pc-comptes.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-connexion": {
+"file": "pc-connexion.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-cuisine": {
+"file": "pc-cuisine.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-depenses": {
+"file": "pc-depenses.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-facturation": {
+"file": "pc-facturation.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-journal": {
+"file": "pc-journal.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-menu": {
+"file": "pc-menu.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-rapports": {
+"file": "pc-rapports.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-reservations": {
+"file": "pc-reservations.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-site-hotel": {
+"file": "pc-site-hotel.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-stock": {
+"file": "pc-stock.jpg",
+"w": 1920,
+"h": 1200
+},
+"pc-tableau-de-bord": {
+"file": "pc-tableau-de-bord.jpg",
+"w": 1920,
+"h": 1200
+},
+"site-hotel-pc-1": {
+"file": "site-hotel-pc-1.jpg",
+"w": 2160,
+"h": 1350
+},
+"site-hotel-pc-2": {
+"file": "site-hotel-pc-2.jpg",
+"w": 2160,
+"h": 1350
+},
+"site-hotel-tel-1": {
+"file": "site-hotel-tel-1.jpg",
+"w": 780,
+"h": 1688
+},
+"site-hotel-tel-2": {
+"file": "site-hotel-tel-2.jpg",
+"w": 780,
+"h": 1688
+},
+"t-caf-caisse": {
+"file": "t-caf-caisse.jpg",
+"w": 780,
+"h": 1688
+},
+"t-caf-compte": {
+"file": "t-caf-compte.jpg",
+"w": 780,
+"h": 1688
+},
+"t-caf-cuisine": {
+"file": "t-caf-cuisine.jpg",
+"w": 780,
+"h": 1688
+},
+"t-caf-scan": {
+"file": "t-caf-scan.jpg",
+"w": 780,
+"h": 1688
+},
+"t-caf-stock": {
+"file": "t-caf-stock.jpg",
+"w": 780,
+"h": 1688
+},
+"t-caf-usd": {
+"file": "t-caf-usd.jpg",
+"w": 780,
+"h": 1688
+},
+"t-cafeteria": {
+"file": "t-cafeteria.jpg",
+"w": 780,
+"h": 1688
+},
+"t-chambres": {
+"file": "t-chambres.jpg",
+"w": 780,
+"h": 1688
+},
+"t-checkin": {
+"file": "t-checkin.jpg",
+"w": 780,
+"h": 1688
+},
+"t-depenses": {
+"file": "t-depenses.jpg",
+"w": 780,
+"h": 1688
+},
+"t-facturer": {
+"file": "t-facturer.jpg",
+"w": 780,
+"h": 1688
+},
+"t-inscription-fin": {
+"file": "t-inscription-fin.jpg",
+"w": 780,
+"h": 1688
+},
+"t-inscription": {
+"file": "t-inscription.jpg",
+"w": 780,
+"h": 1688
+},
+"t-nouvelle": {
+"file": "t-nouvelle.jpg",
+"w": 780,
+"h": 1688
+},
+"t-paye-ligne": {
+"file": "t-paye-ligne.jpg",
+"w": 780,
+"h": 1688
+},
+"t-planning": {
+"file": "t-planning.jpg",
+"w": 780,
+"h": 1688
+},
+"t-rapports": {
+"file": "t-rapports.jpg",
+"w": 780,
+"h": 1688
+},
+"t-reception": {
+"file": "t-reception.jpg",
+"w": 780,
+"h": 1688
+},
+"t-recu-prov": {
+"file": "t-recu-prov.jpg",
+"w": 780,
+"h": 1688
+},
+"t-reservations": {
+"file": "t-reservations.jpg",
+"w": 780,
+"h": 1688
+},
+"t-site": {
+"file": "t-site.jpg",
+"w": 780,
+"h": 1688
+},
+"t-synchro": {
+"file": "t-synchro.jpg",
+"w": 780,
+"h": 1688
+},
+"t-tableau": {
+"file": "t-tableau.jpg",
+"w": 780,
+"h": 1688
+},
+"t-taux": {
+"file": "t-taux.jpg",
+"w": 780,
+"h": 1688
+},
+"t-users": {
+"file": "t-users.jpg",
+"w": 780,
+"h": 1688
+}
+}
