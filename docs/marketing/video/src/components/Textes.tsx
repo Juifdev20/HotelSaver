@@ -4,6 +4,7 @@ import { C, POLICE } from '../theme';
 import { useFormat } from '../format';
 import { useRessort } from './anim';
 import { Icone } from './Icone';
+import { Son } from './Sons';
 
 /** Logo + « Hotel » blanc / « Saver » or, comme sur l'affiche. */
 export const Marque: React.FC<{ taille: number; style?: React.CSSProperties; slogan?: string }> = ({ taille, style, slogan }) => (
@@ -61,10 +62,45 @@ export const Titre: React.FC<{ l1: string; l2: string; a?: number; taille: numbe
       </div>
     );
   };
+  const f = useCurrentFrame();
+  const trait = interpolate(f, [a + 14, a + 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const brille = interpolate(f, [a + 26, a + 50], [-30, 130], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   return (
-    <div style={{ fontFamily: POLICE, fontSize: taille, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.04, textAlign: aligner, ...style }}>
+    <div style={{ position: 'relative', fontFamily: POLICE, fontSize: taille, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1.04, textAlign: aligner, ...style }}>
       {ligne(l1, C.blanc, 0)}
-      {ligne(l2, C.or, 6)}
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        {ligne(l2, C.or, 6)}
+        {/* reflet qui traverse la ligne dorée */}
+        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', mixBlendMode: 'overlay' }}>
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${brille}%`, width: '22%', transform: 'skewX(-20deg)', background: 'linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.9),rgba(255,255,255,0))' }} />
+        </div>
+        <div style={{ position: 'absolute', left: aligner === 'center' ? '50%' : 0, bottom: -taille * 0.04, height: Math.max(4, taille * 0.065), width: `${trait * 62}%`, transform: aligner === 'center' ? 'translateX(-50%)' : undefined, borderRadius: taille, background: `linear-gradient(90deg, ${C.or}, ${C.orClair})`, boxShadow: '0 0 18px rgba(245,180,0,.6)' }} />
+      </div>
+      <Son nom="texte" a={a} volume={0.18} />
+    </div>
+  );
+};
+
+/** Éclat : des étincelles dorées qui jaillissent d'un point (une pastille qui apparaît, un chiffre qui se pose). */
+export const Eclat: React.FC<{ a: number; taille: number; n?: number; couleur?: string; style?: React.CSSProperties }> = ({ a, taille, n = 8, couleur = C.or, style }) => {
+  const f = useCurrentFrame();
+  const k = f - a;
+  if (k < 0 || k > 24) return null;
+  const p = interpolate(k, [0, 24], [0, 1], { extrapolateRight: 'clamp' });
+  const ease = 1 - Math.pow(1 - p, 3);
+  return (
+    <div style={{ position: 'absolute', width: 0, height: 0, pointerEvents: 'none', zIndex: 20, ...style }}>
+      <div style={{ position: 'absolute', left: -taille / 2, top: -taille / 2, width: taille, height: taille, borderRadius: '50%', border: `2px solid ${couleur}`, transform: `scale(${0.3 + ease})`, opacity: (1 - p) * 0.8 }} />
+      {Array.from({ length: n }, (_, i) => {
+        const ang = (i / n) * Math.PI * 2 + 0.3;
+        const d = taille * 0.25 + ease * taille * 0.75;
+        const t = (i % 2 ? 7 : 11) * (1 - p * 0.6);
+        return (
+          <svg key={i} width={t * 2} height={t * 2} viewBox="0 0 24 24" style={{ position: 'absolute', left: Math.cos(ang) * d - t, top: Math.sin(ang) * d - t, opacity: 1 - p, transform: `rotate(${k * 8}deg)` }}>
+            <path d="M12 0 L14.2 9.8 L24 12 L14.2 14.2 L12 24 L9.8 14.2 L0 12 L9.8 9.8Z" fill={i % 3 === 0 ? '#fff' : couleur} />
+          </svg>
+        );
+      })}
     </div>
   );
 };
@@ -97,9 +133,11 @@ export const Pastille: React.FC<{ icone: string; titre: string; texte?: string; 
         ...style,
       }}
     >
-      <span style={{ width: 56 * e, height: 56 * e, borderRadius: 18 * e, background: C.or, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+      <span style={{ position: 'relative', width: 56 * e, height: 56 * e, borderRadius: 18 * e, background: C.or, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', boxShadow: `0 0 ${18 * e * Math.max(0, 1 - Math.abs(f - a - 6) / 14)}px ${C.or}` }}>
         <Icone nom={icone} taille={30 * e} couleur={C.texteOr} />
+        <Eclat a={a + 2} taille={110 * e} style={{ left: 28 * e, top: 28 * e }} />
       </span>
+      <Son nom="pop" a={a} volume={0.32} />
       <div>
         <b style={{ display: 'block', fontSize: 25 * e, fontWeight: 800, letterSpacing: '-.01em', whiteSpace: 'nowrap' }}>{titre}</b>
         {texte && <small style={{ display: 'block', marginTop: 3 * e, fontSize: 17.5 * e, fontWeight: 500, color: C.blanc82, whiteSpace: 'nowrap' }}>{texte}</small>}

@@ -4,6 +4,7 @@ import { C } from '../theme';
 import { img } from '../assets';
 import { useFormat } from '../format';
 import { useRessort } from './anim';
+import { Son } from './Sons';
 
 /** Un écran affiché à partir de l'image `a` de la scène (le premier dès le début). */
 export type Ecran = { src: string; a?: number };
@@ -61,6 +62,29 @@ const Touches: React.FC<{ touches: Toucher[] }> = ({ touches }) => {
       })}
     </>
   );
+};
+
+/** Reflet de lumière qui balaie l'écran en diagonale (à l'arrivée de l'appareil et à chaque nouvel écran). */
+const Reflet: React.FC<{ a: number[]; rayon: number }> = ({ a, rayon }) => {
+  const f = useCurrentFrame();
+  const k = a.filter((x) => f >= x && f < x + 22).pop();
+  if (k === undefined) return null;
+  const p = interpolate(f - k, [0, 22], [-60, 160], { extrapolateRight: 'clamp' });
+  return (
+    <div style={{ position: 'absolute', inset: 0, borderRadius: rayon, overflow: 'hidden', zIndex: 7, pointerEvents: 'none' }}>
+      <div style={{ position: 'absolute', top: '-20%', bottom: '-20%', left: `${p}%`, width: '28%', transform: 'skewX(-20deg)', background: 'linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.55), rgba(255,255,255,0))' }} />
+    </div>
+  );
+};
+
+/** Onde dorée qui part de l'appareil quand il se pose. */
+const Onde: React.FC<{ a: number; w: number; h: number; rayon: number }> = ({ a, w, h, rayon }) => {
+  const f = useCurrentFrame();
+  const k = f - a;
+  if (k < 0 || k > 26) return null;
+  const s = interpolate(k, [0, 26], [1, 1.35]);
+  const o = interpolate(k, [0, 4, 26], [0, 0.7, 0]);
+  return <div style={{ position: 'absolute', left: 0, top: 0, width: w, height: h, borderRadius: rayon, border: `3px solid ${C.or}`, transform: `scale(${s})`, opacity: o, zIndex: -1, boxShadow: `0 0 30px ${C.or}` }} />;
 };
 
 function useEntree(entree: number, depuis: Depuis) {
@@ -127,9 +151,18 @@ export const Telephone: React.FC<{
       <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: rayon - pad }}>
         <PileEcrans ecrans={ecrans} rayon={rayon - pad} />
         <Touches touches={touches} />
+        <Reflet a={[entree + 12, ...ecrans.slice(1).map((ec) => (ec.a ?? 0) + 6)]} rayon={rayon - pad} />
         <div style={{ position: 'absolute', left: '50%', top: ecranL * 0.022, width: ecranL * 0.28, height: ecranL * 0.075, marginLeft: -ecranL * 0.14, borderRadius: ecranL, background: '#05080F', zIndex: 5 }} />
         <div style={{ position: 'absolute', inset: 0, borderRadius: rayon - pad, background: 'linear-gradient(115deg,rgba(255,255,255,.28),rgba(255,255,255,0) 32%,rgba(255,255,255,0) 70%,rgba(255,255,255,.07))', zIndex: 4, pointerEvents: 'none' }} />
       </div>
+      <Onde a={entree + 12} w={w - 0} h={h} rayon={rayon} />
+      <Son nom="whoosh" a={entree} volume={0.3} />
+      {ecrans.slice(1).map((ec, i) => (
+        <Son key={i} nom="swish" a={(ec.a ?? 0) - 1} volume={0.2} />
+      ))}
+      {touches.map((t, i) => (
+        <Son key={`t${i}`} nom="tap" a={t.f} volume={0.55} />
+      ))}
       <div style={{ position: 'absolute', right: -w * 0.012, top: h * 0.2, width: w * 0.014, height: h * 0.1, borderRadius: 4, background: '#2B3548' }} />
       <div style={{ position: 'absolute', left: -w * 0.012, top: h * 0.17, width: w * 0.014, height: h * 0.06, borderRadius: 4, background: '#2B3548' }} />
       <div style={{ position: 'absolute', left: -w * 0.012, top: h * 0.25, width: w * 0.014, height: h * 0.1, borderRadius: 4, background: '#2B3548' }} />
@@ -204,6 +237,10 @@ export const Ordinateur: React.FC<{
           boxShadow: `0 ${w * 0.06}px ${w * 0.1}px rgba(0,0,0,.45), 0 0 0 2px rgba(255,255,255,.14), 0 0 ${w * 0.12}px rgba(23,105,224,.6)`,
         }}
       >
+        <Son nom="whoosh2" a={entree} volume={0.3} />
+        {ecrans.slice(1).map((ec, i) => (
+          <Son key={i} nom="swish" a={(ec.a ?? 0) - 1} volume={0.16} />
+        ))}
         <div style={{ position: 'absolute', left: '50%', top: b * 0.45, width: b * 0.4, height: b * 0.4, marginLeft: -b * 0.2, borderRadius: b, background: '#1C2433' }} />
         <div style={{ position: 'relative', width: ecranL, height: ecranH, borderRadius: w * 0.006, overflow: 'hidden', background: '#fff' }}>
           {navigateur && (
@@ -224,6 +261,7 @@ export const Ordinateur: React.FC<{
             </div>
           </div>
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(120deg,rgba(255,255,255,.16),rgba(255,255,255,0) 30%)', pointerEvents: 'none' }} />
+          <Reflet a={[entree + 14, ...ecrans.slice(1).map((ec) => (ec.a ?? 0) + 4)]} rayon={0} />
         </div>
       </div>
       <div style={{ position: 'relative', width: w * 1.16, left: -w * 0.08, height: w * 0.034, borderRadius: `${w * 0.004}px ${w * 0.004}px ${w * 0.03}px ${w * 0.03}px`, background: 'linear-gradient(180deg,#C9D2DF,#8E99AB 60%,#5E687A)', boxShadow: `0 ${w * 0.03}px ${w * 0.05}px rgba(0,0,0,.4)` }}>

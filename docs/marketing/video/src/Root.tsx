@@ -12,7 +12,7 @@ const FORMATS = [
 export const Root: React.FC = () => (
   <>
     {FORMATS.map((f) => (
-      <Composition key={f.id} id={f.id} component={Video} durationInFrames={TOTAL_FRAMES} fps={FPS} width={f.width} height={f.height} defaultProps={{ avecVoix: true, avecSousTitres: true }} />
+      <Composition key={f.id} id={f.id} component={Video} durationInFrames={TOTAL_FRAMES} fps={FPS} width={f.width} height={f.height} defaultProps={{ avecVoix: true, avecSousTitres: true, avecSons: true }} />
     ))}
   </>
 );

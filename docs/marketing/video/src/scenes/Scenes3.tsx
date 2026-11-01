@@ -6,7 +6,8 @@ import { cue, FPS, LINES, sceneStart } from '../timeline';
 import { useRessort } from '../components/anim';
 import { BulleWhatsApp, Icone } from '../components/Icone';
 import { Telephone } from '../components/Appareils';
-import { Marque, Pastille } from '../components/Textes';
+import { Eclat, Marque, Pastille } from '../components/Textes';
+import { Son } from '../components/Sons';
 import { useTailles } from './Scenes2';
 
 /** Jauge or « 14 jours d'essai gratuit » : l'anneau se remplit, le chiffre compte jusqu'à 14. */
@@ -19,6 +20,9 @@ const Jauge: React.FC<{ a: number; d: number }> = ({ a, d }) => {
   const L = 2 * Math.PI * R;
   return (
     <div style={{ position: 'relative', width: d, height: d, flex: 'none', transform: `scale(${0.5 + 0.5 * s})`, opacity: Math.min(1, s * 2) }}>
+      <Son nom="texte" a={a + 4} volume={0.16} />
+      <Son nom="etincelle" a={a + 38} volume={0.3} />
+      <Eclat a={a + 40} taille={d * 1.3} n={10} style={{ left: d / 2, top: d / 2 }} />
       <svg width={d} height={d} style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }}>
         <circle cx={d / 2} cy={d / 2} r={R} stroke="rgba(255,255,255,.14)" strokeWidth={d * 0.08} fill="rgba(6,18,36,.85)" />
         <circle cx={d / 2} cy={d / 2} r={R} stroke={C.or} strokeWidth={d * 0.08} fill="none" strokeLinecap="round" strokeDasharray={`${L * p} ${L}`} />
@@ -41,10 +45,11 @@ const Telecharger: React.FC<{ a: number; e: number }> = ({ a, e }) => {
       ].map((b, k) => {
         const s = r(a + k * 5, { damping: 13, stiffness: 150 });
         return (
-          <div key={b.t} style={{ display: 'flex', alignItems: 'center', gap: 14 * e, padding: `${12 * e}px ${22 * e}px ${12 * e}px ${12 * e}px`, borderRadius: 22 * e, background: C.blanc, color: C.a, fontFamily: POLICE, boxShadow: '0 14px 30px rgba(0,0,0,.3)', opacity: Math.min(1, s * 2), transform: `translateY(${(1 - s) * 24}px) scale(${0.7 + 0.3 * s})` }}>
+          <div key={b.t} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14 * e, padding: `${12 * e}px ${22 * e}px ${12 * e}px ${12 * e}px`, borderRadius: 22 * e, background: C.blanc, color: C.a, fontFamily: POLICE, boxShadow: '0 14px 30px rgba(0,0,0,.3)', opacity: Math.min(1, s * 2), transform: `translateY(${(1 - s) * 24}px) scale(${0.7 + 0.3 * s})` }}>
             <span style={{ width: 50 * e, height: 50 * e, borderRadius: 14 * e, background: C.c, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Icone nom="telecharger" taille={28 * e} couleur={C.blanc} epaisseur={2.6} />
             </span>
+            <Son nom="pop" a={a + k * 5} volume={0.26} />
             <div style={{ lineHeight: 1.1 }}>
               <small style={{ display: 'block', fontSize: 15 * e, fontWeight: 600, color: '#5B6B82' }}>Télécharger pour</small>
               <b style={{ display: 'flex', alignItems: 'center', gap: 6 * e, fontSize: 26 * e, fontWeight: 800 }}>
@@ -65,9 +70,12 @@ const CarteWhatsApp: React.FC<{ a: number; e: number; style: React.CSSProperties
   const pulse = 1 + Math.max(0, Math.sin((f - a) / 9)) * 0.06;
   return (
     <div style={{ position: 'absolute', zIndex: 12, ...style, opacity: Math.min(1, s * 2), transform: `translateY(${(1 - s) * 50}px) scale(${0.6 + 0.4 * s})` }}>
+      <Son nom="whoosh" a={a - 4} volume={0.22} />
+      <Son nom="notif" a={a + 2} volume={0.4} />
       <div style={{ display: 'flex', width: 'fit-content', margin: centre ? '0 auto' : undefined, alignItems: 'center', gap: 20 * e, padding: `${18 * e}px ${32 * e}px ${18 * e}px ${18 * e}px`, borderRadius: 30 * e, background: 'rgba(6,18,36,.94)', border: `2px solid ${C.or}`, boxShadow: '0 26px 50px rgba(0,0,0,.45), 0 0 60px rgba(245,180,0,.25)', fontFamily: POLICE }}>
-        <div style={{ transform: `scale(${pulse})` }}>
+        <div style={{ position: 'relative', transform: `scale(${pulse})` }}>
           <BulleWhatsApp taille={78 * e} />
+          <Eclat a={a + 4} taille={150 * e} couleur="#25D366" style={{ left: 39 * e, top: 39 * e }} />
         </div>
         <div>
           <small style={{ display: 'block', fontSize: 21 * e, fontWeight: 700, color: C.blanc82 }}>Écrivez-nous sur WhatsApp</small>
@@ -121,6 +129,7 @@ export const S8Final: React.FC = () => {
                 <Icone nom="check" taille={20 * e} couleur={C.blanc} epaisseur={3.2} />
               </span>
               Sans carte bancaire
+              <Son nom="coche" a={cC} volume={0.4} />
             </div>
           </div>
         </div>
@@ -148,6 +157,8 @@ export const S8Final: React.FC = () => {
       >
         Gérez votre hôtel, <span style={{ color: C.or }}>simplement.</span>
       </div>
+      <Son nom="impact" a={finVoix + 2} volume={0.35} />
+      <Son nom="etincelle" a={finVoix + 8} volume={0.25} />
     </>
   );
 };

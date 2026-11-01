@@ -6,7 +6,8 @@ import { cue, sceneLength } from '../timeline';
 import { useRessort } from '../components/anim';
 import { Icone } from '../components/Icone';
 import { Ordinateur, Telephone } from '../components/Appareils';
-import { Pastille, Scene, Tag, Titre, ZoneTexte } from '../components/Textes';
+import { Eclat, Pastille, Scene, Tag, Titre, ZoneTexte } from '../components/Textes';
+import { Son } from '../components/Sons';
 
 type XY = [number, number];
 /** Position d'une pastille selon le format (paysage en unités 1080p, portrait et carré en pixels). */
@@ -50,6 +51,7 @@ export const S3Reception: React.FC = () => {
       </ZoneTexte>
       <Ordinateur w={lap.w} x={lap.x} y={lap.y} depuis="droite" entree={0} ecrans={[{ src: 'pc-chambres' }, { src: 'pc-arrivees', a: cA }, { src: 'pc-facturation', a: cF }]} zoom={[{ f: 0, s: 1, x: 0.5, y: 0.2 }, { f: cA - 4, s: 1.1, x: 0.3, y: 0.2 }, { f: cA + 4, s: 1, x: 0.5, y: 0.2 }, { f: 300, s: 1.08, x: 0.7, y: 0.4 }]} />
       <Telephone w={tel.w} x={tel.x} y={tel.y} rot={7} depuis="bas" entree={10} z={3} ecrans={[{ src: 't-planning' }, { src: 't-checkin', a: cA + 8 }, { src: 't-facturer', a: cF + 6 }]} touches={[{ x: 0.5, y: 0.88, f: cF + 30 }]} />
+      <Son nom="caisse" a={cF + 10} volume={0.18} />
       <Pastille icone="lit" titre="Chambres" texte="Libres, occupées, à nettoyer" a={cue(3, 'chambres')} echelle={T.pastille} style={at([905, 110], [40, 520], [40, 300])} />
       <Pastille icone="agenda" titre="Arrivées et départs" texte="Enregistrés en quelques gestes" a={cA} echelle={T.pastille} style={at([905, 640], [40, 1130], [40, 820])} />
       <Pastille icone="dollar" titre="Dollars et francs" texte="Facture en USD ou en CDF" a={cF} echelle={T.pastille} style={at([1420, 790], [480, 520], [560, 300])} />
@@ -79,6 +81,10 @@ export const S4Cafeteria: React.FC = () => {
       <Telephone w={w} x={xs[0]} y={y + 30} rot={-9} depuis="gauche" entree={Math.max(0, cC - 14)} z={2} ecrans={[{ src: 't-caf-compte' }]} touches={[{ x: 0.5, y: 0.45, f: cC + 10 }]} />
       <Telephone w={w * 1.08} x={xs[1]} y={y} rot={0} depuis="bas" entree={Math.max(0, cS - 14)} z={4} ecrans={[{ src: 't-caf-scan' }, { src: 't-caf-stock', a: cT }]} />
       <Telephone w={w} x={xs[2]} y={y + 30} rot={9} depuis="droite" entree={Math.max(0, cK - 14)} z={3} ecrans={[{ src: 't-caf-cuisine' }]} />
+      <Son nom="scan" a={cS + 8} volume={0.3} />
+      <Son nom="scan" a={cS + 20} volume={0.22} />
+      <Son nom="notif" a={cK + 4} volume={0.28} />
+      <Son nom="coche" a={cT + 4} volume={0.35} />
       <Relais
         echelle={T.pastille}
         style={slot}
@@ -174,6 +180,8 @@ export const S6Site: React.FC = () => {
       <Pastille icone="cadeau" titre="Inclus dès l’inscription" texte="Sans frais en plus" a={cI} fin={mode === 'land' ? undefined : cA - 10} echelle={T.pastille} style={at([905, 110], [40, 520], [40, 300])} />
       <Pastille icone="globe" titre="Réservation en ligne" texte="Vos clients réservent seuls" a={cR} fin={cA - 2} echelle={T.pastille} style={at([905, 680], [40, 1150], [40, 830])} />
       <Pastille icone="carte" titre="Acompte en ligne" texte="Mobile Money ou carte" a={cA} echelle={T.pastille} style={at([905, 680], [40, 1150], [40, 830])} />
+      <Son nom="caisse" a={cA + 10} volume={0.2} />
+      <Son nom="etincelle" a={cA} volume={0.16} />
       {mode !== 'land' && <Operateurs a={cA} taille={mode === 'port' ? 22 : 16} centre style={{ position: 'absolute', left: 30, right: 30, flexWrap: 'nowrap', top: mode === 'port' ? 540 : 315, zIndex: 9 }} />}
     </Scene>
   );
@@ -204,6 +212,8 @@ export const S7Demarrage: React.FC = () => {
         const s = r(e.a, { damping: 12, stiffness: 160 });
         return (
           <React.Fragment key={e.n}>
+            <Son nom="pop" a={e.a} volume={0.28} />
+            <Eclat a={e.a + 2} taille={w * 0.7} style={{ left: xs[i], top: y - hT / 2 - w * 0.2 }} />
             <Telephone w={w} x={xs[i]} y={y} rot={[-4, 0, 4][i]} depuis="bas" entree={Math.max(0, e.a - 12)} z={2 + i} ecrans={[{ src: e.src }]} />
             <div style={{ position: 'absolute', left: xs[i], top: y - hT / 2 - w * 0.2, transform: `translate(-50%,-50%) scale(${s})`, zIndex: 9, width: w * 0.34, height: w * 0.34, borderRadius: '50%', background: C.or, color: C.texteOr, fontFamily: POLICE, fontWeight: 800, fontSize: w * 0.19, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 6px rgba(245,180,0,.25), 0 10px 24px rgba(0,0,0,.35)' }}>{e.n}</div>
             <div style={{ position: 'absolute', left: xs[i], top: y + hT / 2 + w * 0.12, transform: `translateX(-50%) translateY(${(1 - s) * 20}px)`, opacity: Math.min(1, s * 2), zIndex: 9, fontFamily: POLICE, fontWeight: 800, fontSize: tl, color: C.blanc, whiteSpace: 'nowrap', textAlign: 'center', textShadow: '0 2px 12px rgba(0,0,0,.4)' }}>{e.t}</div>

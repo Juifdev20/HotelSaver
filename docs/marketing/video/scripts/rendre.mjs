@@ -50,3 +50,11 @@ await build({ entryPoints: [path.join(racine, 'src/sousTitres.ts')], bundle: tru
 const { versSrt } = await import(tmp);
 fs.writeFileSync(path.join(sortie, 'HotelSaver-sous-titres.srt'), versSrt());
 console.log('✔ sous-titres .srt');
+
+// Voix + bruitages (sans musique), tirés du rendu 9:16 : la piste à poser sous votre propre musique.
+const { execFileSync } = await import('node:child_process');
+const ref = path.join(sortie, 'HotelSaver-9x16.mp4');
+if (fs.existsSync(ref)) {
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', ref, '-vn', '-c:a', 'libmp3lame', '-b:a', '192k', path.join(sortie, 'HotelSaver-voix-et-bruitages.mp3')]);
+  console.log('✔ voix + bruitages .mp3');
+}

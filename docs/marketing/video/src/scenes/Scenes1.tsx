@@ -6,7 +6,8 @@ import { cue, sceneLength } from '../timeline';
 import { useRessort } from '../components/anim';
 import { Icone } from '../components/Icone';
 import { Ordinateur, Telephone } from '../components/Appareils';
-import { Marque, Pastille, Scene, Tag, Titre, ZoneTexte } from '../components/Textes';
+import { Eclat, Marque, Pastille, Scene, Tag, Titre, ZoneTexte } from '../components/Textes';
+import { Son } from '../components/Sons';
 
 const tailles = (pick: <T>(l: T, p: T, s?: T) => T, u: number) => ({
   titre: pick(88 * u, 92, 62),
@@ -61,6 +62,10 @@ export const S0Accroche: React.FC = () => {
           <Icone nom={apres ? 'hors' : 'wifi'} taille={d * 0.5} couleur={apres ? C.alerte : C.texteOr} epaisseur={2.2} />
         </div>
       </div>
+      <Son nom="etincelle" a={4} volume={0.2} />
+      <Son nom="coupure" a={coupe - 2} volume={0.32} />
+      <Son nom="pop" a={coupe + 2} volume={0.25} />
+      <Eclat a={4} taille={d * 1.3} n={10} style={{ left: cx, top: cy }} />
       {apres && (
         <div style={{ position: 'absolute', left: cx, top: cy + d / 2 + 40 * u, transform: `translateX(-50%) scale(${0.6 + 0.4 * choc})`, opacity: Math.min(1, choc * 2) }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: `${14 * u}px ${28 * u}px`, borderRadius: 40, background: 'rgba(6,18,36,.9)', border: '1.5px solid rgba(255,255,255,.28)', fontFamily: POLICE, fontWeight: 800, fontSize: pick(30 * u, 34, 26), color: C.blanc, whiteSpace: 'nowrap' }}>
@@ -109,8 +114,13 @@ export const S1Intro: React.FC = () => {
           Gérez votre hôtel, simplement.
         </div>
       </div>
+      <Son nom="impact" a={4} volume={0.45} />
+      <Son nom="etincelle" a={10} volume={0.22} />
+      <Son nom="swish" a={bascule - 2} volume={0.2} />
       {f > bascule - 2 && (
         <>
+          <Son nom="pop" a={cue(1, 'téléphone')} volume={0.25} />
+          <Son nom="pop" a={cue(1, 'ordinateur')} volume={0.25} />
           <ZoneTexte>
             <div style={{ height: pick(40 * u, 60, 40) }} />
             <Titre l1="Tout votre hôtel," l2="dans une seule appli." a={bascule + 12} taille={T.titre * pick(0.84, 0.9, 0.95)} aligner={pick('left', 'center')} />
@@ -220,6 +230,12 @@ export const S2HorsLigne: React.FC = () => {
         ecrans={[{ src: 't-nouvelle' }, { src: 't-checkin', a: c2 }, { src: 't-recu-prov', a: c3 }, { src: 't-synchro', a: retour + 6 }]}
         touches={[{ x: 0.5, y: 0.9, f: c1 - 2 }, { x: 0.5, y: 0.83, f: c3 - 6 }]}
       />
+      {etapes.map((et) => (
+        <Son key={et.t} nom="coche" a={et.a} volume={0.4} />
+      ))}
+      <Son nom="caisse" a={c3 + 4} volume={0.2} />
+      <Son nom="swish" a={retour} volume={0.18} />
+      <Son nom="succes" a={aJour} volume={0.32} />
       <BadgeEtat actions={[c1, c2, c3]} retour={retour} aJour={aJour} e={pick(u, 1, 0.78)} style={{ left: tel.x, top: tel.y - pick(370 * u, 385, 290) }} />
       {mode === 'land' && (
         <>
