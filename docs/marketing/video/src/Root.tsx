@@ -1,5 +1,6 @@
 import React from 'react';
-import { Composition } from 'remotion';
+import { Composition, Still } from 'remotion';
+import { Miniature } from './Miniature';
 import { Video } from './Video';
 import { FPS, TOTAL_FRAMES } from './timeline';
 
@@ -14,5 +15,7 @@ export const Root: React.FC = () => (
     {FORMATS.map((f) => (
       <Composition key={f.id} id={f.id} component={Video} durationInFrames={TOTAL_FRAMES} fps={FPS} width={f.width} height={f.height} defaultProps={{ avecVoix: true, avecSousTitres: true, avecSons: true }} />
     ))}
+    <Still id="Miniature-YouTube" component={Miniature} width={1280} height={720} />
+    <Still id="Miniature-Verticale" component={Miniature} width={1080} height={1920} />
   </>
 );
