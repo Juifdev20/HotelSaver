@@ -37,6 +37,38 @@ export function telechargerDocument(f: FichierDocumentVue): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/** Taille maximale acceptée par le serveur pour un contrat signé (8 Mo) ; on reste en dessous. */
+const TAILLE_MAX_SIGNE = 7.5 * 1024 * 1024;
+
+/**
+ * Prépare le contrat signé avant l'envoi : une photo de téléphone (souvent 5 à 12 Mo) est réduite en JPEG (2 200 pixels au plus, lisible pour un
+ * contrat) ; un PDF trop lourd est refusé avec une phrase claire.
+ */
+export async function preparerContratSigne(fichier: File): Promise<File> {
+  if (fichier.type === "application/pdf") {
+    if (fichier.size > TAILLE_MAX_SIGNE) throw new Error("Ce PDF dépasse 8 Mo. Réduisez-le (ou envoyez une photo du contrat) puis recommencez.");
+    return fichier;
+  }
+  if (fichier.type !== "image/jpeg" && fichier.type !== "image/png") {
+    throw new Error("Format non accepté : choisissez un PDF, une photo JPEG ou une image PNG (les photos HEIC d'iPhone ne passent pas : prenez-la en JPEG ou faites une capture).");
+  }
+  if (fichier.size <= 2 * 1024 * 1024) return fichier;
+  const bitmap = await createImageBitmap(fichier).catch(() => null);
+  if (!bitmap) throw new Error("Cette image n'a pas pu être lue. Essayez une autre photo.");
+  const echelle = Math.min(1, 2200 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * echelle);
+  canvas.height = Math.round(bitmap.height * echelle);
+  const contexte = canvas.getContext("2d");
+  if (!contexte) throw new Error("Cette image n'a pas pu être réduite. Essayez une photo plus légère.");
+  contexte.fillStyle = "#ffffff"; // fond blanc : un PNG transparent ne devient pas noir en JPEG
+  contexte.fillRect(0, 0, canvas.width, canvas.height);
+  contexte.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((resoudre) => canvas.toBlob(resoudre, "image/jpeg", 0.85));
+  if (!blob || blob.size > TAILLE_MAX_SIGNE) throw new Error("Cette image reste trop lourde même réduite. Essayez une photo plus légère.");
+  return new File([blob], fichier.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+}
+
 export interface LicenceHotelProps {
   hotelNom: string;
   charger: () => Promise<LicencesHotelVue>;
@@ -155,7 +187,7 @@ export function LicenceHotel({ hotelNom, charger, activer, annuler, enregistrerM
     setErreur(null);
     setMessage(null);
     try {
-      await documents.envoyerSigne(licenceId, fichier);
+      await documents.envoyerSigne(licenceId, await preparerContratSigne(fichier));
       setVue(await charger());
       setMessage("Contrat signé enregistré dans le dossier de l'hôtel.");
     } catch (e) {
