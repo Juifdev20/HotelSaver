@@ -125,7 +125,7 @@ test("connexion réelle → tableau de bord puis Chambres avec les vraies donné
   await navigation.getByRole("button", { name: "Tableau de bord" }).click();
 
   // Un écran pas encore construit est affiché « Bientôt », jamais une page vide.
-  await navigation.getByRole("button", { name: /Réservations/ }).click();
+  await navigation.getByRole("button", { name: /Séjours/ }).click();
   await expect(fenetre.getByTestId("ecran-bientot")).toBeVisible();
 
   await navigation.getByRole("button", { name: "Chambres" }).click();

@@ -31,26 +31,26 @@ const ROLES = (process.env.CAPTURES_ROLES ?? "patron,recep,caf").split(",");
 const TAILLES = (process.env.CAPTURES_TAILLES ?? "1440x900,1280x720,1920x1080").split(",").map((t) => t.split("x").map(Number) as [number, number]);
 
 const PAGES_PAR_ROLE: Record<string, string[]> = {
-  patron: ["Tableau de bord", "Chambres", "Réservations", "Remboursements", "Arrivées et départs", "Journal de la journée", "Clients", "Facturation", "Caisse", "Comptes ouverts", "Retrait commande", "Cuisine", "Menu", "Stock", "Inventaire", "Rapports mensuels", "Dépenses", "Site de l'hôtel", "Guide d'utilisation", "Paramètres"],
-  recep: ["Tableau de bord", "Chambres", "Réservations", "Arrivées et départs", "Journal de la journée", "Clients", "Facturation", "Rapports mensuels", "Dépenses"],
+  patron: ["Tableau de bord", "Chambres", "Séjours", "Remboursements", "Journal de la journée", "Clients", "Facturation", "Caisse", "Comptes ouverts", "Retrait commande", "Cuisine", "Menu", "Stock", "Inventaire", "Rapports mensuels", "Dépenses", "Site de l'hôtel", "Guide d'utilisation", "Paramètres"],
+  recep: ["Tableau de bord", "Chambres", "Séjours", "Journal de la journée", "Clients", "Facturation", "Rapports mensuels", "Dépenses"],
   caf: ["Tableau de bord", "Caisse", "Comptes ouverts", "Retrait commande", "Cuisine", "Menu", "Stock", "Inventaire", "Rapports mensuels", "Dépenses"],
 };
 
 /** Écrans secondaires : après avoir ouvert la page, on clique sur le bouton puis on photographie le formulaire ou la fenêtre qui s'ouvre. */
 const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string; ensuite?: RegExp }[] = [
   { role: "patron", page: "Chambres", bouton: /Nouvelle chambre/, nom: "formulaire-nouvelle-chambre" },
-  { role: "patron", page: "Réservations", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
+  { role: "patron", page: "Séjours", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
   { role: "patron", page: "Menu", bouton: /Nouveau produit/, nom: "formulaire-nouveau-produit" },
   { role: "patron", page: "Stock", bouton: /Nouveau mouvement/, nom: "formulaire-nouveau-mouvement" },
   { role: "recep", page: "Dépenses", bouton: /Nouvelle dépense/, nom: "formulaire-depense" },
   { role: "recep", page: "Facturation", bouton: /^Détail$/, nom: "detail-recu" },
-  { role: "recep", page: "Réservations", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
+  { role: "recep", page: "Séjours", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
   { role: "caf", page: "Caisse", bouton: /Vente rapide/, nom: "caisse-vente-rapide" },
-  { role: "patron", page: "Réservations", bouton: /Planning/, nom: "reservations-planning" },
-  { role: "recep", page: "Réservations", bouton: /Ouvrir la réservation de/, nom: "reservation-detail" },
+  { role: "patron", page: "Séjours", bouton: /Planning/, nom: "reservations-planning" },
+  { role: "recep", page: "Séjours", bouton: /Ouvrir le séjour de|Ouvrir la réservation de/, nom: "reservation-detail" },
   { role: "recep", page: "Clients", bouton: /^Aline Kabila$|Aline/, nom: "client-detail" },
   { role: "patron", page: "Tableau de bord", bouton: /À jour/, nom: "synchronisation" },
-  { role: "patron", page: "Réservations", bouton: /Ouvrir la réservation de Aline/, nom: "reservation-detail" },
+  { role: "patron", page: "Séjours", bouton: /Ouvrir le séjour de Aline|Ouvrir la réservation de Aline/, nom: "reservation-detail" },
   { role: "patron", page: "Paramètres", bouton: /^Gérer$/, nom: "parametres-utilisateurs" },
   { role: "patron", page: "Paramètres", bouton: /Configurer/, nom: "parametres-imprimante" },
   { role: "patron", page: "Inventaire", bouton: /Lancer l'évaluation/, nom: "inventaire-saisie" },
@@ -308,7 +308,7 @@ async function remplir(A: JeuHotel) {
           if (!(await laterale.isVisible().catch(() => false))) continue;
           await laterale.getByRole("button", { name: new RegExp(`^${act.page}`) }).first().click({ timeout: 4000 }).catch(() => undefined);
           await page.waitForTimeout(900);
-          const bouton = page.getByRole("button", { name: act.bouton }).first();
+          const bouton = page.getByRole("button", { name: act.bouton }).or(page.getByRole("tab", { name: act.bouton })).first();
           if (!(await bouton.isVisible().catch(() => false))) {
             rapport.push(`${role} ${l}x${h} : bouton « ${act.bouton} » absent sur ${act.page}`);
             continue;

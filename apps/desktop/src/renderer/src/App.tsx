@@ -18,7 +18,6 @@ import { EcranInscription } from "./screens/EcranInscription";
 import { consommerPayerMaintenant, memoriserPayerMaintenant } from "./payerMaintenant";
 import { EcranChambres } from "./screens/EcranChambres";
 import { EcranReservations } from "./screens/EcranReservations";
-import { EcranArriveesDeparts } from "./screens/EcranArriveesDeparts";
 import { EcranJourneeReception } from "./screens/EcranJourneeReception";
 import { EcranClients } from "./screens/EcranClients";
 import { EcranFacturation } from "./screens/EcranFacturation";
@@ -308,7 +307,9 @@ export function App() {
       return;
     }
     setCompteCafeteriaOuvert(null);
-    const cible = autorisees.includes(lien.ecran) ? (lien.ecran as IdPage) : "tableau-de-bord";
+    // « arrivees-departs » (anciennes notifications) mène à Séjours › Aujourd'hui.
+    const ecranLien = lien.ecran === "arrivees-departs" ? "reservations" : lien.ecran;
+    const cible = autorisees.includes(ecranLien) ? (ecranLien as IdPage) : "tableau-de-bord";
     setPage(cible);
   };
   const lienRef = useRef(ouvrirLien);
@@ -646,8 +647,6 @@ export function App() {
           }}
         />
       );
-    } else if (page === "arrivees-departs") {
-      contenu = <EcranArriveesDeparts client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} peutOperer={peutOperer(utilisateur)} />;
     } else if (page === "journal-journee") {
       contenu = <EcranJourneeReception client={client} />;
     } else if (page === "clients") {

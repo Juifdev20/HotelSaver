@@ -2,7 +2,6 @@ import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Role, UtilisateurAuthentifie, peutOperer, type NotificationApp } from "@hotel-chicago/types";
 import {
-  ArrowLeftRight,
   Bell,
   BedDouble,
   BookOpen,
@@ -76,7 +75,6 @@ const ICONES: Record<IdPage, LucideIcon> = {
   chambres: BedDouble,
   reservations: CalendarDays,
   remboursements: HandCoins,
-  "arrivees-departs": ArrowLeftRight,
   "journal-journee": BookOpenCheck,
   clients: Users,
   facturation: Receipt,

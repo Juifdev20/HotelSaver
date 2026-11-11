@@ -14,7 +14,6 @@ export const FONCTION_PAR_PAGE: Record<string, Fonction> = {
   chambres: "RECEPTION",
   reservations: "RECEPTION",
   remboursements: "RECEPTION",
-  "arrivees-departs": "RECEPTION",
   "journal-journee": "RECEPTION",
   clients: "RECEPTION",
   facturation: "RECEPTION",
