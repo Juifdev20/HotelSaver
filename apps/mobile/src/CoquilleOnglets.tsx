@@ -10,6 +10,7 @@ import { EcranTableauDeBord } from "./ecrans/EcranTableauDeBord";
 import { EcranChambres } from "./ecrans/EcranChambres";
 import { EcranVente } from "./ecrans/EcranVente";
 import { FournisseurVente, useVente } from "./vente/ContexteVente";
+import { FournisseurDemandeSejour, useDemandeSejour } from "./sejours/ContexteDemandeSejour";
 import { Role } from "@hotel-chicago/types";
 import { EcranComptesOuverts } from "./ecrans/EcranComptesOuverts";
 import { EcranCompteCafeteria } from "./ecrans/EcranCompteCafeteria";
@@ -80,22 +81,57 @@ function EcranOngletComptesOuverts({ navigation }: { navigation: BottomTabNaviga
  * cafétaria. */
 function EcranOngletReservations({ navigation }: { navigation: BottomTabNavigationProp<ParamListOnglets> }) {
   const { demandeReservation, consommerDemandeReservation } = useNotifications();
+  const { demande, consommer } = useDemandeSejour();
   const [reservationId, setReservationId] = useState<string | null>(null);
+  // Demande venue de l'onglet Chambres (arrivée, départ, voir le séjour) : lue une fois, avec une clé qui force le remontage.
+  const [demandeChambre, setDemandeChambre] = useState<{ cle: number; demande: NonNullable<typeof demande> } | null>(null);
 
   useEffect(() => {
     if (demandeReservation) {
       setReservationId(demandeReservation.reservationId);
+      setDemandeChambre(null);
       consommerDemandeReservation();
     }
   }, [demandeReservation, consommerDemandeReservation]);
 
-  // La clé force le remontage quand une nouvelle notification cible une
+  useEffect(() => {
+    if (demande) {
+      setReservationId(null);
+      setDemandeChambre({ cle: Date.now(), demande });
+      consommer();
+    }
+  }, [demande, consommer]);
+
+  // La clé force le remontage quand une nouvelle notification ou demande cible une
   // autre réservation — reservationInitiale n'est lue qu'au montage.
   return (
     <EcranReservations
-      key={reservationId ?? "liste"}
+      key={reservationId ?? (demandeChambre ? `demande-${demandeChambre.cle}` : "liste")}
       reservationInitiale={reservationId ?? undefined}
+      demandeInitiale={demandeChambre?.demande ?? null}
       onRetour={() => navigation.navigate("tableau-de-bord")}
+    />
+  );
+}
+
+/** Onglet « Chambres » : le tableau de cartes. Ses actions (arrivée, départ, voir) ouvrent « Séjours » sur la bonne page. */
+function EcranOngletChambres({ navigation }: { navigation: BottomTabNavigationProp<ParamListOnglets> }) {
+  const { demander } = useDemandeSejour();
+  return (
+    <EcranChambres
+      onRetour={() => navigation.navigate("tableau-de-bord")}
+      onArrivee={(chambreId) => {
+        demander({ type: "nouvelle", chambreId });
+        navigation.navigate("reservations");
+      }}
+      onFacturer={(reservationId) => {
+        demander({ type: "facturer", reservationId });
+        navigation.navigate("reservations");
+      }}
+      onVoirSejour={(reservationId) => {
+        demander({ type: "detail", reservationId });
+        navigation.navigate("reservations");
+      }}
     />
   );
 }
@@ -122,6 +158,7 @@ export function CoquilleOnglets() {
 
   return (
     <FournisseurVente>
+    <FournisseurDemandeSejour>
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
@@ -145,7 +182,7 @@ export function CoquilleOnglets() {
           >
             {(props) => {
               if (onglet.id === "tableau-de-bord") return <EcranAccueilConnecte {...props} />;
-              if (onglet.id === "chambres") return <EcranChambres onRetour={() => props.navigation.navigate("tableau-de-bord")} />;
+              if (onglet.id === "chambres") return <EcranOngletChambres {...props} />;
               if (onglet.id === "reservations") return <EcranOngletReservations {...props} />;
               if (onglet.id === "caisse") return <EcranOngletVente {...props} />;
               if (onglet.id === "comptes-ouverts") return <EcranOngletComptesOuverts {...props} />;
@@ -157,6 +194,7 @@ export function CoquilleOnglets() {
         );
       })}
     </Tab.Navigator>
+    </FournisseurDemandeSejour>
     </FournisseurVente>
   );
 }

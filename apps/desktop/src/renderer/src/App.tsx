@@ -103,6 +103,8 @@ export function App() {
   const [facturationAvecCheckOut, setFacturationAvecCheckOut] = useState(true);
   // Réservation à ouvrir directement dans Réservations (clic sur une notification) — remise à zéro par naviguer().
   const [reservationAOuvrir, setReservationAOuvrir] = useState<string | null>(null);
+  // « Enregistrer une arrivée » depuis une chambre (chambreId vide = aucune chambre choisie).
+  const [arriveeAEnregistrer, setArriveeAEnregistrer] = useState<{ chambreId: string } | null>(null);
   // Écran dont le serveur vient de refuser une route (403 FONCTION_NON_INCLUSE) : le panneau « fonction non incluse » le remplace.
   const [pageRefusee, setPageRefusee] = useState<IdPage | null>(null);
   const pageRef = useRef<IdPage>("tableau-de-bord");
@@ -544,6 +546,7 @@ export function App() {
     setCompteCafeteriaOuvert(null);
     setReservationAFacturer(null);
     setReservationAOuvrir(null);
+    setArriveeAEnregistrer(null);
     setPageRefusee(null);
     setPage(nouvellePage);
   }
@@ -596,16 +599,38 @@ export function App() {
     } else if (page === "tableau-de-bord") {
       contenu = <EcranTableauDeBord client={client} utilisateur={utilisateur} onNaviguer={naviguer} />;
     } else if (page === "chambres") {
-      contenu = <EcranChambres client={client} utilisateur={utilisateur} rechercheInitiale={rechercheChambres} onNaviguer={naviguer} />;
+      contenu = (
+        <EcranChambres
+          client={client}
+          utilisateur={utilisateur}
+          rechercheInitiale={rechercheChambres}
+          onNaviguer={naviguer}
+          onArrivee={(chambreId) => {
+            setCompteCafeteriaOuvert(null);
+            setReservationAOuvrir(null);
+            setArriveeAEnregistrer({ chambreId });
+            setPageRefusee(null);
+            setPage("reservations");
+          }}
+          onFacturer={naviguerVersFacturation}
+          onVoirSejour={(id) => {
+            setArriveeAEnregistrer(null);
+            setReservationAOuvrir(id);
+            setPageRefusee(null);
+            setPage("reservations");
+          }}
+        />
+      );
     } else if (page === "reservations") {
       contenu = (
         <EcranReservations
-          key={reservationAOuvrir ?? "liste"}
+          key={reservationAOuvrir ?? (arriveeAEnregistrer ? `arrivee-${arriveeAEnregistrer.chambreId || "libre"}` : "liste")}
           client={client}
           onNaviguer={naviguer}
           onFacturer={naviguerVersFacturation}
           peutOperer={peutOperer(utilisateur)}
           reservationInitiale={reservationAOuvrir}
+          nouvelleInitiale={arriveeAEnregistrer}
         />
       );
     } else if (page === "remboursements" && utilisateur.role === Role.PATRON) {

@@ -1,8 +1,9 @@
 import * as React from "react";
-import { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
-import { Chambre, Devise, Role, StatutChambre, peutOperer } from "@hotel-chicago/types";
-import { BedDouble } from "lucide-react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Chambre, Devise, Reservation, Role, StatutChambre, peutOperer } from "@hotel-chicago/types";
+import { BedDouble, Brush, CalendarDays, Check, EllipsisVertical, LayoutGrid, List, LogIn, LogOut, Search, User } from "lucide-react-native";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -15,7 +16,33 @@ import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { confirmerAction } from "../confirmer";
 import { messageErreur } from "../messagesErreur";
-import { lireMontant, lireQuantite, lireTauxChange } from "@hotel-chicago/regles";
+import { actionPourChambre, comparerNumeros, compterParStatut, lireMontant, sejoursParChambre, typesDeChambres } from "@hotel-chicago/regles";
+import type { ProposeAction, SejoursDeLaChambre } from "@hotel-chicago/regles";
+import { dateCourte } from "../dates";
+
+const CLE_VUE = "hotelsaver:chambres:vue";
+
+const ICONE_ACTION: Record<ProposeAction["id"], typeof LogIn> = { arrivee: LogIn, depart: LogOut, voir: CalendarDays, propre: Check };
+
+/** Ligne d'information d'une carte : qui est dans la chambre / qui arrive. */
+function resumeChambre(chambre: Chambre, sejours?: SejoursDeLaChambre): { ligne1: string | null; ligne2: string; icone: typeof User } {
+  const enCours = sejours?.enCours;
+  const prochaine = sejours?.prochaine;
+  if (chambre.statut === StatutChambre.OCCUPEE) {
+    return enCours
+      ? { ligne1: enCours.client.nom, ligne2: `jusqu'au ${dateCourte(enCours.dateDepart)}`, icone: User }
+      : { ligne1: null, ligne2: "Aucun séjour enregistré", icone: User };
+  }
+  if (chambre.statut === StatutChambre.RESERVEE) {
+    return prochaine
+      ? { ligne1: prochaine.client.nom, ligne2: `arrive le ${dateCourte(prochaine.dateArrivee)}`, icone: User }
+      : { ligne1: null, ligne2: "Aucun séjour confirmé", icone: User };
+  }
+  if (chambre.statut === StatutChambre.NETTOYAGE) {
+    return { ligne1: "À nettoyer", ligne2: prochaine ? `avant l'arrivée du ${dateCourte(prochaine.dateArrivee)}` : "Puis elle redevient libre", icone: Brush };
+  }
+  return { ligne1: null, ligne2: prochaine ? `Prochaine arrivée le ${dateCourte(prochaine.dateArrivee)}` : "Prête à accueillir", icone: User };
+}
 
 const COULEUR_PAR_STATUT: Record<StatutChambre, { fond: string; texte: string }> = {
   [StatutChambre.LIBRE]: { fond: couleurs.succesClair, texte: couleurs.succes },
@@ -44,13 +71,42 @@ const TOUS_LES_STATUTS = [StatutChambre.LIBRE, StatutChambre.RESERVEE, StatutCha
  * dans "Synchronisation" si le `syncVersion` a bougé entre-temps.
  */
 /** `onRetour` : « ‹ Retour » vers l'Accueil (onglet sans stack, cf. EnteteRetour). */
-export function EcranChambres({ onRetour }: { onRetour: () => void }) {
+export interface EcranChambresProps {
+  onRetour: () => void;
+  /** Enregistrer une arrivée dans cette chambre (ouvre « Séjours »). */
+  onArrivee?: (chambreId: string) => void;
+  /** Facturer le séjour en cours et libérer la chambre. */
+  onFacturer?: (reservationId: string) => void;
+  /** Ouvrir la fiche du séjour (réservation à venir). */
+  onVoirSejour?: (reservationId: string) => void;
+}
+
+export function EcranChambres({ onRetour, onArrivee, onFacturer, onVoirSejour }: EcranChambresProps) {
   const { client, moteurSync, utilisateur } = useSession();
   const etatSync = useSyncEtat();
   const [chambres, setChambres] = useState<Chambre[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
   const [chambreChoisie, setChambreChoisie] = useState<Chambre | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [filtreStatut, setFiltreStatut] = useState<StatutChambre | "TOUTES">("TOUTES");
+  const [filtreType, setFiltreType] = useState<string | null>(null);
+  const [recherche, setRecherche] = useState("");
+  const [vue, setVue] = useState<"cartes" | "liste">("cartes");
+  const operer = peutOperer(utilisateur);
+
+  useEffect(() => {
+    AsyncStorage.getItem(CLE_VUE)
+      .then((v) => {
+        if (v === "cartes" || v === "liste") setVue(v);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  function choisirVue(v: "cartes" | "liste") {
+    setVue(v);
+    AsyncStorage.setItem(CLE_VUE, v).catch(() => undefined);
+  }
 
   const estPatron = utilisateur.role === Role.PATRON;
   const [formulaire, setFormulaire] = useState<"ferme" | "creation" | "edition">("ferme");
@@ -69,6 +125,11 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
       .listerChambres()
       .then(setChambres)
       .catch(() => setChambres((courant) => courant ?? []));
+    // Les séjours servent à afficher qui occupe / va occuper chaque chambre ; leur absence ne bloque pas le tableau.
+    client
+      .listerReservations()
+      .then(setReservations)
+      .catch(() => undefined);
   }, [client]);
 
   useEffect(() => {
@@ -218,6 +279,40 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
           photos.join("|") !== photosAvant.join("|")
         : false;
 
+  const sejours = useMemo(() => sejoursParChambre(reservations), [reservations]);
+  const compteurs = useMemo(() => compterParStatut(chambres ?? []), [chambres]);
+  const types = useMemo(() => typesDeChambres(chambres ?? []), [chambres]);
+  const visibles = useMemo(() => {
+    const q = recherche.trim().toLowerCase();
+    return (chambres ?? [])
+      .filter((c) => filtreStatut === "TOUTES" || c.statut === filtreStatut)
+      .filter((c) => !filtreType || c.type.trim() === filtreType)
+      .filter((c) => {
+        if (!q) return true;
+        const s = sejours.get(c.id);
+        const nom = (s?.enCours?.client.nom ?? s?.prochaine?.client.nom ?? "").toLowerCase();
+        return c.numero.toLowerCase().includes(q) || c.type.toLowerCase().includes(q) || nom.includes(q);
+      })
+      .sort((a, b) => comparerNumeros(a.numero, b.numero));
+  }, [chambres, filtreStatut, filtreType, recherche, sejours]);
+
+  function agir(chambre: Chambre, action: ProposeAction) {
+    const s = sejours.get(chambre.id);
+    setChambreChoisie(null);
+    if (action.id === "arrivee") onArrivee?.(chambre.id);
+    else if (action.id === "depart" && s?.enCours) onFacturer?.(s.enCours.id);
+    else if (action.id === "voir" && s?.prochaine) onVoirSejour?.(s.prochaine.id);
+    else if (action.id === "propre") {
+      setChambres((liste) => liste?.map((c) => (c.id === chambre.id ? { ...c, statut: StatutChambre.LIBRE } : c)) ?? liste);
+      client
+        .modifierStatutChambre(chambre.id, StatutChambre.LIBRE)
+        .catch((e) => setErreur(messageErreur(e, "Le statut n'a pas pu être changé. Réessayez.")))
+        .finally(rechargerMiroir);
+    }
+  }
+
+  const libelleStatutChip: Record<string, string> = { TOUTES: "Toutes", ...LABEL_PAR_STATUT };
+
   return (
     <View style={styles.page}>
       <EnteteMobile />
@@ -233,37 +328,151 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
         </Text>
       )}
 
+      {chambres && chambres.length > 0 && (
+        <View style={styles.barre}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {(["TOUTES", ...TOUS_LES_STATUTS] as const).map((st) => {
+              const actif = filtreStatut === st;
+              return (
+                <Pressable
+                  key={st}
+                  style={[styles.chip, actif && styles.chipActif]}
+                  onPress={() => setFiltreStatut(st)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: actif }}
+                  accessibilityLabel={`${libelleStatutChip[st]} : ${compteurs[st]}`}
+                >
+                  <Text style={[styles.chipTexte, actif && styles.chipTexteActif]}>
+                    {libelleStatutChip[st]} · {compteurs[st]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <View style={styles.ligneRecherche}>
+            <View style={styles.champRecherche}>
+              <Search size={16} color={couleurs.encreFaible} />
+              <TextInput
+                style={styles.saisieRecherche}
+                value={recherche}
+                onChangeText={setRecherche}
+                placeholder="Chambre, type ou client"
+                placeholderTextColor={couleurs.encreFaible}
+                accessibilityLabel="Chercher une chambre"
+              />
+            </View>
+            <View style={styles.bascule}>
+              {([
+                ["cartes", LayoutGrid, "Cartes"],
+                ["liste", List, "Liste"],
+              ] as const).map(([v, Icone, nom]) => (
+                <Pressable
+                  key={v}
+                  style={[styles.basculeBouton, vue === v && styles.basculeBoutonActif]}
+                  onPress={() => choisirVue(v)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`Vue ${nom}`}
+                  accessibilityState={{ checked: vue === v }}
+                >
+                  <Icone size={18} color={vue === v ? "#fff" : couleurs.encreAttenuee} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          {types.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              {types.map(({ type, nombre }) => {
+                const actif = filtreType === type;
+                return (
+                  <Pressable
+                    key={type}
+                    style={[styles.chipType, actif && styles.chipActif]}
+                    onPress={() => setFiltreType(actif ? null : type)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: actif }}
+                  >
+                    <Text style={[styles.chipTexte, actif && styles.chipTexteActif]}>
+                      {type} · {nombre}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
       {chambres?.length === 0 && (
         <View style={styles.videConteneur}>
           <BedDouble size={32} color={couleurs.encreFaible} />
           <Text style={styles.videTitre}>Aucune chambre enregistrée</Text>
         </View>
       )}
+      {chambres && chambres.length > 0 && visibles.length === 0 && (
+        <View style={styles.videConteneur}>
+          <Search size={28} color={couleurs.encreFaible} />
+          <Text style={styles.videTitre}>Aucune chambre ne correspond</Text>
+        </View>
+      )}
 
       <FlatList
-        data={chambres ?? []}
+        key={vue}
+        data={visibles}
         keyExtractor={(c) => c.id}
+        numColumns={vue === "cartes" ? 2 : 1}
+        columnWrapperStyle={vue === "cartes" ? styles.colonnes : undefined}
         contentContainerStyle={styles.liste}
         refreshControl={<RefreshControl refreshing={rafraichissement} onRefresh={actualiser} />}
         renderItem={({ item }) => {
           const tone = COULEUR_PAR_STATUT[item.statut];
+          const s = sejours.get(item.id);
+          const resume = resumeChambre(item, s);
+          const action = actionPourChambre(item, s, operer);
+          const IconeAction = action ? ICONE_ACTION[action.id] : null;
+          const IconeLigne = resume.icone;
           return (
-            <Pressable
-              style={styles.carte}
-              onPress={() => setChambreChoisie(item)}
-              accessibilityRole="button"
-              accessibilityLabel={`Chambre ${item.numero}, ${item.type}, ${LABEL_PAR_STATUT[item.statut]}, ${formatMontant(item.prixParNuit, item.devise)} par nuit`}
-              accessibilityHint="Ouvre les actions de la chambre"
-            >
-              <View style={styles.carteEntete}>
-                <Text style={styles.numero}>{item.numero}</Text>
-                <View style={[styles.badge, { backgroundColor: tone.fond }]}>
-                  <Text style={[styles.badgeTexte, { color: tone.texte }]}>{LABEL_PAR_STATUT[item.statut]}</Text>
+            <View style={[styles.carte, vue === "cartes" && styles.carteGrille, { borderTopColor: tone.texte }]}>
+              <Pressable
+                onPress={() => setChambreChoisie(item)}
+                style={styles.carteCorps}
+                accessibilityRole="button"
+                accessibilityLabel={`Chambre ${item.numero}, ${item.type}, ${LABEL_PAR_STATUT[item.statut]}${resume.ligne1 ? `, ${resume.ligne1}` : ""}, ${resume.ligne2}, ${formatMontant(item.prixParNuit, item.devise)} par nuit`}
+                accessibilityHint="Ouvre les détails et les autres actions de la chambre"
+              >
+                <View style={styles.carteEntete}>
+                  <Text style={styles.numero}>{item.numero}</Text>
+                  <View style={[styles.badge, { backgroundColor: tone.fond }]}>
+                    <Text style={[styles.badgeTexte, { color: tone.texte }]}>{LABEL_PAR_STATUT[item.statut]}</Text>
+                  </View>
+                  <EllipsisVertical size={18} color={couleurs.encreFaible} accessibilityLabel="Plus d'actions" />
                 </View>
-              </View>
-              <Text style={styles.type}>{item.type}</Text>
-              <Text style={styles.prix}>{formatMontant(item.prixParNuit, item.devise)}</Text>
-            </Pressable>
+                <Text style={styles.type} numberOfLines={1}>
+                  {item.type} · {formatMontant(item.prixParNuit, item.devise)}
+                </Text>
+                {resume.ligne1 && (
+                  <View style={styles.ligneInfo}>
+                    <IconeLigne size={14} color={couleurs.encre} />
+                    <Text style={styles.infoPrincipale} numberOfLines={1}>
+                      {resume.ligne1}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.infoSecondaire} numberOfLines={2}>
+                  {resume.ligne2}
+                </Text>
+              </Pressable>
+              {action && IconeAction && (
+                <Pressable
+                  style={styles.boutonAction}
+                  onPress={() => agir(item, action)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${action.libelle}, chambre ${item.numero}`}
+                >
+                  <IconeAction size={16} color="#fff" />
+                  <Text style={styles.boutonActionTexte}>{action.libelleCourt}</Text>
+                </Pressable>
+              )}
+            </View>
           );
         }}
       />
@@ -273,7 +482,36 @@ export function EcranChambres({ onRetour }: { onRetour: () => void }) {
         onFermer={() => setChambreChoisie(null)}
         titre={chambreChoisie ? `Chambre ${chambreChoisie.numero}` : undefined}
       >
-        {peutOperer(utilisateur) &&
+        {chambreChoisie &&
+          (() => {
+            const s = sejours.get(chambreChoisie.id);
+            const resume = resumeChambre(chambreChoisie, s);
+            const action = actionPourChambre(chambreChoisie, s, operer);
+            const IconeAction = action ? ICONE_ACTION[action.id] : null;
+            return (
+              <>
+                <Text style={styles.feuilleType}>
+                  {chambreChoisie.type} · {formatMontant(chambreChoisie.prixParNuit, chambreChoisie.devise)} par nuit
+                </Text>
+                <Text style={styles.feuilleInfo}>
+                  {[resume.ligne1, resume.ligne2].filter(Boolean).join(" — ")}
+                </Text>
+                {action && IconeAction && (
+                  <Pressable
+                    style={styles.boutonActionGrand}
+                    onPress={() => agir(chambreChoisie, action)}
+                    accessibilityRole="button"
+                    accessibilityLabel={action.libelle}
+                  >
+                    <IconeAction size={18} color="#fff" />
+                    <Text style={styles.boutonActionTexte}>{action.libelle}</Text>
+                  </Pressable>
+                )}
+              </>
+            );
+          })()}
+        {operer && <Text style={styles.feuilleSection}>Changer le statut à la main</Text>}
+        {operer &&
           TOUS_LES_STATUTS.map((statut) => (
             <Pressable
               key={statut}
@@ -373,15 +611,83 @@ const styles = StyleSheet.create({
   liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },
   videConteneur: { alignItems: "center", padding: espacements.s7, gap: espacements.s2 },
   videTitre: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
+  barre: { paddingTop: espacements.s2, gap: espacements.s2 },
+  chips: { paddingHorizontal: espacements.s4, gap: espacements.s2 },
+  chip: {
+    minHeight: 36,
+    paddingHorizontal: espacements.s3,
+    borderRadius: rayons.pill,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    backgroundColor: couleurs.surface200,
+    justifyContent: "center",
+  },
+  chipType: {
+    minHeight: 32,
+    paddingHorizontal: espacements.s3,
+    borderRadius: rayons.pill,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    backgroundColor: couleurs.surface100,
+    justifyContent: "center",
+  },
+  chipActif: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
+  chipTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encre },
+  chipTexteActif: { color: "#fff" },
+  ligneRecherche: { flexDirection: "row", alignItems: "center", gap: espacements.s2, paddingHorizontal: espacements.s4 },
+  champRecherche: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacements.s2,
+    minHeight: 44,
+    paddingHorizontal: espacements.s3,
+    borderRadius: rayons.sm,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    backgroundColor: couleurs.surface200,
+  },
+  saisieRecherche: { flex: 1, fontSize: 14, color: couleurs.encre, paddingVertical: 0 },
+  bascule: { flexDirection: "row", borderRadius: rayons.sm, borderWidth: 1, borderColor: couleurs.bordure, overflow: "hidden" },
+  basculeBouton: { width: 44, minHeight: 44, alignItems: "center", justifyContent: "center", backgroundColor: couleurs.surface200 },
+  basculeBoutonActif: { backgroundColor: couleurs.bleu },
+  colonnes: { gap: espacements.s3 },
   carte: {
     backgroundColor: couleurs.surface200,
     borderRadius: rayons.lg,
     borderWidth: 1,
+    borderTopWidth: 4,
     borderColor: couleurs.bordure,
-    padding: espacements.s4,
-    gap: 4,
+    overflow: "hidden",
   },
-  carteEntete: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  carteGrille: { flex: 1 },
+  carteCorps: { padding: espacements.s3, gap: 4, minHeight: 96 },
+  ligneInfo: { flexDirection: "row", alignItems: "center", gap: 4 },
+  infoPrincipale: { flex: 1, fontSize: 13, fontWeight: "700", color: couleurs.encre },
+  infoSecondaire: { fontSize: 12, color: couleurs.encreAttenuee },
+  boutonAction: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: couleurs.bleu,
+  },
+  boutonActionGrand: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: rayons.sm,
+    backgroundColor: couleurs.bleu,
+    marginVertical: espacements.s2,
+  },
+  boutonActionTexte: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  feuilleType: { fontSize: 14, color: couleurs.encreAttenuee },
+  feuilleInfo: { fontSize: 14, fontWeight: "600", color: couleurs.encre },
+  feuilleSection: { marginTop: espacements.s3, fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },
+  carteEntete: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 4 },
   numero: { fontSize: 17, fontWeight: "700", color: couleurs.encre },
   badge: { paddingHorizontal: espacements.s2, paddingVertical: 3, borderRadius: rayons.pill },
   badgeTexte: { fontSize: 11, fontWeight: "700" },

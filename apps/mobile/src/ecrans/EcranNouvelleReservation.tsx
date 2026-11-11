@@ -23,6 +23,8 @@ export interface EcranNouvelleReservationProps {
   /** Pré-remplissage depuis le planning (cellule chambre × date). */
   chambreInitialeId?: string;
   dateArriveeInitiale?: string; // ISO
+  /** « Enregistrer une arrivée » (depuis une chambre libre) : la case « le client est déjà là » est cochée d'avance. */
+  arriveeImmediateParDefaut?: boolean;
 }
 
 const STATUTS_OCCUPANTS = new Set(["CONFIRMEE", "EN_COURS"]); // mêmes que reservations.service.ts
@@ -60,7 +62,7 @@ function chambresOccupeesSurPeriode(reservations: Reservation[], arrivee: string
  * l'appareil + file d'envoi), le serveur la confirme en arrière-plan. Le
  * « check-in immédiat » (client déjà là) marche aussi hors ligne.
  */
-export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, dateArriveeInitiale }: EcranNouvelleReservationProps) {
+export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, dateArriveeInitiale, arriveeImmediateParDefaut = false }: EcranNouvelleReservationProps) {
   const { client } = useSession();
   const etatSync = useSyncEtat();
 
@@ -82,7 +84,7 @@ export function EcranNouvelleReservation({ onRetour, onCree, chambreInitialeId, 
   const [numeroPiece, setNumeroPiece] = useState("");
   const [acompteSaisi, setAcompteSaisi] = useState("");
   const [note, setNote] = useState("");
-  const [checkInImmediat, setCheckInImmediat] = useState(false);
+  const [checkInImmediat, setCheckInImmediat] = useState(arriveeImmediateParDefaut);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [erreurChargement, setErreurChargement] = useState<string | null>(null);

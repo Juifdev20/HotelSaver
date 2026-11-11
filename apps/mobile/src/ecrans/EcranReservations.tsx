@@ -15,6 +15,7 @@ import { useAcomptesEnLigne } from "../hooks/useAcomptesEnLigne";
 import { BadgePayeEnLigne } from "../composants/PayeEnLigne";
 import { EcranReservationDetail } from "./EcranReservationDetail";
 import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
+import type { DemandeSejour } from "../sejours/ContexteDemandeSejour";
 import { EcranFacturation } from "./EcranFacturation";
 import { EcranPlanning } from "./EcranPlanning";
 import { dateCourte, finJournee, memeJour } from "../dates";
@@ -29,13 +30,15 @@ export interface EcranReservationsProps {
   onRetour?: () => void;
   /** Deep-link notification : ouvre directement le détail de la réservation. */
   reservationInitiale?: string;
+  /** Demande d'un autre onglet (Chambres) : enregistrer une arrivée, voir un séjour, le facturer. */
+  demandeInitiale?: DemandeSejour | null;
 }
 
 type SegmentId = "aujourdhui" | "avenir" | "encours" | "historique" | "planning";
 type Vue =
   | { id: "liste" }
   | { id: "detail"; reservationId: string }
-  | { id: "nouveau"; chambreInitialeId?: string; dateArriveeInitiale?: string }
+  | { id: "nouveau"; chambreInitialeId?: string; dateArriveeInitiale?: string; arriveeImmediate?: boolean }
   | { id: "facturation"; reservationId: string; checkOut: boolean };
 
 const SEGMENTS: { id: SegmentId; libelle: string }[] = [
@@ -102,11 +105,17 @@ const VIDE_PAR_SEGMENT: Record<SegmentId, string> = {
  * Facturation, tout géré par un état local — même principe que
  * EcranOngletCaisse, sans stack de navigation.
  */
-export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, reservationInitiale }: EcranReservationsProps) {
+export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, reservationInitiale, demandeInitiale = null }: EcranReservationsProps) {
   const { client, moteurSync, miroir, utilisateur } = useSession();
   const etatSync = useSyncEtat();
   const acomptes = useAcomptesEnLigne(client);
-  const [vue, setVue] = useState<Vue>(reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" });
+  const [vue, setVue] = useState<Vue>(() => {
+    if (reservationInitiale) return { id: "detail", reservationId: reservationInitiale };
+    if (demandeInitiale?.type === "nouvelle") return { id: "nouveau", chambreInitialeId: demandeInitiale.chambreId || undefined, arriveeImmediate: true };
+    if (demandeInitiale?.type === "detail") return { id: "detail", reservationId: demandeInitiale.reservationId };
+    if (demandeInitiale?.type === "facturer") return { id: "facturation", reservationId: demandeInitiale.reservationId, checkOut: true };
+    return { id: "liste" };
+  });
   const [segment, setSegment] = useState<SegmentId>(segmentInitial);
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   // Demandes en attente dont la chambre est DÉJÀ prise par un autre client (acompte payé, réservation confirmée).
@@ -166,6 +175,7 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
         onRetour={() => setVue({ id: "liste" })}
         chambreInitialeId={vue.chambreInitialeId}
         dateArriveeInitiale={vue.dateArriveeInitiale}
+        arriveeImmediateParDefaut={vue.arriveeImmediate === true}
         onCree={(id) => {
           rechargerMiroir();
           setVue({ id: "detail", reservationId: id });

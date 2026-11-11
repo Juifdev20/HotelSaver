@@ -22,12 +22,14 @@ export interface EcranReservationsProps {
   peutOperer?: boolean;
   /** Ouvre directement la fiche de cette réservation (clic sur une notification). */
   reservationInitiale?: string | null;
+  /** Ouvre directement l'enregistrement d'une arrivée (depuis une chambre libre) : chambre déjà choisie, client « déjà là ». */
+  nouvelleInitiale?: { chambreId?: string } | null;
 }
 
 type Vue =
   | { id: "liste" }
   | { id: "detail"; reservationId: string }
-  | { id: "nouvelle"; chambreInitialeId?: string; dateArriveeInitiale?: string };
+  | { id: "nouvelle"; chambreInitialeId?: string; dateArriveeInitiale?: string; arriveeImmediate?: boolean };
 
 type Affichage = "liste" | "planning";
 
@@ -71,8 +73,14 @@ function nombreDeNuits(dateArrivee: string, dateDepart: string): number {
  * direct API comme le reste du desktop — le miroir hors-ligne n'existe
  * que sur mobile.
  */
-export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer = true, reservationInitiale = null }: EcranReservationsProps) {
-  const [vue, setVue] = useState<Vue>(reservationInitiale ? { id: "detail", reservationId: reservationInitiale } : { id: "liste" });
+export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer = true, reservationInitiale = null, nouvelleInitiale = null }: EcranReservationsProps) {
+  const [vue, setVue] = useState<Vue>(
+    reservationInitiale
+      ? { id: "detail", reservationId: reservationInitiale }
+      : nouvelleInitiale
+        ? { id: "nouvelle", chambreInitialeId: nouvelleInitiale.chambreId || undefined, arriveeImmediate: true }
+        : { id: "liste" }
+  );
   const [affichage, setAffichage] = useState<Affichage>("liste");
   const { parReservation: acomptes } = useAcomptesEnLigne(client);
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
@@ -136,6 +144,7 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
         client={client}
         chambreInitialeId={vue.chambreInitialeId}
         dateArriveeInitiale={vue.dateArriveeInitiale}
+        arriveeImmediateParDefaut={vue.arriveeImmediate === true}
         onRetour={() => setVue({ id: "liste" })}
         onCreee={(id) => {
           charger();

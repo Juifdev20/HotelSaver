@@ -5,8 +5,11 @@ import { SelecteurPhotos, nettoyerImages } from "../components/SelecteurPhotos";
 import { PanneauFormulaire } from "../components/PanneauFormulaire";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Chambre, Devise, Reservation, Role, StatutChambre, UtilisateurAuthentifie, peutOperer } from "@hotel-chicago/types";
-import { Button, RoomCard, StatusBadge, StatusTone, formatMontant } from "@hotel-chicago/ui";
-import { BedDouble, MoreVertical, Plus, Search } from "lucide-react";
+import { Button, StatusBadge, StatusTone, formatMontant } from "@hotel-chicago/ui";
+import { actionPourChambre, comparerNumeros, compterParStatut, sejoursParChambre, typesDeChambres, type ProposeAction } from "@hotel-chicago/regles";
+import { BedDouble, LayoutGrid, List, LogIn, MoreVertical, Plus, Search } from "lucide-react";
+import { CarteChambre } from "../chambres/CarteChambre";
+import "../chambres/chambres.css";
 import type { IdPage } from "../navigation";
 import { useFermetureExterne } from "../layout/Coquille";
 import { useConfirmation } from "../components/DialogueConfirmation";
@@ -26,6 +29,13 @@ const LABEL_PAR_STATUT: Record<StatutChambre, string> = {
   [StatutChambre.RESERVEE]: "Réservée",
   [StatutChambre.OCCUPEE]: "Occupée",
   [StatutChambre.NETTOYAGE]: "Nettoyage",
+};
+
+const POINT_PAR_STATUT: Record<StatutChambre, string> = {
+  [StatutChambre.LIBRE]: "var(--hc-success)",
+  [StatutChambre.RESERVEE]: "var(--hc-warning)",
+  [StatutChambre.OCCUPEE]: "var(--hc-danger)",
+  [StatutChambre.NETTOYAGE]: "var(--hc-purple)",
 };
 
 const FILTRES: { id: StatutChambre | null; libelle: string }[] = [
@@ -55,6 +65,22 @@ export interface EcranChambresProps {
   /** Terme tapé dans la recherche globale de la barre du haut. */
   rechercheInitiale?: string;
   onNaviguer: (page: IdPage) => void;
+  /** « Enregistrer une arrivée » : ouvre l'enregistrement, avec cette chambre déjà choisie (vide = aucune). */
+  onArrivee?: (chambreId: string) => void;
+  /** « Facturer et départ » du séjour en cours. */
+  onFacturer?: (reservationId: string, options?: { checkOut: boolean }) => void;
+  /** « Voir le séjour » : la fiche du séjour. */
+  onVoirSejour?: (reservationId: string) => void;
+}
+
+const CLE_VUE = "hotelsaver:chambres:vue";
+type VueChambres = "cartes" | "liste";
+function vueMemorisee(): VueChambres {
+  try {
+    return localStorage.getItem(CLE_VUE) === "liste" ? "liste" : "cartes";
+  } catch {
+    return "cartes";
+  }
 }
 
 function MenuActionsChambre({
@@ -110,7 +136,8 @@ function MenuActionsChambre({
         className="menu-actions__declencheur"
         ref={refDeclencheur}
         onClick={() => setOuvert((v) => !v)}
-        aria-label={`Actions pour la chambre ${chambre.numero}`}
+        aria-label={`Plus d'actions pour la chambre ${chambre.numero}`}
+        title="Plus d'actions"
         aria-haspopup="menu"
         aria-expanded={ouvert}
       >
@@ -177,9 +204,11 @@ function MenuActionsChambre({
   );
 }
 
-export function EcranChambres({ client, utilisateur, rechercheInitiale, onNaviguer }: EcranChambresProps) {
+export function EcranChambres({ client, utilisateur, rechercheInitiale, onNaviguer, onArrivee, onFacturer, onVoirSejour }: EcranChambresProps) {
   const [chambres, setChambres] = useState<Chambre[] | null>(null);
-  const [reservationsEnCours, setReservationsEnCours] = useState<Reservation[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [vue, setVue] = useState<VueChambres>(vueMemorisee);
+  const [filtreType, setFiltreType] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [filtreStatut, setFiltreStatut] = useState<StatutChambre | null>(null);
   const [recherche, setRecherche] = useState(rechercheInitiale ?? "");
@@ -205,11 +234,11 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
 
   useEffect(() => {
     let annule = false;
-    Promise.all([client.listerChambres(), client.listerReservations({ statut: "EN_COURS" })])
-      .then(([donnees, enCoursListe]) => {
+    Promise.all([client.listerChambres(), client.listerReservations()])
+      .then(([donnees, sejours]) => {
         if (annule) return;
         setChambres(donnees);
-        setReservationsEnCours(enCoursListe);
+        setReservations(sejours);
       })
       .catch((erreurRecue: Error) => {
         if (!annule) setErreur(erreurRecue.message);
@@ -219,11 +248,33 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
     };
   }, [client]);
 
+  // Qui occupe chaque chambre, qui va l'occuper : lu dans la base locale (marche sans Internet).
+  const sejours = useMemo(() => sejoursParChambre(reservations), [reservations]);
   const clientParChambre = useMemo(() => {
     const m = new Map<string, string>();
-    for (const r of reservationsEnCours) m.set(r.chambreId, r.client.nom);
+    for (const [chambreId, s] of sejours) if (s.enCours) m.set(chambreId, s.enCours.client.nom);
     return m;
-  }, [reservationsEnCours]);
+  }, [sejours]);
+  const comptes = useMemo(() => compterParStatut(chambres ?? []), [chambres]);
+  const types = useMemo(() => typesDeChambres(chambres ?? []), [chambres]);
+
+  function changerVue(v: VueChambres) {
+    setVue(v);
+    try {
+      localStorage.setItem(CLE_VUE, v);
+    } catch {
+      // Préférence non mémorisée : sans conséquence.
+    }
+  }
+
+  /** L'action proposée sur une carte : chaque état a la sienne (voir actionPourChambre). */
+  function agir(chambre: Chambre, action: ProposeAction) {
+    const s = sejours.get(chambre.id);
+    if (action.id === "arrivee") onArrivee?.(chambre.id);
+    else if (action.id === "depart" && s?.enCours) onFacturer?.(s.enCours.id, { checkOut: true });
+    else if (action.id === "voir" && s?.prochaine) onVoirSejour?.(s.prochaine.id);
+    else if (action.id === "propre") void changerStatut(chambre, StatutChambre.LIBRE);
+  }
 
   async function changerStatut(chambre: Chambre, statut: StatutChambre) {
     const precedent = chambres;
@@ -237,10 +288,10 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
   }
 
   function recharger() {
-    Promise.all([client.listerChambres(), client.listerReservations({ statut: "EN_COURS" })])
-      .then(([donnees, enCoursListe]) => {
+    Promise.all([client.listerChambres(), client.listerReservations()])
+      .then(([donnees, sejoursLus]) => {
         setChambres(donnees);
-        setReservationsEnCours(enCoursListe);
+        setReservations(sejoursLus);
       })
       .catch((e: Error) => setErreur(e.message));
   }
@@ -326,30 +377,36 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
 
   const chambresAffichees = useMemo(() => {
     const terme = recherche.trim().toLowerCase();
-    return (chambres ?? []).filter(
-      (c) =>
-        (!filtreStatut || c.statut === filtreStatut) &&
-        (!terme || c.numero.toLowerCase().includes(terme) || c.type.toLowerCase().includes(terme))
-    );
-  }, [chambres, filtreStatut, recherche]);
+    return (chambres ?? [])
+      .filter(
+        (c) =>
+          (!filtreStatut || c.statut === filtreStatut) &&
+          (!filtreType || c.type.trim() === filtreType) &&
+          (!terme || c.numero.toLowerCase().includes(terme) || c.type.toLowerCase().includes(terme) || (clientParChambre.get(c.id) ?? "").toLowerCase().includes(terme))
+      )
+      .sort((a, b) => comparerNumeros(a.numero, b.numero));
+  }, [chambres, filtreStatut, filtreType, recherche, clientParChambre]);
 
   return (
     <div className="page">
       <header className="page__entete">
         <div>
           <h1 className="hc-text-display-md page__titre">Chambres</h1>
-          <p className="hc-text-body page__sous-titre">Gérez vos chambres et leurs disponibilités.</p>
+          <p className="hc-text-body page__sous-titre">
+            {chambres ? `${chambres.length} chambre${chambres.length > 1 ? "s" : ""} · ${comptes.LIBRE} libre${comptes.LIBRE > 1 ? "s" : ""}` : "Gérez vos chambres et leurs disponibilités."}
+          </p>
         </div>
         <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
           {estPatron && (
             <Button type="button" variant="secondary" onClick={ouvrirCreation}>
               <Plus size={18} aria-hidden="true" />
-              Nouvelle chambre
+              Ajouter une chambre
             </Button>
           )}
           {operer && (
-            <Button type="button" onClick={() => onNaviguer("reservations")}>
-              Nouvelle réservation
+            <Button type="button" onClick={() => (onArrivee ? onArrivee("") : onNaviguer("reservations"))}>
+              <LogIn size={18} aria-hidden="true" />
+              Enregistrer une arrivée
             </Button>
           )}
         </div>
@@ -361,31 +418,52 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
         </p>
       )}
 
-      <div className="barre-filtres">
+      {estPatron && !operer && (
+        <p className="chambres-bandeau hc-text-body" role="note">
+          Vous consultez la réception. Pour enregistrer des arrivées et des départs, activez « le patron peut aussi opérer » dans les Paramètres.
+        </p>
+      )}
+
+      <div className="chambres-barre" role="group" aria-label="Filtrer par statut">
+        {FILTRES.map((filtre) => {
+          const nombre = filtre.id === null ? comptes.TOUTES : (comptes[filtre.id] ?? 0);
+          return (
+            <button key={filtre.libelle} type="button" className="chambre-filtre" aria-pressed={filtreStatut === filtre.id} onClick={() => setFiltreStatut(filtre.id)}>
+              {filtre.id !== null && <span className="chambre-filtre__point" style={{ background: POINT_PAR_STATUT[filtre.id] }} aria-hidden="true" />}
+              {filtre.libelle}
+              <span className="chambre-filtre__nombre">{nombre}</span>
+            </button>
+          );
+        })}
+        <span className="chambres-barre__espace" />
         <label className="champ-recherche">
           <Search size={18} aria-hidden="true" />
           <span className="visuellement-cache">Rechercher une chambre</span>
-          <input
-            type="search"
-            placeholder="Rechercher une chambre…"
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-          />
+          <input type="search" placeholder="Numéro, type, client…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
         </label>
-        <div className="puces" role="group" aria-label="Filtrer par statut">
-          {FILTRES.map((filtre) => (
-            <button
-              key={filtre.libelle}
-              type="button"
-              className="puce"
-              aria-pressed={filtreStatut === filtre.id}
-              onClick={() => setFiltreStatut(filtre.id)}
-            >
-              {filtre.libelle}
+        {!etroit && (
+          <div className="chambres-vue" role="group" aria-label="Affichage">
+            <button type="button" aria-pressed={vue === "cartes"} onClick={() => changerVue("cartes")}>
+              <LayoutGrid size={16} aria-hidden="true" /> Cartes
+            </button>
+            <button type="button" aria-pressed={vue === "liste"} onClick={() => changerVue("liste")}>
+              <List size={16} aria-hidden="true" /> Liste
+            </button>
+          </div>
+        )}
+      </div>
+      {types.length > 1 && (
+        <div className="chambres-barre" role="group" aria-label="Filtrer par type">
+          <button type="button" className="chambre-type" aria-pressed={filtreType === null} onClick={() => setFiltreType(null)}>
+            Tous les types
+          </button>
+          {types.map((t) => (
+            <button key={t.type} type="button" className="chambre-type" aria-pressed={filtreType === t.type} onClick={() => setFiltreType(t.type)}>
+              {t.type} · {t.nombre}
             </button>
           ))}
         </div>
-      </div>
+      )}
 
       {chambreEdit && (
         <PanneauFormulaire
@@ -416,6 +494,15 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
                 Type
               </label>
               <input id="chambre-type" type="text" value={type} onChange={(e) => setType(e.target.value)} placeholder="Ex. Standard, Suite…" />
+              {types.length > 0 && (
+                <div className="puces" role="group" aria-label="Types déjà utilisés">
+                  {types.map((t) => (
+                    <button key={t.type} type="button" className="puce" aria-pressed={type.trim() === t.type} onClick={() => setType(t.type)}>
+                      {t.type}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="champ">
               <label className="hc-text-label" htmlFor="chambre-prix">
@@ -472,7 +559,7 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
         </div>
       )}
 
-      {chambresAffichees.length > 0 && !etroit && (
+      {chambresAffichees.length > 0 && !etroit && vue === "liste" && (
         <div className="carte-tableau" data-testid="grille-chambres">
           <table className="tableau">
             <thead>
@@ -512,17 +599,29 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
         </div>
       )}
 
-      {chambresAffichees.length > 0 && etroit && (
-        <div className="hc-grille-chambres" data-testid="grille-chambres">
+      {chambresAffichees.length > 0 && (etroit || vue === "cartes") && (
+        <div className="chambres-grille" data-testid="grille-chambres">
           {chambresAffichees.map((chambre) => (
-            <RoomCard
+            <CarteChambre
               key={chambre.id}
-              numero={chambre.numero}
-              type={chambre.type}
-              prix={chambre.prixParNuit}
-              devise={chambre.devise}
-              statutTone={TONE_PAR_STATUT[chambre.statut]}
-              statutLabel={LABEL_PAR_STATUT[chambre.statut]}
+              chambre={chambre}
+              tone={TONE_PAR_STATUT[chambre.statut]}
+              libelleStatut={LABEL_PAR_STATUT[chambre.statut]}
+              sejours={sejours.get(chambre.id)}
+              action={actionPourChambre(chambre, sejours.get(chambre.id), operer)}
+              onAction={(action) => agir(chambre, action)}
+              menu={
+                (operer || estPatron) && (
+                  <MenuActionsChambre
+                    chambre={chambre}
+                    estPatron={estPatron}
+                    peutChangerStatut={operer}
+                    onChangerStatut={(statut) => changerStatut(chambre, statut)}
+                    onModifier={() => ouvrirEdition(chambre)}
+                    onSupprimer={() => void supprimerChambre(chambre)}
+                  />
+                )
+              }
             />
           ))}
         </div>

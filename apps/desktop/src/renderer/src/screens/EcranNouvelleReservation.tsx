@@ -14,6 +14,8 @@ export interface EcranNouvelleReservationProps {
   /** Pré-remplissage depuis le planning (cellule chambre × jour). */
   chambreInitialeId?: string;
   dateArriveeInitiale?: string; // AAAA-MM-JJ
+  /** « Enregistrer une arrivée » (depuis une chambre libre) : la case « le client est déjà là » est cochée d'avance. */
+  arriveeImmediateParDefaut?: boolean;
 }
 
 const STATUTS_OCCUPANTS = new Set(["CONFIRMEE", "EN_COURS"]); // reservations.service.ts
@@ -35,7 +37,7 @@ function jourSuivant(input: string, nuits: number): string {
  * et le check-in pour un walk-in du jour ; si le check-in échoue la
  * réservation reste créée (CONFIRMEE), signalé à l'écran.
  */
-export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreInitialeId, dateArriveeInitiale }: EcranNouvelleReservationProps) {
+export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreInitialeId, dateArriveeInitiale, arriveeImmediateParDefaut = false }: EcranNouvelleReservationProps) {
   const [chambres, setChambres] = useState<Chambre[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [clients, setClients] = useState<ClientHotel[]>([]);
@@ -56,7 +58,7 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
   const [numeroPiece, setNumeroPiece] = useState("");
   const [note, setNote] = useState("");
   const [acompteSaisi, setAcompteSaisi] = useState("");
-  const [checkInImmediat, setCheckInImmediat] = useState(false);
+  const [checkInImmediat, setCheckInImmediat] = useState(arriveeImmediateParDefaut);
 
   useEffect(() => {
     Promise.all([client.listerChambres(), client.listerReservations(), client.listerClients()])

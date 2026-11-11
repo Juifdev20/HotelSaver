@@ -1,0 +1,207 @@
+/* Tableau de cartes des chambres (11/11/2026). Couleurs : jetons --hc-* (clair et sombre). */
+.chambres-barre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hc-space-2);
+}
+.chambres-barre__espace {
+  flex: 1;
+}
+.chambre-filtre {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: var(--hc-radius-pill);
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-200);
+  color: var(--hc-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chambre-filtre[aria-pressed="true"] {
+  background: var(--hc-navy);
+  border-color: var(--hc-navy);
+  color: #fff;
+}
+.chambre-filtre__point {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.chambre-filtre__nombre {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  background: var(--hc-surface-100);
+  color: var(--hc-ink);
+}
+.chambre-filtre[aria-pressed="true"] .chambre-filtre__nombre {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.chambre-type {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: var(--hc-radius-pill);
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-200);
+  color: var(--hc-ink-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chambre-type[aria-pressed="true"] {
+  background: var(--hc-blue-very-light);
+  border-color: var(--hc-blue);
+  color: var(--hc-blue);
+}
+.chambres-vue {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-surface-200);
+}
+.chambres-vue button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--hc-ink-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chambres-vue button[aria-pressed="true"] {
+  background: var(--hc-blue-very-light);
+  color: var(--hc-blue);
+}
+.chambres-grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--hc-space-3);
+}
+.chambre-carte {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 206px;
+  padding: 14px 16px 16px;
+  background: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-top: 5px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+}
+.chambre-carte--success {
+  border-top-color: var(--hc-success);
+}
+.chambre-carte--danger {
+  border-top-color: var(--hc-danger);
+}
+.chambre-carte--warning {
+  border-top-color: var(--hc-warning);
+}
+.chambre-carte--purple {
+  border-top-color: var(--hc-purple);
+}
+.chambre-carte__haut {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--hc-space-2);
+}
+.chambre-carte__numero {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.chambre-carte__droite {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.chambre-carte__type {
+  margin: 0;
+  color: var(--hc-ink-muted);
+}
+.chambre-carte__type strong {
+  color: var(--hc-ink);
+}
+.chambre-carte__occupant {
+  flex: 1;
+  min-height: 44px;
+  margin-top: 4px;
+}
+.chambre-carte__nom {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-weight: 700;
+}
+.chambre-carte__detail {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--hc-ink-muted);
+}
+.chambre-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--hc-radius-md);
+  border: 1.5px solid var(--hc-blue);
+  background: transparent;
+  color: var(--hc-blue);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.chambre-action--plein {
+  background: var(--hc-blue);
+  color: #fff;
+}
+:root[data-theme="dark"] .chambre-action--plein {
+  color: var(--hc-navy);
+}
+.chambre-action:hover {
+  filter: brightness(0.95);
+}
+.chambre-carte *:focus-visible,
+.chambres-vue button:focus-visible,
+.chambre-filtre:focus-visible,
+.chambre-type:focus-visible {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+.chambres-bandeau {
+  margin: 0;
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-blue-very-light);
+}
+@media (max-width: 759px) {
+  .chambres-grille {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  .chambres-barre__espace {
+    display: none;
+  }
+}
