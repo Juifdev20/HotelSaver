@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { FrontiereErreur } from "./src/composants/FrontiereErreur";
 import { DarkTheme, DefaultTheme, NavigationContainer } from "@react-navigation/native";
+import { FournisseurMiseAJour } from "./src/miseAJour/ContexteMiseAJour";
 import { useApparence } from "./src/theme/ContexteApparence";
 import { appliquerSchema, estSombre, versionTheme as versionDuTheme } from "./src/theme/theme";
 import { couleurs } from "./src/tokens";
@@ -741,6 +742,7 @@ export default function App() {
             if (serveur) setProfilFraisPour(frais.userId);
           } }}>
             <RafraichisseurProfil />
+            <FournisseurMiseAJour>
             {abonnementBloque ? (
               // Abonnement expiré : l'écran de renouvellement REMPLACE l'application (la base locale et la synchronisation restent actives,
               // rien n'est perdu). Il disparaît tout seul dès que le serveur confirme l'abonnement.
@@ -753,6 +755,7 @@ export default function App() {
                 <CentreNotifications key={`centre-${versionTheme}`} />
               </FournisseurNotifications>
             )}
+            </FournisseurMiseAJour>
           </FournisseurSession>
           </FrontiereErreur>
           <StatusBar style="light" />

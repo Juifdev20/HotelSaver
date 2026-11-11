@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell, Building2, ChevronDown, ChevronRight, CloudOff, CreditCard, LogOut, RefreshCw, TriangleAlert } from "lucide-react-native";
+import { Bell, Building2, ChevronDown, ChevronRight, CloudOff, CreditCard, LogOut, RefreshCw, TriangleAlert, Download } from "lucide-react-native";
 import { Role } from "@hotel-chicago/types";
 import { resumerEtatSync, type NiveauSync } from "@hotel-chicago/sync-engine";
 import { bandeauAbonnement } from "@hotel-chicago/regles";
@@ -12,6 +12,7 @@ import { useSession } from "../contexteSession";
 import { LIBELLE_ROLE } from "../navigation";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useNotifications } from "../notifications/ContexteNotifications";
+import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { FeuilleModale } from "./FeuilleModale";
 import { AvatarUtilisateur } from "./AvatarUtilisateur";
 import { parTheme } from "../theme/theme";
@@ -91,6 +92,28 @@ function BandeauAbonnement() {
   );
 }
 
+/** Bandeau « nouvelle version » : un toucher ouvre l'écran Mise à jour (téléchargement, installation). Rien quand l'application est à jour. */
+function BandeauMiseAJour() {
+  const { etat, maj, progres, possible } = useMiseAJour();
+  const { ouvrirMiseAJour } = useNotifications();
+  if (!possible || (etat !== "disponible" && etat !== "telechargement" && etat !== "prete")) return null;
+  const texte =
+    etat === "prete"
+      ? `Mise à jour prête (${maj?.version}) : touchez pour installer.`
+      : etat === "telechargement"
+        ? `Téléchargement de la mise à jour… ${progres} %`
+        : `Nouvelle version ${maj?.version} disponible : touchez pour la télécharger.`;
+  return (
+    <Pressable style={[styles.bandeau, { backgroundColor: fonds.bleu }]} onPress={ouvrirMiseAJour} accessibilityRole="button" accessibilityLabel={`${texte} Ouvrir l'écran Mise à jour.`}>
+      <Download size={16} color="#fff" />
+      <Text style={[styles.bandeauTexte, { color: "#fff" }]} numberOfLines={2}>
+        {texte}
+      </Text>
+      <ChevronRight size={16} color="#fff" />
+    </Pressable>
+  );
+}
+
 /**
  * Bande du haut de tous les écrans connectés (maquette du patron, 15/10/2026) :
  * fond blanc, horloge/batterie en sombre ; logo seul + « HotelSaver / Gestion
@@ -164,6 +187,7 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
 
       {!sansBandeauAbonnement && <BandeauAbonnement />}
       <BandeauSync />
+      <BandeauMiseAJour />
 
       <FeuilleModale visible={menuOuvert} onFermer={() => setMenuOuvert(false)} titre="Mon compte">
         <View style={styles.compte}>

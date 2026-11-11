@@ -819,6 +819,7 @@ export const TYPES_NOTIFICATION = [
   "ACOMPTE_PAYE_EN_LIGNE",
   "REMBOURSEMENT_A_FAIRE",
   "RESERVATION_HORS_LIGNE_REFUSEE",
+  "MISE_A_JOUR",
 ] as const;
 export type TypeNotification = (typeof TYPES_NOTIFICATION)[number];
 
@@ -848,10 +849,11 @@ export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification>
   RAPPORT_DISPONIBLE: "quotidien",
   COMMANDE_WEB: "reservations",
   PRE_ENREGISTREMENT: "reservations",
+  MISE_A_JOUR: "securite",
 };
 
 /** Écrans que le clic sur une notification peut ouvrir (mêmes ids que la navigation des apps). */
-export type EcranNotification = "reservations" | "arrivees-departs" | "chambres" | "stock" | "facturation" | "tableau-de-bord" | "rapports" | "comptes-ouverts";
+export type EcranNotification = "reservations" | "arrivees-departs" | "chambres" | "stock" | "facturation" | "tableau-de-bord" | "rapports" | "comptes-ouverts" | "mise-a-jour";
 
 export interface LienNotification {
   ecran: EcranNotification;

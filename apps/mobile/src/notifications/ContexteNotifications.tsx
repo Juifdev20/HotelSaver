@@ -15,7 +15,7 @@ const INTERVALLE_MS = 30_000;
 
 /** Vue de l'onglet « Plus » à ouvrir (les écrans qui n'ont pas leur propre onglet). */
 export interface DemandePlus {
-  vue: "stock" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation" | "abonnement" | "remboursements" | "fonction-non-incluse";
+  vue: "stock" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation" | "abonnement" | "remboursements" | "fonction-non-incluse" | "mise-a-jour" | "diagnostic-notifications";
   /** Compte cafétéria à ouvrir directement (deep-link notification). */
   compteId?: string;
   /** Avec « fonction-non-incluse » : la fonction que la formule de l'hôtel n'ouvre pas. */
@@ -62,6 +62,8 @@ interface ValeurNotifications {
   ouvrirAbonnement: () => void;
   /** Ouvre l'écran « Remboursements » (onglet Plus) — acomptes payés en ligne à rendre ou à garder. */
   ouvrirRemboursements: () => void;
+  /** Ouvre l'écran « Mise à jour » (onglet Plus) : bannière, notification et bouton du menu. */
+  ouvrirMiseAJour: () => void;
   /** « Ne plus m'alerter pour ce produit » : coupe, pour moi seul, la voix et la notification de ce produit. */
   couperAlerteStock: (produitId: string) => Promise<void>;
 }
@@ -89,7 +91,9 @@ export function cibleDeLien(lien: LienNotification, role: Role, fonctions?: read
   if (type === "REMBOURSEMENT_A_FAIRE" && role === Role.PATRON) return ouvre("plus", "remboursements");
 
   const cible =
-    lien.ecran === "reservations" || lien.ecran === "facturation" || lien.ecran === "arrivees-departs" // la facturation et les arrivées/départs vivent dans « Séjours »
+    lien.ecran === "mise-a-jour"
+      ? si("plus", "mise-a-jour")
+      : lien.ecran === "reservations" || lien.ecran === "facturation" || lien.ecran === "arrivees-departs" // la facturation et les arrivées/départs vivent dans « Séjours »
       ? si("reservations")
       : lien.ecran === "chambres"
         ? si("chambres")
@@ -291,6 +295,11 @@ export function FournisseurNotifications({
     if (navigationRef.isReady()) navigationRef.navigate("plus" as never);
   }, []);
 
+  const ouvrirMiseAJour = useCallback(() => {
+    setDemandePlus({ vue: "mise-a-jour", cle: ++compteurDemandes.current });
+    if (navigationRef.isReady()) navigationRef.navigate("plus" as never);
+  }, []);
+
   const ouvrirAbonnement = useCallback(() => {
     setDemandePlus({ vue: "abonnement", cle: ++compteurDemandes.current });
     if (navigationRef.isReady()) navigationRef.navigate("plus" as never);
@@ -345,11 +354,12 @@ export function FournisseurNotifications({
       demandeReservation,
       consommerDemandeReservation: () => setDemandeReservation(null),
       ouvrirSynchronisation,
+      ouvrirMiseAJour,
       ouvrirAbonnement,
       ouvrirRemboursements,
       couperAlerteStock,
     }),
-    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, ouvrirSynchronisation, ouvrirAbonnement, ouvrirRemboursements, couperAlerteStock, demandePlus, demandeCompte, demandeReservation]
+    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, ouvrirSynchronisation, ouvrirMiseAJour, ouvrirAbonnement, ouvrirRemboursements, couperAlerteStock, demandePlus, demandeCompte, demandeReservation]
   );
 
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;

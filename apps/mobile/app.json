@@ -21,6 +21,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "allowBackup": false,
+      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"],
       "versionCode": 11
     },
     "web": {

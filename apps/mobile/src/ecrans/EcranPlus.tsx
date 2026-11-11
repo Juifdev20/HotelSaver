@@ -26,8 +26,7 @@ import {
   HandCoins,
   Users,
   UtensilsCrossed,
-  Volume2,
-} from "lucide-react-native";
+  Volume2, Download } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { consommerRetourReglages, retourReglagesDemande } from "../theme/theme";
 import { LIBELLE_ROLE, fonctionManquante, sectionsPlusPourRole } from "../navigation";
@@ -40,6 +39,8 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useRemboursementsAFaire } from "../hooks/useRemboursementsAFaire";
 import { FonctionNonIncluse } from "../composants/FonctionNonIncluse";
 import { EnteteMobile } from "../composants/EnteteMobile";
+import { EcranMiseAJour } from "./EcranMiseAJour";
+import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { EcranParametresMobile } from "./EcranParametresMobile";
 import { EcranMenu } from "./EcranMenu";
 import { EcranStock } from "./EcranStock";
@@ -97,7 +98,9 @@ type VuePlus =
   | { id: "rapports" }
   | { id: "depenses" }
   | { id: "inventaire" }
-  | { id: "cuisine" };
+  | { id: "cuisine" }
+  | { id: "mise-a-jour" }
+  | { id: "diagnostic-notifications" };
 
 const VUE_LISTE: VuePlus = { id: "liste" };
 
@@ -173,6 +176,8 @@ export function EcranPlus() {
     consommerRetourReglages();
   }, []);
   const etatSync = useSyncEtat();
+  const { etat: etatMiseAJour, possible: miseAJourPossible } = useMiseAJour();
+  const nouvelleVersion = etatMiseAJour === "disponible" || etatMiseAJour === "telechargement" || etatMiseAJour === "prete";
   const { demandePlus, consommerDemandePlus } = useNotifications();
   const alerteAbonnement = bandeauAbonnement(utilisateur.abonnement);
   const sections = sectionsPlusPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true, utilisateur.fonctions);
@@ -226,6 +231,9 @@ export function EcranPlus() {
   }
   if (vue.id === "remboursements") {
     return <EcranRemboursements client={client} onRetour={() => setVue(VUE_LISTE)} onCompteur={remboursements.definir} />;
+  }
+  if (vue.id === "mise-a-jour") {
+    return <EcranMiseAJour onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "synchronisation") {
     return <EcranSynchronisation onRetour={() => setVue(VUE_LISTE)} />;
@@ -400,6 +408,21 @@ export function EcranPlus() {
           <LigneMenu icone={Printer} libelle="Imprimante" onPress={() => setVue({ id: "imprimante" })} />
           <LigneMenu icone={Volume2} libelle="Sons et voix" onPress={() => setVue({ id: "sons" })} />
           <LigneMenu icone={BookOpen} libelle="Guide d'utilisation" onPress={() => setVue({ id: "guides" })} />
+          {miseAJourPossible && (
+            <LigneMenu
+              icone={Download}
+              libelle="Mise à jour"
+              libelleAccessible={nouvelleVersion ? "Mise à jour, une nouvelle version est disponible" : "Mise à jour, l'application est à jour"}
+              onPress={() => setVue({ id: "mise-a-jour" })}
+              badge={
+                nouvelleVersion ? (
+                  <View style={styles.badgeCompteur}>
+                    <Text style={styles.badgeCompteurTexte}>Nouvelle</Text>
+                  </View>
+                ) : undefined
+              }
+            />
+          )}
           <LigneMenu
             icone={RefreshCw}
             libelle="Synchronisation"
