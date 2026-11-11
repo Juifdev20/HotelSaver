@@ -15,7 +15,7 @@ const INTERVALLE_MS = 30_000;
 
 /** Vue de l'onglet « Plus » à ouvrir (les écrans qui n'ont pas leur propre onglet). */
 export interface DemandePlus {
-  vue: "stock" | "arrivees-departs" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation" | "abonnement" | "remboursements" | "fonction-non-incluse";
+  vue: "stock" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation" | "abonnement" | "remboursements" | "fonction-non-incluse";
   /** Compte cafétéria à ouvrir directement (deep-link notification). */
   compteId?: string;
   /** Avec « fonction-non-incluse » : la fonction que la formule de l'hôtel n'ouvre pas. */
@@ -89,7 +89,7 @@ export function cibleDeLien(lien: LienNotification, role: Role, fonctions?: read
   if (type === "REMBOURSEMENT_A_FAIRE" && role === Role.PATRON) return ouvre("plus", "remboursements");
 
   const cible =
-    lien.ecran === "reservations" || lien.ecran === "facturation" // la facturation vit dans « Réserv. »
+    lien.ecran === "reservations" || lien.ecran === "facturation" || lien.ecran === "arrivees-departs" // la facturation et les arrivées/départs vivent dans « Séjours »
       ? si("reservations")
       : lien.ecran === "chambres"
         ? si("chambres")
@@ -97,11 +97,9 @@ export function cibleDeLien(lien: LienNotification, role: Role, fonctions?: read
           ? si("comptes-ouverts") ?? si("plus", "comptes-ouverts")
           : lien.ecran === "stock"
             ? si("plus", "stock")
-            : lien.ecran === "arrivees-departs"
-              ? si("plus", "arrivees-departs")
-              : lien.ecran === "rapports"
-                ? si("plus", "rapports")
-                : null;
+            : lien.ecran === "rapports"
+              ? si("plus", "rapports")
+              : null;
   return cible ?? { onglet: "tableau-de-bord" };
 }
 

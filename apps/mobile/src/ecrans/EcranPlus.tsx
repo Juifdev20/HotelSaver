@@ -88,7 +88,6 @@ type VuePlus =
   | { id: "compte"; compteId: string; retour?: "comptes-ouverts" | "cuisine" | "retrait-commande"; venteRapide?: boolean }
   | { id: "utilisateurs" }
   | { id: "site-hotel" }
-  | { id: "arrivees-departs" }
   | { id: "planning" }
   | { id: "journal-journee" }
   | { id: "clients" }
@@ -104,7 +103,6 @@ const VUE_LISTE: VuePlus = { id: "liste" };
 /** Une icône par entrée de menu — même choix que `ICONES` de la coquille
  * desktop (layout/Coquille.tsx) pour que les deux apps parlent pareil. */
 const ICONES_MENU: Record<string, LucideIcon> = {
-  "arrivees-departs": ArrowLeftRight,
   planning: CalendarDays,
   "journal-journee": BookOpenCheck,
   clients: Users,
@@ -276,9 +274,6 @@ export function EcranPlus() {
   if (vue.id === "utilisateurs") {
     return <EcranUtilisateurs client={client} onRetour={() => setVue(VUE_LISTE)} />;
   }
-  if (vue.id === "arrivees-departs") {
-    return <EcranReservations segmentInitial="aujourdhui" onRetour={() => setVue(VUE_LISTE)} />;
-  }
   if (vue.id === "planning") {
     return <EcranReservations segmentInitial="planning" onRetour={() => setVue(VUE_LISTE)} />;
   }
@@ -377,7 +372,6 @@ export function EcranPlus() {
                       | "abonnement"
                       | "remboursements"
                       | "site-hotel"
-                      | "arrivees-departs"
                       | "planning"
                       | "journal-journee"
                       | "clients"

@@ -12,3 +12,4 @@ export * from "./mouvement-stock";
 export * from "./contrat-licence";
 export * from "./vente-cafeteria";
 export * from "./chambres";
+export * from "./sejours-du-jour";

@@ -1,10 +1,12 @@
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { peutOperer } from "@hotel-chicago/types";
-import { demandesSurChambrePrise } from "@hotel-chicago/regles";
+import { actionPourSejour, demandesSurChambrePrise, sejoursDuJour } from "@hotel-chicago/regles";
+import type { ProposeActionSejour } from "@hotel-chicago/regles";
 import type { Reservation, StatutReservation } from "@hotel-chicago/types";
-import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
+import { CalendarDays, LogIn } from "lucide-react-native";
+import { CarteSejour, resteAPayerChambre } from "../sejours/CarteSejour";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { EnteteMobile } from "../composants/EnteteMobile";
@@ -18,8 +20,11 @@ import { EcranNouvelleReservation } from "./EcranNouvelleReservation";
 import type { DemandeSejour } from "../sejours/ContexteDemandeSejour";
 import { EcranFacturation } from "./EcranFacturation";
 import { EcranPlanning } from "./EcranPlanning";
-import { dateCourte, finJournee, memeJour } from "../dates";
+import { dateCourte, finJournee, formaterLubumbashi } from "../dates";
 import { messageErreur } from "../messagesErreur";
+
+type Ligne = { cle: string; titre: string } | { cle: string; sejour: Reservation; genre: "arrivee" | "depart" | "present" };
+type ElementListe = Ligne | Reservation;
 
 export interface EcranReservationsProps {
   /** Segment affiché à l'ouverture — "aujourdhui" quand l'écran sert de vue
@@ -70,13 +75,10 @@ function filtrer(reservations: Reservation[], segment: SegmentId): Reservation[]
   const aujourdhui = new Date();
   const finDuJour = finJournee(aujourdhui);
   switch (segment) {
-    case "aujourdhui":
-      // Arrivées du jour (encore à accueillir ou déjà en cours) + départs du jour.
-      return reservations.filter(
-        (r) =>
-          (r.statut === "CONFIRMEE" || r.statut === "EN_ATTENTE" || r.statut === "EN_COURS") &&
-          (memeJour(r.dateArrivee, aujourdhui) || (r.statut === "EN_COURS" && memeJour(r.dateDepart, aujourdhui)))
-      );
+    case "aujourdhui": {
+      const j = sejoursDuJour(reservations, aujourdhui);
+      return [...j.arrivees, ...j.departs, ...j.presents];
+    }
     case "avenir":
       return reservations.filter(
         (r) => (r.statut === "CONFIRMEE" || r.statut === "EN_ATTENTE") && new Date(r.dateArrivee) >= finDuJour
@@ -91,7 +93,7 @@ function filtrer(reservations: Reservation[], segment: SegmentId): Reservation[]
 }
 
 const VIDE_PAR_SEGMENT: Record<SegmentId, string> = {
-  aujourdhui: "Aucune arrivée ni départ aujourd'hui.",
+  aujourdhui: "Rien à faire aujourd'hui : aucune arrivée, aucun départ, aucun client présent.",
   avenir: "Aucune réservation à venir.",
   encours: "Aucun client présent.",
   historique: "Aucun séjour passé.",
@@ -122,6 +124,10 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
   const demandesBloquees = useMemo(() => demandesSurChambrePrise(reservations ?? []), [reservations]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [rafraichissement, setRafraichissement] = useState(false);
+  const [actionEnCours, setActionEnCours] = useState<string | null>(null);
+  /** Rappel après un check-in : ce qui reste à payer. */
+  const [info, setInfo] = useState<string | null>(null);
+  const operer = peutOperer(utilisateur);
 
   const rechargerMiroir = useCallback(() => {
     client
@@ -154,6 +160,52 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
 
   const liste = useMemo(() => filtrer(reservations ?? [], segment), [reservations, segment]);
   const sousTitre = reservations ? `${liste.length} séjour${liste.length > 1 ? "s" : ""}` : "Chargement…";
+  const jour = useMemo(() => sejoursDuJour(reservations ?? []), [reservations]);
+  const dateDuJour = formaterLubumbashi(new Date(), { weekday: "long", day: "numeric", month: "long" });
+
+  /** Lignes de l'écran « Aujourd'hui » : un titre par groupe puis ses séjours. */
+  const lignesAujourdhui = useMemo<Ligne[]>(() => {
+    const lignes: Ligne[] = [];
+    const groupe = (titre: string, items: Reservation[], genre: "arrivee" | "depart" | "present") => {
+      if (items.length === 0) return;
+      lignes.push({ cle: `t-${genre}`, titre: `${titre} · ${items.length}` });
+      for (const sejour of items) lignes.push({ cle: sejour.id, sejour, genre });
+    };
+    groupe("Arrivées attendues", jour.arrivees, "arrivee");
+    groupe("Départs du jour", jour.departs, "depart");
+    groupe("Clients présents", jour.presents, "present");
+    return lignes;
+  }, [jour]);
+
+  async function lancerAction(sejour: Reservation, action: ProposeActionSejour) {
+    if (action.id === "facturer") {
+      setVue({ id: "facturation", reservationId: sejour.id, checkOut: true });
+      return;
+    }
+    setActionEnCours(sejour.id);
+    setErreur(null);
+    setInfo(null);
+    try {
+      if (action.id === "checkin") {
+        await client.checkIn(sejour.id);
+        const reste = resteAPayerChambre(sejour);
+        setInfo(
+          reste > 0
+            ? `${sejour.client.nom} est arrivé(e). Reste à payer : ${formatMontant(reste, sejour.chambre.devise)} — à encaisser depuis sa fiche ou au départ.`
+            : `${sejour.client.nom} est arrivé(e). Le séjour est déjà payé.`
+        );
+      } else {
+        await client.confirmerReservation(sejour.id);
+        setInfo(`Réservation de ${sejour.client.nom} confirmée.`);
+      }
+      rechargerMiroir();
+      void moteurSync.forcerSynchronisation();
+    } catch (e) {
+      setErreur(messageErreur(e, "L'action n'a pas pu être faite. Réessayez."));
+    } finally {
+      setActionEnCours(null);
+    }
+  }
 
   if (vue.id === "detail") {
     return (
@@ -201,17 +253,53 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
     <View style={styles.page}>
       <EnteteMobile />
       {onRetour ? (
-        <EnteteRetour titre="Réservations" sousTitre={sousTitre} onRetour={onRetour} />
+        <EnteteRetour titre="Séjours" sousTitre={dateDuJour} onRetour={onRetour} />
       ) : (
         <View style={styles.entete}>
           <View>
-            <Text style={styles.titre}>Réservations</Text>
-            <Text style={styles.sousTitre}>{sousTitre}</Text>
+            <Text style={styles.titre} accessibilityRole="header">Séjours</Text>
+            <Text style={styles.sousTitre}>{dateDuJour}</Text>
           </View>
         </View>
       )}
 
-      <View style={styles.segments}>
+      {operer && (
+        <View style={styles.boutons}>
+          <Pressable
+            style={styles.boutonArrivee}
+            onPress={() => setVue({ id: "nouveau", arriveeImmediate: true })}
+            accessibilityRole="button"
+            accessibilityLabel="Enregistrer une arrivée : le client est là maintenant"
+          >
+            <LogIn size={20} color="#fff" />
+            <Text style={styles.boutonArriveeTexte}>Enregistrer une arrivée</Text>
+          </Pressable>
+          <Pressable
+            style={styles.boutonReservation}
+            onPress={() => setVue({ id: "nouveau" })}
+            accessibilityRole="button"
+            accessibilityLabel="Nouvelle réservation pour une autre date"
+          >
+            <CalendarDays size={18} color={couleurs.encre} />
+            <Text style={styles.boutonReservationTexte}>Nouvelle réservation (autre date)</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <View style={styles.compteurs}>
+        {[
+          { n: jour.arrivees.length, libelle: "Arrivées", fond: couleurs.bleuClair, texte: couleurs.bleu },
+          { n: jour.departs.length, libelle: "Départs", fond: couleurs.alerteClair, texte: couleurs.alerte },
+          { n: jour.presents.length, libelle: "Présents", fond: couleurs.succesClair, texte: couleurs.succes },
+        ].map((c) => (
+          <View key={c.libelle} style={[styles.compteur, { backgroundColor: c.fond }]} accessible accessibilityLabel={`${c.n} ${c.libelle.toLowerCase()} aujourd'hui`}>
+            <Text style={[styles.compteurValeur, { color: c.texte }]}>{c.n}</Text>
+            <Text style={[styles.compteurLibelle, { color: c.texte }]}>{c.libelle}</Text>
+          </View>
+        ))}
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.segmentsDefilants} contentContainerStyle={styles.segments}>
         {SEGMENTS.map((s) => (
           <Pressable
             key={s.id}
@@ -224,7 +312,13 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
             <Text style={[styles.segmentTexte, segment === s.id && styles.segmentTexteActif]}>{s.libelle}</Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
+
+      {info && (
+        <Text style={styles.info} accessibilityRole="alert">
+          {info}
+        </Text>
+      )}
 
       {erreur && (
         <Text style={styles.erreur} accessibilityRole="alert">
@@ -247,12 +341,38 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
             </View>
           )}
 
-          <FlatList
-            data={liste}
-            keyExtractor={(r) => r.id}
+          <FlatList<ElementListe>
+            data={segment === "aujourdhui" ? lignesAujourdhui : liste}
+            keyExtractor={(r) => ("cle" in r ? r.cle : r.id)}
             contentContainerStyle={styles.liste}
             refreshControl={<RefreshControl refreshing={rafraichissement} onRefresh={actualiser} />}
-            renderItem={({ item }) => {
+            renderItem={({ item: element }) => {
+              if ("cle" in element) {
+                if ("titre" in element) {
+                  return (
+                    <Text style={styles.titreGroupe} accessibilityRole="header">
+                      {element.titre.toUpperCase()}
+                    </Text>
+                  );
+                }
+                const { sejour, genre } = element;
+                const alertes = [
+                  ...(demandesBloquees.has(sejour.id) ? ["Chambre déjà réservée par un autre client"] : []),
+                  ...(miroir.estCreationEnAttente(sejour.id) ? ["En attente de synchronisation"] : []),
+                ];
+                return (
+                  <CarteSejour
+                    sejour={sejour}
+                    genre={genre}
+                    alertes={alertes}
+                    actionEnCours={actionEnCours === sejour.id}
+                    action={actionPourSejour(sejour, { operer, chambrePrise: demandesBloquees.has(sejour.id), departAujourdhui: genre === "depart" })}
+                    onOuvrir={() => setVue({ id: "detail", reservationId: sejour.id })}
+                    onAction={(a) => void lancerAction(sejour, a)}
+                  />
+                );
+              }
+              const item = element;
               const tone = COULEUR_STATUT[item.statut];
               return (
                 <Pressable
@@ -290,11 +410,6 @@ export function EcranReservations({ segmentInitial = "aujourdhui", onRetour, res
         </>
       )}
 
-      {/* « + » flottant bas-droite — sous le pouce, standard Android
-          (remplace l'ancien bouton d'en-tête). */}
-      {peutOperer(utilisateur) && (
-        <BoutonAjouterFlottant onPress={() => setVue({ id: "nouveau" })} accessibilityLabel="Nouvelle réservation" />
-      )}
     </View>
   );
 }
@@ -310,9 +425,31 @@ const styles = StyleSheet.create({
   },
   titre: { fontSize: 22, fontWeight: "700", color: couleurs.navy },
   sousTitre: { fontSize: 13, color: couleurs.encreAttenuee, marginTop: 2 },
+  boutons: { paddingHorizontal: espacements.s4, gap: espacements.s2, paddingBottom: espacements.s2 },
+  boutonArrivee: { minHeight: 52, borderRadius: rayons.lg, backgroundColor: couleurs.bleu, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  boutonArriveeTexte: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  boutonReservation: {
+    minHeight: 44,
+    borderRadius: rayons.lg,
+    borderWidth: 1,
+    borderColor: couleurs.bordure,
+    backgroundColor: couleurs.surface200,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  boutonReservationTexte: { color: couleurs.encre, fontWeight: "600", fontSize: 14 },
+  compteurs: { flexDirection: "row", gap: espacements.s2, paddingHorizontal: espacements.s4, paddingBottom: espacements.s2 },
+  compteur: { flex: 1, borderRadius: rayons.md, paddingVertical: espacements.s2, alignItems: "center" },
+  compteurValeur: { fontSize: 22, fontWeight: "800" },
+  compteurLibelle: { fontSize: 12, fontWeight: "700" },
+  segmentsDefilants: { flexGrow: 0 },
+  info: { fontSize: 13, fontWeight: "600", color: couleurs.succes, backgroundColor: couleurs.succesClair, marginHorizontal: espacements.s4, marginBottom: espacements.s2, padding: espacements.s3, borderRadius: rayons.sm },
+  titreGroupe: { fontSize: 12, fontWeight: "800", letterSpacing: 0.6, color: couleurs.encreAttenuee, marginTop: espacements.s2 },
   segments: { flexDirection: "row", paddingHorizontal: espacements.s4, gap: espacements.s2, paddingBottom: espacements.s2 },
   segment: {
-    flex: 1,
+    paddingHorizontal: espacements.s4,
     minHeight: 44,
     justifyContent: "center",
     borderRadius: rayons.pill,
@@ -325,8 +462,7 @@ const styles = StyleSheet.create({
   segmentTexte: { fontSize: 12, fontWeight: "600", color: couleurs.encreAttenuee },
   segmentTexteActif: { color: "#fff" },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
-  // 88px de marge basse : le FAB ne recouvre pas la dernière carte.
-  liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },
+  liste: { padding: espacements.s4, paddingBottom: 24, gap: espacements.s3 },
   videConteneur: { alignItems: "center", padding: espacements.s7 },
   videTexte: { fontSize: 14, color: couleurs.encreAttenuee },
   carte: {

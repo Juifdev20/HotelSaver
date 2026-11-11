@@ -4072,3 +4072,13 @@ Détail : `docs/ABONNEMENT.md` (section « Preuve d'achat »).
 
 À vérifier sur appareil réel : écran mobile (non lancé ici), Mobile Money hors ligne (la confirmation exige Internet, comme avant), impression.
 
+
+## Réception : Chambres et Séjours (11/11/2026)
+
+Décisions validées avec le patron (maquettes vues avant chaque étape).
+
+- **Chambres** : un tableau de cartes, **une seule action par chambre** selon son état (libre → Arrivée, occupée → Départ, réservée → Voir, nettoyage → Propre), filtres par état et par type, recherche (numéro, type, client), choix **Cartes / Liste** gardé sur l'appareil. Le menu **⋮** (« Plus d'actions ») garde le changement de statut à la main, et pour le patron « Modifier » et « Supprimer ». Un patron qui ne peut pas opérer ne voit ni Arrivée, ni Départ, ni Propre. Règles communes bureau/téléphone : `packages/regles/src/chambres.ts`.
+- **Séjours** (remplace « Réservations » ; l'entrée « Arrivées et départs » est supprimée, son contenu est dans Séjours › Aujourd'hui ; d'anciens liens de notification vers elle ouvrent Séjours). « Aujourd'hui » = compteurs Arrivées / Départs / Présents, puis trois groupes avec **un gros bouton par séjour** (Check-in, Confirmer la réservation, Facturer et départ). Deux boutons en haut : **Enregistrer une arrivée** (le client est là, date = aujourd'hui) et **Nouvelle réservation (autre date)**. Règles communes : `packages/regles/src/sejours-du-jour.ts` (jour de Lubumbashi, action proposée, chambres indisponibles et pourquoi, acompte rapide).
+- **Enregistrement en 3 étapes (téléphone)** : Séjour (dates, nuits, cartes des chambres libres sur ces dates) → Client (nouveau en 3 champs ou déjà venu ; **pièce d'identité facultative**, e-mail facultatif) → Confirmer (récapitulatif, acompte **0 / 50 % / Tout payer** ou montant libre, demandes spéciales). Une chambre « à nettoyer » reste sélectionnable (le serveur ne l'interdit pas) mais est signalée. Si les dates changent et que la chambre choisie n'est plus libre, elle est désélectionnée.
+- Hors ligne : tout passe par le miroir local (inchangé) ; aucune migration.
+- **Mode sombre mobile** (à faire après la réception) : un seul emplacement, **Plus › Paramètres › Apparence** (Auto / Clair / Sombre, **Auto par défaut**), propre à l'appareil, **pas de raccourci dans l'en-tête**.

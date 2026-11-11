@@ -4,7 +4,7 @@ import { fonctionOuverte, type CodeFonction } from "./fonctions";
 /** Onglets du bas, filtrés par rôle — même matrice 9.3 que le desktop
  * (`apps/desktop/src/renderer/src/navigation.ts`), et même principe de 4
  * icônes par rôle que la maquette mobile : RECEPTIONNISTE/PATRON gardent
- * Accueil/Chambres/Réserv./Plus, CAFETARIA a Accueil/Caisse/Comptes/Plus —
+ * Accueil/Chambres/Séjours/Plus, CAFETARIA a Accueil/Caisse/Comptes/Plus —
  * les deux actions utilisées en continu (ouvrir une vente, reprendre un
  * compte) en onglet direct, Menu/Stock (consultés occasionnellement)
  * restent dans "Plus" (retour du patron, 28/09/2026). */
@@ -24,7 +24,7 @@ const RECEPTION = [Role.RECEPTIONNISTE, Role.PATRON];
 export const ONGLETS: OngletNavigation[] = [
   { id: "tableau-de-bord", libelle: "Accueil", roles: TOUS, disponible: true },
   { id: "chambres", libelle: "Chambres", roles: RECEPTION, disponible: true },
-  { id: "reservations", libelle: "Réserv.", roles: RECEPTION, disponible: true },
+  { id: "reservations", libelle: "Séjours", roles: RECEPTION, disponible: true },
   { id: "caisse", libelle: "Vente", roles: [Role.CAFETARIA], disponible: true },
   { id: "comptes-ouverts", libelle: "En cours", roles: [Role.CAFETARIA], disponible: true },
   // Dépenses (07/10/2026) : saisies par la réception et la cafétaria ; le
@@ -39,7 +39,6 @@ const FONCTION_PAR_ECRAN: Record<string, CodeFonction | "AU_MOINS_UNE"> = {
   // Réception
   chambres: "RECEPTION",
   reservations: "RECEPTION",
-  "arrivees-departs": "RECEPTION",
   planning: "RECEPTION",
   "journal-journee": "RECEPTION",
   clients: "RECEPTION",
@@ -122,7 +121,6 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
     entrees: [
       // Acomptes payés en ligne à rendre ou à garder (PATRON : c'est son argent).
       { id: "remboursements", libelle: "Remboursements", roles: [Role.PATRON], disponible: true },
-      { id: "arrivees-departs", libelle: "Arrivées et départs", roles: RECEPTION, disponible: true },
       { id: "planning", libelle: "Planning", roles: RECEPTION, disponible: true },
       { id: "journal-journee", libelle: "Journal de la journée", roles: RECEPTION, disponible: true },
       { id: "clients", libelle: "Clients", roles: RECEPTION, disponible: true },
