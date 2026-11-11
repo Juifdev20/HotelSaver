@@ -5,7 +5,7 @@ import { PRISMA } from "../prisma/prisma.module";
 import { StockService } from "../stock/stock.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { messages } from "../notifications/messages";
-import { MESSAGE_COMPTE_ANNULE, raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
+import { MESSAGE_COMPTE_ANNULE, MESSAGE_COMPTE_DEJA_FERME, raisonRefusAnnulationCompte, raisonRefusFermetureCompte } from "@hotel-chicago/regles";
 import { calculerEncaissement } from "../factures/encaissement.util";
 import { repartirEnParts } from "./partage.util";
 import { OuvrirCompteDto } from "./dto/ouvrir-compte.dto";
@@ -336,7 +336,8 @@ export class CafeteriaService {
       // et généreraient des ventes en double ; trouvé en testant contre la vraie base).
       const idsRegles = new Set(reglees.map((sc) => sc.id));
       const resteADevoir = compte.sousComptes.some((sc) => sc.lignes.length > 0 && !idsRegles.has(sc.id));
-      if (!resteADevoir) {
+      // « Il paie et il reste » (gardeOuvert) : la part est réglée mais la table reste ouverte pour la suite.
+      if (!resteADevoir && !dto.gardeOuvert) {
         const fermeture = await tx.compteCafeteria.updateMany({
           where: { id: compteId, hotelId, statut: "OUVERT" },
           data: { statut: "FERME", fermeLe: maintenant, syncVersion: { increment: 1 } },
@@ -498,6 +499,23 @@ export class CafeteriaService {
       remis.push({ nom: p.nom, quantite: p.quantite });
     }
     return { articlesRemisEnStock: remis, infoStock: null };
+  }
+
+  /**
+   * « Terminer la table » (11/11/2026) : le client a payé une partie (encaissement « il reste ») puis s'en va sans commander d'autre. Ferme le
+   * compte s'il ne reste rien à régler (voir raisonRefusFermetureCompte). Compare-and-swap OUVERT → FERME : un double clic ou deux postes ne
+   * le ferment qu'une fois.
+   */
+  async fermerCompte(compteId: string, currentUser: UtilisateurAuthentifie) {
+    const compte = await this.findOneCompte(compteId, currentUser.hotelId);
+    const refus = raisonRefusFermetureCompte(compte);
+    if (refus) throw new ConflictException(refus);
+    const { count } = await this.prisma.compteCafeteria.updateMany({
+      where: { id: compteId, hotelId: currentUser.hotelId, statut: "OUVERT" },
+      data: { statut: "FERME", fermeLe: new Date(), syncVersion: { increment: 1 } },
+    });
+    if (count === 0) throw new ConflictException(MESSAGE_COMPTE_DEJA_FERME);
+    return this.findOneCompte(compteId, currentUser.hotelId);
   }
 
   /**

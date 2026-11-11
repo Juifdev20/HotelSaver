@@ -53,7 +53,7 @@ describe("SyncService", () => {
     reservationsService = { create: jest.fn(), update: jest.fn() };
     produitsService = { create: jest.fn(), update: jest.fn() };
     stockService = { create: jest.fn() };
-    cafeteriaService = { ouvrirCompte: jest.fn(), ajouterSousCompte: jest.fn(), ajouterLigne: jest.fn() };
+    cafeteriaService = { ouvrirCompte: jest.fn(), ajouterSousCompte: jest.fn(), ajouterLigne: jest.fn(), fermerCompte: jest.fn(), annulerCompte: jest.fn() };
     depensesService = { creer: jest.fn(), modifier: jest.fn() };
     facturesService = { create: jest.fn() };
     service = new SyncService(prisma, chambresService, reservationsService, produitsService, stockService, cafeteriaService, depensesService, facturesService, { update: jest.fn() } as any, { emettre: jest.fn() } as any);
@@ -124,6 +124,24 @@ describe("SyncService", () => {
         cafetaria,
         { horsLigne: true }
       );
+    });
+
+    it("ActionCompte FERMER (« terminer la table ») délègue à CafeteriaService.fermerCompte ; ANNULER à annulerCompte ; autre action refusée", async () => {
+      cafeteriaService.fermerCompte.mockResolvedValue({ id: "compte-1", syncVersion: 5 });
+      cafeteriaService.annulerCompte.mockResolvedValue({ id: "compte-1", syncVersion: 6 });
+      const { resultats } = await service.push(
+        {
+          operations: [
+            { entiteType: "ActionCompte", localId: "a1", operation: "CREATE", payload: { compteId: "compte-1", action: "FERMER" } },
+            { entiteType: "ActionCompte", localId: "a2", operation: "CREATE", payload: { compteId: "compte-2", action: "ANNULER", motif: "Erreur" } },
+            { entiteType: "ActionCompte", localId: "a3", operation: "CREATE", payload: { compteId: "compte-3", action: "SUPPRIMER" } },
+          ],
+        } as any,
+        cafetaria
+      );
+      expect(cafeteriaService.fermerCompte).toHaveBeenCalledWith("compte-1", cafetaria);
+      expect(cafeteriaService.annulerCompte).toHaveBeenCalledWith("compte-2", cafetaria, "Erreur");
+      expect(resultats.map((r: any) => r.statut)).toEqual(["SYNCED", "SYNCED", "ERROR"]);
     });
 
     it("refuse une LigneCommande sans compteId dans le payload", async () => {

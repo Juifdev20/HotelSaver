@@ -2,7 +2,7 @@
   "name": "@hotel-chicago/desktop",
   "private": true,
   "productName": "HotelSaver",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Application desktop HotelSaver (Electron) — Réception & administration",
   "main": "./out/main/index.js",
   "scripts": {
@@ -23,6 +23,7 @@
     "@hotel-chicago/ui": "workspace:*",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
+    "electron-updater": "^6.8.11",
     "lucide-react": "^1.47.0",
     "node-thermal-printer": "^4.6.1",
     "react": "^18.3.1",

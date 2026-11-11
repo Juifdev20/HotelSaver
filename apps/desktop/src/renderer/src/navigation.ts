@@ -6,7 +6,6 @@ export type IdPage =
   | "chambres"
   | "reservations"
   | "remboursements"
-  | "arrivees-departs"
   | "journal-journee"
   | "clients"
   | "facturation"
@@ -56,10 +55,10 @@ export const SECTIONS: SectionNavigation[] = [
     titre: "Réception",
     entrees: [
       { id: "chambres", libelle: "Chambres", libelleCourt: "Chambres", roles: RECEPTION, disponible: true },
-      { id: "reservations", libelle: "Réservations", libelleCourt: "Réserv.", roles: RECEPTION, disponible: true },
+      // « Séjours » (11/11/2026) remplace « Réservations » et « Arrivées et départs » : ce qu'il y a à faire aujourd'hui, et toutes les réservations.
+      { id: "reservations", libelle: "Séjours", libelleCourt: "Séjours", roles: RECEPTION, disponible: true },
       // Acomptes payés en ligne à rendre ou à garder : c'est l'argent du patron, lui seul décide (pastille « à faire » dans la barre).
       { id: "remboursements", libelle: "Remboursements", libelleCourt: "Rembours.", roles: [Role.PATRON], disponible: true },
-      { id: "arrivees-departs", libelle: "Arrivées et départs", libelleCourt: "Arrivées", roles: RECEPTION, disponible: true },
       { id: "journal-journee", libelle: "Journal de la journée", libelleCourt: "Journal", roles: RECEPTION, disponible: true },
       { id: "clients", libelle: "Clients", libelleCourt: "Clients", roles: RECEPTION, disponible: true },
       { id: "facturation", libelle: "Facturation", libelleCourt: "Factures", roles: RECEPTION, disponible: true },
@@ -68,8 +67,8 @@ export const SECTIONS: SectionNavigation[] = [
   {
     titre: "Cafétaria",
     entrees: [
-      { id: "caisse", libelle: "Caisse", libelleCourt: "Caisse", roles: CAFETARIA, disponible: true },
-      { id: "comptes-ouverts", libelle: "Comptes ouverts", libelleCourt: "Comptes", roles: CAFETARIA, disponible: true },
+      { id: "caisse", libelle: "Vente", libelleCourt: "Vente", roles: CAFETARIA, disponible: true },
+      { id: "comptes-ouverts", libelle: "En cours", libelleCourt: "En cours", roles: CAFETARIA, disponible: true },
       { id: "retrait-commande", libelle: "Retrait commande", libelleCourt: "Retrait", roles: CAFETARIA, disponible: true },
       { id: "cuisine", libelle: "Cuisine", libelleCourt: "Cuisine", roles: CAFETARIA, disponible: true },
       { id: "menu", libelle: "Menu", libelleCourt: "Menu", roles: CAFETARIA, disponible: true },

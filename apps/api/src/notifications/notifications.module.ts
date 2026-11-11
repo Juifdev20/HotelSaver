@@ -4,6 +4,7 @@ import { NotificationsController } from "./notifications.controller";
 import { DashboardService } from "../dashboard/dashboard.service";
 import { AlertesStockService } from "./alertes-stock.service";
 import { NotificationsSchedulerService } from "./notifications-scheduler.service";
+import { MisesAJourService } from "./mises-a-jour.service";
 import { NotificationsService } from "./notifications.service";
 import { PushService } from "./push.service";
 
@@ -15,7 +16,7 @@ import { PushService } from "./push.service";
 @Module({
   imports: [PrismaModule],
   controllers: [NotificationsController],
-  providers: [NotificationsService, PushService, NotificationsSchedulerService, DashboardService, AlertesStockService],
+  providers: [NotificationsService, PushService, NotificationsSchedulerService, DashboardService, AlertesStockService, MisesAJourService],
   exports: [NotificationsService, PushService, AlertesStockService],
 })
 export class NotificationsModule {}

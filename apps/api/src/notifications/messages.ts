@@ -116,7 +116,7 @@ export const messages = {
       type: "ARRIVEES_DU_JOUR",
       titre: "Aujourd'hui à l'hôtel",
       corps: `${parties.join(" et ")} aujourd'hui`,
-      lien: { ecran: "arrivees-departs" },
+      lien: { ecran: "reservations" },
     };
   },
 

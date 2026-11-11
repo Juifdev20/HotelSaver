@@ -40,6 +40,18 @@ export class NotificationsController {
     return { ok: true };
   }
 
+  // Diagnostic « pourquoi je ne reçois rien application fermée ? » (écran Plus › Diagnostic des notifications).
+  @Get("push/etat")
+  etatPush(@Query("jeton") jeton: string | undefined, @CurrentUser() utilisateur: UtilisateurAuthentifie) {
+    return this.notificationsService.etatPush(utilisateur, typeof jeton === "string" && jeton.length > 0 && jeton.length <= 4096 ? jeton : undefined);
+  }
+
+  @Post("push/test")
+  @HttpCode(200)
+  testerPush(@CurrentUser() utilisateur: UtilisateurAuthentifie) {
+    return this.notificationsService.testerPush(utilisateur);
+  }
+
   @Delete("appareils")
   async retirerAppareil(@Body() dto: RetirerAppareilDto, @CurrentUser() utilisateur: UtilisateurAuthentifie) {
     await this.notificationsService.retirerAppareil(utilisateur, dto.jeton);

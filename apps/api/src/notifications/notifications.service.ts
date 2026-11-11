@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { Prisma, PrismaClient, Role as RolePrisma } from "@hotel-chicago/database";
-import type { ListeNotifications, LienNotification, NotificationApp, Role, TypeNotification, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import type { EtatPushNotifications, ListeNotifications, LienNotification, NotificationApp, ResultatTestPush, Role, TypeNotification, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import type { MessageNotification } from "./messages";
 import { PushService } from "./push.service";
@@ -143,6 +143,74 @@ export class NotificationsService {
 
   async retirerAppareil(utilisateur: UtilisateurAuthentifie, jeton: string): Promise<void> {
     await this.prisma.appareilPush.deleteMany({ where: { jeton, hotelId: utilisateur.hotelId } });
+  }
+
+  /**
+   * Annonce une nouvelle version de l'application à TOUS les téléphones enregistrés (écran verrouillé compris). Une seule fois par version et par hôtel :
+   * la trace est une notification SANS rôle (donc jamais affichée dans la cloche) dont la clé `maj:<version>` est unique. Ne lève jamais.
+   */
+  async annoncerMiseAJour(version: string): Promise<{ hotels: number; appareils: number }> {
+    const resultat = { hotels: 0, appareils: 0 };
+    try {
+      const titre = "Nouvelle version de HotelSaver";
+      const corps = `La version ${version} est disponible. Touchez pour la télécharger : l'application se met à jour sans repasser par le site.`;
+      const lien: LienNotification = { ecran: "mise-a-jour", id: version };
+      const hotels = await this.prisma.hotel.findMany({ where: { statutLicence: { in: ["ESSAI", "ACTIF"] } }, select: { id: true } });
+      const jetons: string[] = [];
+      for (const hotel of hotels) {
+        try {
+          await this.prisma.notification.create({
+            data: { hotelId: hotel.id, type: "MISE_A_JOUR", titre, corps, roles: [], lien: lien as unknown as Prisma.InputJsonValue, cleDedup: `maj:${version}` },
+          });
+        } catch (erreur) {
+          if (erreur instanceof Prisma.PrismaClientKnownRequestError && erreur.code === "P2002") continue; // déjà annoncée à cet hôtel
+          throw erreur;
+        }
+        resultat.hotels += 1;
+        const appareils = await this.prisma.appareilPush.findMany({ where: { hotelId: hotel.id, actif: true, utilisateur: { actif: true } }, select: { jeton: true } });
+        jetons.push(...appareils.map((a) => a.jeton));
+      }
+      resultat.appareils = jetons.length;
+      if (jetons.length > 0) {
+        const { invalides } = await this.push.envoyer(jetons, { id: `maj-${version}`, type: "MISE_A_JOUR", titre, corps, lien });
+        if (invalides.length > 0) await this.prisma.appareilPush.deleteMany({ where: { jeton: { in: invalides } } });
+      }
+    } catch (erreur) {
+      this.logger.error(`Annonce de la version ${version} échouée : ${(erreur as Error).message}`);
+    }
+    return resultat;
+  }
+
+  /** Diagnostic : le serveur peut-il envoyer des push, combien de téléphones ai-je enregistrés, et CE téléphone (`jeton`) l'est-il ? */
+  async etatPush(utilisateur: UtilisateurAuthentifie, jeton?: string): Promise<EtatPushNotifications> {
+    const [appareils, cet] = await Promise.all([
+      this.prisma.appareilPush.count({ where: { hotelId: utilisateur.hotelId, utilisateurId: utilisateur.userId, actif: true } }),
+      jeton ? this.prisma.appareilPush.count({ where: { jeton, hotelId: utilisateur.hotelId, utilisateurId: utilisateur.userId, actif: true } }) : Promise.resolve(0),
+    ]);
+    return { serveurPret: this.push.estActif(), appareils, ...(jeton ? { cetAppareilEnregistre: cet > 0 } : {}) };
+  }
+
+  /** Envoie UNE notification de test à MES téléphones (pas aux autres) : prouve que la chaîne complète marche, application fermée comprise. */
+  async testerPush(utilisateur: UtilisateurAuthentifie): Promise<ResultatTestPush> {
+    const serveurPret = this.push.estActif();
+    const appareils = await this.prisma.appareilPush.findMany({
+      where: { hotelId: utilisateur.hotelId, utilisateurId: utilisateur.userId, actif: true },
+      select: { jeton: true },
+    });
+    if (!serveurPret) return { serveurPret, appareils: appareils.length, envoyes: 0, raison: "SERVEUR_NON_CONFIGURE" };
+    if (appareils.length === 0) return { serveurPret, appareils: 0, envoyes: 0, raison: "AUCUN_APPAREIL" };
+    const { envoyes, invalides } = await this.push.envoyer(
+      appareils.map((a) => a.jeton),
+      {
+        id: `test-${Date.now()}`,
+        type: "TEST_NOTIFICATION",
+        titre: "Test des notifications",
+        corps: "Si vous lisez ceci, les notifications arrivent bien, même écran verrouillé.",
+        lien: { ecran: "tableau-de-bord" },
+      }
+    );
+    if (invalides.length > 0) await this.prisma.appareilPush.deleteMany({ where: { jeton: { in: invalides } } });
+    return { serveurPret, appareils: appareils.length, envoyes, raison: envoyes > 0 ? null : "ENVOI_REFUSE" };
   }
 
   /** Ménage quotidien (03:00) : l'historique ne grossit pas indéfiniment, les jetons abandonnés disparaissent. */

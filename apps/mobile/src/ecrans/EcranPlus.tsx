@@ -26,9 +26,9 @@ import {
   HandCoins,
   Users,
   UtensilsCrossed,
-  Volume2,
-} from "lucide-react-native";
+  Volume2, Download, BellRing } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
+import { consommerRetourReglages, retourReglagesDemande } from "../theme/theme";
 import { LIBELLE_ROLE, fonctionManquante, sectionsPlusPourRole } from "../navigation";
 import { Role, peutOperer } from "@hotel-chicago/types";
 import type { CodeFonction } from "@hotel-chicago/types";
@@ -39,11 +39,14 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useRemboursementsAFaire } from "../hooks/useRemboursementsAFaire";
 import { FonctionNonIncluse } from "../composants/FonctionNonIncluse";
 import { EnteteMobile } from "../composants/EnteteMobile";
+import { EcranMiseAJour } from "./EcranMiseAJour";
+import { EcranDiagnosticNotifications } from "./EcranDiagnosticNotifications";
+import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { EcranParametresMobile } from "./EcranParametresMobile";
 import { EcranMenu } from "./EcranMenu";
 import { EcranStock } from "./EcranStock";
 import { EcranComptesOuverts } from "./EcranComptesOuverts";
-import { EcranCaisse } from "./EcranCaisse";
+import { EcranVente } from "./EcranVente";
 import { EcranCompteCafeteria } from "./EcranCompteCafeteria";
 import { EcranSynchronisation } from "./EcranSynchronisation";
 import { EcranImprimante } from "./EcranImprimante";
@@ -88,7 +91,6 @@ type VuePlus =
   | { id: "compte"; compteId: string; retour?: "comptes-ouverts" | "cuisine" | "retrait-commande"; venteRapide?: boolean }
   | { id: "utilisateurs" }
   | { id: "site-hotel" }
-  | { id: "arrivees-departs" }
   | { id: "planning" }
   | { id: "journal-journee" }
   | { id: "clients" }
@@ -97,14 +99,15 @@ type VuePlus =
   | { id: "rapports" }
   | { id: "depenses" }
   | { id: "inventaire" }
-  | { id: "cuisine" };
+  | { id: "cuisine" }
+  | { id: "mise-a-jour" }
+  | { id: "diagnostic-notifications" };
 
 const VUE_LISTE: VuePlus = { id: "liste" };
 
 /** Une icône par entrée de menu — même choix que `ICONES` de la coquille
  * desktop (layout/Coquille.tsx) pour que les deux apps parlent pareil. */
 const ICONES_MENU: Record<string, LucideIcon> = {
-  "arrivees-departs": ArrowLeftRight,
   planning: CalendarDays,
   "journal-journee": BookOpenCheck,
   clients: Users,
@@ -168,8 +171,14 @@ function LigneMenu({
  * principe que le swap d'écrans déjà utilisé au niveau de App.tsx. */
 export function EcranPlus() {
   const { client, utilisateur, changerDeProfil, seDeconnecter, rechargerProfil } = useSession();
-  const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
+  // Après un changement d'apparence (arbre remonté), on rouvre Paramètres là où la personne se trouvait.
+  const [vue, setVue] = useState<VuePlus>(() => (retourReglagesDemande() ? { id: "parametres" } : VUE_LISTE));
+  useEffect(() => {
+    consommerRetourReglages();
+  }, []);
   const etatSync = useSyncEtat();
+  const { etat: etatMiseAJour, possible: miseAJourPossible } = useMiseAJour();
+  const nouvelleVersion = etatMiseAJour === "disponible" || etatMiseAJour === "telechargement" || etatMiseAJour === "prete";
   const { demandePlus, consommerDemandePlus } = useNotifications();
   const alerteAbonnement = bandeauAbonnement(utilisateur.abonnement);
   const sections = sectionsPlusPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true, utilisateur.fonctions);
@@ -224,6 +233,12 @@ export function EcranPlus() {
   if (vue.id === "remboursements") {
     return <EcranRemboursements client={client} onRetour={() => setVue(VUE_LISTE)} onCompteur={remboursements.definir} />;
   }
+  if (vue.id === "diagnostic-notifications") {
+    return <EcranDiagnosticNotifications onRetour={() => setVue(VUE_LISTE)} />;
+  }
+  if (vue.id === "mise-a-jour") {
+    return <EcranMiseAJour onRetour={() => setVue(VUE_LISTE)} />;
+  }
   if (vue.id === "synchronisation") {
     return <EcranSynchronisation onRetour={() => setVue(VUE_LISTE)} />;
   }
@@ -248,12 +263,8 @@ export function EcranPlus() {
     );
   }
   if (vue.id === "caisse") {
-    return (
-      <EcranCaisse
-        onRetour={() => setVue(VUE_LISTE)}
-        onCompteOuvert={(compteId, options) => setVue({ id: "compte", compteId, venteRapide: options?.venteRapide })}
-      />
-    );
+    // Même écran « Vente » que l'onglet de la cafétaria (le patron y est en lecture seule sauf réglage de l'hôtel).
+    return <EcranVente onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "retrait-commande") {
     return (
@@ -279,9 +290,6 @@ export function EcranPlus() {
   }
   if (vue.id === "utilisateurs") {
     return <EcranUtilisateurs client={client} onRetour={() => setVue(VUE_LISTE)} />;
-  }
-  if (vue.id === "arrivees-departs") {
-    return <EcranReservations segmentInitial="aujourdhui" onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "planning") {
     return <EcranReservations segmentInitial="planning" onRetour={() => setVue(VUE_LISTE)} />;
@@ -381,7 +389,6 @@ export function EcranPlus() {
                       | "abonnement"
                       | "remboursements"
                       | "site-hotel"
-                      | "arrivees-departs"
                       | "planning"
                       | "journal-journee"
                       | "clients"
@@ -403,8 +410,24 @@ export function EcranPlus() {
           <Text style={styles.titreSection}>Appareil</Text>
           <LigneMenu icone={Settings} libelle="Paramètres" onPress={() => setVue({ id: "parametres" })} />
           <LigneMenu icone={Printer} libelle="Imprimante" onPress={() => setVue({ id: "imprimante" })} />
+          <LigneMenu icone={BellRing} libelle="Diagnostic des notifications" onPress={() => setVue({ id: "diagnostic-notifications" })} />
           <LigneMenu icone={Volume2} libelle="Sons et voix" onPress={() => setVue({ id: "sons" })} />
           <LigneMenu icone={BookOpen} libelle="Guide d'utilisation" onPress={() => setVue({ id: "guides" })} />
+          {miseAJourPossible && (
+            <LigneMenu
+              icone={Download}
+              libelle="Mise à jour"
+              libelleAccessible={nouvelleVersion ? "Mise à jour, une nouvelle version est disponible" : "Mise à jour, l'application est à jour"}
+              onPress={() => setVue({ id: "mise-a-jour" })}
+              badge={
+                nouvelleVersion ? (
+                  <View style={styles.badgeCompteur}>
+                    <Text style={styles.badgeCompteurTexte}>Nouvelle</Text>
+                  </View>
+                ) : undefined
+              }
+            />
+          )}
           <LigneMenu
             icone={RefreshCw}
             libelle="Synchronisation"

@@ -235,7 +235,7 @@ export default {
             { n: 2, titre: "Bienvenue", texte: "Votre nom, votre rôle (Patron) et le nom de l'hôtel.", ...pt("patron-10-accueil", "bonjour", 0.92, 0.5), cote: "g" },
             { n: 3, titre: "Hôtel, date et heure", texte: "Le nom de l'hôtel, la date du jour et l'heure.", ...pt("patron-10-accueil", "hero", 0.7, 0.5), cote: "d" },
             { n: 4, titre: "En dollars, en francs", texte: "L'argent encaissé aujourd'hui, dans chaque monnaie. Les deux ne sont jamais additionnés.", ...pt("patron-10-accueil", "dollars", 0.88, 0.12), cote: "g" },
-            { n: 5, titre: "Barre du bas", texte: "Accueil, Chambres, Réserv. et Plus : tout le reste se trouve dans « Plus ».", ...pt("patron-10-accueil", "barre", 0.62, 0.12), cote: "d" },
+            { n: 5, titre: "Barre du bas", texte: "Accueil, Chambres, Séjours et Plus : tout le reste se trouve dans « Plus ».", ...pt("patron-10-accueil", "barre", 0.62, 0.12), cote: "d" },
           ],
         }),
         annote({
@@ -259,7 +259,7 @@ export default {
               cartes: [
                 { icone: "graphique", titre: "Accueil", texte: "Chiffres du jour, occupation, stock bas." },
                 { icone: "lit", titre: "Chambres", texte: "La liste des chambres et leur état." },
-                { icone: "calendrier", titre: "Réserv.", texte: "Les réservations, le planning, les arrivées." },
+                { icone: "calendrier", titre: "Séjours", texte: "Les arrivées et départs du jour, les réservations, le planning." },
                 { icone: "menu", titre: "Plus", texte: "Toutes les autres rubriques, les réglages." },
               ],
               colonnes: 2,
@@ -268,7 +268,7 @@ export default {
               tableau: {
                 entetes: ["Section de « Plus »", "Ce qu'elle contient pour le patron"],
                 lignes: [
-                  ["Réception", "Remboursements, Arrivées et départs, Planning, Journal de la journée, Clients"],
+                  ["Réception", "Remboursements, Planning, Journal de la journée, Clients"],
                   ["Cafétaria", "Caisse*, Comptes ouverts, Retrait commande, Cuisine**, Menu, Stock, Inventaire"],
                   ["Reçus", "Journal des reçus, Rapports mensuels, Dépenses"],
                   ["Administration", "Site de l'hôtel, Utilisateurs, Taux de change"],
@@ -320,7 +320,7 @@ export default {
                   ["Acompte payé en ligne", "Un client a payé son acompte ; la réservation est confirmée.", "La réservation"],
                   ["Acompte à rembourser ?", "Une réservation payée en ligne est annulée : vous décidez.", "La réservation"],
                   ["Réservation annulée", "Une réservation est annulée.", "La réservation"],
-                  ["Aujourd'hui à l'hôtel", "Chaque matin : les arrivées et les départs du jour.", "Arrivées et départs"],
+                  ["Aujourd'hui à l'hôtel", "Chaque matin : les arrivées et les départs du jour.", "Séjours"],
                   ["Départ dépassé", "Un client devait partir et n'a pas libéré sa chambre.", "La réservation"],
                   ["Stock bas, Rupture de stock", "Un produit passe sous son seuil, ou il est épuisé.", "Stock"],
                   ["Reçu annulé, Compte cafétaria annulé", "Le personnel a annulé un paiement ou un compte.", "L'écran concerné"],
@@ -863,12 +863,12 @@ export default {
         etapes({
           surtitre: "Réservations",
           titre: "Lire et ouvrir une réservation",
-          chapo: "Onglet « Réserv. » : cinq vues en haut de l'écran pour trouver la bonne réservation.",
+          chapo: "Onglet « Séjours » : cinq vues en haut de l'écran pour trouver la bonne réservation.",
           etapes: [
             {
               titre: "Choisissez une vue, lisez la carte",
               texte: "« Aujourd'hui » (arrivées et départs du jour), « À venir », « En cours » (clients présents), « Historique » (terminés ou annulés), « Planning ». Chaque carte donne le client, l'état (En attente, Confirmée, En cours, Terminée, Annulée), la chambre, les dates et le prix par nuit.",
-              action: "Appuyez sur « Réserv. », puis sur une vue",
+              action: "Appuyez sur « Séjours », puis sur une vue",
               image: C + "patron-52-reservations.png",
               zone: zn("patron-52-reservations", ["segments"], { mx: 0.3, my: 0.16 }),
               reperes: rps(rp("patron-52-reservations", "segments", 1)),
@@ -893,14 +893,14 @@ export default {
             {
               titre: "Le planning",
               texte: "Une ligne par chambre, une colonne par jour. Une barre colorée est une réservation : appuyez dessus pour l'ouvrir. Une case vide permet de créer une réservation pré-remplie.",
-              action: "Appuyez sur « Réserv. », puis sur « Planning »",
+              action: "Appuyez sur « Séjours », puis sur « Planning »",
               image: C + "patron-53-planning.png",
               vue: [0.12, 0.52],
             },
             {
-              titre: "Arrivées et départs",
-              texte: "Dans « Plus », section « Réception ». Vous voyez les arrivées du jour, les départs du jour et les clients présents, avec leur chambre et leur date de départ.",
-              action: "Appuyez sur « Plus », puis sur « Arrivées et départs »",
+              titre: "Aujourd'hui : arrivées et départs",
+              texte: "Vous voyez les arrivées du jour, les départs du jour et les clients présents, avec leur chambre. Un gros bouton par séjour : Check-in, Confirmer la réservation ou Facturer et départ.",
+              action: "Appuyez sur « Séjours », puis sur « Aujourd'hui »",
               image: C + "patron-55-arrivees.png",
               vue: [0.08, 0.5],
             },
@@ -921,7 +921,7 @@ export default {
             {
               titre: "« Payé en ligne » dans la liste",
               texte: "Un repère vert apparaît sur la carte. Il devient « Payé en ligne · à rembourser ? » si la réservation est annulée, puis « remboursé » ou « conservé ». Sans internet, il n'apparaît pas, mais l'acompte reste affiché.",
-              action: "Regardez la liste « Réserv. »",
+              action: "Regardez la liste « Séjours »",
               image: C + "patron-52b-reservations-liste.png",
               vue: [0.05, 0.4],
             },

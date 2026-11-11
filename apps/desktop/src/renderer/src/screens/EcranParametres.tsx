@@ -12,6 +12,7 @@ import { IndicateurConnexion } from "../layout/IndicateurConnexion";
 import { lireTauxChange } from "@hotel-chicago/miroir-local";
 import { BlocSecurite, type PreferencesSecurite } from "./BlocSecurite";
 import { BlocPaiementEnLigne } from "./BlocPaiementEnLigne";
+import { CarteMiseAJour } from "../miseajour/CarteMiseAJour";
 import { ecouterExemple, ecrirePreferencesSons, preferencesSons } from "../sons";
 
 export interface EcranParametresProps {
@@ -204,6 +205,8 @@ export function EcranParametres({
       {/* ── CE POSTE ─────────────────────────────────────────── */}
       <div className="parametres-section">
         <h2 className="parametres-section__titre">Ce poste</h2>
+
+        <CarteMiseAJour />
 
         <div className="carte-formulaire">
           <p className="hc-text-label texte-discret">Apparence</p>

@@ -419,6 +419,10 @@ export class ClientHorsLigne extends ClientApi {
     return (await this.ecritures.annulerCompte(compteId, motif)) as unknown as CompteCafeteria;
   }
 
+  override async fermerCompteCafeteria(compteId: string): Promise<CompteCafeteria> {
+    return (await this.ecritures.fermerCompte(compteId)) as unknown as CompteCafeteria;
+  }
+
   override async encaisserCompte(compteId: string, donnees: Parameters<ClientApi["encaisserCompte"]>[1]): Promise<VenteCafeteria[]> {
     return (await this.ecritures.encaisserCompte(compteId, donnees as any)) as unknown as VenteCafeteria[];
   }

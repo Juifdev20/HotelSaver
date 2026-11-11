@@ -2,7 +2,11 @@ import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { FrontiereErreur } from "./src/composants/FrontiereErreur";
-import { NavigationContainer } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, NavigationContainer } from "@react-navigation/native";
+import { FournisseurMiseAJour } from "./src/miseAJour/ContexteMiseAJour";
+import { useApparence } from "./src/theme/ContexteApparence";
+import { appliquerSchema, estSombre, versionTheme as versionDuTheme } from "./src/theme/theme";
+import { couleurs } from "./src/tokens";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { ActivityIndicator, Image, Linking, StyleSheet, Text, View } from "react-native";
@@ -142,9 +146,20 @@ function RafraichisseurProfil() {
 }
 
 export default function App() {
+  // Thème : à chaque changement réel (Plus › Paramètres › Apparence, ou réglage du téléphone en mode Auto), l'arbre de navigation est remonté (`key`) pour relire tous les styles.
+  const { schema } = useApparence();
   const [configuration, setConfiguration] = useState<ConfigurationApp | null>(null);
   const [profils, setProfils] = useState<ProfilEnregistre[]>([]);
   const [ecran, setEcran] = useState<Ecran>("chargement");
+  // Connexion, inscription et choix du profil restent TOUJOURS en clair (leur fond illustré est clair) ; l'apparence choisie s'applique dès l'application ouverte.
+  const ecranAuthentification = ecran === "selection-profil" || ecran === "connexion" || ecran === "inscription";
+  appliquerSchema(ecranAuthentification ? "clair" : schema); // idempotent : la version n'augmente que si le schéma change réellement
+  const versionTheme = versionDuTheme();
+  const baseNavigation = estSombre() ? DarkTheme : DefaultTheme;
+  const themeNavigation = {
+    ...baseNavigation,
+    colors: { ...baseNavigation.colors, primary: couleurs.bleu, background: couleurs.surface100, card: couleurs.surface200, text: couleurs.encre, border: couleurs.bordure },
+  };
   /** Numéro (ou e-mail d'un ancien compte) à pré-remplir à l'écran de connexion. */
   const [identifiantPreRempli, setIdentifiantPreRempli] = useState<string | undefined>(undefined);
   const [messageConnexion, setMessageConnexion] = useState<string | null>(null);
@@ -727,18 +742,20 @@ export default function App() {
             if (serveur) setProfilFraisPour(frais.userId);
           } }}>
             <RafraichisseurProfil />
+            <FournisseurMiseAJour>
             {abonnementBloque ? (
               // Abonnement expiré : l'écran de renouvellement REMPLACE l'application (la base locale et la synchronisation restent actives,
               // rien n'est perdu). Il disparaît tout seul dès que le serveur confirme l'abonnement.
               <EcranAbonnementBloque onContinuer={apresRenouvellement} />
             ) : (
               <FournisseurNotifications client={client} role={utilisateur.role} fonctions={utilisateur.fonctions}>
-                <NavigationContainer ref={navigationRef}>
+                <NavigationContainer key={`navigation-${versionTheme}`} ref={navigationRef} theme={themeNavigation}>
                   <CoquilleOnglets />
                 </NavigationContainer>
-                <CentreNotifications />
+                <CentreNotifications key={`centre-${versionTheme}`} />
               </FournisseurNotifications>
             )}
+            </FournisseurMiseAJour>
           </FournisseurSession>
           </FrontiereErreur>
           <StatusBar style="light" />

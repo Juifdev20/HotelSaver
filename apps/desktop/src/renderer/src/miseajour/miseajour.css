@@ -1,0 +1,104 @@
+/* Mises à jour du bureau (11/11/2026). Couleurs : jetons --hc-* (clair et sombre). */
+.maj-carte__entete {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+}
+.maj-carte__icone {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.maj-carte__icone--ok {
+  background: var(--hc-success-light);
+  color: var(--hc-success);
+}
+.maj-carte__icone--nouvelle {
+  background: var(--hc-warning-light);
+  color: var(--hc-warning);
+}
+.maj-carte__notes {
+  white-space: pre-line;
+  margin: 0;
+  padding-top: var(--hc-space-3);
+  border-top: 1px solid var(--hc-border);
+}
+.maj-progres {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--hc-border);
+  overflow: hidden;
+}
+.maj-progres__barre {
+  height: 100%;
+  background: var(--hc-blue);
+  transition: width 0.3s ease;
+}
+.maj-actions {
+  display: flex;
+  gap: var(--hc-space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.maj-bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 var(--hc-space-4);
+  border-radius: var(--hc-radius-md);
+  border: none;
+  background: var(--hc-blue);
+  color: var(--hc-on-accent);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.maj-bouton:disabled {
+  background: var(--hc-border);
+  color: var(--hc-ink-muted);
+  cursor: not-allowed;
+}
+.maj-bouton--lien {
+  background: transparent;
+  color: var(--hc-blue);
+  border: 1px solid var(--hc-border);
+}
+.maj-bouton:focus-visible {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+.bandeau-maj {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  flex-wrap: wrap;
+  padding: var(--hc-space-2) var(--hc-space-4);
+  background: var(--hc-blue);
+  color: var(--hc-on-accent);
+}
+.bandeau-maj__texte {
+  flex: 1;
+  min-width: 240px;
+  font-weight: 600;
+}
+.bandeau-maj button {
+  min-height: 36px;
+  padding: 0 var(--hc-space-3);
+  border-radius: var(--hc-radius-sm);
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.bandeau-maj button:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}

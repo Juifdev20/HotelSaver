@@ -1,0 +1,493 @@
+/* Séjours (11/11/2026) : Aujourd'hui, enregistrement en 4 blocs. Couleurs : jetons --hc-* (clair et sombre). */
+.sejours-entete-actions {
+  display: flex;
+  gap: var(--hc-space-2);
+  flex-wrap: wrap;
+}
+.sejours-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--hc-space-3);
+}
+.sejours-kpi {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-3) var(--hc-space-4);
+  background: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+}
+.sejours-kpi__icone {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.sejours-kpi__valeur {
+  display: block;
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.sejours-kpi__libelle {
+  display: block;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.sejours-kpi__aide {
+  display: block;
+  color: var(--hc-ink-muted);
+  font-size: 0.8rem;
+}
+.sejours-onglets {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  border-bottom: 1px solid var(--hc-border);
+  flex-wrap: wrap;
+}
+.sejours-onglets__liste {
+  display: flex;
+  gap: var(--hc-space-1);
+  flex: 1;
+  flex-wrap: wrap;
+}
+.sejours-onglet {
+  min-height: 44px;
+  padding: 0 var(--hc-space-4);
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  color: var(--hc-ink-muted);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+.sejours-onglet[aria-selected="true"] {
+  color: var(--hc-blue);
+  border-bottom-color: var(--hc-blue);
+  font-weight: 800;
+}
+.sejours-groupe {
+  background: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  overflow: hidden;
+}
+.sejours-groupe__titre {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  margin: 0;
+  padding: var(--hc-space-3) var(--hc-space-4);
+  font-size: 1rem;
+  border-bottom: 1px solid var(--hc-border);
+}
+.sejours-groupe__nombre {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 12px;
+  background: var(--hc-surface-100);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+}
+.sejours-groupe__vide {
+  margin: 0;
+  padding: var(--hc-space-4);
+  color: var(--hc-ink-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+}
+.sejour-ligne {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.4fr) minmax(120px, 0.8fr) minmax(170px, 1fr) minmax(110px, 0.7fr) auto minmax(190px, auto);
+  align-items: center;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-3) var(--hc-space-4);
+  border-top: 1px solid var(--hc-border);
+}
+.sejour-ligne:first-of-type {
+  border-top: none;
+}
+.sejour-ligne__qui {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  min-width: 0;
+}
+.sejour-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--hc-blue-light);
+  color: var(--hc-blue);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.sejour-ligne__nom {
+  display: block;
+  font-weight: 700;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--hc-ink);
+  cursor: pointer;
+  text-align: left;
+}
+.sejour-ligne__nom:hover {
+  text-decoration: underline;
+}
+.sejour-ligne__sous {
+  display: block;
+  color: var(--hc-ink-muted);
+  font-size: 0.85rem;
+}
+.sejour-ligne__chambre {
+  font-weight: 700;
+}
+.sejour-ligne__alerte {
+  display: block;
+  color: var(--hc-danger);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+.sejour-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 var(--hc-space-4);
+  border-radius: var(--hc-radius-md);
+  border: 1.5px solid var(--hc-blue);
+  background: var(--hc-surface-200);
+  color: var(--hc-blue);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sejour-action--plein {
+  background: var(--hc-blue);
+  color: var(--hc-on-accent);
+}
+.sejour-action:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.sejours-info {
+  margin: 0;
+  padding: var(--hc-space-3) var(--hc-space-4);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-success-light);
+  color: var(--hc-success);
+  font-weight: 600;
+}
+
+/* Enregistrement : 4 blocs numérotés + récapitulatif toujours visible. */
+.arrivee-bascule {
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-surface-200);
+}
+.arrivee-bascule button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 var(--hc-space-4);
+  border: none;
+  border-radius: var(--hc-radius-sm);
+  background: transparent;
+  color: var(--hc-ink-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.arrivee-bascule button[aria-pressed="true"] {
+  background: var(--hc-blue);
+  color: var(--hc-on-accent);
+}
+.arrivee-bloc__titre {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  margin: 0 0 var(--hc-space-3);
+  font-size: 1.05rem;
+}
+.arrivee-bloc__numero {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hc-blue);
+  color: var(--hc-on-accent);
+  font-weight: 800;
+  font-size: 0.95rem;
+  flex: none;
+}
+.arrivee-bloc__numero--fait {
+  background: var(--hc-success);
+}
+.arrivee-bloc__aide {
+  font-weight: 400;
+  color: var(--hc-ink-muted);
+  font-size: 0.9rem;
+}
+.arrivee-nuits {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.arrivee-nuits button {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--hc-radius-sm);
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-100);
+  color: var(--hc-ink);
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.arrivee-nuits button:last-child {
+  background: var(--hc-blue);
+  border-color: var(--hc-blue);
+  color: var(--hc-on-accent);
+}
+.arrivee-nuits strong {
+  min-width: 32px;
+  text-align: center;
+  font-size: 1.1rem;
+}
+.arrivee-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2);
+  margin-bottom: var(--hc-space-3);
+}
+.arrivee-grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--hc-space-3);
+}
+.arrivee-chambre {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 108px;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--hc-surface-200);
+  border: 2px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  color: var(--hc-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.arrivee-chambre[aria-checked="true"] {
+  border-color: var(--hc-blue);
+  background: var(--hc-blue-light);
+}
+.arrivee-chambre:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--hc-surface-100);
+}
+.arrivee-chambre__numero {
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.arrivee-chambre:disabled .arrivee-chambre__numero {
+  text-decoration: line-through;
+}
+.arrivee-chambre__type {
+  color: var(--hc-ink-muted);
+  font-size: 0.85rem;
+}
+.arrivee-chambre__motif {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--hc-danger);
+}
+.arrivee-chambre__motif--nettoyage {
+  color: var(--hc-purple);
+}
+.arrivee-chambre__prix {
+  margin-top: auto;
+  font-weight: 800;
+}
+.arrivee-chambre__coche {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--hc-blue);
+  color: var(--hc-on-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.arrivee-acompte {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2);
+}
+.arrivee-acompte__choix {
+  min-height: 42px;
+  padding: 0 var(--hc-space-4);
+  border-radius: var(--hc-radius-sm);
+  border: 1.5px solid var(--hc-border);
+  background: var(--hc-surface-100);
+  color: var(--hc-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.arrivee-acompte__choix[aria-pressed="true"] {
+  background: var(--hc-blue);
+  border-color: var(--hc-blue);
+  color: var(--hc-on-accent);
+}
+.arrivee-recap {
+  padding: var(--hc-space-4);
+}
+.arrivee-recap h2 {
+  margin: 0 0 var(--hc-space-3);
+}
+.arrivee-recap__client {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  padding-bottom: var(--hc-space-3);
+  border-bottom: 1px solid var(--hc-border);
+  margin-bottom: var(--hc-space-3);
+}
+.arrivee-recap__ligne {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--hc-space-3);
+  padding: 4px 0;
+}
+.arrivee-recap__ligne span:first-child {
+  color: var(--hc-ink-muted);
+}
+.arrivee-recap__total {
+  font-size: 1.1rem;
+  font-weight: 800;
+  border-top: 1px solid var(--hc-border);
+  margin-top: var(--hc-space-2);
+  padding-top: var(--hc-space-3);
+}
+.arrivee-recap__total span:first-child {
+  color: var(--hc-ink);
+}
+.arrivee-recap__reste {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--hc-space-3);
+  padding: var(--hc-space-3);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-warning-light);
+  color: var(--hc-warning);
+  font-weight: 800;
+}
+.arrivee-recap__bouton {
+  width: 100%;
+  min-height: 52px;
+  margin-top: var(--hc-space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-blue);
+  color: var(--hc-on-accent);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.arrivee-recap__bouton--final {
+  background: var(--hc-success);
+  color: #fff;
+}
+.arrivee-recap__bouton:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.arrivee-recap__note {
+  margin: var(--hc-space-3) 0 0;
+  text-align: center;
+  color: var(--hc-ink-muted);
+  font-size: 0.85rem;
+}
+.sejours-onglet:focus-visible,
+.sejour-action:focus-visible,
+.arrivee-chambre:focus-visible,
+.arrivee-bascule button:focus-visible,
+.arrivee-acompte__choix:focus-visible,
+.arrivee-nuits button:focus-visible,
+.arrivee-recap__bouton:focus-visible {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1199px) {
+  .sejours-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sejour-ligne {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .sejour-ligne__chambre-col,
+  .sejour-ligne__dates,
+  .sejour-ligne__acompte,
+  .sejour-ligne__statut {
+    grid-column: 1;
+  }
+  .sejour-ligne__action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+@media (max-width: 599px) {
+  .sejours-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.reservation-colonnes textarea {
+  font: inherit;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-sm);
+  background: var(--hc-surface-100);
+  color: var(--hc-ink);
+  resize: vertical;
+}

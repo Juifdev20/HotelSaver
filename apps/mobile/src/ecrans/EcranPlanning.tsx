@@ -2,11 +2,12 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Chambre, Reservation, StatutReservation } from "@hotel-chicago/types";
-import { couleurs, espacements, rayons } from "../tokens";
+import { couleurs, espacements, rayons, fonds } from "../tokens";
 import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { ajouterJours, dateComplete, debutJournee, jourDeIso, jourDeLaSemaine, jourDuMois, jourLubumbashi, midiLubumbashi } from "../dates";
 import { messageErreur } from "../messagesErreur";
+import { parTheme } from "../theme/theme";
 
 export interface EcranPlanningProps {
   /** Cellule vide : nouvelle réservation pré-remplie (chambre + date d'arrivée). */
@@ -18,13 +19,13 @@ export interface EcranPlanningProps {
 const NB_JOURS = 7;
 const LARGEUR_JOUR = 44;
 
-const COULEUR_STATUT: Record<StatutReservation, string> = {
-  EN_ATTENTE: couleurs.alerte,
-  CONFIRMEE: couleurs.bleu,
-  EN_COURS: couleurs.succes,
-  TERMINEE: couleurs.encreFaible,
-  ANNULEE: couleurs.danger,
-};
+const COULEUR_STATUT: Record<StatutReservation, string> = parTheme(() => ({
+  EN_ATTENTE: fonds.alerte,
+  CONFIRMEE: fonds.bleu,
+  EN_COURS: fonds.succes,
+  TERMINEE: fonds.encreFaible,
+  ANNULEE: fonds.danger,
+}));
 
 const STATUTS_VISIBLES = new Set<StatutReservation>(["EN_ATTENTE", "CONFIRMEE", "EN_COURS"]);
 

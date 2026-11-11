@@ -165,16 +165,14 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
   it("réception sans connexion par l'interface : arrivée express puis facture avec reçu provisoire TEMP-, remplacé par le vrai reçu au retour du réseau", async () => {
     const menu = page.getByRole("complementary", { name: "Navigation principale" });
     reseauCoupe = true;
-    await menu.getByRole("button", { name: /Réservations/ }).click();
-    await page.getByRole("button", { name: "Nouvelle réservation" }).click();
-    const dans20Jours = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
-    await page.locator("#arrivee").fill(dans20Jours);
-    await page.locator("#nuits").fill("2");
-    await page.locator('select[aria-label="Chambre"]').selectOption({ label: (await page.locator('select[aria-label="Chambre"] option', { hasText: "102" }).first().innerText()).trim() });
+    await menu.getByRole("button", { name: /Séjours/ }).click();
+    // « Enregistrer une arrivée » (11/11/2026) : le client est là maintenant, la date est celle d'aujourd'hui.
+    await page.getByRole("button", { name: "Enregistrer une arrivée" }).click();
+    await page.getByRole("button", { name: "Une nuit de plus" }).click();
+    await page.getByRole("radio", { name: /^Chambre 102/ }).click();
     await page.locator("#nom").fill("Paul Hors-ligne");
     await page.locator("#tel").fill("+243810000777");
-    await page.getByLabel(/check-in immédiat/).check();
-    await page.getByRole("button", { name: "Créer et enregistrer l'arrivée" }).click();
+    await page.getByRole("button", { name: "Enregistrer l'arrivée" }).click();
 
     // Fiche de la réservation (identifiant LOCAL pour l'instant) : on facture depuis là.
     await expect_(page.getByRole("button", { name: "Facturer et check-out" })).toBeVisible();

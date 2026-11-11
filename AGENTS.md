@@ -61,6 +61,12 @@ section pour toute décision non triviale).
   l'APK et l'exe, puis release GitHub `vX.Y.Z` (cochée « Latest ») avec les fichiers versionnés ET deux copies au nom fixe
   `HotelSaver.apk` et `HotelSaver-Setup.exe` : le site pointe sur `releases/latest/download/<nom fixe>` (`render.yaml`,
   `apps/web/src/config.ts`) — rien à redéployer côté site.
+  **Mises à jour intégrées (11/11/2026)** : les applications installées lisent cette même release pour se mettre à jour toutes seules. Pour qu'elles la voient :
+  tag `vX.Y.Z` (version lisible, release publiée — ni brouillon ni pré-version) ; joindre **`HotelSaver-X.Y.Z.apk`** (la copie `HotelSaver.apk` ne sert que de secours) ;
+  et, pour le bureau, **`HotelSaver-Setup-X.Y.Z.exe` + son `.blockmap` + `latest.yml`** (écrits dans `apps/desktop/release/` par `empaqueter`, qui s'arrête s'il manque `latest.yml`).
+  Sans `latest.yml`, le bureau ne voit jamais la nouvelle version. Le serveur annonce chaque nouvelle release par notification aux téléphones (toutes les 30 min, production seulement ;
+  la release doit avoir moins de 14 jours et son APK). Android demande toujours un dernier « Installer » à l'écran ; l'APK doit être signé par la MÊME clé (`apps/mobile/signature/`),
+  sinon Android refuse la mise à jour. La première version qui contient cette fonction (1.0.11) s'installe encore à la main ; les suivantes se mettent à jour d'elles-mêmes.
 - **Guide d'utilisation (PDF)** : fabriqué dans `docs/guide` (voir son README : captures de l'application MOBILE, `node docs/guide/construire.mjs`
   et `--role patron|reception|cafetaria`), puis déposé dans le super-admin (onglet « Guides », une version par dépôt). Les PDF restent privés
   (bucket `guides`) ; les comptes les ouvrent après connexion, selon leur rôle, par un lien de 5 minutes (site `/guide`, mobile, bureau).

@@ -305,7 +305,7 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await seConnecter(D.auth.patron);
     await expect_(menu()).toBeVisible(30_000);
     await expect_(menu().getByRole("button", { name: "Chambres", exact: true })).toBeVisible();
-    await expect_(menu().getByRole("button", { name: "Réservations", exact: true })).toBeVisible();
+    await expect_(menu().getByRole("button", { name: "Séjours", exact: true })).toBeVisible();
     for (const nom of ["Caisse", "Comptes ouverts", "Retrait commande", "Cuisine", "Menu", "Stock", "Inventaire", "Site de l'hôtel"]) {
       await expect_(menu().getByRole("button", { name: nom, exact: true })).toHaveCount(0);
     }
@@ -373,7 +373,7 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(page.getByTestId("pastille-remboursements")).toContainText("1", 30_000);
 
     // La réception et le patron voient d'un coup d'œil, dans la liste des réservations, que cet acompte a été payé en ligne (et qu'il attend une décision).
-    await menu().getByRole("button", { name: "Réservations", exact: true }).click();
+    await menu().getByRole("button", { name: "Séjours", exact: true }).click();
     await expect_(page.getByTestId("badge-paye-en-ligne")).toContainText("Payé en ligne · à rembourser ?", 30_000);
     // Demande en attente sur une chambre DÉJÀ réservée par un autre client : signalée en rouge dans la liste (une seule, celle de la chambre 777).
     await expect_(page.getByTestId("badge-chambre-deja-prise")).toContainText("Chambre déjà réservée");
@@ -412,7 +412,7 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(page.getByTestId("pastille-remboursements")).toHaveCount(0);
 
     // Une fois remboursé, la liste des réservations le dit aussi.
-    await menu().getByRole("button", { name: "Réservations", exact: true }).click();
+    await menu().getByRole("button", { name: "Séjours", exact: true }).click();
     await expect_(page.getByTestId("badge-paye-en-ligne")).toContainText("Payé en ligne · remboursé", 30_000);
     await menu().getByRole("button", { name: "Remboursements", exact: true }).click();
     await page.getByRole("tab", { name: "Historique" }).click();

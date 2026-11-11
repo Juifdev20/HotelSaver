@@ -160,6 +160,64 @@ describe("NotificationsService — appareils (téléphone partagé)", () => {
   });
 });
 
+describe("NotificationsService — diagnostic push", () => {
+  it("dit si le serveur est prêt, combien de téléphones sont à moi et si CE téléphone est enregistré (jamais ceux des autres)", async () => {
+    const { service, prisma, push } = creer();
+    push.estActif = jest.fn().mockReturnValue(true);
+    prisma.appareilPush.count = jest.fn().mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+    const etat = await service.etatPush(PATRON, "jeton-1");
+    expect(etat).toEqual({ serveurPret: true, appareils: 2, cetAppareilEnregistre: true });
+    expect(prisma.appareilPush.count).toHaveBeenNthCalledWith(1, { where: { hotelId: "hotel-A", utilisateurId: "u-patron", actif: true } });
+    expect(prisma.appareilPush.count).toHaveBeenNthCalledWith(2, { where: { jeton: "jeton-1", hotelId: "hotel-A", utilisateurId: "u-patron", actif: true } });
+  });
+
+  it("test : serveur sans clé Firebase → rien n'est envoyé, et la raison est dite", async () => {
+    const { service, push } = creer();
+    push.estActif = jest.fn().mockReturnValue(false);
+    expect(await service.testerPush(PATRON)).toMatchObject({ serveurPret: false, envoyes: 0, raison: "SERVEUR_NON_CONFIGURE" });
+    expect(push.envoyer).not.toHaveBeenCalled();
+  });
+
+  it("test : aucun téléphone enregistré → raison AUCUN_APPAREIL", async () => {
+    const { service, prisma, push } = creer();
+    push.estActif = jest.fn().mockReturnValue(true);
+    prisma.appareilPush.findMany.mockResolvedValue([]);
+    expect(await service.testerPush(PATRON)).toMatchObject({ appareils: 0, envoyes: 0, raison: "AUCUN_APPAREIL" });
+  });
+
+  it("test : envoie à MES téléphones seulement et retire les jetons morts", async () => {
+    const { service, prisma, push } = creer();
+    push.estActif = jest.fn().mockReturnValue(true);
+    push.envoyer.mockResolvedValue({ envoyes: 1, invalides: ["jeton-2"] });
+    const r = await service.testerPush(CAFETARIA);
+    expect(prisma.appareilPush.findMany).toHaveBeenCalledWith({ where: { hotelId: "hotel-A", utilisateurId: "u-caf", actif: true }, select: { jeton: true } });
+    expect(push.envoyer).toHaveBeenCalledWith(["jeton-1", "jeton-2"], expect.objectContaining({ type: "TEST_NOTIFICATION" }));
+    expect(prisma.appareilPush.deleteMany).toHaveBeenCalledWith({ where: { jeton: { in: ["jeton-2"] } } });
+    expect(r).toMatchObject({ envoyes: 1, raison: null });
+  });
+});
+
+describe("NotificationsService.annoncerMiseAJour", () => {
+  it("annonce une fois par hôtel : trace sans rôle (jamais dans la cloche), clé unique, push à tous les téléphones", async () => {
+    const { service, prisma, push } = creer();
+    prisma.hotel = { findMany: jest.fn().mockResolvedValue([{ id: "hotel-A" }, { id: "hotel-B" }]) };
+    prisma.appareilPush.findMany.mockResolvedValueOnce([{ jeton: "a1" }]).mockResolvedValueOnce([{ jeton: "b1" }, { jeton: "b2" }]);
+    const r = await service.annoncerMiseAJour("1.0.11");
+    expect(prisma.notification.create).toHaveBeenCalledTimes(2);
+    expect(prisma.notification.create.mock.calls[0][0].data).toMatchObject({ hotelId: "hotel-A", type: "MISE_A_JOUR", roles: [], cleDedup: "maj:1.0.11", lien: { ecran: "mise-a-jour", id: "1.0.11" } });
+    expect(push.envoyer).toHaveBeenCalledWith(["a1", "b1", "b2"], expect.objectContaining({ id: "maj-1.0.11", type: "MISE_A_JOUR" }));
+    expect(r).toEqual({ hotels: 2, appareils: 3 });
+  });
+
+  it("un hôtel déjà prévenu (clé en double) est sauté : pas de second push", async () => {
+    const { service, prisma, push } = creer();
+    prisma.hotel = { findMany: jest.fn().mockResolvedValue([{ id: "hotel-A" }]) };
+    prisma.notification.create.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("doublon", { code: "P2002", clientVersion: "x" }));
+    expect(await service.annoncerMiseAJour("1.0.11")).toEqual({ hotels: 0, appareils: 0 });
+    expect(push.envoyer).not.toHaveBeenCalled();
+  });
+});
+
 describe("messages — textes en français", () => {
   it("demande de réservation : nom du client, chambre et dates", () => {
     const m = messages.demandeReservation({ client: "Jean Mukendi", chambre: "102", arrivee: new Date("2026-10-12T12:00:00Z"), depart: new Date("2026-10-14T12:00:00Z"), reservationId: "r-1" });

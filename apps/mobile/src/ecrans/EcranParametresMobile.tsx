@@ -14,6 +14,7 @@ import { messageErreur } from "../messagesErreur";
 import { BlocSecuriteMobile } from "../composants/BlocSecuriteMobile";
 import { useSession } from "../contexteSession";
 import { URL_SUPPRESSION_COMPTE, ouvrirLienSur } from "../liens";
+import { CarteApparence } from "../composants/CarteApparence";
 
 export interface EcranParametresMobileProps {
   client: ClientApi;
@@ -115,6 +116,9 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
       <EnteteRetour titre="Paramètres" onRetour={onRetour} />
 
       <ConteneurFormulaire>
+          {/* Apparence : tout en haut, propre à cet appareil (Auto par défaut). */}
+          <CarteApparence />
+
           {/* Abonnement : visible par tous (l'état concerne toute l'équipe) ; le paiement, lui, est réservé au patron dans l'écran qui s'ouvre. */}
           {onOuvrirAbonnement && (
             <View style={[styles.carte, styles.carteAbonnement]}>

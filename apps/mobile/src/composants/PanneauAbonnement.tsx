@@ -27,6 +27,7 @@ import { confirmerAction } from "../confirmer";
 import { messageErreur } from "../messagesErreur";
 import { BlocAide, choisirContactSupport, memoriserContactSupport } from "./AideSupport";
 import { LogoOperateur, LogosMobileMoney } from "./LogosPaiement";
+import { parTheme } from "../theme/theme";
 
 type ClientAbonnement = Pick<ClientApi, "abonnement" | "payerAbonnement" | "paiementAbonnement" | "apercuAbonnement">;
 type Devise = "USD" | "CDF";
@@ -44,18 +45,18 @@ export interface PanneauAbonnementProps {
   onContinuer: () => Promise<void> | void;
 }
 
-const NIVEAUX: Record<NiveauAbonnement, { fond: string; texte: string }> = {
+const NIVEAUX: Record<NiveauAbonnement, { fond: string; texte: string }> = parTheme(() => ({
   ok: { fond: couleurs.succesClair, texte: couleurs.succes },
   attention: { fond: couleurs.alerteClair, texte: couleurs.alerte },
   danger: { fond: couleurs.dangerClair, texte: couleurs.danger },
-};
+}));
 
-const STATUTS_PAIEMENT: Record<PaiementAbonnementVue["statut"], { libelle: string; fond: string; texte: string }> = {
+const STATUTS_PAIEMENT: Record<PaiementAbonnementVue["statut"], { libelle: string; fond: string; texte: string }> = parTheme(() => ({
   REUSSI: { libelle: "Payé", fond: couleurs.succesClair, texte: couleurs.succes },
   EN_ATTENTE: { libelle: "En attente", fond: couleurs.alerteClair, texte: couleurs.alerte },
   ECHEC: { libelle: "Échoué", fond: couleurs.dangerClair, texte: couleurs.danger },
   EXPIRE: { libelle: "Expiré", fond: couleurs.surface100, texte: couleurs.encre },
-};
+}));
 
 const CONSEILS_ATTENTE = [
   "Vérifiez que vous avez assez d'argent sur votre compte Mobile Money.",

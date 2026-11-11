@@ -11,6 +11,7 @@ import {
   messagePlafondEssai,
   MESSAGE_COMPTE_ANNULE,
   raisonRefusAnnulationCompte,
+  raisonRefusFermetureCompte,
   raisonRefusMouvementStock,
   ErreurRegle,
   numeroRecuProvisoire,
@@ -484,6 +485,20 @@ export class Ecritures {
     return this.v.compte(annule);
   }
 
+  /** « Terminer la table » (11/11/2026) : mêmes règles et messages que le serveur (raisonRefusFermetureCompte). Le compte passe FERME, en une action locale. */
+  async fermerCompte(compteId: string) {
+    const u = this.ctx.utilisateur();
+    exigerRole(u, "CAFETARIA", "PATRON");
+    exigerOperationnel(u);
+    const compte = this.s.obtenir("CompteCafeteria", compteId);
+    if (!compte) throw erreur(404, `Aucun compte cafétaria trouvé avec l'identifiant ${compteId}.`);
+    const refus = raisonRefusFermetureCompte({ statut: compte.statut, sousComptes: this.v.sousComptes(compte.id) });
+    if (refus) throw erreur(409, refus);
+    const ferme = this.touche("CompteCafeteria", { ...compte, statut: "FERME", fermeLe: iso(this.ctx.maintenant()) });
+    await this.agir([this.ecrire("CompteCafeteria", ferme)], { entiteType: "ActionCompte", localId: uuid(), operation: "CREATE", payload: { compteId: compte.id, action: "FERMER" }, touche: [{ entiteType: "CompteCafeteria", id: compte.id }] });
+    return this.v.compte(ferme);
+  }
+
   async majStatutLigne(ligneId: string, statut: "EN_PREPARATION" | "PRET" | "SERVI") {
     const u = this.ctx.utilisateur();
     exigerRole(u, "CAFETARIA", "PATRON");
@@ -497,7 +512,7 @@ export class Ecritures {
     return this.v.ligneAvecProduit(maj);
   }
 
-  async encaisserCompte(compteId: string, d: { mode: string; modePaiement: string; sousCompteId?: string; nombrePersonnes?: number; reservationLieeId?: string; deviseRegleeParClient?: string; montantRegleParClient?: number; deviseRenduChoisie?: string }) {
+  async encaisserCompte(compteId: string, d: { mode: string; modePaiement: string; sousCompteId?: string; nombrePersonnes?: number; reservationLieeId?: string; deviseRegleeParClient?: string; montantRegleParClient?: number; deviseRenduChoisie?: string; gardeOuvert?: boolean }) {
     const u = this.ctx.utilisateur();
     exigerRole(u, "CAFETARIA", "PATRON");
     exigerOperationnel(u);
@@ -574,13 +589,14 @@ export class Ecritures {
     }
     const ids = new Set(reglees.map((sc) => sc.id));
     const resteADevoir = restants.some((sc) => sc.lignes.length > 0 && !ids.has(sc.id));
-    if (!resteADevoir) ecritures.push(this.ecrire("CompteCafeteria", this.touche("CompteCafeteria", { ...compte, statut: "FERME", fermeLe: maintenant })));
+    // « Il paie et il reste » (gardeOuvert) : la part est réglée, la table reste ouverte pour la suite.
+    if (!resteADevoir && !d.gardeOuvert) ecritures.push(this.ecrire("CompteCafeteria", this.touche("CompteCafeteria", { ...compte, statut: "FERME", fermeLe: maintenant })));
 
     await this.agir(ecritures, {
       entiteType: "VenteCafeteria", localId: ventes[0].id, operation: "CREATE", touche,
       payload: {
         compteId: compte.id, mode: d.mode, modePaiement: d.modePaiement, sousCompteId: d.sousCompteId, nombrePersonnes: d.nombrePersonnes, reservationLieeId: d.reservationLieeId,
-        deviseRegleeParClient: d.deviseRegleeParClient, montantRegleParClient: d.montantRegleParClient, deviseRenduChoisie: d.deviseRenduChoisie,
+        deviseRegleeParClient: d.deviseRegleeParClient, montantRegleParClient: d.montantRegleParClient, deviseRenduChoisie: d.deviseRenduChoisie, gardeOuvert: d.gardeOuvert,
         ventesLocalIds: ventes.map((x) => x.id), numerosProvisoires: numeros,
       },
     });

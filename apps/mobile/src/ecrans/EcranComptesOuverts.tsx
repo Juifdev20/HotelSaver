@@ -13,7 +13,7 @@ import { useSession } from "../contexteSession";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 
 export interface EcranComptesOuvertsProps {
-  onOuvrirCompte: (compteId: string) => void;
+  onOuvrirCompte: (compteId: string, compte?: CompteCafeteria) => void;
   onRetour: () => void;
 }
 
@@ -103,7 +103,7 @@ export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOu
           return (
             <Pressable
               style={styles.carte}
-              onPress={() => onOuvrirCompte(item.id)}
+              onPress={() => onOuvrirCompte(item.id, item)}
               accessibilityRole="button"
               accessibilityLabel={`${item.tableOuNom}, ${nombrePersonnes} personne${nombrePersonnes > 1 ? "s" : ""}, ${
                 [total.usd > 0 ? formatMontant(total.usd, Devise.USD) : null, total.cdf > 0 ? formatMontant(total.cdf, Devise.CDF) : null]

@@ -1,0 +1,742 @@
+/* Nouvelle vente de la cafétéria (11/11/2026) — produits à gauche, ticket à droite ; sous 1180 px le ticket devient un volet. Couleurs : jetons --hc-* (clair et sombre). */
+
+.vente {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 392px;
+  gap: var(--hc-space-5);
+  align-items: start;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+.vente--etroit {
+  display: block;
+}
+/* Place pour la barre résumé collée en bas : elle ne cache jamais la dernière rangée de produits. */
+.vente--etroit .vente__principal {
+  padding-bottom: 84px;
+}
+.vente__principal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+  min-width: 0;
+}
+.vente__titre {
+  margin: 0;
+}
+.vente-bandeau {
+  margin: 0;
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-blue-very-light);
+  font-weight: 600;
+}
+.vente kbd {
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--hc-surface-100);
+  border: 1px solid var(--hc-border);
+  color: var(--hc-ink-muted);
+}
+
+/* Onglets des ventes en cours */
+.vente-onglets {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--hc-border);
+}
+.vente-onglet {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 150px;
+  max-width: 240px;
+  padding: 9px 16px 10px;
+  border: 1px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-radius: var(--hc-radius-md) var(--hc-radius-md) 0 0;
+  margin-bottom: -1px;
+  background: transparent;
+  color: var(--hc-ink-muted);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.vente-onglet:hover {
+  background: var(--hc-surface-200);
+}
+.vente-onglet--actif {
+  background: var(--hc-surface-200);
+  border-color: var(--hc-border);
+  border-bottom-color: var(--hc-blue);
+  color: var(--hc-ink);
+}
+.vente-onglet__ligne {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  min-width: 0;
+}
+.vente-onglet--actif .vente-onglet__ligne {
+  font-weight: 800;
+}
+.vente-onglet--actif svg {
+  color: var(--hc-blue);
+}
+.vente-onglet__titre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vente-onglet__sous {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.vente-onglet--actif .vente-onglet__sous {
+  color: var(--hc-blue);
+}
+
+/* Recherche + scanner */
+.vente__outils {
+  display: flex;
+  gap: var(--hc-space-2);
+}
+.vente-recherche {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  min-height: 48px;
+  padding: 0 var(--hc-space-4);
+  background: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  color: var(--hc-ink-muted);
+}
+.vente-recherche:focus-within {
+  border-color: var(--hc-blue);
+  box-shadow: 0 0 0 3px var(--hc-blue-light);
+}
+.vente-recherche input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--hc-ink);
+}
+.vente-recherche button {
+  border: 0;
+  background: transparent;
+  color: var(--hc-ink-muted);
+  cursor: pointer;
+  display: flex;
+}
+.vente-scanner {
+  flex: none;
+  min-height: 48px;
+  background: var(--hc-navy);
+  color: #fff;
+  gap: var(--hc-space-2);
+}
+.vente-scanner kbd {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: transparent;
+  color: #fff;
+}
+.vente-scan {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-2);
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-success-light);
+}
+.vente-scan span {
+  flex: 1;
+}
+.vente-scan--erreur {
+  background: var(--hc-danger-light);
+}
+
+/* Boissons / Restaurant + catégories */
+.vente__filtres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hc-space-3);
+}
+.vente-segments {
+  display: flex;
+  gap: var(--hc-space-2);
+}
+.vente-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: var(--hc-radius-md);
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-200);
+  color: var(--hc-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vente-segment--actif {
+  background: var(--hc-navy);
+  border-color: var(--hc-navy);
+  color: #fff;
+}
+.vente-puces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hc-space-2);
+}
+.vente-puce-filtre {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: var(--hc-radius-pill);
+  border: 1px solid var(--hc-border);
+  background: var(--hc-surface-200);
+  color: var(--hc-ink-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vente-puce-filtre--active {
+  background: var(--hc-blue-very-light);
+  border-color: var(--hc-blue);
+  color: var(--hc-blue);
+}
+
+/* Grille des produits */
+.vente-grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--hc-space-3);
+}
+.vente-carte {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 150px;
+  padding: 14px;
+  background: var(--hc-surface-200);
+  border: 1.5px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+}
+.vente-carte--choisie {
+  background: var(--hc-blue-very-light);
+  border-color: var(--hc-blue);
+}
+.vente-carte--epuisee {
+  opacity: 0.55;
+}
+.vente-carte__haut {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.vente-carte__nom {
+  flex: 1;
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.vente-carte__bas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hc-space-2);
+}
+.vente-carte__prix {
+  font-size: 1.05rem;
+}
+.vente-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  flex: none;
+}
+.vente-icone--biere {
+  background: var(--hc-warning-light);
+  color: var(--hc-warning);
+}
+.vente-icone--soda {
+  background: var(--hc-danger-light);
+  color: var(--hc-danger);
+}
+.vente-icone--eau {
+  background: var(--hc-info-light);
+  color: var(--hc-info);
+}
+.vente-icone--chaud {
+  background: var(--hc-purple-light);
+  color: var(--hc-purple);
+}
+.vente-icone--plat {
+  background: var(--hc-success-light);
+  color: var(--hc-success);
+}
+.vente-puce {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+.vente-puce--ok {
+  background: var(--hc-success-light);
+  color: var(--hc-success);
+}
+.vente-puce--alerte {
+  background: var(--hc-warning-light);
+  color: var(--hc-warning);
+}
+.vente-puce--danger {
+  background: var(--hc-danger-light);
+  color: var(--hc-danger);
+}
+.vente-plus {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--hc-blue-light);
+  color: var(--hc-blue);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.vente-plus:hover {
+  background: var(--hc-blue);
+  color: #fff;
+}
+.vente-compteur {
+  display: inline-flex;
+  align-items: center;
+  background: var(--hc-blue);
+  color: #fff;
+  border-radius: 20px;
+  height: 38px;
+}
+.vente-compteur button {
+  width: 34px;
+  height: 38px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.vente-compteur b {
+  min-width: 18px;
+  text-align: center;
+}
+.vente-compteur--clair {
+  background: var(--hc-surface-100);
+  color: var(--hc-ink);
+  border: 1px solid var(--hc-border);
+  height: 34px;
+}
+.vente-compteur--clair button {
+  height: 32px;
+  width: 30px;
+}
+
+/* Ticket */
+.vente__ticket {
+  position: sticky;
+  top: var(--hc-space-4);
+}
+.vente-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+  min-height: 520px;
+  max-height: calc(100vh - 110px);
+  padding: var(--hc-space-5);
+  background: var(--hc-surface-200);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  box-shadow: var(--hc-shadow-card);
+}
+.vente-ticket__entete {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--hc-space-2);
+}
+.vente-ticket__titre {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.vente-ticket__compte {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--hc-ink-muted);
+}
+.vente-ticket__sous {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--hc-ink-muted);
+}
+.vente-ticket__outils {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+}
+.vente-ticket__corps {
+  flex: 1;
+  min-height: 80px;
+  overflow-y: auto;
+}
+.vente-ticket__section {
+  margin: var(--hc-space-2) 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--hc-ink-muted);
+}
+.vente-lien {
+  border: 0;
+  background: transparent;
+  color: var(--hc-blue);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.vente-lien--danger {
+  color: var(--hc-danger);
+}
+.vente-fermer {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--hc-surface-100);
+  color: var(--hc-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.vente-paye {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-success-light);
+  color: var(--hc-success);
+}
+.vente-paye div {
+  display: flex;
+  flex-direction: column;
+}
+.vente-paye span {
+  color: var(--hc-ink-muted);
+  font-size: 0.85rem;
+}
+.vente-lignes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vente-ligne {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--hc-border);
+}
+.vente-ligne__texte {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.vente-ligne__nom {
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.vente-ligne__aide {
+  font-size: 0.8rem;
+  color: var(--hc-ink-muted);
+}
+.vente-ligne__total {
+  min-width: 74px;
+  text-align: right;
+}
+.vente-vide {
+  margin: var(--hc-space-5) 0;
+  text-align: center;
+  color: var(--hc-ink-muted);
+}
+.vente-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--hc-surface-100);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  color: var(--hc-ink-muted);
+  font-weight: 600;
+}
+.vente-total__montants {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--hc-ink);
+}
+.vente-total__montants strong {
+  font-size: 1.2rem;
+}
+.vente-erreur {
+  margin: 0;
+  color: var(--hc-danger);
+  font-size: 0.9rem;
+}
+.vente-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+}
+.vente-action {
+  width: 100%;
+  min-height: 50px;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 800;
+}
+.vente-action--vert {
+  min-height: 58px;
+  font-size: 1.1rem;
+  background: var(--hc-success);
+  border-color: var(--hc-success);
+  color: #fff;
+}
+.vente-action--contour {
+  background: transparent;
+  border: 1.5px solid var(--hc-blue);
+  color: var(--hc-blue);
+}
+.vente-action--discret {
+  background: transparent;
+  border-color: transparent;
+  color: var(--hc-ink-muted);
+}
+.vente-action kbd {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: transparent;
+  color: inherit;
+}
+.vente-action--contour kbd {
+  background: var(--hc-blue-light);
+  color: var(--hc-blue);
+}
+.vente-aide {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--hc-ink-muted);
+}
+
+/* Fenêtre étroite : ticket en volet + barre résumé */
+.vente__volet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 39, 66, 0.45);
+}
+.vente__ticket--volet {
+  position: static;
+  width: min(440px, 100%);
+  height: 100%;
+}
+.vente__ticket--volet .vente-ticket {
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+}
+.vente-barre {
+  position: sticky;
+  bottom: var(--hc-space-3);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hc-space-3);
+  margin-top: var(--hc-space-3);
+  padding: 10px 12px 10px 18px;
+  border-radius: 18px;
+  background: var(--hc-blue);
+  color: #fff;
+  box-shadow: var(--hc-shadow-hover);
+}
+.vente-barre__texte {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.vente-barre__texte span {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+.vente-barre__bouton {
+  background: #fff;
+  color: var(--hc-blue);
+  font-weight: 800;
+  gap: 8px;
+}
+
+/* Fenêtre « Créer sa table » */
+.vente-dialogue {
+  width: min(520px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+}
+.vente-dialogue__entete {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.vente-dialogue__entete h2 {
+  margin: 0;
+}
+.vente-etiquette {
+  margin: var(--hc-space-2) 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--hc-ink-muted);
+}
+.vente-champ {
+  min-height: 54px;
+  padding: 0 16px;
+  border: 2px solid var(--hc-blue);
+  border-radius: var(--hc-radius-md);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  background: var(--hc-surface-200);
+  color: var(--hc-ink);
+}
+.vente-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+}
+.vente-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 2px solid var(--hc-border);
+  border-radius: var(--hc-radius-md);
+  background: var(--hc-surface-200);
+  cursor: pointer;
+}
+.vente-option--choisie {
+  border-color: var(--hc-blue);
+  background: var(--hc-blue-very-light);
+  color: var(--hc-blue);
+}
+.vente-option input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--hc-blue);
+}
+.vente-option__texte {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.vente-option__texte span {
+  font-size: 0.85rem;
+  color: var(--hc-ink-muted);
+}
+.vente *:focus-visible {
+  outline: 3px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+
+@media (max-width: 759px) {
+  .vente kbd {
+    display: none;
+  }
+  .vente-segment {
+    padding: 0 12px;
+    flex: 1;
+    justify-content: center;
+  }
+  .vente-segments {
+    width: 100%;
+  }
+  .vente-grille {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .vente-onglet {
+    min-width: 120px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .vente-carte,
+  .vente-plus {
+    transition: border-color 0.12s, background-color 0.12s;
+  }
+}
+
+/* Paiement seul (nouvelle vente) : une colonne centrée, lisible sur grand écran comme sur fenêtre étroite. */
+.vente-paiement-seul {
+  width: min(560px, 100%);
+}
+
+/* Thème sombre : --hc-blue / --hc-success s'éclaircissent ; le texte posé dessus passe au bleu nuit pour rester lisible. */
+:root[data-theme="dark"] .vente-action--vert,
+:root[data-theme="dark"] .vente-compteur:not(.vente-compteur--clair),
+:root[data-theme="dark"] .vente-barre {
+  color: var(--hc-navy);
+}
+:root[data-theme="dark"] .vente-action--vert kbd {
+  background: rgba(15, 39, 66, 0.15);
+  color: var(--hc-navy);
+}
+:root[data-theme="dark"] .vente-barre__texte span {
+  opacity: 0.8;
+}
+:root[data-theme="dark"] .vente-barre__bouton {
+  background: var(--hc-navy);
+  color: #fff;
+}

@@ -147,7 +147,7 @@ const chapitres = [
         etapes: [
           {
             titre: "La barre du bas",
-            texte: "Accueil, Chambres, Réserv. (réservations), Dépenses et Plus. L'onglet actif est en bleu.",
+            texte: "Accueil, Chambres, Séjours (arrivées, départs, réservations), Dépenses et Plus. L'onglet actif est en bleu.",
             action: "Appuyez sur un onglet",
             image: img("accueil"),
             zone: [0, 0.9, 1, 1],
@@ -155,7 +155,7 @@ const chapitres = [
           },
           {
             titre: "Le menu « Plus »",
-            texte: "Il contient Arrivées et départs, Planning, Journal de la journée, Clients, Journal des reçus, Rapports mensuels, Paramètres, Imprimante et Synchronisation.",
+            texte: "Il contient Planning, Journal de la journée, Clients, Journal des reçus, Rapports mensuels, Paramètres, Imprimante et Synchronisation.",
             action: "Appuyez sur « Plus »",
             image: img("plus"),
           },
@@ -280,12 +280,12 @@ const chapitres = [
       pageEtapes({
         surtitre: "Étape 1 sur 3",
         titre: "Le séjour et la chambre",
-        chapo: "Une réservation se crée dans l'onglet Réserv.",
+        chapo: "Une réservation se crée dans l'onglet Séjours.",
         etapes: [
           {
             titre: "Ouvrez une nouvelle réservation",
-            texte: "Dans l'onglet Réserv., le bouton rond « + » est en bas à droite de l'écran.",
-            action: "Appuyez sur « + » (Nouvelle réservation)",
+            texte: "Dans l'onglet Séjours, touchez « Nouvelle réservation (autre date) » ; si le client est déjà là, touchez « Enregistrer une arrivée ».",
+            action: "Appuyez sur « Nouvelle réservation (autre date) »",
             ...sur("reservations", "nouvelle", 1),
           },
           {
@@ -375,7 +375,7 @@ const chapitres = [
         ],
       }),
       annote({
-        surtitre: "Onglet Réserv.",
+        surtitre: "Onglet Séjours",
         titre: "La liste des réservations",
         chapo: "Cinq vues en haut : Aujourd'hui, À venir, En cours, Historique et Planning.",
         image: img("reservations"),
@@ -426,9 +426,9 @@ const chapitres = [
     ],
     pages: [
       annote({
-        surtitre: "Plus, puis Arrivées et départs",
+        surtitre: "Onglet Séjours, vue Aujourd'hui",
         titre: "Arrivées et départs du jour",
-        chapo: "C'est la vue « Aujourd'hui » de Réserv. : les clients à accueillir et ceux qui partent.",
+        chapo: "C'est la vue « Aujourd'hui » de Séjours : les clients à accueillir et ceux qui partent.",
         image: img("arrivees"),
         marques: [
           visee("arrivees", "titre", 1, "Le décompte", "Sous le titre : le nombre de séjours du jour.", "g"),
@@ -507,7 +507,7 @@ const chapitres = [
         etapes: [
           {
             titre: "Ouvrez le séjour",
-            texte: "Dans Réserv., vue « En cours » (ou « Aujourd'hui »), touchez le client qui part. Un séjour doit avoir fait son check-in avant d'être facturé.",
+            texte: "Dans Séjours, vue « En cours » (ou « Aujourd'hui »), touchez le client qui part. Un séjour doit avoir fait son check-in avant d'être facturé.",
             action: "Appuyez sur « Facturer et check-out »",
             ...sur("checkin-fait", "facturer", 1),
           },

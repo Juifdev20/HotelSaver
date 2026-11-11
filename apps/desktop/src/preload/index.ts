@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { ConfigurationApp } from "../main/config-store";
 import type { ImprimanteProposee, LigneRecu } from "@hotel-chicago/receipts";
 import type { LienNotification } from "@hotel-chicago/types";
+import type { EtatMiseAJourBureau } from "../main/mise-a-jour";
 
 const api = {
   lireConfiguration: (): Promise<ConfigurationApp> => ipcRenderer.invoke("configuration:lire"),
@@ -34,6 +35,28 @@ const api = {
     return () => {
       ipcRenderer.removeListener("notification:ouverte", ecouteur);
     };
+  },
+  /** Mises à jour (electron-updater) : lire l'état, chercher, télécharger en arrière-plan, redémarrer pour installer. */
+  miseAJour: {
+    etat: (): Promise<EtatMiseAJourBureau> => ipcRenderer.invoke("maj:etat"),
+    verifier: (): Promise<EtatMiseAJourBureau> => ipcRenderer.invoke("maj:verifier"),
+    telecharger: (): Promise<EtatMiseAJourBureau> => ipcRenderer.invoke("maj:telecharger"),
+    installer: (): Promise<void> => ipcRenderer.invoke("maj:installer"),
+    surChangement: (rappel: (etat: EtatMiseAJourBureau) => void): (() => void) => {
+      const ecouteur = (_evenement: unknown, etat: EtatMiseAJourBureau) => rappel(etat);
+      ipcRenderer.on("maj:etat", ecouteur);
+      return () => {
+        ipcRenderer.removeListener("maj:etat", ecouteur);
+      };
+    },
+    /** Clic sur la notification Windows « nouvelle version » : ouvre l'écran Mise à jour. */
+    surOuverture: (rappel: () => void): (() => void) => {
+      const ecouteur = () => rappel();
+      ipcRenderer.on("maj:ouvrir", ecouteur);
+      return () => {
+        ipcRenderer.removeListener("maj:ouvrir", ecouteur);
+      };
+    },
   },
   lireLancerAuDemarrage: (): Promise<boolean> => ipcRenderer.invoke("application:lancer-au-demarrage:lire"),
   ecrireLancerAuDemarrage: (actif: boolean): Promise<boolean> => ipcRenderer.invoke("application:lancer-au-demarrage:ecrire", actif),

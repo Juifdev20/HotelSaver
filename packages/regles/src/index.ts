@@ -10,3 +10,8 @@ export * from "./chambre-prise";
 export * from "./compte-cafeteria";
 export * from "./mouvement-stock";
 export * from "./contrat-licence";
+export * from "./vente-cafeteria";
+export * from "./chambres";
+export * from "./sejours-du-jour";
+export * from "./theme-sombre";
+export * from "./mise-a-jour";

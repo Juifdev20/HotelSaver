@@ -23,6 +23,8 @@ import {
   MouvementStock,
   CoupuresAlertesStock,
   ListeNotifications,
+  EtatPushNotifications,
+  ResultatTestPush,
   ProduitPopulaire,
   Occupation,
   Produit,
@@ -168,9 +170,13 @@ export interface DetailReglementEspeces {
   deviseRenduChoisie?: Devise;
 }
 
-export type DonneesEncaissement =
+export type DonneesEncaissement = (
   | ({ mode: "GROUPE"; modePaiement: ModePaiement } & DetailReglementEspeces)
-  | ({ mode: "UNE_PERSONNE"; modePaiement: ModePaiement; sousCompteId: string } & DetailReglementEspeces);
+  | ({ mode: "UNE_PERSONNE"; modePaiement: ModePaiement; sousCompteId: string } & DetailReglementEspeces)
+) & {
+  /** « Il paie et il reste » : la part est encaissée, la table reste ouverte pour la suite (11/11/2026). */
+  gardeOuvert?: boolean;
+};
 
 export interface FiltresReservations {
   statut?: StatutReservation;
@@ -547,6 +553,16 @@ export class ClientApi {
     await this.requete<unknown>("/notifications/appareils", { method: "POST", body: JSON.stringify({ jeton, plateforme }) });
   }
 
+  /** Diagnostic des notifications téléphone fermé : le serveur est-il prêt, ce téléphone est-il enregistré ? */
+  async etatPushNotifications(jeton?: string): Promise<EtatPushNotifications> {
+    return this.requete<EtatPushNotifications>(`/notifications/push/etat${jeton ? `?jeton=${encodeURIComponent(jeton)}` : ""}`);
+  }
+
+  /** Envoie une notification de test à MES téléphones. */
+  async testerPushNotifications(): Promise<ResultatTestPush> {
+    return this.requete<ResultatTestPush>("/notifications/push/test", { method: "POST" });
+  }
+
   /** À appeler à la déconnexion / au changement de profil : sans cela l'alerte d'un compte s'afficherait chez le suivant. */
   async retirerAppareilPush(jeton: string): Promise<void> {
     await this.requete<unknown>("/notifications/appareils", { method: "DELETE", body: JSON.stringify({ jeton }) });
@@ -713,6 +729,11 @@ export class ClientApi {
   /** Annule un compte créé par erreur (rien d'encaissé) ; ses articles retournent en stock (19/10/2026). */
   async annulerCompteCafeteria(compteId: string, motif?: string | null): Promise<CompteCafeteria> {
     return this.requete<CompteCafeteria>(`/cafeteria/comptes/${compteId}/annuler`, { method: "POST", body: JSON.stringify({ motif: motif ?? undefined }) });
+  }
+
+  /** « Terminer la table » : ferme un compte déjà en partie payé, quand il ne reste rien à régler (11/11/2026). */
+  async fermerCompteCafeteria(compteId: string): Promise<CompteCafeteria> {
+    return this.requete<CompteCafeteria>(`/cafeteria/comptes/${compteId}/fermer`, { method: "POST" });
   }
 
   async encaisserCompte(compteId: string, donnees: DonneesEncaissement): Promise<VenteCafeteria[]> {

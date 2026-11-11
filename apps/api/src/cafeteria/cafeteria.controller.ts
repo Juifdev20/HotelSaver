@@ -92,6 +92,13 @@ export class CafeteriaController {
     return this.cafeteriaService.annulerCompte(id, currentUser, dto.motif);
   }
 
+  /** « Terminer la table » : ferme un compte déjà en partie payé, quand il ne reste rien à régler (11/11/2026). */
+  @Operationnel()
+  @Post("comptes/:id/fermer")
+  fermerCompte(@Param("id") id: string, @CurrentUser() currentUser: UtilisateurAuthentifie) {
+    return this.cafeteriaService.fermerCompte(id, currentUser);
+  }
+
   @Operationnel()
   @Post("comptes/:id/encaisser")
   encaisser(

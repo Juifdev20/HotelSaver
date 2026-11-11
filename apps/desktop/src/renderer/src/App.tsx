@@ -18,7 +18,6 @@ import { EcranInscription } from "./screens/EcranInscription";
 import { consommerPayerMaintenant, memoriserPayerMaintenant } from "./payerMaintenant";
 import { EcranChambres } from "./screens/EcranChambres";
 import { EcranReservations } from "./screens/EcranReservations";
-import { EcranArriveesDeparts } from "./screens/EcranArriveesDeparts";
 import { EcranJourneeReception } from "./screens/EcranJourneeReception";
 import { EcranClients } from "./screens/EcranClients";
 import { EcranFacturation } from "./screens/EcranFacturation";
@@ -27,7 +26,9 @@ import { EcranParametres } from "./screens/EcranParametres";
 import { EcranTableauDeBord } from "./screens/EcranTableauDeBord";
 import { EcranUtilisateurs } from "./screens/EcranUtilisateurs";
 import { EcranSiteHotel } from "./screens/EcranSiteHotel";
-import { EcranCaisse } from "./screens/EcranCaisse";
+import { EcranVente } from "./screens/EcranVente";
+import { EnCours } from "./screens/EnCours";
+import { FournisseurVente, useVente } from "./vente/ContexteVente";
 import { EcranComptesOuverts } from "./screens/EcranComptesOuverts";
 import { EcranCompteCafeteria } from "./screens/EcranCompteCafeteria";
 import { EcranCuisine } from "./screens/EcranCuisine";
@@ -45,6 +46,7 @@ import { EcranAbonnementBloque } from "./screens/EcranAbonnementBloque";
 import { EcranRemboursements } from "./screens/EcranRemboursements";
 import { FonctionNonIncluse } from "./components/FonctionNonIncluse";
 import { BandeauAbonnement } from "./components/BandeauAbonnement";
+import { BandeauMiseAJour } from "./miseajour/BandeauMiseAJour";
 import { IndicateurSynchro } from "./hors-ligne/IndicateurSynchro";
 import { creerGestionnaireSession } from "./hors-ligne/session";
 import { ouvrirPersistanceHotel, purgerAncienHotel, nomBaseHotel } from "./hors-ligne/bases-locales";
@@ -94,7 +96,6 @@ export function App() {
   // revenant sur l'une de ces deux pages (voir naviguer() plus bas).
   const [compteCafeteriaOuvert, setCompteCafeteriaOuvert] = useState<string | null>(null);
   // Compte ouvert par « Vente rapide » : l'ajout s'ouvre directement, scanner prêt.
-  const [venteRapide, setVenteRapide] = useState(false);
   // Séjour à ouvrir directement dans l'écran Facturation (deep-link depuis
   // Réservations ou Arrivées et départs) — remis à zéro par naviguer().
   const [reservationAFacturer, setReservationAFacturer] = useState<string | null>(null);
@@ -102,6 +103,8 @@ export function App() {
   const [facturationAvecCheckOut, setFacturationAvecCheckOut] = useState(true);
   // Réservation à ouvrir directement dans Réservations (clic sur une notification) — remise à zéro par naviguer().
   const [reservationAOuvrir, setReservationAOuvrir] = useState<string | null>(null);
+  // « Enregistrer une arrivée » depuis une chambre (chambreId vide = aucune chambre choisie).
+  const [arriveeAEnregistrer, setArriveeAEnregistrer] = useState<{ chambreId: string } | null>(null);
   // Écran dont le serveur vient de refuser une route (403 FONCTION_NON_INCLUSE) : le panneau « fonction non incluse » le remplace.
   const [pageRefusee, setPageRefusee] = useState<IdPage | null>(null);
   const pageRef = useRef<IdPage>("tableau-de-bord");
@@ -305,11 +308,20 @@ export function App() {
       return;
     }
     setCompteCafeteriaOuvert(null);
-    const cible = autorisees.includes(lien.ecran) ? (lien.ecran as IdPage) : "tableau-de-bord";
+    // « arrivees-departs » (anciennes notifications) mène à Séjours › Aujourd'hui.
+    const ecranLien = lien.ecran === "arrivees-departs" ? "reservations" : lien.ecran;
+    const cible = autorisees.includes(ecranLien) ? (ecranLien as IdPage) : "tableau-de-bord";
     setPage(cible);
   };
+  const naviguerRef = useRef<(page: IdPage) => void>(() => undefined);
+  naviguerRef.current = naviguer; // fonction déclarée plus bas (hissée) : toujours la version du dernier rendu
   const lienRef = useRef(ouvrirLien);
   lienRef.current = ouvrirLien;
+  // Clic sur la notification Windows « nouvelle version » : ouvre Paramètres, où se trouve la mise à jour.
+  useEffect(() => {
+    if (ecran !== "application") return;
+    return window.hotelChicago.miseAJour.surOuverture(() => naviguerRef.current("parametres"));
+  }, [ecran]);
   // Abonnement : l'écran « expiré » remplace l'application UNIQUEMENT si le serveur l'a dit (profil relu en ligne avec `bloque`, ou une
   // synchronisation refusée en 402). Un profil mémorisé et ancien, ouvert sans Internet, ne bloque jamais : il n'affiche qu'un bandeau.
   const abonnementBloque = ecran === "application" && !modeHorsLigne && (utilisateur?.abonnement?.bloque === true || etatSync?.abonnementBloque === true);
@@ -543,6 +555,7 @@ export function App() {
     setCompteCafeteriaOuvert(null);
     setReservationAFacturer(null);
     setReservationAOuvrir(null);
+    setArriveeAEnregistrer(null);
     setPageRefusee(null);
     setPage(nouvellePage);
   }
@@ -595,16 +608,38 @@ export function App() {
     } else if (page === "tableau-de-bord") {
       contenu = <EcranTableauDeBord client={client} utilisateur={utilisateur} onNaviguer={naviguer} />;
     } else if (page === "chambres") {
-      contenu = <EcranChambres client={client} utilisateur={utilisateur} rechercheInitiale={rechercheChambres} onNaviguer={naviguer} />;
+      contenu = (
+        <EcranChambres
+          client={client}
+          utilisateur={utilisateur}
+          rechercheInitiale={rechercheChambres}
+          onNaviguer={naviguer}
+          onArrivee={(chambreId) => {
+            setCompteCafeteriaOuvert(null);
+            setReservationAOuvrir(null);
+            setArriveeAEnregistrer({ chambreId });
+            setPageRefusee(null);
+            setPage("reservations");
+          }}
+          onFacturer={naviguerVersFacturation}
+          onVoirSejour={(id) => {
+            setArriveeAEnregistrer(null);
+            setReservationAOuvrir(id);
+            setPageRefusee(null);
+            setPage("reservations");
+          }}
+        />
+      );
     } else if (page === "reservations") {
       contenu = (
         <EcranReservations
-          key={reservationAOuvrir ?? "liste"}
+          key={reservationAOuvrir ?? (arriveeAEnregistrer ? `arrivee-${arriveeAEnregistrer.chambreId || "libre"}` : "liste")}
           client={client}
           onNaviguer={naviguer}
           onFacturer={naviguerVersFacturation}
           peutOperer={peutOperer(utilisateur)}
           reservationInitiale={reservationAOuvrir}
+          nouvelleInitiale={arriveeAEnregistrer}
         />
       );
     } else if (page === "remboursements" && utilisateur.role === Role.PATRON) {
@@ -620,8 +655,6 @@ export function App() {
           }}
         />
       );
-    } else if (page === "arrivees-departs") {
-      contenu = <EcranArriveesDeparts client={client} onNaviguer={naviguer} onFacturer={naviguerVersFacturation} peutOperer={peutOperer(utilisateur)} />;
     } else if (page === "journal-journee") {
       contenu = <EcranJourneeReception client={client} />;
     } else if (page === "clients") {
@@ -637,36 +670,26 @@ export function App() {
           synchronisation={synchronisationEcran}
         />
       );
-    } else if (page === "caisse" || page === "comptes-ouverts") {
-      // Les deux entrées mènent au même écran de détail une fois un compte
-      // choisi/créé — voir compteCafeteriaOuvert plus haut.
+    } else if (page === "caisse") {
+      // « Vente » (11/11/2026) : produits d'abord, ticket à droite ; la table n'est créée que si le client reste. Voir EcranVente.
+      contenu = <EcranVente client={client} utilisateur={utilisateur} interfaceImprimante={configuration.imprimanteInterface} synchronisation={synchronisationEcran} />;
+    } else if (page === "comptes-ouverts") {
       contenu = compteCafeteriaOuvert ? (
         <EcranCompteCafeteria
           client={client}
           utilisateur={utilisateur}
           compteId={compteCafeteriaOuvert}
           interfaceImprimante={configuration.imprimanteInterface}
-          ouvrirAjoutAuDemarrage={venteRapide}
           synchronisation={synchronisationEcran}
-          onRetour={() => {
-            setCompteCafeteriaOuvert(null);
-            setVenteRapide(false);
-          }}
-        />
-      ) : page === "caisse" ? (
-        <EcranCaisse
-          client={client}
-          onCompteOuvert={(id, options) => {
-            setVenteRapide(options?.venteRapide === true);
-            setCompteCafeteriaOuvert(id);
-          }}
+          onRetour={() => setCompteCafeteriaOuvert(null)}
         />
       ) : (
-        <EcranComptesOuverts
+        <EnCours
           client={client}
           utilisateur={utilisateur}
           interfaceImprimante={configuration.imprimanteInterface}
-          onOuvrirCompte={setCompteCafeteriaOuvert}
+          onOuvrirDetail={setCompteCafeteriaOuvert}
+          onNaviguer={naviguer}
         />
       );
     } else if (page === "cuisine") {
@@ -746,6 +769,7 @@ export function App() {
     }
 
     return (
+      <FournisseurVente cle={`hotelsaver:vente:${utilisateur.hotelId}:${utilisateur.userId}`}>
       <Coquille
         utilisateur={utilisateur}
         pageActive={page}
@@ -770,12 +794,14 @@ export function App() {
                   : `Session ouverte sans Internet. Vos actions sont enregistrées sur cet ordinateur et partiront dès le retour de la connexion.${joursRestants !== null && joursRestants <= 3 ? ` Reconnexion à Internet obligatoire dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}.` : ""}`}
               </div>
             ) : null}
+            <BandeauMiseAJour onOuvrir={() => naviguer("parametres")} />
             {page !== "abonnement" && <BandeauAbonnement etat={utilisateur.abonnement} onOuvrir={() => naviguer("abonnement")} />}
           </>
         }
       >
         {contenu}
       </Coquille>
+      </FournisseurVente>
     );
   }
 
