@@ -722,3 +722,21 @@
 .vente-paiement-seul {
   width: min(560px, 100%);
 }
+
+/* Thème sombre : --hc-blue / --hc-success s'éclaircissent ; le texte posé dessus passe au bleu nuit pour rester lisible. */
+:root[data-theme="dark"] .vente-action--vert,
+:root[data-theme="dark"] .vente-compteur:not(.vente-compteur--clair),
+:root[data-theme="dark"] .vente-barre {
+  color: var(--hc-navy);
+}
+:root[data-theme="dark"] .vente-action--vert kbd {
+  background: rgba(15, 39, 66, 0.15);
+  color: var(--hc-navy);
+}
+:root[data-theme="dark"] .vente-barre__texte span {
+  opacity: 0.8;
+}
+:root[data-theme="dark"] .vente-barre__bouton {
+  background: var(--hc-navy);
+  color: #fff;
+}
