@@ -351,18 +351,23 @@ export function LicenceHotel({ hotelNom, charger, activer, annuler, enregistrerM
                           </Button>
                         )}
                         {!l.annuleLe && (
-                          <label className="licence-hotel__envoi">
-                            <span className="bouton bouton--secondaire bouton--petit">{l.scanEnvoyeLe ? "Remplacer le contrat signé" : "Ajouter le contrat signé"}</span>
+                          <>
+                            <Button variant="secondary" size="sm" disabled={enCours} onClick={() => document.getElementById(`signe-${l.id}`)?.click()}>
+                              {l.scanEnvoyeLe ? "Remplacer le contrat signé" : "Ajouter le contrat signé"}
+                            </Button>
                             <input
+                              id={`signe-${l.id}`}
+                              className="licence-hotel__fichier"
                               type="file"
                               accept="application/pdf,image/jpeg,image/png"
                               disabled={enCours}
+                              aria-label="Choisir le fichier du contrat signé"
                               onChange={(e) => {
                                 void envoyerSigne(l.id, e.target.files?.[0]);
                                 e.target.value = "";
                               }}
                             />
-                          </label>
+                          </>
                         )}
                       </div>
                     </div>

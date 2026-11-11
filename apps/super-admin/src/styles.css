@@ -968,15 +968,10 @@ body {
   gap: 8px;
   margin-top: 6px;
 }
-.licence-hotel__envoi {
-  position: relative;
-  display: inline-block;
-  cursor: pointer;
-}
-.licence-hotel__envoi input[type="file"] {
+.licence-hotel__fichier {
   position: absolute;
-  inset: 0;
-  width: 100%;
+  width: 1px;
+  height: 1px;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
 }
