@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, screen, s
 import { join, resolve } from "path";
 import { cleChiffrementLocale, ecrireConfiguration, lireConfiguration } from "./config-store";
 import { imprimerLignes, listerImprimantes } from "./imprimante";
+import { demarrerMiseAJour, etatMiseAJour, installerMiseAJour, telechargerMiseAJour, verifierMiseAJour } from "./mise-a-jour";
 
 // Permet de lancer une instance isolée (tests E2E, ou deux postes de test sur
 // la même machine) sans toucher à la configuration/session de l'instance
@@ -206,6 +207,24 @@ if (premiereInstance) {
       const notification = new Notification({ title: titre, body: corps, icon: join(__dirname, "../../resources/icon.png") });
       notification.on("click", () => afficherFenetre().webContents.send("notification:ouverte", lien));
       notification.show();
+    });
+    // Mises à jour : l'interface lit l'état, demande la vérification / le téléchargement / l'installation ; l'état lui est renvoyé à chaque évolution.
+    ipcMain.handle("maj:etat", () => etatMiseAJour());
+    ipcMain.handle("maj:verifier", () => verifierMiseAJour(true));
+    ipcMain.handle("maj:telecharger", () => telechargerMiseAJour());
+    ipcMain.handle("maj:installer", () => installerMiseAJour(() => (quitterVraiment = true)));
+    const prevenir = (titre: string, corps: string) => {
+      if (!Notification.isSupported()) return;
+      const notification = new Notification({ title: titre, body: corps, icon: join(__dirname, "../../resources/icon.png") });
+      notification.on("click", () => afficherFenetre().webContents.send("maj:ouvrir"));
+      notification.show();
+    };
+    demarrerMiseAJour({
+      surChangement: (e) => {
+        if (fenetrePrincipale && !fenetrePrincipale.isDestroyed()) fenetrePrincipale.webContents.send("maj:etat", e);
+      },
+      surNouvelleVersion: (version) => prevenir("Nouvelle version de HotelSaver", `La version ${version} est disponible. Cliquez pour la télécharger.`),
+      surPrete: (version) => prevenir("Mise à jour prête", `La version ${version} est téléchargée. Redémarrez HotelSaver pour l'appliquer, maintenant ou plus tard.`),
     });
     ipcMain.handle("application:lancer-au-demarrage:lire", () => app.getLoginItemSettings().openAtLogin);
     ipcMain.handle("application:lancer-au-demarrage:ecrire", (_evenement, actif: boolean) => {

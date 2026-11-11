@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
+import { Devise } from "@hotel-chicago/types";
 import type { Chambre, Reservation } from "@hotel-chicago/types";
 import type { Client as ClientHotel } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
@@ -166,7 +167,7 @@ export function EcranNouvelleReservation({ client, onRetour, onCreee, chambreIni
   }
 
   const maintenant = checkInImmediat;
-  const devise = chambreChoisie?.devise ?? "USD";
+  const devise: Devise = chambreChoisie?.devise ?? Devise.USD;
   const acompteValeur = Number.isNaN(acompte) ? 0 : acompte;
   const choixActif = acompteLu.ok ? choixAcompteDe(total, acompteValeur) : null;
   const clientChoisiFiche = modeClient === "existant" ? clients.find((c) => c.id === clientId) : undefined;

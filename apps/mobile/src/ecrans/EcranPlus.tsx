@@ -26,7 +26,7 @@ import {
   HandCoins,
   Users,
   UtensilsCrossed,
-  Volume2, Download } from "lucide-react-native";
+  Volume2, Download, BellRing } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { consommerRetourReglages, retourReglagesDemande } from "../theme/theme";
 import { LIBELLE_ROLE, fonctionManquante, sectionsPlusPourRole } from "../navigation";
@@ -40,6 +40,7 @@ import { useRemboursementsAFaire } from "../hooks/useRemboursementsAFaire";
 import { FonctionNonIncluse } from "../composants/FonctionNonIncluse";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { EcranMiseAJour } from "./EcranMiseAJour";
+import { EcranDiagnosticNotifications } from "./EcranDiagnosticNotifications";
 import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { EcranParametresMobile } from "./EcranParametresMobile";
 import { EcranMenu } from "./EcranMenu";
@@ -232,6 +233,9 @@ export function EcranPlus() {
   if (vue.id === "remboursements") {
     return <EcranRemboursements client={client} onRetour={() => setVue(VUE_LISTE)} onCompteur={remboursements.definir} />;
   }
+  if (vue.id === "diagnostic-notifications") {
+    return <EcranDiagnosticNotifications onRetour={() => setVue(VUE_LISTE)} />;
+  }
   if (vue.id === "mise-a-jour") {
     return <EcranMiseAJour onRetour={() => setVue(VUE_LISTE)} />;
   }
@@ -406,6 +410,7 @@ export function EcranPlus() {
           <Text style={styles.titreSection}>Appareil</Text>
           <LigneMenu icone={Settings} libelle="Paramètres" onPress={() => setVue({ id: "parametres" })} />
           <LigneMenu icone={Printer} libelle="Imprimante" onPress={() => setVue({ id: "imprimante" })} />
+          <LigneMenu icone={BellRing} libelle="Diagnostic des notifications" onPress={() => setVue({ id: "diagnostic-notifications" })} />
           <LigneMenu icone={Volume2} libelle="Sons et voix" onPress={() => setVue({ id: "sons" })} />
           <LigneMenu icone={BookOpen} libelle="Guide d'utilisation" onPress={() => setVue({ id: "guides" })} />
           {miseAJourPossible && (

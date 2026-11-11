@@ -15,3 +15,10 @@ notifications **téléphone éteint / application fermée**.
    au nom de l'utilisateur connecté et retiré à la déconnexion / au changement de profil.
 
 Au démarrage de l'API, le journal indique « Push désactivé » tant que la clé est absente.
+
+## Vérifier que ça marche (diagnostic)
+
+Dans l'application mobile : **Plus › Diagnostic des notifications**. L'écran vérifie, dans l'ordre : la permission Android, l'identifiant Firebase du téléphone (absent = application
+construite sans `google-services.json`), l'enregistrement du téléphone auprès du serveur, la clé Firebase du serveur (`FIREBASE_SERVICE_ACCOUNT_JSON` sur Render) et les canaux sonores ;
+puis « Envoyer le test » envoie une vraie notification (fermer l'application et verrouiller l'écran pour l'essayer). Si le test est « envoyé » mais n'apparaît pas : réglages de
+batterie du téléphone (Tecno, Infinix, Xiaomi, Samsung… arrêtent les applications fermées) — le bouton de l'écran ouvre les réglages.

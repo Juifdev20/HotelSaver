@@ -46,6 +46,7 @@ import { EcranAbonnementBloque } from "./screens/EcranAbonnementBloque";
 import { EcranRemboursements } from "./screens/EcranRemboursements";
 import { FonctionNonIncluse } from "./components/FonctionNonIncluse";
 import { BandeauAbonnement } from "./components/BandeauAbonnement";
+import { BandeauMiseAJour } from "./miseajour/BandeauMiseAJour";
 import { IndicateurSynchro } from "./hors-ligne/IndicateurSynchro";
 import { creerGestionnaireSession } from "./hors-ligne/session";
 import { ouvrirPersistanceHotel, purgerAncienHotel, nomBaseHotel } from "./hors-ligne/bases-locales";
@@ -312,8 +313,15 @@ export function App() {
     const cible = autorisees.includes(ecranLien) ? (ecranLien as IdPage) : "tableau-de-bord";
     setPage(cible);
   };
+  const naviguerRef = useRef<(page: IdPage) => void>(() => undefined);
+  naviguerRef.current = naviguer; // fonction déclarée plus bas (hissée) : toujours la version du dernier rendu
   const lienRef = useRef(ouvrirLien);
   lienRef.current = ouvrirLien;
+  // Clic sur la notification Windows « nouvelle version » : ouvre Paramètres, où se trouve la mise à jour.
+  useEffect(() => {
+    if (ecran !== "application") return;
+    return window.hotelChicago.miseAJour.surOuverture(() => naviguerRef.current("parametres"));
+  }, [ecran]);
   // Abonnement : l'écran « expiré » remplace l'application UNIQUEMENT si le serveur l'a dit (profil relu en ligne avec `bloque`, ou une
   // synchronisation refusée en 402). Un profil mémorisé et ancien, ouvert sans Internet, ne bloque jamais : il n'affiche qu'un bandeau.
   const abonnementBloque = ecran === "application" && !modeHorsLigne && (utilisateur?.abonnement?.bloque === true || etatSync?.abonnementBloque === true);
@@ -786,6 +794,7 @@ export function App() {
                   : `Session ouverte sans Internet. Vos actions sont enregistrées sur cet ordinateur et partiront dès le retour de la connexion.${joursRestants !== null && joursRestants <= 3 ? ` Reconnexion à Internet obligatoire dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}.` : ""}`}
               </div>
             ) : null}
+            <BandeauMiseAJour onOuvrir={() => naviguer("parametres")} />
             {page !== "abonnement" && <BandeauAbonnement etat={utilisateur.abonnement} onOuvrir={() => naviguer("abonnement")} />}
           </>
         }

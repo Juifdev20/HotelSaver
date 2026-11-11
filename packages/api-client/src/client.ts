@@ -23,6 +23,8 @@ import {
   MouvementStock,
   CoupuresAlertesStock,
   ListeNotifications,
+  EtatPushNotifications,
+  ResultatTestPush,
   ProduitPopulaire,
   Occupation,
   Produit,
@@ -549,6 +551,16 @@ export class ClientApi {
   /** Enregistre ce téléphone (jeton FCM) au nom de l'utilisateur connecté. */
   async enregistrerAppareilPush(jeton: string, plateforme: "android" | "ios"): Promise<void> {
     await this.requete<unknown>("/notifications/appareils", { method: "POST", body: JSON.stringify({ jeton, plateforme }) });
+  }
+
+  /** Diagnostic des notifications téléphone fermé : le serveur est-il prêt, ce téléphone est-il enregistré ? */
+  async etatPushNotifications(jeton?: string): Promise<EtatPushNotifications> {
+    return this.requete<EtatPushNotifications>(`/notifications/push/etat${jeton ? `?jeton=${encodeURIComponent(jeton)}` : ""}`);
+  }
+
+  /** Envoie une notification de test à MES téléphones. */
+  async testerPushNotifications(): Promise<ResultatTestPush> {
+    return this.requete<ResultatTestPush>("/notifications/push/test", { method: "POST" });
   }
 
   /** À appeler à la déconnexion / au changement de profil : sans cela l'alerte d'un compte s'afficherait chez le suivant. */

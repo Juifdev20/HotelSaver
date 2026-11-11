@@ -6,6 +6,10 @@
 //    monorepo ni de node_modules n'entre dans l'installateur.
 // 3. electron-builder fabrique l'installateur NSIS dans release/ : HotelSaver-Setup-<version>.exe.
 //
+// 4. Mises à jour intégrées (11/11/2026) : `publish` fait écrire `resources/app-update.yml` dans l'application (où chercher les nouvelles versions : les releases
+//    GitHub) et `latest.yml` dans release/ à côté de l'installateur. À la publication d'une release, joindre l'installateur, SON `.blockmap` ET `latest.yml`
+//    (l'application installée lit latest.yml : sans lui, elle ne verrait jamais la nouvelle version). Rien n'est envoyé par ce script (`publish: "never"`).
+//
 // Non signé pour l'instant (pas de certificat de signature de code) : Windows SmartScreen affiche « Windows a protégé
 // votre ordinateur » au premier lancement → « Informations complémentaires » → « Exécuter quand même ».
 const { execSync } = require("child_process");
@@ -85,6 +89,7 @@ async function main() {
   const fichiers = await build({
     targets: Platform.WINDOWS.createTarget(["nsis"], 1 /* x64 */),
     projectDir: ETAPE,
+    publish: "never",
     config: {
       appId: "com.hotelsaver.bureau",
       productName: "HotelSaver",
@@ -97,6 +102,8 @@ async function main() {
       // Les conditions acceptées restent lisibles dans le dossier d'installation.
       extraFiles: [{ from: "conditions-utilisation.txt", to: "Conditions d'utilisation.txt" }],
       win: { icon: "resources/icon.ico", artifactName: "HotelSaver-Setup-${version}.${ext}" },
+      // Où l'application installée cherche les mises à jour : les releases publiques du dépôt (là où le site pointe déjà).
+      publish: [{ provider: "github", owner: "Juifdev20", repo: "HotelSaver", releaseType: "release" }],
       // Étapes (19/10/2026) : Bienvenue → Conditions d'utilisation (« J'accepte » obligatoire) → Pour qui → Dossier →
       // Installation → Terminé (case « Lancer HotelSaver »).
       nsis: {
@@ -117,6 +124,9 @@ async function main() {
     },
   });
   console.log("\nInstallateur :", fichiers.filter((f) => f.endsWith(".exe")).join(", "));
+  const latest = path.join(SORTIE, "latest.yml");
+  if (!fs.existsSync(latest)) throw new Error("latest.yml n'a pas été produit : les mises à jour intégrées ne verraient pas cette version.");
+  console.log("À joindre à la release GitHub :", [...fichiers.filter((f) => /\.(exe|blockmap)$/.test(f)), latest].join("\n  "));
 }
 
 main().catch((e) => {

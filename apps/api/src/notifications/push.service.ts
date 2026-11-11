@@ -25,6 +25,8 @@ function sonDe(type: TypeNotification): string | undefined {
   return undefined;
 }
 
+const TAILLE_PAQUET = 500;
+
 /** Codes FCM d'un jeton mort (app désinstallée, jeton périmé) : à supprimer de la base. */
 const CODES_JETON_INVALIDE = new Set(["messaging/registration-token-not-registered", "messaging/invalid-registration-token"]);
 
@@ -76,6 +78,17 @@ export class PushService {
     if (notification.lien.id) data.id = notification.lien.id;
 
     try {
+      // Firebase accepte au plus 500 destinataires par appel : au-delà (annonce à tous les hôtels), on envoie par paquets.
+      if (jetons.length > TAILLE_PAQUET) {
+        let envoyes = 0;
+        const invalides: string[] = [];
+        for (let i = 0; i < jetons.length; i += TAILLE_PAQUET) {
+          const partie = await this.envoyer(jetons.slice(i, i + TAILLE_PAQUET), notification, aBlanc);
+          envoyes += partie.envoyes;
+          invalides.push(...partie.invalides);
+        }
+        return { envoyes, invalides };
+      }
       const reponse = await messaging.sendEachForMulticast(
         {
           tokens: jetons,

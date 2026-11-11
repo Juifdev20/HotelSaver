@@ -820,6 +820,7 @@ export const TYPES_NOTIFICATION = [
   "REMBOURSEMENT_A_FAIRE",
   "RESERVATION_HORS_LIGNE_REFUSEE",
   "MISE_A_JOUR",
+  "TEST_NOTIFICATION",
 ] as const;
 export type TypeNotification = (typeof TYPES_NOTIFICATION)[number];
 
@@ -850,7 +851,28 @@ export const CATEGORIE_PAR_TYPE: Record<TypeNotification, CategorieNotification>
   COMMANDE_WEB: "reservations",
   PRE_ENREGISTREMENT: "reservations",
   MISE_A_JOUR: "securite",
+  TEST_NOTIFICATION: "securite",
 };
+
+/** GET /notifications/push/etat — où en sont les notifications « téléphone fermé » pour CET utilisateur. */
+export interface EtatPushNotifications {
+  /** Le serveur a la clé Firebase (FIREBASE_SERVICE_ACCOUNT_JSON) : sans elle, rien ne part vers les téléphones fermés. */
+  serveurPret: boolean;
+  /** Nombre de téléphones actuellement enregistrés au nom de l'utilisateur connecté. */
+  appareils: number;
+  /** Avec `?jeton=` : ce téléphone-ci est-il enregistré ? (absent si aucun jeton n'a été donné) */
+  cetAppareilEnregistre?: boolean;
+}
+
+/** POST /notifications/push/test */
+export interface ResultatTestPush {
+  serveurPret: boolean;
+  appareils: number;
+  /** Nombre de téléphones à qui Firebase a accepté le message. */
+  envoyes: number;
+  /** Raison lisible quand rien n'est parti. */
+  raison: "SERVEUR_NON_CONFIGURE" | "AUCUN_APPAREIL" | "ENVOI_REFUSE" | null;
+}
 
 /** Écrans que le clic sur une notification peut ouvrir (mêmes ids que la navigation des apps). */
 export type EcranNotification = "reservations" | "arrivees-departs" | "chambres" | "stock" | "facturation" | "tableau-de-bord" | "rapports" | "comptes-ouverts" | "mise-a-jour";
