@@ -188,6 +188,24 @@ describe("CafeteriaService", () => {
         );
       });
 
+      it("« il paie et il reste » (gardeOuvert) : la part est payée, le compte reste OUVERT même sans rien d'autre à régler", async () => {
+        // Table 5 : première commande (6 $) + part « Suite » encore vide
+        const compte = compteAvecLignes([[{ devise: "USD", prixUnitaire: 3, quantite: 2 }], []]);
+        prisma.compteCafeteria.findUnique.mockResolvedValue(compte);
+        const [vente] = await service.encaisser("c1", { ...dtoPersonne("sc0"), gardeOuvert: true }, currentUser);
+
+        expect(vente.montantTotalUSD).toBe(6);
+        expect(prisma.sousCompte.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "sc0", hotelId: HOTEL_ID, payeLe: null } }));
+        expect(prisma.compteCafeteria.updateMany).not.toHaveBeenCalled();
+      });
+
+      it("sans gardeOuvert, le même encaissement ferme le compte (comportement habituel inchangé)", async () => {
+        const compte = compteAvecLignes([[{ devise: "USD", prixUnitaire: 3, quantite: 2 }], []]);
+        prisma.compteCafeteria.findUnique.mockResolvedValue(compte);
+        await service.encaisser("c1", dtoPersonne("sc0"), currentUser);
+        expect(prisma.compteCafeteria.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1", hotelId: HOTEL_ID, statut: "OUVERT" } }));
+      });
+
       it("refuse une personne déjà payée (409) et un sousCompteId manquant ou inconnu", async () => {
         const compte = deuxPersonnes();
         compte.sousComptes[0].payeLe = new Date() as any;
@@ -410,6 +428,35 @@ describe("CafeteriaService", () => {
       await expect(
         service.encaisser("c1", { mode: "PARTAGE_EGAL", modePaiement: "CASH" } as any, currentUser)
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe("fermerCompte (terminer la table)", () => {
+    const table = (parts: Array<{ payeLe: Date | null; lignes: unknown[] }>, statut = "OUVERT") => ({ id: "c1", statut, tableOuNom: "Table 5", sousComptes: parts.map((p, i) => ({ id: `sc${i}`, nom: `P${i}`, ...p })) });
+
+    it("ferme une table dont une part est payée et où plus rien n'est à régler", async () => {
+      prisma.compteCafeteria.findUnique.mockResolvedValue(table([{ payeLe: new Date(), lignes: [{}] }, { payeLe: null, lignes: [] }]));
+      await service.fermerCompte("c1", currentUser);
+      expect(prisma.compteCafeteria.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1", hotelId: HOTEL_ID, statut: "OUVERT" } }));
+    });
+
+    it("refuse si rien n'est encaissé (il faut annuler) ou s'il reste des consommations à régler", async () => {
+      prisma.compteCafeteria.findUnique.mockResolvedValue(table([{ payeLe: null, lignes: [] }]));
+      await expect(service.fermerCompte("c1", currentUser)).rejects.toThrow(ConflictException);
+      prisma.compteCafeteria.findUnique.mockResolvedValue(table([{ payeLe: new Date(), lignes: [{}] }, { payeLe: null, lignes: [{}] }]));
+      await expect(service.fermerCompte("c1", currentUser)).rejects.toThrow("Il reste des consommations");
+      expect(prisma.compteCafeteria.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("refuse une fermeture concurrente (compare-and-swap) : le compte vient d'être fermé par un autre poste", async () => {
+      prisma.compteCafeteria.findUnique.mockResolvedValue(table([{ payeLe: new Date(), lignes: [{}] }]));
+      prisma.compteCafeteria.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.fermerCompte("c1", currentUser)).rejects.toThrow(ConflictException);
+    });
+
+    it("refuse un compte déjà fermé ou annulé", async () => {
+      prisma.compteCafeteria.findUnique.mockResolvedValue(table([{ payeLe: new Date(), lignes: [] }], "FERME"));
+      await expect(service.fermerCompte("c1", currentUser)).rejects.toThrow(ConflictException);
     });
   });
 

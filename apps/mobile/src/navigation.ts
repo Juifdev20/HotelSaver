@@ -25,8 +25,8 @@ export const ONGLETS: OngletNavigation[] = [
   { id: "tableau-de-bord", libelle: "Accueil", roles: TOUS, disponible: true },
   { id: "chambres", libelle: "Chambres", roles: RECEPTION, disponible: true },
   { id: "reservations", libelle: "Réserv.", roles: RECEPTION, disponible: true },
-  { id: "caisse", libelle: "Caisse", roles: [Role.CAFETARIA], disponible: true },
-  { id: "comptes-ouverts", libelle: "Comptes", roles: [Role.CAFETARIA], disponible: true },
+  { id: "caisse", libelle: "Vente", roles: [Role.CAFETARIA], disponible: true },
+  { id: "comptes-ouverts", libelle: "En cours", roles: [Role.CAFETARIA], disponible: true },
   // Dépenses (07/10/2026) : saisies par la réception et la cafétaria ; le
   // patron, qui ne les saisit pas, les consulte depuis « Plus ».
   { id: "depenses", libelle: "Dépenses", roles: [Role.RECEPTIONNISTE, Role.CAFETARIA], disponible: true },
@@ -134,8 +134,8 @@ export const SECTIONS_PLUS: SectionMenuPlus[] = [
       // Caisse/Comptes ouverts ont leur propre onglet pour CAFETARIA (voir
       // ONGLETS ci-dessus) — inutile de les dupliquer ici pour ce rôle ;
       // PATRON, qui n'a pas ces onglets, les garde accessibles depuis Plus.
-      { id: "caisse", libelle: "Caisse", roles: [Role.PATRON], disponible: true },
-      { id: "comptes-ouverts", libelle: "Comptes ouverts", roles: [Role.PATRON], disponible: true },
+      { id: "caisse", libelle: "Vente", roles: [Role.PATRON], disponible: true },
+      { id: "comptes-ouverts", libelle: "En cours", roles: [Role.PATRON], disponible: true },
       { id: "retrait-commande", libelle: "Retrait commande", roles: CAFETARIA_ROLES, disponible: true },
       { id: "cuisine", libelle: "Cuisine", roles: CAFETARIA_ROLES, disponible: true },
       { id: "menu", libelle: "Menu", roles: CAFETARIA_ROLES, disponible: true },

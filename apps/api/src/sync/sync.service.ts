@@ -345,7 +345,12 @@ export class SyncService {
         create: async (payload, currentUser) => {
           const compteId = texteCourt(payload.compteId);
           if (!compteId) throw new BadRequestException("compteId est obligatoire.");
-          if (payload.action !== "ANNULER") throw new BadRequestException("action doit être ANNULER.");
+          if (payload.action === "FERMER") {
+            // « Terminer la table » (11/11/2026) : un compte en partie payé, plus rien à régler.
+            const ferme = await this.cafeteriaService.fermerCompte(compteId, currentUser);
+            return { id: compteId, syncVersion: ferme.syncVersion };
+          }
+          if (payload.action !== "ANNULER") throw new BadRequestException("action doit être ANNULER ou FERMER.");
           const motif = typeof payload.motif === "string" ? payload.motif.trim().slice(0, 300) : null;
           const compte = await this.cafeteriaService.annulerCompte(compteId, currentUser, motif);
           return { id: compteId, syncVersion: compte.syncVersion };

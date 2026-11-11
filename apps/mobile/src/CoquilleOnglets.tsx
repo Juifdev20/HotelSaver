@@ -8,10 +8,13 @@ import { IdOnglet, libelleOnglet, ongletsPourRole } from "./navigation";
 import { useSession } from "./contexteSession";
 import { EcranTableauDeBord } from "./ecrans/EcranTableauDeBord";
 import { EcranChambres } from "./ecrans/EcranChambres";
-import { EcranCaisse } from "./ecrans/EcranCaisse";
+import { EcranVente } from "./ecrans/EcranVente";
+import { FournisseurVente, useVente } from "./vente/ContexteVente";
+import { Role } from "@hotel-chicago/types";
 import { EcranComptesOuverts } from "./ecrans/EcranComptesOuverts";
 import { EcranCompteCafeteria } from "./ecrans/EcranCompteCafeteria";
 import { useNotifications } from "./notifications/ContexteNotifications";
+import { useNombreComptesOuverts } from "./hooks/useNombreComptesOuverts";
 import { EcranReservations } from "./ecrans/EcranReservations";
 import { EcranBientot } from "./ecrans/EcranBientot";
 import { EcranPlus } from "./ecrans/EcranPlus";
@@ -31,46 +34,17 @@ function EcranAccueilConnecte({ navigation }: { navigation: BottomTabNavigationP
   );
 }
 
-/** Onglet "Caisse" (CAFETARIA) : ouvre un compte puis passe directement à
- * son détail, comme le faisait "Caisse" depuis Plus (28/09/2026) — sauf
- * qu'ici pas de liste parente vers laquelle revenir : une fois le compte
- * encaissé/consulté, "Retour" mène à "Comptes" (son propre onglet), pas à
- * l'ancien écran Plus. */
-function EcranOngletCaisse({ navigation }: { navigation: BottomTabNavigationProp<ParamListOnglets> }) {
-  const { client } = useSession();
-  const [compteId, setCompteId] = useState<string | null>(null);
-  const [venteRapide, setVenteRapide] = useState(false);
-
-  if (compteId) {
-    return (
-      <EcranCompteCafeteria
-        client={client}
-        compteId={compteId}
-        ouvrirAjoutAuDemarrage={venteRapide}
-        onRetour={() => {
-          setCompteId(null);
-          setVenteRapide(false);
-          navigation.navigate("comptes-ouverts");
-        }}
-      />
-    );
-  }
-  return (
-    <EcranCaisse
-      onCompteOuvert={(id, options) => {
-        setVenteRapide(options?.venteRapide === true);
-        setCompteId(id);
-      }}
-      onRetour={() => navigation.navigate("tableau-de-bord")}
-    />
-  );
+/** Onglet « Vente » (CAFETARIA, 11/11/2026) : on arrive directement sur les produits ; la table n'est créée que si le client reste. Voir EcranVente. */
+function EcranOngletVente({ navigation }: { navigation: BottomTabNavigationProp<ParamListOnglets> }) {
+  return <EcranVente onRetour={() => navigation.navigate("tableau-de-bord")} />;
 }
 
 /** Onglet "Comptes" (CAFETARIA) : même détail de compte que "Caisse", mais
  * "Retour" depuis la liste reste sur cet onglet (rien à quitter). Une
  * notification « commande web » ouvre directement le détail du compte. */
 function EcranOngletComptesOuverts({ navigation }: { navigation: BottomTabNavigationProp<ParamListOnglets> }) {
-  const { client } = useSession();
+  const { client, utilisateur } = useSession();
+  const { choisirOnglet } = useVente();
   const { demandeCompte, consommerDemandeCompte } = useNotifications();
   const [compteId, setCompteId] = useState<string | null>(null);
 
@@ -85,7 +59,18 @@ function EcranOngletComptesOuverts({ navigation }: { navigation: BottomTabNaviga
     return <EcranCompteCafeteria client={client} compteId={compteId} onRetour={() => setCompteId(null)} />;
   }
   return (
-    <EcranComptesOuverts onOuvrirCompte={setCompteId} onRetour={() => navigation.navigate("tableau-de-bord")} />
+    <EcranComptesOuverts
+      onOuvrirCompte={(id, compte) => {
+        // La cafétaria reprend une table dans « Vente » (son onglet, avec les produits) ; une commande du site et le patron gardent le détail du compte.
+        if (utilisateur.role === Role.CAFETARIA && compte && compte.origine !== "SITE_PUBLIC") {
+          choisirOnglet(id);
+          navigation.navigate("caisse");
+          return;
+        }
+        setCompteId(id);
+      }}
+      onRetour={() => navigation.navigate("tableau-de-bord")}
+    />
   );
 }
 
@@ -132,8 +117,11 @@ export function CoquilleOnglets() {
   // Les onglets des fonctions que la formule de l'hôtel n'ouvre pas disparaissent ; « Accueil » et « Plus » restent toujours (barre jamais vide,
   // et si l'onglet affiché disparaît, la navigation retombe sur le premier : l'Accueil).
   const onglets = ongletsPourRole(utilisateur.role, utilisateur.fonctions);
+  // Pastille « En cours » : tables ouvertes (base locale, hors ligne compris).
+  const nombreEnCours = useNombreComptesOuverts(onglets.some((o) => o.id === "comptes-ouverts"));
 
   return (
+    <FournisseurVente>
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
@@ -151,13 +139,15 @@ export function CoquilleOnglets() {
             options={{
               title: onglet.libelle,
               tabBarIcon: ({ color, size }) => <Icone color={color} size={size} />,
+              tabBarBadge: onglet.id === "comptes-ouverts" && nombreEnCours > 0 ? nombreEnCours : undefined,
+              tabBarBadgeStyle: { backgroundColor: couleurs.danger },
             }}
           >
             {(props) => {
               if (onglet.id === "tableau-de-bord") return <EcranAccueilConnecte {...props} />;
               if (onglet.id === "chambres") return <EcranChambres onRetour={() => props.navigation.navigate("tableau-de-bord")} />;
               if (onglet.id === "reservations") return <EcranOngletReservations {...props} />;
-              if (onglet.id === "caisse") return <EcranOngletCaisse {...props} />;
+              if (onglet.id === "caisse") return <EcranOngletVente {...props} />;
               if (onglet.id === "comptes-ouverts") return <EcranOngletComptesOuverts {...props} />;
               if (onglet.id === "depenses") return <EcranDepenses onRetour={() => props.navigation.navigate("tableau-de-bord")} />;
               if (onglet.id === "plus") return <EcranPlus />;
@@ -167,5 +157,6 @@ export function CoquilleOnglets() {
         );
       })}
     </Tab.Navigator>
+    </FournisseurVente>
   );
 }

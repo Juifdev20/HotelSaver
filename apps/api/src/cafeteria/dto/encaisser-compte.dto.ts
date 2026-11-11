@@ -1,6 +1,6 @@
 import { Devise, ModePaiement } from "@hotel-chicago/database";
 import { Type } from "class-transformer";
-import { IsEnum, IsIn, IsInt, IsOptional, IsPositive, IsUUID, Min } from "class-validator";
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsPositive, IsUUID, Min } from "class-validator";
 
 export const MODES_ENCAISSEMENT = ["GROUPE", "PAR_SOUS_COMPTE", "PARTAGE_EGAL", "UNE_PERSONNE"] as const;
 export type ModeEncaissement = (typeof MODES_ENCAISSEMENT)[number];
@@ -43,4 +43,12 @@ export class EncaisserCompteDto {
   @IsOptional()
   @IsEnum(Devise)
   deviseRenduChoisie?: Devise;
+
+  /**
+   * « Il paie maintenant et il reste » (11/11/2026) : la part est encaissée mais le compte reste OUVERT, même s'il ne reste plus rien à
+   * régler pour l'instant (le client va commander encore). Se termine avec « terminer la table » ou au prochain encaissement.
+   */
+  @IsOptional()
+  @IsBoolean()
+  gardeOuvert?: boolean;
 }

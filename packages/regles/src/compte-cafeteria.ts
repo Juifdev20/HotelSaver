@@ -19,3 +19,23 @@ export function raisonRefusAnnulationCompte(compte: {
   if ((compte.ventes ?? []).some((v) => !v.annuleLe)) return MESSAGE_COMPTE_DEJA_ENCAISSE;
   return null;
 }
+
+export const MESSAGE_COMPTE_RIEN_ENCAISSE = "Rien n'a été encaissé sur ce compte : annulez-le plutôt (il a été créé par erreur).";
+export const MESSAGE_COMPTE_RESTE_A_PAYER = "Il reste des consommations à régler sur ce compte : encaissez-les avant de le terminer.";
+
+/**
+ * « Terminer la table » (11/11/2026) : un client a payé une partie et s'en va sans commander d'autre. Le compte se ferme seulement s'il
+ * est ouvert, si une part au moins a été payée (sinon c'est une erreur : on l'annule) et s'il ne reste AUCUNE consommation à régler.
+ */
+export function raisonRefusFermetureCompte(compte: {
+  statut: string;
+  sousComptes?: { payeLe?: string | Date | null; lignes?: unknown[] }[];
+}): string | null {
+  if (compte.statut === "ANNULE") return MESSAGE_COMPTE_ANNULE;
+  if (compte.statut !== "OUVERT") return MESSAGE_COMPTE_DEJA_FERME;
+  const parts = compte.sousComptes ?? [];
+  if (!parts.some((sc) => sc.payeLe)) return MESSAGE_COMPTE_RIEN_ENCAISSE;
+  if (parts.some((sc) => !sc.payeLe && (sc.lignes ?? []).length > 0)) return MESSAGE_COMPTE_RESTE_A_PAYER;
+  return null;
+}
+

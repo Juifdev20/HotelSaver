@@ -10,7 +10,7 @@ export interface EcranComptesOuvertsProps {
   client: ClientApi;
   utilisateur: ProfilConnecte;
   interfaceImprimante: string | null;
-  onOuvrirCompte: (compteId: string) => void;
+  onOuvrirCompte: (compteId: string, compte?: CompteCafeteria) => void;
 }
 
 function totalCompte(compte: CompteCafeteria): { usd: number; cdf: number } {
@@ -250,8 +250,8 @@ function JournalVentes({
   );
 }
 
-/** Équivalent desktop de apps/mobile/src/ecrans/EcranComptesOuverts.tsx — en
- * ligne directe (pas de miroir), même logique, plus le journal des ventes
+/** Équivalent desktop de apps/mobile/src/ecrans/EcranComptesOuverts.tsx — lit la
+ * base locale du poste (client = miroir : marche sans Internet), même logique, plus le journal des ventes
  * (réimpression/détail/annulation) en dessous des comptes ouverts. */
 export function EcranComptesOuverts({ client, utilisateur, interfaceImprimante, onOuvrirCompte }: EcranComptesOuvertsProps) {
   const [comptes, setComptes] = useState<CompteCafeteria[] | null>(null);
@@ -319,7 +319,7 @@ export function EcranComptesOuverts({ client, utilisateur, interfaceImprimante, 
                             .join(" + ")}
                     </td>
                     <td>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => onOuvrirCompte(c.id)}>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => onOuvrirCompte(c.id, c)}>
                         Ouvrir
                       </Button>
                     </td>

@@ -43,7 +43,7 @@ import { EcranParametresMobile } from "./EcranParametresMobile";
 import { EcranMenu } from "./EcranMenu";
 import { EcranStock } from "./EcranStock";
 import { EcranComptesOuverts } from "./EcranComptesOuverts";
-import { EcranCaisse } from "./EcranCaisse";
+import { EcranVente } from "./EcranVente";
 import { EcranCompteCafeteria } from "./EcranCompteCafeteria";
 import { EcranSynchronisation } from "./EcranSynchronisation";
 import { EcranImprimante } from "./EcranImprimante";
@@ -248,12 +248,8 @@ export function EcranPlus() {
     );
   }
   if (vue.id === "caisse") {
-    return (
-      <EcranCaisse
-        onRetour={() => setVue(VUE_LISTE)}
-        onCompteOuvert={(compteId, options) => setVue({ id: "compte", compteId, venteRapide: options?.venteRapide })}
-      />
-    );
+    // Même écran « Vente » que l'onglet de la cafétaria (le patron y est en lecture seule sauf réglage de l'hôtel).
+    return <EcranVente onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "retrait-commande") {
     return (

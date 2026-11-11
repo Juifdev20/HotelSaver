@@ -46,8 +46,8 @@ function ajouterJours(input: string, n: number): string {
 /**
  * Planning visuel du parc : une ligne par chambre, 14 jours à partir
  * d'aujourd'hui. Les barres colorées suivent le statut de la réservation ;
- * une cellule vide ouvre le formulaire pré-rempli. En ligne (appels API
- * directs — le desktop n'a pas de miroir hors-ligne).
+ * une cellule vide ouvre le formulaire pré-rempli. Lit la base locale du poste
+ * (le « client » est celui du miroir, voir App.tsx) : marche sans Internet.
  */
 export function EcranPlanning({ client, onNouvelleReservation, onOuvrirReservation }: EcranPlanningProps) {
   const [chambres, setChambres] = useState<Chambre[] | null>(null);

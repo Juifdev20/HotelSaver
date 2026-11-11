@@ -4054,3 +4054,21 @@ Détail : `docs/ABONNEMENT.md` (section « Preuve d'achat »).
 - ⚠️ **Le modèle de contrat n'est pas un avis juridique** : à faire relire par un avocat congolais (tribunal compétent, résiliation, préavis de changement des frais, mise en demeure de 15 jours, protection des données).
 - Migration `20261111180000_licences_contrat_preuves` (colonnes et deux séquences, rien d'existant modifié). À appliquer AVANT de redéployer l'API.
 
+## 11/11/2026 — Nouvelle vente de la cafétéria (« Vente » / « En cours »), téléphone et bureau
+
+**Besoin du patron** : l'ancien parcours « Caisse » obligeait à créer un compte avant de voir les produits ; interface peu intuitive pour l'écran le plus utilisé. Maquettes validées (téléphone 4 écrans, bureau 3 vues, charte de l'app, icônes à la place des photos pour l'instant).
+
+**Parcours** : on arrive sur les produits (recherche, scanner, **Boissons / Restaurant**, catégories, un tap sur « + »). Rien n'est créé avant la fin :
+- **Encaisser** : le client paie et part → compte « Comptoir HH:MM » créé au moment de payer, puis écran d'encaissement seul (reçu « Comptoir »).
+- **Il reste, créer sa table** : une seule question (nom, « Table N » proposé), puis **payer maintenant** (la première commande est encaissée, la table reste ouverte) ou **à la fin**.
+- **Onglets en haut** (« Nouvelle vente » + une table par client resté) pour passer de l'une à l'autre ; chaque onglet garde ses produits choisis. Sur une table : **Ajouter** (valide les produits choisis, visible seulement s'il y en a), **Encaisser** (ce qui reste), **Terminer la table** (tout est payé), **Annuler la table** (vide).
+- Renommages : « Caisse » → **Vente**, « Comptes » → **En cours** (pastille = nombre de tables ouvertes sur mobile). La cafétaria reprend une table d'« En cours » dans « Vente » ; le détail du compte (personnes, « Servi », impression) reste accessible par « Détail ».
+
+**Données (aucune migration)** : une table = un compte cafétaria. « Payer maintenant et rester » = part « Première commande » encaissée + part « Suite » vide qui garde la table ouverte ; les ajouts suivants vont sur la dernière part non payée. Deux ajouts de protocole : `gardeOuvert` sur l'encaissement (la table ne se ferme pas quand plus rien n'est à régler) et **`fermerCompte`** (route `POST /cafeteria/comptes/:id/fermer`, action de synchronisation `ActionCompte/FERMER`, règle partagée `raisonRefusFermetureCompte`). Une ancienne application qui ignore `gardeOuvert` ferme simplement la table (comportement d'avant).
+
+**Offline first** : tout passe par le « client » de la base locale (miroir) — catalogue, tables, écritures, reçus provisoires TEMP-…, synchronisation en arrière-plan. Les paniers en cours sont gardés sur l'appareil (AsyncStorage sur mobile, localStorage sur le bureau). Règles pures partagées dans `packages/regles/src/vente-cafeteria.ts` (filtres, sélection, totaux par devise sans conversion, lecture d'une table, nom de table suivant).
+
+**Constat sur le bureau** : le bureau est DÉJÀ hors ligne d'abord depuis le 10/10/2026 (`ouvrirMiroir`, `client = miroir.client` dans App.tsx) ; les commentaires « en ligne directe, pas de miroir » de plusieurs écrans étaient périmés (corrigés). Audit de tous les appels `client.*` du bureau et du mobile : il ne reste en « réseau seulement » que des fonctions serveur par nature (utilisateurs, rapports PDF, édition du site, photos, création d'inventaire, réglages de paiement en ligne, mot de passe, guides, contrat de licence). Toute la caisse (produits, tables, ajouts, encaissements, reçus, annulation, fermeture) marche sans Internet. Vérifié dans un navigateur avec la vraie base locale (serveur injoignable) : vente comptoir, payer-et-rester, ajouter, encaisser, terminer, payer à la fin, stock décompté, panier retrouvé après rechargement.
+
+À vérifier sur appareil réel : écran mobile (non lancé ici), Mobile Money hors ligne (la confirmation exige Internet, comme avant), impression.
+

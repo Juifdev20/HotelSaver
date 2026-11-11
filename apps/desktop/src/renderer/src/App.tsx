@@ -27,7 +27,9 @@ import { EcranParametres } from "./screens/EcranParametres";
 import { EcranTableauDeBord } from "./screens/EcranTableauDeBord";
 import { EcranUtilisateurs } from "./screens/EcranUtilisateurs";
 import { EcranSiteHotel } from "./screens/EcranSiteHotel";
-import { EcranCaisse } from "./screens/EcranCaisse";
+import { EcranVente } from "./screens/EcranVente";
+import { EnCours } from "./screens/EnCours";
+import { FournisseurVente, useVente } from "./vente/ContexteVente";
 import { EcranComptesOuverts } from "./screens/EcranComptesOuverts";
 import { EcranCompteCafeteria } from "./screens/EcranCompteCafeteria";
 import { EcranCuisine } from "./screens/EcranCuisine";
@@ -94,7 +96,6 @@ export function App() {
   // revenant sur l'une de ces deux pages (voir naviguer() plus bas).
   const [compteCafeteriaOuvert, setCompteCafeteriaOuvert] = useState<string | null>(null);
   // Compte ouvert par « Vente rapide » : l'ajout s'ouvre directement, scanner prêt.
-  const [venteRapide, setVenteRapide] = useState(false);
   // Séjour à ouvrir directement dans l'écran Facturation (deep-link depuis
   // Réservations ou Arrivées et départs) — remis à zéro par naviguer().
   const [reservationAFacturer, setReservationAFacturer] = useState<string | null>(null);
@@ -637,36 +638,26 @@ export function App() {
           synchronisation={synchronisationEcran}
         />
       );
-    } else if (page === "caisse" || page === "comptes-ouverts") {
-      // Les deux entrées mènent au même écran de détail une fois un compte
-      // choisi/créé — voir compteCafeteriaOuvert plus haut.
+    } else if (page === "caisse") {
+      // « Vente » (11/11/2026) : produits d'abord, ticket à droite ; la table n'est créée que si le client reste. Voir EcranVente.
+      contenu = <EcranVente client={client} utilisateur={utilisateur} interfaceImprimante={configuration.imprimanteInterface} synchronisation={synchronisationEcran} />;
+    } else if (page === "comptes-ouverts") {
       contenu = compteCafeteriaOuvert ? (
         <EcranCompteCafeteria
           client={client}
           utilisateur={utilisateur}
           compteId={compteCafeteriaOuvert}
           interfaceImprimante={configuration.imprimanteInterface}
-          ouvrirAjoutAuDemarrage={venteRapide}
           synchronisation={synchronisationEcran}
-          onRetour={() => {
-            setCompteCafeteriaOuvert(null);
-            setVenteRapide(false);
-          }}
-        />
-      ) : page === "caisse" ? (
-        <EcranCaisse
-          client={client}
-          onCompteOuvert={(id, options) => {
-            setVenteRapide(options?.venteRapide === true);
-            setCompteCafeteriaOuvert(id);
-          }}
+          onRetour={() => setCompteCafeteriaOuvert(null)}
         />
       ) : (
-        <EcranComptesOuverts
+        <EnCours
           client={client}
           utilisateur={utilisateur}
           interfaceImprimante={configuration.imprimanteInterface}
-          onOuvrirCompte={setCompteCafeteriaOuvert}
+          onOuvrirDetail={setCompteCafeteriaOuvert}
+          onNaviguer={naviguer}
         />
       );
     } else if (page === "cuisine") {
@@ -746,6 +737,7 @@ export function App() {
     }
 
     return (
+      <FournisseurVente cle={`hotelsaver:vente:${utilisateur.hotelId}:${utilisateur.userId}`}>
       <Coquille
         utilisateur={utilisateur}
         pageActive={page}
@@ -776,6 +768,7 @@ export function App() {
       >
         {contenu}
       </Coquille>
+      </FournisseurVente>
     );
   }
 

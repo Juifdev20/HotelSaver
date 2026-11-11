@@ -45,6 +45,12 @@ export interface EcranCompteCafeteriaProps {
    * caméra prête. Le scan remplit le panier même avant la synchronisation ;
    * seule la validation attend que la personne existe côté serveur. */
   ouvrirAjoutAuDemarrage?: boolean;
+  /**
+   * Nouvelle vente (11/11/2026) : ouvre tout de suite l'encaissement, sans passer par la vue d'ensemble. `cible` = « tout » ou l'id d'une personne
+   * (la part déjà choisie) ; `gardeOuvert` : « il paie maintenant et il reste » — la part est réglée, la table reste ouverte pour la suite.
+   * Quand le reçu est terminé, l'écran rend la main (onRetour) même si la table reste ouverte.
+   */
+  encaissementAuDemarrage?: { cible: string; gardeOuvert?: boolean };
 }
 
 /**
@@ -54,7 +60,7 @@ export interface EcranCompteCafeteriaProps {
  * ligne) et partent au serveur dès que le réseau le permet. Aucune action
  * n'attend plus la synchronisation.
  */
-export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAuDemarrage = false }: EcranCompteCafeteriaProps) {
+export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAuDemarrage = false, encaissementAuDemarrage }: EcranCompteCafeteriaProps) {
   const { utilisateur, moteurSync, miroir } = useSession();
   const etatSync = useSyncEtat();
   const [compte, setCompte] = useState<CompteCafeteria | null>(null);
@@ -79,6 +85,9 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   // Ce que le reçu détaille (figé au moment de l'encaissement, le compte se recharge ensuite).
   const [recuCompte, setRecuCompte] = useState<CompteCafeteria | null>(null);
   const [compteSolde, setCompteSolde] = useState(false);
+  // « Il paie et il reste » : le prochain encaissement garde la table ouverte (voir DonneesEncaissement.gardeOuvert).
+  const [gardeOuvertEncaissement, setGardeOuvertEncaissement] = useState(false);
+  const encaissementDemarreFait = useRef(false);
   const [modePaiement, setModePaiement] = useState<ModePaiement>(ModePaiement.CASH);
   const [venteEncaissee, setVenteEncaissee] = useState<VenteCafeteria | null>(null);
   /** En ligne, le numéro définitif du reçu arrive avec la synchronisation : l'impression l'attend (voir attendreNumeroDefinitif). */
@@ -164,6 +173,18 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
     setPersonneEnAjout(premiere.id);
   }, [ouvrirAjoutAuDemarrage, compte]);
 
+  // Nouvelle vente : encaissement ouvert dès que le compte est lu du miroir (une seule fois).
+  useEffect(() => {
+    if (!encaissementAuDemarrage || encaissementDemarreFait.current || !compte) return;
+    const cible = encaissementAuDemarrage.cible;
+    const restantes = compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0);
+    if (restantes.length === 0) return;
+    encaissementDemarreFait.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ouvrirEncaissement(cible, encaissementAuDemarrage.gardeOuvert === true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [encaissementAuDemarrage, compte]);
+
   /** Une personne est « en attente » tant qu'elle ou ses lignes n'ont pas atteint le serveur (simple indication). */
   function personneEnAttente(sc: SousCompte): boolean {
     return miroir.estCreationEnAttente(sc.id) || sc.lignes.some((l) => miroir.estCreationEnAttente(l.id));
@@ -227,7 +248,8 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
     return cible === "tout" ? personnesARegler : personnesARegler.filter((sc) => sc.id === cible);
   }
 
-  function ouvrirEncaissement(cible: string) {
+  function ouvrirEncaissement(cible: string, gardeOuvert = false) {
+    setGardeOuvertEncaissement(gardeOuvert);
     const totalDeLaCible = totalCompte({ ...(compte as CompteCafeteria), sousComptes: personnesCibles(cible) });
     const deviseNote = totalDeLaCible.usd > 0 || totalDeLaCible.cdf === 0 ? Devise.USD : Devise.CDF;
     setCibleEncaissement(cible);
@@ -262,10 +284,11 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
       const detail = especesAvecDetail
         ? { deviseRegleeParClient: deviseReglee, montantRegleParClient: regle, deviseRenduChoisie: deviseRendu }
         : {};
+      const garde = gardeOuvertEncaissement ? { gardeOuvert: true } : {};
       const donnees: DonneesEncaissementEspeces =
         cibleEncaissement === "tout"
-          ? { mode: "GROUPE", modePaiement, ...detail }
-          : { mode: "UNE_PERSONNE", modePaiement, sousCompteId: concernes[0].id, ...detail };
+          ? { mode: "GROUPE", modePaiement, ...detail, ...garde }
+          : { mode: "UNE_PERSONNE", modePaiement, sousCompteId: concernes[0].id, ...detail, ...garde };
       const ventes = await client.encaisserCompte(idCompte, donnees);
       setResumeReglement(
         especesAvecDetail && apercuMonnaie?.statut === "ok"
@@ -310,7 +333,7 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   /** Reçu terminé : on quitte le compte seulement s'il est soldé, sinon on reste pour les autres personnes. */
   function terminerEncaissement() {
     setModaleEncaissement(false);
-    if (venteEncaissee && compteSolde) onRetour();
+    if (venteEncaissee && (compteSolde || gardeOuvertEncaissement)) onRetour();
   }
 
   const total = compte ? totalCompte(compte) : { usd: 0, cdf: 0 };

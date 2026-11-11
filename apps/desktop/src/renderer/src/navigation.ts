@@ -68,8 +68,8 @@ export const SECTIONS: SectionNavigation[] = [
   {
     titre: "Cafétaria",
     entrees: [
-      { id: "caisse", libelle: "Caisse", libelleCourt: "Caisse", roles: CAFETARIA, disponible: true },
-      { id: "comptes-ouverts", libelle: "Comptes ouverts", libelleCourt: "Comptes", roles: CAFETARIA, disponible: true },
+      { id: "caisse", libelle: "Vente", libelleCourt: "Vente", roles: CAFETARIA, disponible: true },
+      { id: "comptes-ouverts", libelle: "En cours", libelleCourt: "En cours", roles: CAFETARIA, disponible: true },
       { id: "retrait-commande", libelle: "Retrait commande", libelleCourt: "Retrait", roles: CAFETARIA, disponible: true },
       { id: "cuisine", libelle: "Cuisine", libelleCourt: "Cuisine", roles: CAFETARIA, disponible: true },
       { id: "menu", libelle: "Menu", libelleCourt: "Menu", roles: CAFETARIA, disponible: true },

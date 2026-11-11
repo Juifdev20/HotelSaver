@@ -23,6 +23,12 @@ export interface EcranCompteCafeteriaProps {
   ouvrirAjoutAuDemarrage?: boolean;
   /** Pour imprimer le reçu avec son numéro définitif quand le réseau est là (voir attendreNumeroDefinitif). */
   synchronisation?: SynchronisationEcran;
+  /**
+   * Nouvelle vente (11/11/2026) : ouvre tout de suite l'encaissement, sans passer par la vue d'ensemble. `cible` = « tout » ou l'id d'une personne
+   * (la part déjà choisie) ; `gardeOuvert` : « il paie maintenant et il reste » — la part est réglée, la table reste ouverte pour la suite.
+   * Quand le reçu est terminé, l'écran rend la main (onRetour) même si la table reste ouverte.
+   */
+  encaissementAuDemarrage?: { cible: string; gardeOuvert?: boolean };
 }
 
 function totalSousCompte(sousCompte: CompteCafeteria["sousComptes"][number]): { usd: number; cdf: number } {
@@ -48,8 +54,9 @@ function totalCompte(compte: CompteCafeteria): { usd: number; cdf: number } {
 
 /**
  * Détail d'un compte cafétaria (Phase 15 — équivalent desktop de
- * apps/mobile/src/ecrans/EcranCompteCafeteria.tsx). En ligne directe : pas
- * de miroir, chaque action appelle l'API et recharge le compte.
+ * apps/mobile/src/ecrans/EcranCompteCafeteria.tsx). Le « client » reçu est celui de la base locale
+ * (miroir, voir App.tsx) : chaque action s'écrit d'abord sur le poste, marche sans Internet et part
+ * ensuite au serveur ; l'écran se recharge à chaque action.
  */
 export function EcranCompteCafeteria({
   client,
@@ -59,6 +66,7 @@ export function EcranCompteCafeteria({
   onRetour,
   ouvrirAjoutAuDemarrage = false,
   synchronisation,
+  encaissementAuDemarrage,
 }: EcranCompteCafeteriaProps) {
   /** En ligne, le numéro définitif du reçu arrive avec la synchronisation : l'impression l'attend. */
   const venteDefinitive = useRef<Promise<VenteCafeteria> | null>(null);
@@ -84,6 +92,16 @@ export function EcranCompteCafeteria({
   const [populaires, setPopulaires] = useState<Map<string, number>>(new Map());
   const [menuDuJour, setMenuDuJour] = useState<MenuDuJour | null>(null);
 
+  // Nouvelle vente : encaissement ouvert dès que le compte est lu de la base locale (une seule fois).
+  useEffect(() => {
+    if (!encaissementAuDemarrage || encaissementDemarreFait.current || !compte) return;
+    if (!compte.sousComptes.some((sc) => !sc.payeLe && sc.lignes.length > 0)) return;
+    encaissementDemarreFait.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ouvrirEncaissement(encaissementAuDemarrage.cible, encaissementAuDemarrage.gardeOuvert === true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [encaissementAuDemarrage, compte]);
+
   const [modePaiement, setModePaiement] = useState<ModePaiement>(ModePaiement.CASH);
   const [venteEncaissee, setVenteEncaissee] = useState<VenteCafeteria | null>(null);
   const [enEncaissement, setEnEncaissement] = useState(false);
@@ -92,6 +110,9 @@ export function EcranCompteCafeteria({
   // Ce que le reçu détaille (figé au moment de l'encaissement, le compte se recharge ensuite).
   const [recuCompte, setRecuCompte] = useState<CompteCafeteria | null>(null);
   const [compteSolde, setCompteSolde] = useState(false);
+  // « Il paie et il reste » : le prochain encaissement garde la table ouverte (voir DonneesEncaissement.gardeOuvert).
+  const [gardeOuvertEncaissement, setGardeOuvertEncaissement] = useState(false);
+  const encaissementDemarreFait = useRef(false);
   // Personnes payées : écartées à la main (« Masquer ») ou effacées d'elles-mêmes 1 minute après leur paiement.
   const [masquees, setMasquees] = useState<Set<string>>(new Set());
   const [voirPayees, setVoirPayees] = useState(false);
@@ -227,8 +248,9 @@ export function EcranCompteCafeteria({
     setErreur(null);
     try {
       // Objets non « frais » : api-client type encore l'encaissement sans les champs du paiement croisé, que l'API et `Ecritures` acceptent.
-      const donneesGroupe = { mode: "GROUPE" as const, modePaiement, ...detail };
-      const donneesPersonne = { mode: "UNE_PERSONNE" as const, modePaiement, sousCompteId: cible, ...detail };
+      const garde = gardeOuvertEncaissement ? { gardeOuvert: true } : {};
+      const donneesGroupe = { mode: "GROUPE" as const, modePaiement, ...detail, ...garde };
+      const donneesPersonne = { mode: "UNE_PERSONNE" as const, modePaiement, sousCompteId: cible, ...detail, ...garde };
       const ventes =
         cible === "tout"
           ? await client.encaisserCompte(compteId, donneesGroupe)
@@ -258,7 +280,7 @@ export function EcranCompteCafeteria({
 
   /** Reçu terminé : on quitte le compte seulement s'il est soldé, sinon on revient aux autres personnes. */
   function terminerRecu() {
-    if (compteSolde) {
+    if (compteSolde || gardeOuvertEncaissement) {
       onRetour();
       return;
     }
@@ -268,7 +290,8 @@ export function EcranCompteCafeteria({
     setMessageImpression(null);
   }
 
-  function ouvrirEncaissement(cibleChoisie: string) {
+  function ouvrirEncaissement(cibleChoisie: string, gardeOuvert = false) {
+    setGardeOuvertEncaissement(gardeOuvert);
     setErreur(null);
     setModePaiement(ModePaiement.CASH);
     setMontantRemis("");
@@ -444,6 +467,134 @@ export function EcranCompteCafeteria({
           </div>
         </div>
         </div>
+      </div>
+    );
+  }
+
+  // Panneau de paiement (mode de paiement, montant remis, monnaie) : dans la vue d'ensemble du compte, ou seul pendant une nouvelle vente.
+  const panneauEncaissement =
+    cible !== null ? (
+            <div className="carte-formulaire">
+              <p className="hc-text-label texte-discret">
+                {cible === "tout" ? "Tout encaisser" : `Encaisser ${cibles[0]?.nom ?? ""}`}
+              </p>
+              <p className="hc-text-price">
+                {totalCible.usd > 0 && formatMontant(totalCible.usd, Devise.USD)}
+                {totalCible.usd > 0 && totalCible.cdf > 0 && " + "}
+                {totalCible.cdf > 0 && formatMontant(totalCible.cdf, Devise.CDF)}
+              </p>
+              <div className="puces" role="group" aria-label="Mode de paiement">
+                {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
+                  <button key={m} type="button" className="puce" aria-pressed={modePaiement === m} onClick={() => setModePaiement(m)}>
+                    {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
+                  </button>
+                ))}
+              </div>
+
+              {modePaiement === ModePaiement.CASH && noteMixte && (
+                <p className="hc-text-caption texte-discret">
+                  Note en deux devises (USD et CDF) : le règlement croisé n'est pas possible, encaissez le montant exact de chaque devise.
+                </p>
+              )}
+
+              {exigerRemis && deviseDueCible && (
+                <div className="formulaire" style={{ display: "flex", flexDirection: "column", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-2)" }}>
+                  <div className="parametres-ligne">
+                    <span className="hc-text-body">Devise remise par le client</span>
+                    <div className="puces" role="group" aria-label="Devise remise">
+                      {[Devise.USD, Devise.CDF].map((d) => (
+                        <button key={d} type="button" className="puce" aria-pressed={deviseRemiseEff === d} onClick={() => setDeviseRemise(d)}>
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {deviseRemiseEff !== deviseDueCible && (
+                    <p className="hc-text-caption" style={{ color: "var(--hc-blue)" }}>
+                      {cdfParUsd
+                        ? `Dû : ${formatMontant(
+                            deviseDueCible === Devise.USD ? totalCible.usd * cdfParUsd : totalCible.cdf / cdfParUsd,
+                            deviseRemiseEff
+                          )} (1 $ = ${formatMontant(cdfParUsd, Devise.CDF)})`
+                        : "Aucun taux de change défini par le patron — paiement croisé impossible."}
+                    </p>
+                  )}
+                  <label className="hc-text-label" htmlFor="montant-remis-cafe">
+                    Montant remis (obligatoire)
+                  </label>
+                  <input
+                    id="montant-remis-cafe"
+                    type="text"
+                    inputMode="decimal"
+                    value={montantRemis}
+                    onChange={(e) => setMontantRemis(e.target.value)}
+                    placeholder={deviseRemiseEff === Devise.USD ? "Ex. 20.00" : "Ex. 50 000"}
+                    aria-required="true"
+                    aria-invalid={erreurRemis !== null}
+                    aria-describedby={erreurRemis ? "montant-remis-cafe-erreur" : undefined}
+                  />
+                  {erreurRemis && (
+                    <p id="montant-remis-cafe-erreur" role="alert" className="hc-text-body texte-erreur">
+                      {erreurRemis}
+                    </p>
+                  )}
+                  {remisLu && remisLu.ok && (
+                    <div className="parametres-ligne">
+                      <span className="hc-text-body">Rendre la monnaie en</span>
+                      <div className="puces" role="group" aria-label="Devise du rendu">
+                        {[Devise.USD, Devise.CDF].map((d) => (
+                          <button key={d} type="button" className="puce" aria-pressed={deviseRenduEff === d} onClick={() => setDeviseRenduChoisie(d)}>
+                            {d}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {apercuMonnaie?.statut === "insuffisant" && (
+                    <p role="alert" className="hc-text-body texte-erreur">
+                      Montant insuffisant : il faut {formatMontant(apercuMonnaie.duReglee, deviseRemiseEff)}.
+                    </p>
+                  )}
+                  {apercuMonnaie?.statut === "taux-manquant" && (
+                    <p role="alert" className="hc-text-body texte-erreur">
+                      Aucun taux de change défini par le patron : le client doit régler dans la devise de la note.
+                    </p>
+                  )}
+                  {apercuMonnaie?.statut === "ok" && (
+                    <p className="hc-text-body-strong texte-succes" role="status">
+                      Monnaie à rendre : {formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-3)" }}>
+                <Button type="button" onClick={encaisser} disabled={enEncaissement || cibles.length === 0 || !remisValide}>
+                  {enEncaissement ? "Encaissement en cours…" : "Confirmer l'encaissement"}
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setCible(null)} disabled={enEncaissement}>
+                  Annuler
+                </Button>
+              </div>
+            </div>
+    ) : null;
+
+  // Nouvelle vente (11/11/2026) : le paiement s'ouvre SEUL, sans la vue d'ensemble des personnes (un client au comptoir n'a pas besoin de la liste des parts).
+  if (encaissementAuDemarrage && cible !== null && compteOuvert && !venteEncaissee) {
+    return (
+      <div className="page">
+        <header className="page__entete">
+          <div>
+            <h1 className="hc-text-display-md page__titre">Encaisser</h1>
+            <p className="hc-text-body page__sous-titre">{compte.tableOuNom}</p>
+          </div>
+        </header>
+        {erreur && (
+          <p role="alert" className="hc-text-body texte-erreur">
+            {erreur}
+          </p>
+        )}
+        <div className="vente-paiement-seul">{panneauEncaissement}</div>
       </div>
     );
   }
@@ -648,111 +799,7 @@ export function EcranCompteCafeteria({
             </div>
           )}
 
-          {cible !== null && (
-            <div className="carte-formulaire">
-              <p className="hc-text-label texte-discret">
-                {cible === "tout" ? "Tout encaisser" : `Encaisser ${cibles[0]?.nom ?? ""}`}
-              </p>
-              <p className="hc-text-price">
-                {totalCible.usd > 0 && formatMontant(totalCible.usd, Devise.USD)}
-                {totalCible.usd > 0 && totalCible.cdf > 0 && " + "}
-                {totalCible.cdf > 0 && formatMontant(totalCible.cdf, Devise.CDF)}
-              </p>
-              <div className="puces" role="group" aria-label="Mode de paiement">
-                {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
-                  <button key={m} type="button" className="puce" aria-pressed={modePaiement === m} onClick={() => setModePaiement(m)}>
-                    {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
-                  </button>
-                ))}
-              </div>
-
-              {modePaiement === ModePaiement.CASH && noteMixte && (
-                <p className="hc-text-caption texte-discret">
-                  Note en deux devises (USD et CDF) : le règlement croisé n'est pas possible, encaissez le montant exact de chaque devise.
-                </p>
-              )}
-
-              {exigerRemis && deviseDueCible && (
-                <div className="formulaire" style={{ display: "flex", flexDirection: "column", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-2)" }}>
-                  <div className="parametres-ligne">
-                    <span className="hc-text-body">Devise remise par le client</span>
-                    <div className="puces" role="group" aria-label="Devise remise">
-                      {[Devise.USD, Devise.CDF].map((d) => (
-                        <button key={d} type="button" className="puce" aria-pressed={deviseRemiseEff === d} onClick={() => setDeviseRemise(d)}>
-                          {d}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {deviseRemiseEff !== deviseDueCible && (
-                    <p className="hc-text-caption" style={{ color: "var(--hc-blue)" }}>
-                      {cdfParUsd
-                        ? `Dû : ${formatMontant(
-                            deviseDueCible === Devise.USD ? totalCible.usd * cdfParUsd : totalCible.cdf / cdfParUsd,
-                            deviseRemiseEff
-                          )} (1 $ = ${formatMontant(cdfParUsd, Devise.CDF)})`
-                        : "Aucun taux de change défini par le patron — paiement croisé impossible."}
-                    </p>
-                  )}
-                  <label className="hc-text-label" htmlFor="montant-remis-cafe">
-                    Montant remis (obligatoire)
-                  </label>
-                  <input
-                    id="montant-remis-cafe"
-                    type="text"
-                    inputMode="decimal"
-                    value={montantRemis}
-                    onChange={(e) => setMontantRemis(e.target.value)}
-                    placeholder={deviseRemiseEff === Devise.USD ? "Ex. 20.00" : "Ex. 50 000"}
-                    aria-required="true"
-                    aria-invalid={erreurRemis !== null}
-                    aria-describedby={erreurRemis ? "montant-remis-cafe-erreur" : undefined}
-                  />
-                  {erreurRemis && (
-                    <p id="montant-remis-cafe-erreur" role="alert" className="hc-text-body texte-erreur">
-                      {erreurRemis}
-                    </p>
-                  )}
-                  {remisLu && remisLu.ok && (
-                    <div className="parametres-ligne">
-                      <span className="hc-text-body">Rendre la monnaie en</span>
-                      <div className="puces" role="group" aria-label="Devise du rendu">
-                        {[Devise.USD, Devise.CDF].map((d) => (
-                          <button key={d} type="button" className="puce" aria-pressed={deviseRenduEff === d} onClick={() => setDeviseRenduChoisie(d)}>
-                            {d}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {apercuMonnaie?.statut === "insuffisant" && (
-                    <p role="alert" className="hc-text-body texte-erreur">
-                      Montant insuffisant : il faut {formatMontant(apercuMonnaie.duReglee, deviseRemiseEff)}.
-                    </p>
-                  )}
-                  {apercuMonnaie?.statut === "taux-manquant" && (
-                    <p role="alert" className="hc-text-body texte-erreur">
-                      Aucun taux de change défini par le patron : le client doit régler dans la devise de la note.
-                    </p>
-                  )}
-                  {apercuMonnaie?.statut === "ok" && (
-                    <p className="hc-text-body-strong texte-succes" role="status">
-                      Monnaie à rendre : {formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div style={{ display: "flex", gap: "var(--hc-space-2)", marginTop: "var(--hc-space-3)" }}>
-                <Button type="button" onClick={encaisser} disabled={enEncaissement || cibles.length === 0 || !remisValide}>
-                  {enEncaissement ? "Encaissement en cours…" : "Confirmer l'encaissement"}
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => setCible(null)} disabled={enEncaissement}>
-                  Annuler
-                </Button>
-              </div>
-            </div>
-          )}
+          {panneauEncaissement}
         </>
       )}
       </aside>
