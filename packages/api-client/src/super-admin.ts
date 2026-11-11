@@ -313,12 +313,14 @@ export class ClientSuperAdmin {
 
   private async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {
     const token = this.getAccessToken();
+    // Un FormData (contrat signé) fixe lui-même son Content-Type, avec la frontière multipart : le forcer en JSON fait refuser le fichier (400).
+    const estFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
     let reponse: Response;
     try {
       reponse = await fetch(`${this.baseUrl}${chemin}`, {
         ...options,
         headers: {
-          "Content-Type": "application/json",
+          ...(estFormData ? {} : { "Content-Type": "application/json" }),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers,
         },

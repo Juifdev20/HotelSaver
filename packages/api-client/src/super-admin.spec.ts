@@ -124,4 +124,17 @@ describe("ClientSuperAdmin", () => {
       expect.objectContaining({ method: "DELETE" })
     );
   });
+
+  it("envoyerContratSigne n'impose PAS Content-Type JSON : le navigateur fixe la frontière multipart (sinon le serveur répond 400)", async () => {
+    mockFetchOnce(201, { ok: true });
+    const client = new ClientSuperAdmin("http://localhost:3001", () => "jeton");
+
+    await client.envoyerContratSigne("h1", "l1", new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: "image/jpeg" }), "contrat.jpg");
+
+    const [url, options] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toBe("http://localhost:3001/super-admin/hotels/h1/licences/l1/scan");
+    expect(options.body).toBeInstanceOf(FormData);
+    expect(options.headers).toEqual({ Authorization: "Bearer jeton" });
+    expect((options.body as FormData).get("fichier")).toBeInstanceOf(Blob);
+  });
 });
