@@ -26,7 +26,7 @@ const presentation = {
     ["S'inscrire, créer son hôtel et commencer un essai gratuit", "Application ou site → « Créer votre hôtel »", "Tous"],
     ["Se connecter avec son numéro et son mot de passe", "Écran de connexion", "Tous"],
     ["Gérer les chambres et leur état", "Onglet Chambres", "Patron, réception"],
-    ["Créer, suivre et facturer les réservations", "Onglet Réserv., Plus → Arrivées et départs", "Réception (patron s'il opère)"],
+    ["Créer, suivre et facturer les réservations", "Onglet Séjours (arrivées et départs du jour dans Aujourd'hui)", "Réception (patron s'il opère)"],
     ["Encaisser à la cafétaria, par personne", "Onglet Caisse, Comptes", "Cafétaria (patron s'il opère)"],
     ["Gérer le stock et faire l'inventaire", "Plus → Stock, Inventaire", "Cafétaria, patron"],
     ["Saisir les dépenses par département", "Onglet / rubrique Dépenses", "Réception, cafétaria (patron consulte)"],
@@ -215,7 +215,7 @@ const modules = [
           ["Lire les cartes « En dollars » et « En francs »", "Deux montants séparés, jamais additionnés ; détail « Dont chambres » et « Dont cafétaria »"],
           ["Lire « Taux d'occupation » et toucher « Libres »", "La liste des chambres s'ouvre"],
           ["Lire « Stock bas » et « Activité récente »", "Les produits sous leur seuil ; les dernières ventes et factures"],
-          ["Observer la barre du bas", "Accueil, Chambres, Réserv., Plus"],
+          ["Observer la barre du bas", "Accueil, Chambres, Séjours, Plus"],
         ],
       },
       {
@@ -358,7 +358,7 @@ const modules = [
     sert: "Accueillir les clients : état des chambres, réservations, arrivées (check-in), facturation et départ (check-out), fiches clients, journal de la journée, dépenses et rapport de la réception.",
     doit: [
       ["Changer l'état d'une chambre", "Onglet Chambres"],
-      ["Créer, modifier, annuler une réservation", "Onglet Réserv."],
+      ["Créer, modifier, annuler une réservation", "Onglet Séjours"],
       ["Check-in, facturation et check-out", "Fiche de la réservation"],
       ["Encaisser en USD ou en CDF, rendre la monnaie", "Écran Facturation"],
       ["Compléter les fiches clients", "Plus → Clients"],
@@ -371,8 +371,8 @@ const modules = [
         etapes: [
           ["Se connecter avec le compte réception", "Accueil : « Bonjour, … », pastille Réceptionniste"],
           ["Lire « En dollars » / « En francs »", "Seulement VOS encaissements de chambres du jour"],
-          ["Observer la barre du bas", "Accueil, Chambres, Réserv., Dépenses, Plus"],
-          ["Ouvrir Plus", "Arrivées et départs, Planning, Journal de la journée, Clients, Journal des reçus, Rapports mensuels, Paramètres, Imprimante, Guide d'utilisation, Synchronisation"],
+          ["Observer la barre du bas", "Accueil, Chambres, Séjours, Dépenses, Plus"],
+          ["Ouvrir Plus", "Planning, Journal de la journée, Clients, Journal des reçus, Rapports mensuels, Paramètres, Imprimante, Guide d'utilisation, Synchronisation"],
         ],
       },
       {
@@ -387,7 +387,7 @@ const modules = [
       {
         titre: "Créer une réservation (nouveau client)",
         etapes: [
-          ["Onglet Réserv. → bouton rond +", "Formulaire « Nouvelle réservation »"],
+          ["Onglet Séjours → « Nouvelle réservation (autre date) » ou « Enregistrer une arrivée »", "Enregistrement en 3 étapes : Séjour (dates et chambre), Client, Confirmer (acompte 0 / 50 % / Tout payer)"],
           ["Arrivée : demain ; nuits : 2 avec « + »", "« Départ le … » se met à jour"],
           ["Lire la liste des chambres", "Les chambres déjà prises sur ces dates sont grisées « déjà réservée » et non sélectionnables"],
           ["Choisir une chambre libre", "Elle est sélectionnée"],
@@ -412,7 +412,7 @@ const modules = [
         etapes: [
           ["Nouvelle réservation → « Client existant », rechercher par nom ou téléphone", "Le client est trouvé et sélectionnable"],
           ["Créer la réservation", "Elle apparaît sur la fiche du client (Plus → Clients)"],
-          ["Onglet Réserv. : vues Aujourd'hui, À venir, En cours, Historique", "Chaque vue liste les bonnes réservations (client, chambre, dates, statut)"],
+          ["Onglet Séjours : vues Aujourd'hui, À venir, En cours, Historique, Planning", "Chaque vue liste les bonnes réservations (client, chambre, dates, statut)"],
           ["Vue Planning", "7 jours, une ligne par chambre, barres colorées (confirmée, en cours, en attente)"],
           ["Toucher le + d'une case vide", "Le formulaire s'ouvre avec la chambre et la date déjà remplies"],
         ],
@@ -420,7 +420,7 @@ const modules = [
       {
         titre: "Arrivée du client (check-in)",
         etapes: [
-          ["Plus → Arrivées et départs (vue Aujourd'hui)", "Les arrivées « Confirmée » et les départs « En cours » du jour"],
+          ["Onglet Séjours → vue Aujourd'hui", "Arrivées attendues (bouton Check-in), départs du jour (bouton Facturer et départ), clients présents"],
           ["Ouvrir la réservation qui arrive aujourd'hui puis « Check-in »", "Statut « En cours », ligne « Arrivé le … à … », chambre Occupée"],
           ["Créer une réservation en cochant « Le client est déjà là… (check-in) »", "La réservation est directement « En cours »"],
           ["Tenter un check-in sur une réservation « En attente »", "Impossible : il faut d'abord « Confirmer la demande »"],
@@ -635,7 +635,7 @@ const modules = [
         titre: "La réception confirme la demande",
         etapes: [
           ["Sur le téléphone de la réception : la cloche", "Notification « Nouvelle demande de réservation »"],
-          ["Onglet Réserv. → vue À venir", "La demande est « En attente », avec le repère « site public »"],
+          ["Onglet Séjours → vue À venir", "La demande est « En attente », avec le repère « site public »"],
           ["Ouvrir la demande → « Confirmer la demande »", "Statut « Confirmée » ; la chambre est bloquée sur ces dates"],
           ["Côté client, rafraîchir « Ma réservation »", "« Réservation confirmée »"],
           ["La réception écrit au client (« Répondre au client »)", "Le message apparaît sur la page du client"],

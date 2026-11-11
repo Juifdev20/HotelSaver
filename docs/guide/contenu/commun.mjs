@@ -21,7 +21,7 @@ export default {
             { ruban: { icone: "hotel", titre: "Gérez votre hôtel au quotidien", texte: "Chambres et réservations, facturation et reçus, cafétaria, stock, dépenses et rapports : tout au même endroit." } },
             {
               cartes: [
-                { icone: "lit", titre: "Réception", texte: "L'accueil des clients.", points: ["Chambres et réservations", "Arrivées et départs", "Factures et reçus"] },
+                { icone: "lit", titre: "Réception", texte: "L'accueil des clients.", points: ["Chambres et séjours", "Arrivées et départs du jour", "Factures et reçus"] },
                 { icone: "cafe", titre: "Cafétaria", texte: "La vente au restaurant et au bar.", points: ["Caisse et comptes ouverts", "Menu, stock, inventaire", "Commandes du site web"] },
                 { icone: "graphique", titre: "Pilotage", texte: "Le suivi par le patron.", points: ["Tableau de bord", "Rapports et dépenses", "Équipe et abonnement"] },
               ],
