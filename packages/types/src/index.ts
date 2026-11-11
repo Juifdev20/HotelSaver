@@ -719,6 +719,65 @@ export interface HotelAvecValidite extends HotelCree {
   patron: { nom: string; telephone: string | null } | null;
   /** Hôtel jamais payé : date de suppression automatique prévue (protection contre les essais abusifs). null sinon. */
   suppressionLe?: string | null;
+  /** Licence en cours (11/11/2026) et état de sa maintenance ; null = abonnement mensuel ou essai. */
+  licence?: ResumeLicenceHotel | null;
+}
+
+/** La licence en cours d'un hôtel, dans la liste du super-admin. */
+export interface ResumeLicenceHotel extends EtatLicence {
+  /** Échéance des frais de maintenance (c'est elle qui décide de l'accès). */
+  maintenanceJusquau: string;
+  maintenanceStatut: StatutAbonnement;
+  maintenanceJoursRestants: number;
+  /** Accès coupé pour maintenance impayée. */
+  bloque: boolean;
+}
+
+/** Une licence de 1, 2 ou 3 ans vue par le super-admin (annulées comprises). */
+export interface LicenceHotelVue {
+  id: string;
+  annees: number;
+  debutLe: string;
+  finLe: string;
+  /** Somme reçue en main propre : information seulement. */
+  montant: number | null;
+  devise: "USD" | "CDF" | null;
+  /** Frais de maintenance propres à l'hôtel (dollars) ; null = réglage de la plateforme. */
+  fraisMaintenanceUsd: number | null;
+  note: string | null;
+  createdAt: string;
+  annuleLe: string | null;
+  motifAnnulation: string | null;
+  enregistreParNom: string | null;
+}
+
+/** Un paiement de frais de maintenance vu par le super-admin. */
+export interface PaiementMaintenanceVue {
+  id: string;
+  licenceId: string | null;
+  mois: number;
+  montant: number;
+  devise: "USD" | "CDF";
+  methode: MethodePaiementLicence;
+  periodeCouverteJusquau: string;
+  note: string | null;
+  /** EN_LIGNE = payé par le patron dans l'application ; MANUEL = saisi par le super-admin. */
+  source: "EN_LIGNE" | "MANUEL";
+  createdAt: string;
+  annuleLe: string | null;
+  motifAnnulation: string | null;
+  enregistreParNom: string | null;
+}
+
+/** Réponse de GET /super-admin/hotels/:id/licences (et des actions sur les licences). */
+export interface LicencesHotelVue {
+  etat: EtatAbonnement;
+  licenceEnCoursId: string | null;
+  fraisMaintenanceParDefautUsd: number;
+  licences: LicenceHotelVue[];
+  maintenances: PaiementMaintenanceVue[];
+  /** Présent juste après une activation : l'identifiant de la licence créée. */
+  licenceActivee?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1048,6 +1107,23 @@ export interface EtatAbonnement {
   suppressionLe?: string | null;
   /** Plafonds de l'essai gratuit (hôtel qui n'a jamais payé) ; null une fois une formule payée. Appliqués aussi hors ligne. */
   plafondsEssai?: PlafondsEssai | null;
+  /**
+   * Hôtel qui a une licence en cours (11/11/2026) : dans ce cas `valideJusquau`, `joursRestants`, `graceJusquau` et `alerte` sont ceux de la
+   * MAINTENANCE mensuelle (c'est elle qui décide de l'accès) ; les dates de la licence sont ici. Absent = abonnement mensuel ou essai.
+   */
+  licence?: EtatLicence;
+}
+
+export interface EtatLicence {
+  /** 1, 2 ou 3. */
+  annees: number;
+  debutLe: string;
+  finLe: string;
+  joursRestantsLicence: number;
+  /** Frais de maintenance d'une période de 30 jours, en dollars (réglage de la plateforme ou propre à l'hôtel). */
+  fraisMaintenanceUsd: number;
+  /** Rappel affiché à partir de ce nombre de jours avant l'échéance de la maintenance. */
+  preavisJours: number;
 }
 
 export interface PlafondsEssai {
@@ -1103,6 +1179,8 @@ export interface PaiementAbonnementVue {
   periodeCouverteJusquau: string | null;
   createdAt: string;
   confirmeLe: string | null;
+  /** ABONNEMENT (défaut) ou MAINTENANCE : frais mensuels d'un hôtel qui a une licence (11/11/2026). */
+  objet?: "ABONNEMENT" | "MAINTENANCE";
 }
 
 /** Réponse de GET /abonnement. */
@@ -1124,6 +1202,15 @@ export interface VueAbonnement {
   paiementEnCours: PaiementAbonnementVue | null;
   /** Les derniers paiements, du plus récent au plus ancien (réservé au patron ; vide pour les autres rôles). */
   historique: PaiementAbonnementVue[];
+  /** Hôtel qui a une licence en cours : ce qu'il paie (frais de maintenance et durées possibles). Absent sinon : il paie l'abonnement. */
+  maintenance?: OffreMaintenance | null;
+}
+
+/** Les frais de maintenance d'un hôtel avec licence, par durée de paiement (calculés par le serveur — la seule référence). */
+export interface OffreMaintenance {
+  /** Frais d'une période de 30 jours, en dollars. */
+  fraisMensuelUsd: number;
+  durees: { mois: number; prixUsd: number; prixCdf: number }[];
 }
 
 /** Ce que coûterait un paiement, AVANT de le lancer : le prix, la commission ScanLinkPay (règles du super admin ScanLinkPay, par devise) et le total débité. */
@@ -1143,6 +1230,8 @@ export interface ApercuPaiement {
 
 /** Corps de POST /abonnement/paiements. */
 export interface DemandePaiementAbonnement {
+  /** ABONNEMENT (défaut) ou MAINTENANCE (hôtel avec licence : `formule` est alors ignorée). */
+  objet?: "ABONNEMENT" | "MAINTENANCE";
   formule: string;
   mois: number;
   devise: "USD" | "CDF";
@@ -1354,6 +1443,10 @@ export interface ParametresPlateformeVue {
   maxProduitsEssai: number;
   maxPhotosGalerieEssai: number;
   maxInscriptionsParJour: number;
+  /** Licences (11/11/2026) : frais de maintenance mensuels en dollars (5 $ au départ), délai de grâce après l'échéance et jours de rappel avant. */
+  fraisMaintenanceUsd: number;
+  joursGraceMaintenance: number;
+  joursPreavisMaintenance: number;
 }
 
 /** Hôtel supprimé automatiquement (essai abandonné), vu par le super-admin. */

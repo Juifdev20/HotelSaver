@@ -1,4 +1,4 @@
-import type { DonneesFormule, FormuleAdminVue, ParametresPlateformeVue, PaiementAbonnementVue, Devise, HotelAvecValidite, HotelCree, HotelSupprimeVue, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
+import type { DonneesFormule, FormuleAdminVue, LicencesHotelVue, ParametresPlateformeVue, PaiementAbonnementVue, Devise, HotelAvecValidite, HotelCree, HotelSupprimeVue, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
 import { ErreurApi } from "./client";
 
 /** Champs de apps/api/src/super-admin/dto/creer-hotel.dto.ts (logoUrl omis :
@@ -14,6 +14,27 @@ export interface DonneesCreationHotel {
 
 /** Champs de apps/api/src/super-admin/dto/enregistrer-paiement.dto.ts
  * (Phase 12, suivi manuel des paiements). */
+/** Activation d'une licence (super-admin). */
+export interface DonneesActivationLicence {
+  annees: 1 | 2 | 3;
+  /** Somme reçue en main propre : information seulement. */
+  montant?: number;
+  devise?: Devise;
+  methode?: MethodePaiementLicence;
+  /** Frais de maintenance mensuels propres à cet hôtel (dollars) ; absent ou null = réglage de la plateforme. */
+  fraisMaintenanceUsd?: number | null;
+  note?: string;
+}
+
+/** Frais de maintenance reçus à la main : `mois` périodes de 30 jours (1, 3, 6 ou 12). */
+export interface DonneesMaintenanceManuelle {
+  mois: 1 | 3 | 6 | 12;
+  montant: number;
+  devise: Devise;
+  methode: MethodePaiementLicence;
+  note?: string;
+}
+
 export interface DonneesEnregistrementPaiement {
   montant: number;
   devise: Devise;
@@ -221,6 +242,33 @@ export class ClientSuperAdmin {
       method: "POST",
       body: JSON.stringify({ motif }),
     });
+  }
+
+  // --- Licences de 1, 2 ou 3 ans et frais de maintenance (11/11/2026)
+
+  /** Les licences de l'hôtel (annulées comprises), ses paiements de maintenance et son état d'accès actuel. */
+  async listerLicences(hotelId: string): Promise<LicencesHotelVue> {
+    return this.requete<LicencesHotelVue>(`/super-admin/hotels/${hotelId}/licences`);
+  }
+
+  /** Active une licence après réception de l'argent en main propre. `fraisMaintenanceUsd` propre à l'hôtel (sinon le réglage de la plateforme). */
+  async activerLicence(hotelId: string, dto: DonneesActivationLicence): Promise<LicencesHotelVue> {
+    return this.requete<LicencesHotelVue>(`/super-admin/hotels/${hotelId}/licences`, { method: "POST", body: JSON.stringify(dto) });
+  }
+
+  /** Annule une licence (motif obligatoire) : elle ne compte plus nulle part. */
+  async annulerLicence(hotelId: string, licenceId: string, motif: string): Promise<LicencesHotelVue> {
+    return this.requete<LicencesHotelVue>(`/super-admin/hotels/${hotelId}/licences/${licenceId}/annuler`, { method: "POST", body: JSON.stringify({ motif }) });
+  }
+
+  /** Frais de maintenance reçus à la main (espèces, virement…) : prolonge l'échéance de `mois` périodes de 30 jours. */
+  async enregistrerMaintenance(hotelId: string, dto: DonneesMaintenanceManuelle): Promise<LicencesHotelVue> {
+    return this.requete<LicencesHotelVue>(`/super-admin/hotels/${hotelId}/maintenance`, { method: "POST", body: JSON.stringify(dto) });
+  }
+
+  /** Annule un paiement de maintenance saisi à la main (motif obligatoire). */
+  async annulerMaintenance(hotelId: string, paiementId: string, motif: string): Promise<LicencesHotelVue> {
+    return this.requete<LicencesHotelVue>(`/super-admin/hotels/${hotelId}/maintenance/${paiementId}/annuler`, { method: "POST", body: JSON.stringify({ motif }) });
   }
 
   async verifierDomaine(hotelId: string): Promise<HotelCree> {

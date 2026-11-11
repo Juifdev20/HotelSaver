@@ -2,22 +2,26 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { Prisma, type PrismaClient } from "@hotel-chicago/database";
 import {
   DUREES_MOIS,
-  etatAbonnement,
+  MOIS_MAINTENANCE,
+  finMaintenance,
   finValidite,
   fonctionsAutorisees,
   formuleParCode,
   lignesFormule,
   masquerNumero,
+  nouvelleFinMaintenance,
   nouvelleFinValidite,
   numeroInternational,
   prixAbonnement,
+  prixMaintenance,
   problemeNumero,
   type FormuleAbonnement,
 } from "@hotel-chicago/regles";
 import { lireCatalogue } from "../common/abonnement/catalogue";
+import { contexteLicence, etatDeHotel, inclureValidite } from "../common/abonnement/validite";
 import { formulesProposees } from "../common/abonnement/formules-proposees";
 import { Role } from "@hotel-chicago/types";
-import type { ApercuPaiement, DemandePaiementAbonnement, FormuleProposee, OperateurMobileMoney, PaiementAbonnementVue, UtilisateurAuthentifie, VueAbonnement } from "@hotel-chicago/types";
+import type { ApercuPaiement, DemandePaiementAbonnement, FormuleProposee, OffreMaintenance, OperateurMobileMoney, PaiementAbonnementVue, UtilisateurAuthentifie, VueAbonnement } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import { NotificationsService } from "../notifications/notifications.service";
 import { messages } from "../notifications/messages";
@@ -29,6 +33,9 @@ const DELAI_AVANT_NOUVEL_ESSAI_MS = 5 * MINUTE;
 /** Passé ce délai sans réponse, la demande est abandonnée (le téléphone ne propose plus de la valider). */
 const DELAI_ABANDON_MS = 24 * 60 * MINUTE;
 const NOMBRE_HISTORIQUE = 12;
+
+/** Un paiement en ligne avec ce qu'il a crédité : une période d'abonnement ou de maintenance. */
+const INCLURE_PAIEMENT = { paiementLicence: true, paiementMaintenance: true } as const;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const dateFr = (d: Date) => `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
@@ -44,10 +51,7 @@ export class AbonnementService {
   ) {}
 
   private async chargerHotel(hotelId: string) {
-    const hotel = await this.prisma.hotel.findUnique({
-      where: { id: hotelId },
-      include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } },
-    });
+    const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId }, include: inclureValidite() });
     if (!hotel) throw new NotFoundException("Hôtel introuvable.");
     return hotel;
   }
@@ -58,13 +62,15 @@ export class AbonnementService {
     const hotel = await this.chargerHotel(utilisateur.hotelId);
     const catalogue = await lireCatalogue(this.prisma);
     const estPatron = utilisateur.role === Role.PATRON;
-    const [nombreChambres, enCours, historique, manuels] = await Promise.all([
+    const [nombreChambres, enCours, historique, manuels, maintenancesManuelles] = await Promise.all([
       this.prisma.chambre.count({ where: { hotelId: hotel.id } }),
       estPatron
-        ? this.prisma.paiementAbonnement.findFirst({ where: { hotelId: hotel.id, statut: "EN_ATTENTE", createdAt: { gt: new Date(Date.now() - DELAI_ABANDON_MS) } }, orderBy: { createdAt: "desc" }, include: { paiementLicence: true } })
+        ? this.prisma.paiementAbonnement.findFirst({ where: { hotelId: hotel.id, statut: "EN_ATTENTE", createdAt: { gt: new Date(Date.now() - DELAI_ABANDON_MS) } }, orderBy: { createdAt: "desc" }, include: INCLURE_PAIEMENT })
         : null,
-      estPatron ? this.prisma.paiementAbonnement.findMany({ where: { hotelId: hotel.id }, orderBy: { createdAt: "desc" }, take: NOMBRE_HISTORIQUE, include: { paiementLicence: true } }) : [],
-      estPatron ? this.prisma.paiementLicence.findMany({ where: { hotelId: hotel.id, paiementAbonnement: null, annuleLe: null }, orderBy: { createdAt: "desc" }, take: NOMBRE_HISTORIQUE }) : [],
+      estPatron ? this.prisma.paiementAbonnement.findMany({ where: { hotelId: hotel.id }, orderBy: { createdAt: "desc" }, take: NOMBRE_HISTORIQUE, include: INCLURE_PAIEMENT }) : [],
+      // Les paiements saisis à la main (la ligne qu'une licence crée pour compter comme « payée » n'est pas un paiement d'abonnement : exclue).
+      estPatron ? this.prisma.paiementLicence.findMany({ where: { hotelId: hotel.id, paiementAbonnement: null, licence: null, annuleLe: null }, orderBy: { createdAt: "desc" }, take: NOMBRE_HISTORIQUE }) : [],
+      estPatron ? this.prisma.paiementMaintenance.findMany({ where: { hotelId: hotel.id, paiementAbonnement: null, annuleLe: null }, orderBy: { createdAt: "desc" }, take: NOMBRE_HISTORIQUE }) : [],
     ]);
     const lignes = [
       ...historique.map((p) => this.versVue(p)),
@@ -87,12 +93,32 @@ export class AbonnementService {
           confirmeLe: m.createdAt.toISOString(),
         })
       ),
+      ...maintenancesManuelles.map(
+        (m): PaiementAbonnementVue => ({
+          id: m.id,
+          formule: "MAINTENANCE",
+          mois: m.mois,
+          montant: Number(m.montant),
+          devise: m.devise,
+          source: "SUPPORT",
+          operateur: null,
+          telephoneMasque: null,
+          statut: "REUSSI",
+          messageErreur: null,
+          commission: null,
+          total: null,
+          periodeCouverteJusquau: m.periodeCouverteJusquau.toISOString(),
+          createdAt: m.createdAt.toISOString(),
+          confirmeLe: m.createdAt.toISOString(),
+          objet: "MAINTENANCE",
+        })
+      ),
     ]
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, NOMBRE_HISTORIQUE);
 
     return {
-      etat: etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres),
+      etat: etatDeHotel(hotel, catalogue.parametres),
       formuleActuelle: hotel.formule,
       nombreChambres,
       paiementEnLigne: this.linkpay.estConfigure(),
@@ -102,10 +128,25 @@ export class AbonnementService {
       formules: formulesProposees(catalogue),
       paiementEnCours: enCours ? this.versVue(enCours) : null,
       historique: lignes,
+      maintenance: this.offreMaintenance(hotel, catalogue),
     };
   }
 
-  private versVue(p: Prisma.PaiementAbonnementGetPayload<{ include: { paiementLicence: true } }>): PaiementAbonnementVue {
+  /** Ce que paie un hôtel qui a une licence en cours : les frais de maintenance et leur prix par durée (null s'il n'a pas de licence en cours). */
+  private offreMaintenance(hotel: Awaited<ReturnType<AbonnementService["chargerHotel"]>>, catalogue: Awaited<ReturnType<typeof lireCatalogue>>): OffreMaintenance | null {
+    const licence = contexteLicence(hotel, catalogue.parametres);
+    if (!licence) return null;
+    return {
+      fraisMensuelUsd: licence.fraisMaintenanceUsd,
+      durees: MOIS_MAINTENANCE.map((mois) => ({
+        mois,
+        prixUsd: prixMaintenance({ fraisUsd: licence.fraisMaintenanceUsd, mois, devise: "USD" }),
+        prixCdf: prixMaintenance({ fraisUsd: licence.fraisMaintenanceUsd, mois, devise: "CDF", tauxCdf: catalogue.parametres.tauxCdf }),
+      })),
+    };
+  }
+
+  private versVue(p: Prisma.PaiementAbonnementGetPayload<{ include: typeof INCLURE_PAIEMENT }>): PaiementAbonnementVue {
     return {
       id: p.id,
       formule: p.formule,
@@ -119,18 +160,27 @@ export class AbonnementService {
       messageErreur: p.messageErreur,
       commission: p.commissionCentimes === null ? null : p.commissionCentimes / 100,
       total: p.totalCentimes === null ? null : p.totalCentimes / 100,
-      periodeCouverteJusquau: p.paiementLicence?.periodeCouverteJusquau.toISOString() ?? null,
+      periodeCouverteJusquau: (p.paiementLicence ?? p.paiementMaintenance)?.periodeCouverteJusquau.toISOString() ?? null,
       createdAt: p.createdAt.toISOString(),
       confirmeLe: p.confirmeLe?.toISOString() ?? null,
+      objet: p.objet,
     };
   }
 
   /** Le prix d'un achat et la commission ScanLinkPay qui s'y ajoute, AVANT de payer (rien n'est créé). */
-  async apercu(utilisateur: UtilisateurAuthentifie, formuleCode: string, mois: number, devise: "USD" | "CDF"): Promise<ApercuPaiement> {
+  async apercu(utilisateur: UtilisateurAuthentifie, formuleCode: string | undefined, mois: number, devise: "USD" | "CDF", objet: "ABONNEMENT" | "MAINTENANCE" = "ABONNEMENT"): Promise<ApercuPaiement> {
     const catalogue = await lireCatalogue(this.prisma);
-    const formule = catalogue.proposees.includes(formuleCode) ? formuleParCode(formuleCode, catalogue.formules) : undefined;
-    if (!formule || !(DUREES_MOIS as readonly number[]).includes(mois)) throw new BadRequestException("Formule ou durée inconnue.");
-    const montant = prixAbonnement({ formule: formule.code, mois, devise, tauxCdf: catalogue.parametres.tauxCdf, formules: catalogue.formules, moisOffertsAnnuel: catalogue.parametres.moisOffertsAnnuel });
+    let montant: number;
+    if (objet === "MAINTENANCE") {
+      const licence = contexteLicence(await this.chargerHotel(utilisateur.hotelId), catalogue.parametres);
+      if (!licence) throw new BadRequestException("Cet hôtel n'a pas de licence en cours : il paie l'abonnement.");
+      if (!(MOIS_MAINTENANCE as readonly number[]).includes(mois)) throw new BadRequestException("Durée inconnue : choisissez 1, 3, 6 ou 12 mois.");
+      montant = prixMaintenance({ fraisUsd: licence.fraisMaintenanceUsd, mois, devise, tauxCdf: catalogue.parametres.tauxCdf });
+    } else {
+      const formule = formuleCode && catalogue.proposees.includes(formuleCode) ? formuleParCode(formuleCode, catalogue.formules) : undefined;
+      if (!formule || !(DUREES_MOIS as readonly number[]).includes(mois)) throw new BadRequestException("Formule ou durée inconnue.");
+      montant = prixAbonnement({ formule: formule.code, mois, devise, tauxCdf: catalogue.parametres.tauxCdf, formules: catalogue.formules, moisOffertsAnnuel: catalogue.parametres.moisOffertsAnnuel });
+    }
     const payeur = catalogue.parametres.fraisAbonnementPayesParClient;
     const base: ApercuPaiement = { devise, montant, commission: 0, total: montant, commissionPayeePar: payeur ? "PAYEUR" : "BENEFICIAIRE", disponible: false };
     const marchand = this.linkpay.marchandPlateforme();
@@ -152,8 +202,13 @@ export class AbonnementService {
     }
     const hotel = await this.chargerHotel(utilisateur.hotelId);
     const catalogue = await lireCatalogue(this.prisma);
-    const etat = etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres);
+    const etat = etatDeHotel(hotel, catalogue.parametres);
     if (!etat.renouvelable) throw new ForbiddenException("Cet hôtel ne peut pas renouveler en ligne. Contactez le support HotelSaver.");
+    const maintenance = dto.objet === "MAINTENANCE";
+    const licence = contexteLicence(hotel, catalogue.parametres);
+    // Licence en cours : on ne paie que la maintenance (la licence remplace l'abonnement). Sans licence : pas de maintenance à payer.
+    if (maintenance && !licence) throw new BadRequestException("Cet hôtel n'a pas de licence en cours : il paie l'abonnement.");
+    if (!maintenance && licence) throw new BadRequestException("Votre hôtel a une licence : il ne reste que les frais de maintenance à payer.");
 
     // Rejouer la même demande (coupure réseau, double clic) ne crée jamais un second débit : on renvoie la tentative d'origine.
     const existante = await this.prisma.paiementAbonnement.findUnique({ where: { cleIdempotence: dto.cleIdempotence } });
@@ -163,17 +218,20 @@ export class AbonnementService {
       return this.vuePaiement(existante.id);
     }
 
-    // Seules les formules encore proposées s'achètent (une formule retirée reste valable pour ceux qui l'ont déjà).
-    const formule = catalogue.proposees.includes(dto.formule) ? formuleParCode(dto.formule, catalogue.formules) : undefined;
-    if (!formule) throw new BadRequestException("Formule inconnue.");
-    if (!(DUREES_MOIS as readonly number[]).includes(dto.mois)) throw new BadRequestException("Durée inconnue : choisissez 1, 3, 6 ou 12 mois.");
+    // Seules les formules encore proposées s'achètent (une formule retirée reste valable pour ceux qui l'ont déjà). Maintenance : pas de formule.
+    const formule = maintenance ? undefined : catalogue.proposees.includes(dto.formule) ? formuleParCode(dto.formule, catalogue.formules) : undefined;
+    if (!maintenance && !formule) throw new BadRequestException("Formule inconnue.");
+    const durees: readonly number[] = maintenance ? MOIS_MAINTENANCE : DUREES_MOIS;
+    if (!durees.includes(dto.mois)) throw new BadRequestException("Durée inconnue : choisissez 1, 3, 6 ou 12 mois.");
     const probleme = problemeNumero(dto.operateur, dto.telephone);
     if (probleme) throw new BadRequestException(probleme);
     const telephone = numeroInternational(dto.telephone)!;
 
-    const nombreChambres = await this.prisma.chambre.count({ where: { hotelId: hotel.id } });
-    if (formule.maxChambres !== null && nombreChambres > formule.maxChambres) {
-      throw new BadRequestException(`Votre hôtel compte ${nombreChambres} chambres : la formule ${formule.nom} est limitée à ${formule.maxChambres}. Choisissez une formule supérieure.`);
+    if (formule) {
+      const nombreChambres = await this.prisma.chambre.count({ where: { hotelId: hotel.id } });
+      if (formule.maxChambres !== null && nombreChambres > formule.maxChambres) {
+        throw new BadRequestException(`Votre hôtel compte ${nombreChambres} chambres : la formule ${formule.nom} est limitée à ${formule.maxChambres}. Choisissez une formule supérieure.`);
+      }
     }
 
     const recent = await this.prisma.paiementAbonnement.findFirst({
@@ -184,8 +242,11 @@ export class AbonnementService {
     }
 
     // Le montant vient UNIQUEMENT de la table des prix du serveur, jamais de l'application.
-    const montant = prixAbonnement({ formule: formule.code, mois: dto.mois, devise: dto.devise, tauxCdf: catalogue.parametres.tauxCdf, formules: catalogue.formules, moisOffertsAnnuel: catalogue.parametres.moisOffertsAnnuel });
+    const montant = maintenance
+      ? prixMaintenance({ fraisUsd: licence!.fraisMaintenanceUsd, mois: dto.mois, devise: dto.devise, tauxCdf: catalogue.parametres.tauxCdf })
+      : prixAbonnement({ formule: formule!.code, mois: dto.mois, devise: dto.devise, tauxCdf: catalogue.parametres.tauxCdf, formules: catalogue.formules, moisOffertsAnnuel: catalogue.parametres.moisOffertsAnnuel });
     if (!(montant > 0)) throw new BadRequestException("Montant invalide.");
+    const description = maintenance ? `Maintenance HotelSaver · ${dto.mois} mois — ${hotel.nom}` : `Abonnement HotelSaver ${formule!.nom} · ${dto.mois} mois — ${hotel.nom}`;
 
     let ligne;
     try {
@@ -193,7 +254,8 @@ export class AbonnementService {
         data: {
           hotelId: hotel.id,
           utilisateurId: utilisateur.userId,
-          formule: formule.code,
+          formule: formule?.code ?? "MAINTENANCE",
+          objet: maintenance ? "MAINTENANCE" : "ABONNEMENT",
           mois: dto.mois,
           montant,
           devise: dto.devise,
@@ -219,7 +281,7 @@ export class AbonnementService {
         montantCentimes: Math.round(montant * 100),
         devise: dto.devise,
         modele,
-        description: `Abonnement HotelSaver ${formule.nom} · ${dto.mois} mois — ${hotel.nom}`.slice(0, 200),
+        description: description.slice(0, 200),
       });
       await this.prisma.paiementAbonnement.update({
         where: { id: ligne.id },
@@ -256,7 +318,7 @@ export class AbonnementService {
   }
 
   private async vuePaiement(id: string): Promise<PaiementAbonnementVue> {
-    const p = await this.prisma.paiementAbonnement.findUniqueOrThrow({ where: { id }, include: { paiementLicence: true } });
+    const p = await this.prisma.paiementAbonnement.findUniqueOrThrow({ where: { id }, include: INCLURE_PAIEMENT });
     return this.versVue(p);
   }
 
@@ -267,7 +329,7 @@ export class AbonnementService {
     await this.rapprocher(id);
     const hotel = await this.chargerHotel(utilisateur.hotelId);
     const catalogue = await lireCatalogue(this.prisma);
-    return { paiement: await this.vuePaiement(id), etat: etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres) };
+    return { paiement: await this.vuePaiement(id), etat: etatDeHotel(hotel, catalogue.parametres) };
   }
 
   // ------------------------------------------------------------------------------------------------ rapprochement
@@ -344,11 +406,31 @@ export class AbonnementService {
       });
       if (prise.count === 0) return null;
       const ligne = await tx.paiementAbonnement.findUniqueOrThrow({ where: { id } });
-      const hotel = await tx.hotel.findUniqueOrThrow({
-        where: { id: ligne.hotelId },
-        include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } },
-      });
+      const hotel = await tx.hotel.findUniqueOrThrow({ where: { id: ligne.hotelId }, include: inclureValidite(maintenant) });
       const catalogue = await lireCatalogue(this.prisma);
+
+      // Frais de maintenance d'un hôtel avec licence : l'échéance de la maintenance repart de la dernière (ou de maintenant si elle est dépassée).
+      if (ligne.objet === "MAINTENANCE") {
+        const licence = contexteLicence(hotel, catalogue.parametres);
+        const fin = nouvelleFinMaintenance(licence ? finMaintenance(licence) : maintenant, maintenant, ligne.mois);
+        const maintenancePayee = await tx.paiementMaintenance.create({
+          data: {
+            hotelId: hotel.id,
+            licenceId: licence?.id ?? null,
+            mois: ligne.mois,
+            montant: ligne.montant,
+            devise: ligne.devise,
+            methode: "MOBILE_MONEY",
+            periodeCouverteJusquau: fin,
+            note: `Maintenance · ${ligne.mois} mois · payée dans l'application (${ligne.operateur}, réf. ${ligne.referenceDemande ?? ligne.referenceFournisseur ?? ligne.id})`,
+          },
+        });
+        await tx.paiementAbonnement.update({ where: { id }, data: { paiementMaintenanceId: maintenancePayee.id } });
+        // Comme pour l'abonnement : un hôtel suspendu À LA MAIN ne se rouvre pas en payant.
+        if (!hotel.suspensionManuelle) await tx.hotel.update({ where: { id: hotel.id }, data: { statutLicence: "ACTIF" } });
+        return { hotelId: hotel.id, fin, nom: "Maintenance", maintenance: true };
+      }
+
       const fin = nouvelleFinValidite(finValidite(hotel, hotel.paiementsLicence[0] ?? null, catalogue.parametres.joursEssai), maintenant, ligne.mois);
       const nom = formuleParCode(ligne.formule, catalogue.formules)?.nom ?? ligne.formule;
       const licence = await tx.paiementLicence.create({
@@ -364,15 +446,15 @@ export class AbonnementService {
       await tx.paiementAbonnement.update({ where: { id }, data: { paiementLicenceId: licence.id } });
       // Un hôtel suspendu À LA MAIN par le support ne se rouvre pas en payant : il reçoit son crédit mais reste suspendu.
       await tx.hotel.update({ where: { id: hotel.id }, data: { formule: ligne.formule, ...(hotel.suspensionManuelle ? {} : { statutLicence: "ACTIF" }) } });
-      return { hotelId: hotel.id, fin, nom };
+      return { hotelId: hotel.id, fin, nom, maintenance: false };
     });
     if (!resultat) return;
-    this.logger.log(`Abonnement crédité : hôtel ${resultat.hotelId} jusqu'au ${resultat.fin.toISOString()}`);
+    this.logger.log(`${resultat.maintenance ? "Maintenance" : "Abonnement"} crédité : hôtel ${resultat.hotelId} jusqu'au ${resultat.fin.toISOString()}`);
     void this.notifications.emettre({
       hotelId: resultat.hotelId,
       roles: [Role.PATRON],
       cleDedup: `abonnement-renouvele:${id}`,
-      ...messages.abonnementRenouvele({ jusquau: dateFr(resultat.fin), formule: resultat.nom }),
+      ...(resultat.maintenance ? messages.maintenanceRenouvelee({ jusquau: dateFr(resultat.fin) }) : messages.abonnementRenouvele({ jusquau: dateFr(resultat.fin), formule: resultat.nom })),
     });
   }
 
@@ -382,7 +464,7 @@ export class AbonnementService {
     const lignes = await this.prisma.paiementAbonnement.findMany({
       orderBy: { createdAt: "desc" },
       take: Math.min(Math.max(limite, 1), 200),
-      include: { hotel: { select: { nom: true, sousDomaine: true } }, paiementLicence: true },
+      include: { hotel: { select: { nom: true, sousDomaine: true } }, ...INCLURE_PAIEMENT },
     });
     return lignes.map((l) => ({ ...this.versVue(l), hotelId: l.hotelId, hotelNom: l.hotel.nom, sousDomaine: l.hotel.sousDomaine, referenceDemande: l.referenceDemande, referenceFournisseur: l.referenceFournisseur }));
   }

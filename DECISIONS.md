@@ -4021,3 +4021,19 @@ Sur un `android/` déjà généré : `pnpm --filter mobile sons-android` (copie 
 
 - **Applications 1.0.9** (versionCode 10, 27/10/2026) : sons et voix (bip de scan, voix de femme, « Please try again »), alertes de stock vocales rappelées toutes les 24 h et coupables par
   l'utilisateur, notification sonore application fermée, type de pièce en liste, imprimante PC (ports Bluetooth nommés). Nouveaux modules natifs mobile (`expo-audio`, `expo-speech`) : APK à reconstruire.
+
+## 11/11/2026 — Licences de 1, 2 ou 3 ans et frais de maintenance
+
+Détail : `docs/ABONNEMENT.md` (section « Licences »).
+
+**Besoin du patron** : des hôtels achètent une licence (1, 2 ou 3 ans) en main propre ; le super-admin l'active à la main ; l'hôtel a alors toutes les fonctions et paie seulement des frais de maintenance mensuels (30 jours), par Mobile Money dans l'application, réglés par le super-admin (5 $ au départ). Sans paiement, délai puis désactivation de tous les profils de l'hôtel.
+
+**Décisions** (toutes validées par le patron)
+- **Premier mois de maintenance compris** ; périodes de **30 jours exacts** ; rappel **5 jours** avant, délai de **2 jours** après (réglables) ; paiement de **1, 3, 6 ou 12 mois** d'un coup, **sans réduction** ; frais ScanLinkPay comme l'abonnement.
+- **Montant réglé par le super-admin** : un réglage global (`ParametresPlateforme.fraisMaintenanceUsd`, 5 $ au départ) et, si besoin, des frais propres à un hôtel fixés à l'activation de sa licence (`LicenceHotel.fraisMaintenanceUsd`).
+- **Fin de licence** : retour à l'abonnement mensuel normal (3 jours de grâce, via la ligne `PaiementLicence` que l'activation crée). **Une licence remplace l'abonnement** en cours (pas de remboursement, plus de formule : toutes fonctions, chambres illimitées). Une licence achetée d'avance commence à la fin de la précédente.
+- **Pas de nouvelle règle d'accès** : l'état d'un hôtel avec licence réutilise la structure `EtatAbonnement` (échéance = celle de la maintenance), donc bandeaux, garde d'accès (402), suspension automatique, hors ligne et rappels marchent sans changement ; `etat.licence` porte les dates de la licence pour l'affichage.
+- **Journal immuable** : licences et maintenances ne sont jamais effacées, seulement annulées avec un motif (annuler une licence annule aussi sa ligne de paiement et recalcule le statut). Un paiement de maintenance en ligne réellement reçu ne s'annule pas ; le super-admin peut enregistrer une maintenance reçue en espèces.
+- **Un hôtel avec licence ne peut pas acheter d'abonnement** (le serveur refuse) et un hôtel sans licence ne paie pas de maintenance ; les écrans (Windows, mobile, site `/payer`) affichent donc « Payer les frais de maintenance » à la place du choix de formule.
+- Migration `20261111120000_licences_maintenance` : nouvelles tables et colonnes, aucune donnée existante modifiée. À appliquer sur Test puis Prod AVANT de redéployer l'API (`pnpm --filter @hotel-chicago/database migrate:appliquer`).
+

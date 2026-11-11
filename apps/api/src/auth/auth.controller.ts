@@ -5,7 +5,7 @@ import { SupabaseAuthGuard } from "../common/guards/supabase-auth.guard";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { PRISMA } from "../prisma/prisma.module";
 import { calculerFinValidite } from "../super-admin/calculer-validite";
-import { etatAbonnement } from "@hotel-chicago/regles";
+import { etatDeHotel, inclureValidite } from "../common/abonnement/validite";
 import { lireCatalogue } from "../common/abonnement/catalogue";
 import { SansLicence } from "../common/decorators/sans-licence.decorator";
 
@@ -54,7 +54,7 @@ export class AuthController {
         suspensionManuelle: true,
         joursEssai: true,
         site: { select: { slogan: true } },
-        paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
+        ...inclureValidite(),
       },
     });
     const catalogue = await lireCatalogue(this.prisma);
@@ -68,7 +68,7 @@ export class AuthController {
       // Copiés dans le profil mémorisé par les applications pour décider, hors ligne, de la durée de grâce.
       statutLicence: hotel?.statutLicence,
       licenceValideJusquau: hotel ? calculerFinValidite(hotel, hotel.paiementsLicence[0] ?? null).toISOString() : null,
-      abonnement: hotel ? etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres) : undefined,
+      abonnement: hotel ? etatDeHotel(hotel, catalogue.parametres) : undefined,
     };
   }
 }

@@ -213,12 +213,15 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
 
   const secondes = useSecondesEcoulees(phase === "attente", suiviEtat.secondes);
 
-  const formuleChoisie = vue?.formules.find((f) => f.code === formule) ?? null;
-  const duree = formuleChoisie?.durees.find((d) => d.mois === mois) ?? formuleChoisie?.durees[0] ?? null;
+  // Hôtel avec licence : pas de formule à choisir, seulement les frais de maintenance (11/11/2026).
+  const maintenance = vue?.maintenance ?? null;
+  const formuleChoisie = maintenance ? null : (vue?.formules.find((f) => f.code === formule) ?? null);
+  const dureesPossibles = maintenance ? maintenance.durees.map((d) => ({ ...d, moisOfferts: 0 })) : (formuleChoisie?.durees ?? []);
+  const duree = dureesPossibles.find((d) => d.mois === mois) ?? dureesPossibles[0] ?? null;
   const montant = duree ? (devise === "USD" ? duree.prixUsd : duree.prixCdf) : null;
   const texteMontant = montant !== null ? montantAbonnement(montant, devise) : "";
   const probleme = telephone.trim() ? problemeNumero(operateur, telephone) : null;
-  const formulaireValide = !!formuleChoisie && !!duree && montant !== null && montant > 0 && !!operateur && telephone.trim() !== "" && problemeNumero(operateur, telephone) === null;
+  const formulaireValide = (!!formuleChoisie || !!maintenance) && !!duree && montant !== null && montant > 0 && !!operateur && telephone.trim() !== "" && problemeNumero(operateur, telephone) === null;
 
   function saisirNumero(texte: string) {
     setTelephone(texte);
@@ -227,15 +230,23 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
   }
 
   function demanderPaiement() {
-    if (!formuleChoisie || !duree || !operateur || montant === null) return;
+    if ((!formuleChoisie && !maintenance) || !duree || !operateur || montant === null) return;
     const numero = numeroInternational(telephone);
     if (!numero) return;
     if (calculFraisEnCours) return; // le total n'est pas encore connu : on n'invente pas un montant
     confirmerAction({
       titre: `Payer ${texteTotal} ?`,
-      message: `Formule ${formuleChoisie.nom}, ${duree.mois} mois.${fraisPayeur > 0 ? ` Prix ${texteMontant} + frais ScanLinkPay ${texteFrais}.` : ""} Une demande de confirmation va arriver sur le ${numeroLisible(telephone)}. Entrez ensuite votre code secret ${OPERATEURS_MOBILE_MONEY[operateur].libelle}.`,
+      message: `${maintenance ? "Frais de maintenance" : `Formule ${formuleChoisie!.nom}`}, ${duree.mois} mois.${fraisPayeur > 0 ? ` Prix ${texteMontant} + frais ScanLinkPay ${texteFrais}.` : ""} Une demande de confirmation va arriver sur le ${numeroLisible(telephone)}. Entrez ensuite votre code secret ${OPERATEURS_MOBILE_MONEY[operateur].libelle}.`,
       libelleConfirmer: "Payer",
-      onConfirmer: () => suivi.payer({ formule: formuleChoisie.code, mois: duree.mois, devise, operateur, telephone: numero }),
+      onConfirmer: () =>
+        suivi.payer({
+          ...(maintenance && { objet: "MAINTENANCE" as const }),
+          formule: maintenance ? "MAINTENANCE" : formuleChoisie!.code,
+          mois: duree.mois,
+          devise,
+          operateur,
+          telephone: numero,
+        }),
     });
   }
 
@@ -256,7 +267,7 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
   // Le formulaire de paiement est-il affiché ? (patron, paiement dans l'application autorisé, accès renouvelable, serveur relié à ScanLinkPay)
   const formulaireAffiche =
     estPatron && PAIEMENT_DANS_APPLICATION && etat?.renouvelable !== false && !!vue && vue.paiementEnLigne && !(mode === "bloque" && !vue.etat.bloque);
-  const codeFormuleChoisie = formuleChoisie?.code ?? null;
+  const codeFormuleChoisie = maintenance ? "MAINTENANCE" : (formuleChoisie?.code ?? null);
   const moisChoisi = duree?.mois ?? null;
   const cleApercu = formulaireAffiche && codeFormuleChoisie !== null && moisChoisi !== null && montant !== null ? `${codeFormuleChoisie}|${moisChoisi}|${devise}` : null;
 
@@ -265,7 +276,7 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
     if (cleApercu === null || codeFormuleChoisie === null || moisChoisi === null) return;
     let perime = false;
     client
-      .apercuAbonnement(codeFormuleChoisie, moisChoisi, devise)
+      .apercuAbonnement(codeFormuleChoisie === "MAINTENANCE" ? "" : codeFormuleChoisie, moisChoisi, devise, codeFormuleChoisie === "MAINTENANCE" ? "MAINTENANCE" : "ABONNEMENT")
       .then((resultat) => {
         if (!perime && monte.current) setApercu({ cle: cleApercu, resultat });
       })
@@ -317,7 +328,7 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
         <View style={styles.progression}>
           <EtapeProgression etat="fait" numero={1} libelle="Demande envoyée" />
           <EtapeProgression etat={phase === "attente" ? "encours" : "avenir"} numero={2} libelle="Code secret sur le téléphone" />
-          <EtapeProgression etat="avenir" numero={3} libelle="Abonnement activé" />
+          <EtapeProgression etat="avenir" numero={3} libelle={maintenance ? "Maintenance payée" : "Abonnement activé"} />
         </View>
 
         {phase === "attente" && suiviEtat.lent && (
@@ -352,7 +363,15 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
             <CircleCheck size={44} color={couleurs.succes} />
           </View>
           <Text style={styles.titrePhase} accessibilityRole="header" accessibilityLiveRegion="polite">Merci !</Text>
-          <Text style={styles.textePhase}>{fin ? `Abonnement actif jusqu'au ${dateAbonnement(fin)}.` : "Votre abonnement est actif."}</Text>
+          <Text style={styles.textePhase}>
+            {maintenance
+              ? fin
+                ? `Maintenance payée jusqu'au ${dateAbonnement(fin)}.`
+                : "Vos frais de maintenance sont payés."
+              : fin
+                ? `Abonnement actif jusqu'au ${dateAbonnement(fin)}.`
+                : "Votre abonnement est actif."}
+          </Text>
         </View>
         {p && (
           <View style={styles.recu}>
@@ -406,7 +425,7 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
               )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.surtitre}>VOTRE ABONNEMENT</Text>
+              <Text style={styles.surtitre}>{etat.licence ? "VOTRE LICENCE" : "VOTRE ABONNEMENT"}</Text>
               <Text style={styles.etatTitre} accessibilityRole="header">
                 {resume.titre}
               </Text>
@@ -420,9 +439,21 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
           </View>
           <Text style={styles.etatDetail}>{resume.detail}</Text>
           <View style={styles.faits}>
-            <Fait icone={<Crown size={13} color={couleurs.encreAttenuee} />} libelle="Formule" valeur={vue?.formuleActuelle ? nomFormule(vue.formuleActuelle, vue.formules) : etat.statut === "ESSAI" ? "Essai gratuit" : "Aucune"} />
+            <Fait
+              icone={<Crown size={13} color={couleurs.encreAttenuee} />}
+              libelle={etat.licence ? "Licence" : "Formule"}
+              valeur={
+                etat.licence
+                  ? `${etat.licence.annees} an${etat.licence.annees > 1 ? "s" : ""}, jusqu'au ${dateAbonnement(etat.licence.finLe)}`
+                  : vue?.formuleActuelle
+                    ? nomFormule(vue.formuleActuelle, vue.formules)
+                    : etat.statut === "ESSAI"
+                      ? "Essai gratuit"
+                      : "Aucune"
+              }
+            />
             {vue && <Fait icone={<BedDouble size={13} color={couleurs.encreAttenuee} />} libelle="Chambres" valeur={String(vue.nombreChambres)} />}
-            <Fait icone={<CalendarClock size={13} color={couleurs.encreAttenuee} />} libelle="Jusqu'au" valeur={dateAbonnement(etat.valideJusquau)} />
+            <Fait icone={<CalendarClock size={13} color={couleurs.encreAttenuee} />} libelle={etat.licence ? "Maintenance jusqu'au" : "Jusqu'au"} valeur={dateAbonnement(etat.valideJusquau)} />
           </View>
         </View>
       )}
@@ -433,7 +464,9 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
             ? "Prévenez le patron : l'accès doit être rouvert par le support HotelSaver."
             : resume && resume.niveau !== "ok"
               ? "Demandez au patron de renouveler."
-              : "Seul le patron peut renouveler l'abonnement."}
+              : etat?.licence
+                ? "Seul le patron peut payer les frais de maintenance."
+                : "Seul le patron peut renouveler l'abonnement."}
         </Message>
       )}
 
@@ -503,6 +536,16 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
             </View>
           )}
 
+          {maintenance && (
+            <View style={styles.astuce}>
+              <Info size={16} color={couleurs.bleu} />
+              <Text style={styles.astuceTexte}>
+                Votre hôtel a une licence : vous payez seulement les frais de maintenance, {montantAbonnement(maintenance.fraisMensuelUsd, "USD")} par période de 30 jours.
+              </Text>
+            </View>
+          )}
+
+          {!maintenance && (
           <Section numero={1} titre="Choisissez votre formule">
             <View accessibilityRole="radiogroup" style={styles.colonne}>
               {vue.formules.map((f) => {
@@ -568,11 +611,12 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
               })}
             </View>
           </Section>
+          )}
 
-          {formuleChoisie && (
-            <Section numero={2} titre="Combien de temps ?">
+          {(formuleChoisie || maintenance) && (
+            <Section numero={maintenance ? 1 : 2} titre="Combien de temps ?">
               <View accessibilityRole="radiogroup" style={styles.grille}>
-                {formuleChoisie.durees.map((d) => {
+                {dureesPossibles.map((d) => {
                   const actif = duree?.mois === d.mois;
                   const valeur = devise === "USD" ? d.prixUsd : d.prixCdf;
                   const prix = montantAbonnement(valeur, devise);
@@ -601,7 +645,7 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
             </Section>
           )}
 
-          <Section numero={3} titre="Monnaie">
+          <Section numero={maintenance ? 2 : 3} titre="Monnaie">
             <View accessibilityRole="radiogroup" style={styles.segment}>
               {(["USD", "CDF"] as const).map((d) => {
                 const actif = devise === d;
@@ -621,7 +665,7 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
             </View>
           </Section>
 
-          <Section numero={4} titre="Payer avec Mobile Money">
+          <Section numero={maintenance ? 3 : 4} titre="Payer avec Mobile Money">
             <View accessibilityRole="radiogroup" style={styles.grille}>
               {LISTE_OPERATEURS.map((o) => {
                 const actif = operateur === o;
@@ -678,10 +722,10 @@ export function PanneauAbonnement({ client, role, profilAbonnement, mode, onPaie
             )}
           </Section>
 
-          {formuleChoisie && duree && montant !== null && (
+          {(formuleChoisie || maintenance) && duree && montant !== null && (
             <View style={styles.commande} accessibilityRole="summary">
               <Text style={styles.surtitre}>VOTRE COMMANDE</Text>
-              <LigneRecap libelle={`Formule ${formuleChoisie.nom}`} valeur={texteMontant} fort />
+              <LigneRecap libelle={maintenance ? "Frais de maintenance" : `Formule ${formuleChoisie!.nom}`} valeur={texteMontant} fort />
               <LigneRecap libelle="Durée" valeur={`${duree.mois} mois${duree.moisOfferts > 0 ? ` (dont ${duree.moisOfferts} offerts)` : ""}`} />
               {fraisPayeur > 0 && <LigneRecap libelle="Frais ScanLinkPay" valeur={texteFrais} />}
               {operateur && <LigneRecap libelle="Payé avec" valeur={OPERATEURS_MOBILE_MONEY[operateur].libelle} operateur={operateur} />}
@@ -864,7 +908,7 @@ function LignePaiement({ paiement: p }: { paiement: PaiementAbonnementVue }) {
         {detailFrais && <Text style={styles.ligneDetail}>{detailFrais}</Text>}
         <Text style={styles.ligneDetail}>
           {dateAbonnement(p.createdAt)}
-          {p.mois > 0 ? ` · ${p.mois} mois` : " · Paiement manuel"}
+          {p.objet === "MAINTENANCE" ? ` · Maintenance${p.mois > 0 ? ` · ${p.mois} mois` : ""}` : p.mois > 0 ? ` · ${p.mois} mois` : " · Paiement manuel"}
         </Text>
         <Text style={styles.ligneDetail}>{moyen}</Text>
       </View>

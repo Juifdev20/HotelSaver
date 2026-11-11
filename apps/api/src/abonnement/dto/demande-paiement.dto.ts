@@ -1,8 +1,14 @@
-import { IsIn, IsString, IsUUID, Matches, MaxLength } from "class-validator";
+import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateIf } from "class-validator";
 import { Type } from "class-transformer";
 import { IsInt } from "class-validator";
 
 export class DemandePaiementAbonnementDto {
+  /** MAINTENANCE : frais mensuels d'un hôtel qui a une licence (la formule est alors ignorée). */
+  @IsOptional()
+  @IsIn(["ABONNEMENT", "MAINTENANCE"], { message: "L'objet du paiement doit être ABONNEMENT ou MAINTENANCE." })
+  objet?: "ABONNEMENT" | "MAINTENANCE";
+
+  @ValidateIf((o) => o.objet !== "MAINTENANCE")
   @IsString()
   @MaxLength(40)
   formule!: string;
@@ -27,6 +33,11 @@ export class DemandePaiementAbonnementDto {
 }
 
 export class ApercuAbonnementQueryDto {
+  @IsOptional()
+  @IsIn(["ABONNEMENT", "MAINTENANCE"])
+  objet?: "ABONNEMENT" | "MAINTENANCE";
+
+  @ValidateIf((o) => o.objet !== "MAINTENANCE")
   @IsString()
   @MaxLength(40)
   formule!: string;

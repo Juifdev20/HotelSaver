@@ -167,6 +167,31 @@ export const messages = {
     };
   },
 
+  /** Hôtel avec licence : les frais de maintenance arrivent à échéance (même type que le rappel d'abonnement). */
+  maintenanceBientotDue(p: { jours: number }): MessageNotification {
+    return {
+      type: "LICENCE_BIENTOT_EXPIREE",
+      titre: "Frais de maintenance à payer",
+      corps: `Il vous reste ${pluriel(p.jours, "jour", "jours")} pour payer vos frais de maintenance HotelSaver.`,
+      lien: { ecran: "tableau-de-bord" },
+    };
+  },
+  maintenanceRenouvelee(p: { jusquau: string }): MessageNotification {
+    return {
+      type: "ABONNEMENT_RENOUVELE",
+      titre: "Maintenance payée",
+      corps: `Merci ! Vos frais de maintenance sont payés jusqu'au ${p.jusquau}.`,
+      lien: { ecran: "tableau-de-bord" },
+    };
+  },
+  maintenanceImpayee(): MessageNotification {
+    return {
+      type: "LICENCE_SUSPENDUE",
+      titre: "Maintenance impayée",
+      corps: "Vos frais de maintenance n'ont pas été payés : payez-les pour rouvrir l'accès à l'application.",
+      lien: { ecran: "tableau-de-bord" },
+    };
+  },
   licenceSuspendue(): MessageNotification {
     return {
       type: "LICENCE_SUSPENDUE",

@@ -84,6 +84,34 @@ describe("NotificationsSchedulerService", () => {
   });
 });
 
+describe("NotificationsSchedulerService.licencesBientotExpirees — hôtel avec licence (11/11/2026)", () => {
+  it("rappelle les frais de maintenance chaque jour pendant le préavis (5 jours), pas avant, et jamais le rappel d'abonnement", async () => {
+    const { service, prisma, notifications } = creer();
+    const maintenant = new Date("2026-10-01T06:00:00Z");
+    const dans = (jours: number) => new Date(maintenant.getTime() + jours * 86400000 - 3600000);
+    const hotel = (id: string, joursAvantEcheance: number) => ({
+      id,
+      createdAt: new Date("2020-01-01"),
+      statutLicence: "ACTIF",
+      paiementsLicence: [{ periodeCouverteJusquau: dans(700) }],
+      licences: [
+        {
+          id: `l-${id}`,
+          annees: 2,
+          debutLe: new Date("2026-09-01T00:00:00Z"),
+          finLe: dans(700),
+          fraisMaintenanceUsd: null,
+          paiementsMaintenance: [{ periodeCouverteJusquau: dans(joursAvantEcheance) }],
+        },
+      ],
+    });
+    prisma.hotel.findMany.mockResolvedValue([hotel("proche", 3), hotel("loin", 20)]);
+    await service.licencesBientotExpirees(maintenant);
+    expect(notifications.emettre).toHaveBeenCalledTimes(1);
+    expect(notifications.emettre).toHaveBeenCalledWith(expect.objectContaining({ hotelId: "proche", roles: ["PATRON"], titre: "Frais de maintenance à payer", corps: expect.stringContaining("3 jours") }));
+  });
+});
+
 describe("NotificationsSchedulerService.rappelsStock — le rappel des 24 h", () => {
   const produit = (id: string, nom: string, stockActuel: number, seuilAlerte = 5) => ({ id, nom, stockActuel, seuilAlerte });
   const MAINTENANT = new Date("2026-10-27T10:30:00Z");

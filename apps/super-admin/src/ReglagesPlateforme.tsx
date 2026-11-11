@@ -14,6 +14,14 @@ export interface ReglagesPlateformeProps {
   onEnregistrer: (partiel: Partial<ParametresPlateformeVue>) => Promise<void>;
 }
 
+/** Montant en dollars à 2 décimales au plus (virgule ou point). */
+function montantUsd(saisie: string, min: number, max: number): number | null {
+  const texte = saisie.trim().replace(/\s/g, "").replace(",", ".");
+  if (!/^\d+(\.\d{1,2})?$/.test(texte)) return null;
+  const n = Number(texte);
+  return n >= min && n <= max ? n : null;
+}
+
 function entier(saisie: string, min: number, max: number): number | null {
   const texte = saisie.trim().replace(/\s/g, "");
   if (!/^\d+$/.test(texte)) return null;
@@ -36,6 +44,9 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
   const [maxProduits, setMaxProduits] = useState(String(parametres.maxProduitsEssai));
   const [maxGalerie, setMaxGalerie] = useState(String(parametres.maxPhotosGalerieEssai));
   const [maxInscriptions, setMaxInscriptions] = useState(String(parametres.maxInscriptionsParJour));
+  const [fraisMaintenance, setFraisMaintenance] = useState(String(parametres.fraisMaintenanceUsd ?? 5));
+  const [graceMaintenance, setGraceMaintenance] = useState(String(parametres.joursGraceMaintenance ?? 2));
+  const [preavisMaintenance, setPreavisMaintenance] = useState(String(parametres.joursPreavisMaintenance ?? 5));
   const [erreur, setErreur] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
@@ -56,6 +67,9 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
     setMaxProduits(String(parametres.maxProduitsEssai));
     setMaxGalerie(String(parametres.maxPhotosGalerieEssai));
     setMaxInscriptions(String(parametres.maxInscriptionsParJour));
+    setFraisMaintenance(String(parametres.fraisMaintenanceUsd ?? 5));
+    setGraceMaintenance(String(parametres.joursGraceMaintenance ?? 2));
+    setPreavisMaintenance(String(parametres.joursPreavisMaintenance ?? 5));
   }, [parametres]);
 
   async function soumettre(e: React.FormEvent) {
@@ -81,6 +95,12 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
     if (mg === null) return setErreur("Le nombre de photos de galerie pendant l'essai doit être un nombre entier de 0 à 50.");
     const mi = entier(maxInscriptions, 1, 50);
     if (mi === null) return setErreur("Le nombre d'inscriptions par jour doit être un nombre entier de 1 à 50.");
+    const fm = montantUsd(fraisMaintenance, 0.5, 10_000);
+    if (fm === null) return setErreur("Les frais de maintenance doivent être un montant en dollars d'au moins 0,50 (2 décimales au plus).");
+    const gm = entier(graceMaintenance, 0, 30);
+    if (gm === null) return setErreur("Le délai de grâce de la maintenance doit être un nombre entier de jours, de 0 à 30.");
+    const pm = entier(preavisMaintenance, 1, 30);
+    if (pm === null) return setErreur("Le rappel de la maintenance doit être un nombre entier de jours, de 1 à 30.");
     setErreur(null);
     setEnCours(true);
     try {
@@ -98,6 +118,9 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
         maxProduitsEssai: mp,
         maxPhotosGalerieEssai: mg,
         maxInscriptionsParJour: mi,
+        fraisMaintenanceUsd: fm,
+        joursGraceMaintenance: gm,
+        joursPreavisMaintenance: pm,
       });
       setConfirmation("Réglages enregistrés. Les applications les reprennent à leur prochain chargement.");
     } catch (err) {
@@ -185,6 +208,37 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
           <input id={`${id}-max-inscriptions`} className="champ" inputMode="numeric" value={maxInscriptions} onChange={(e) => setMaxInscriptions(e.target.value)} aria-describedby={`${id}-max-inscriptions-aide`} />
           <p id={`${id}-max-inscriptions-aide`} className="aide-champ">Hôtels créés au plus en 24 h depuis une même adresse internet ou un même appareil.</p>
         </div>
+        </div>
+      </fieldset>
+
+      <fieldset className="groupe-protection">
+        <legend className="titre-section titre-section--petit">Licences : frais de maintenance</legend>
+        <p className="aide-champ">
+          Un hôtel qui a acheté une licence (1, 2 ou 3 ans, activée à la main depuis « Licence » dans la liste des hôtels) a toutes les fonctions et ne paie que ces frais, tous les 30 jours, par Mobile Money.
+          Le premier mois est compris dans la licence. Vous pouvez aussi fixer des frais propres à un hôtel au moment d'activer sa licence.
+        </p>
+        <div className="grille-formulaire grille-formulaire--4">
+          <div>
+            <label className="label" htmlFor={`${id}-frais-maintenance`}>
+              Frais de maintenance ($ par mois)
+            </label>
+            <input id={`${id}-frais-maintenance`} className="champ" inputMode="decimal" value={fraisMaintenance} onChange={(e) => setFraisMaintenance(e.target.value)} aria-describedby={`${id}-frais-maintenance-aide`} />
+            <p id={`${id}-frais-maintenance-aide`} className="aide-champ">5 $ au départ. Au moins 0,50. Les francs se calculent au taux ci-dessus.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor={`${id}-grace-maintenance`}>
+              Délai après l'échéance (jours)
+            </label>
+            <input id={`${id}-grace-maintenance`} className="champ" inputMode="numeric" value={graceMaintenance} onChange={(e) => setGraceMaintenance(e.target.value)} aria-describedby={`${id}-grace-maintenance-aide`} />
+            <p id={`${id}-grace-maintenance-aide`} className="aide-champ">De 0 à 30. Après ce délai sans paiement, tous les profils de l'hôtel sont désactivés (sauf le paiement).</p>
+          </div>
+          <div>
+            <label className="label" htmlFor={`${id}-preavis-maintenance`}>
+              Rappel avant l'échéance (jours)
+            </label>
+            <input id={`${id}-preavis-maintenance`} className="champ" inputMode="numeric" value={preavisMaintenance} onChange={(e) => setPreavisMaintenance(e.target.value)} aria-describedby={`${id}-preavis-maintenance-aide`} />
+            <p id={`${id}-preavis-maintenance-aide`} className="aide-champ">De 1 à 30. « Il vous reste N jours pour payer vos frais de maintenance ».</p>
+          </div>
         </div>
       </fieldset>
 

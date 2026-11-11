@@ -9,6 +9,16 @@ Mis à jour le 17/10/2026. Ce document dit comment l'abonnement fonctionne, ce q
 - Le téléphone du patron reçoit la demande de confirmation habituelle (code secret Mobile Money). Dès que le paiement est confirmé, l'abonnement est prolongé **automatiquement** et l'application continue sans redémarrage.
 - **L'argent arrive dans le compte marchand ScanLinkPay de la plateforme** (celui dont vous donnez le numéro), pas sur les identifiants FlexPaie de ScanLinkPay.
 
+## Licences de 1, 2 ou 3 ans et frais de maintenance (11/11/2026)
+Un hôtel peut **acheter une licence** en main propre (espèces…), hors de l'application ; le **super-admin l'active à la main** (liste des hôtels → bouton **Licence**).
+- **Pendant la licence** : toutes les fonctions, aucun plafond de chambres, plus d'abonnement mensuel. L'hôtel ne paie que des **frais de maintenance** (5 $ par 30 jours au départ).
+- Le **premier mois est compris** : la première échéance tombe 30 jours après l'activation. Ensuite, le patron paie dans l'application, par Mobile Money comme l'abonnement (1, 3, 6 ou 12 mois d'un coup, sans réduction, frais ScanLinkPay selon le même réglage).
+- **Rappel** : bandeau et notification au patron à partir de 5 jours avant l'échéance ; **délai de 2 jours** après l'échéance ; puis tous les profils de l'hôtel sont désactivés (le patron garde l'écran de paiement). Dès le paiement, tout rouvre. Les trois nombres et le montant (**Réglages de la plateforme → Licences : frais de maintenance**) se règlent sans redéploiement ; le super-admin peut aussi fixer des frais propres à un hôtel en activant sa licence.
+- **À la fin de la licence** : l'hôtel retombe sur l'abonnement mensuel normal (3 jours de grâce). Une nouvelle licence achetée avant la fin commence à la fin de la précédente.
+- Le super-admin peut **annuler** une licence ou une maintenance saisie à la main (motif obligatoire, jamais effacée) et **enregistrer une maintenance reçue en espèces**.
+- Les hôtels **sans licence** ne changent pas.
+- Technique : tables `LicenceHotel` et `PaiementMaintenance` (migration `20261111120000_licences_maintenance`) ; activer une licence crée aussi une ligne `PaiementLicence` qui court jusqu'à la fin de la licence (l'hôtel compte comme « payé » partout) ; l'état d'accès d'un hôtel avec licence est celui de sa maintenance (`etatAbonnement` reçoit la licence en cours ; le bandeau, la garde d'accès et la suspension automatique n'ont rien à savoir de plus). Code : `apps/api/src/abonnement/licences-admin.*`, `apps/api/src/common/abonnement/validite.ts`, `packages/regles/src/abonnement.ts`.
+
 ## Ce qui se passe à l'échéance
 | Moment | Ce que voit l'hôtel |
 |---|---|

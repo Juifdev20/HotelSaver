@@ -174,6 +174,8 @@ model Hotel {
   inventairesPhysiques InventairePhysique[]
   paiementsLicence     PaiementLicence[]
   paiementsAbonnement  PaiementAbonnement[]
+  licences             LicenceHotel[]
+  paiementsMaintenance PaiementMaintenance[]
   paiementsReservation PaiementReservation[]
   remboursements       Remboursement[]
   rapportsMensuels     RapportMensuel[]
@@ -338,6 +340,8 @@ model PaiementLicence {
   enregistrePar             SuperAdmin?            @relation(fields: [enregistreParSuperAdminId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   enregistreParSuperAdminId String?
   paiementAbonnement        PaiementAbonnement?
+  /// Licence (1, 2 ou 3 ans) dont cette ligne est le paiement : une licence activée à la main crée sa ligne ici, pour que l'hôtel compte comme « payé » partout.
+  licence                   LicenceHotel?
   createdAt                 DateTime               @default(now())
   /// Annulation par le super-admin (17/10/2026) : une saisie manuelle erronée ou de test n'est jamais effacée (traçabilité) ;
   /// marquée annulée, elle ne compte plus nulle part (validité, accès, statut, historique du patron). Réservé aux saisies
@@ -347,6 +351,11 @@ model PaiementLicence {
   motifAnnulation           String?
 
   @@index([hotelId])
+}
+
+enum ObjetPaiementAbonnement {
+  ABONNEMENT
+  MAINTENANCE
 }
 
 enum StatutPaiementAbonnement {
@@ -393,6 +402,10 @@ model PaiementAbonnement {
   cleIdempotence         String                   @unique
   paiementLicence        PaiementLicence?         @relation(fields: [paiementLicenceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   paiementLicenceId      String?                  @unique
+  /// ABONNEMENT (défaut) ou MAINTENANCE (frais mensuels d'un hôtel qui a une licence, voir LicenceHotel). Pour une maintenance, `formule` vaut « MAINTENANCE » et `mois` est le nombre de mois payés.
+  objet                  ObjetPaiementAbonnement  @default(ABONNEMENT)
+  paiementMaintenance    PaiementMaintenance?     @relation(fields: [paiementMaintenanceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paiementMaintenanceId  String?                  @unique
   derniereVerificationLe DateTime?
   confirmeLe             DateTime?
   createdAt              DateTime                 @default(now())
@@ -400,6 +413,60 @@ model PaiementAbonnement {
 
   @@index([hotelId, createdAt])
   @@index([statut, createdAt])
+}
+
+/// Licence achetée par un hôtel (1, 2 ou 3 ans), payée hors de l'application (espèces…) et activée à la main par le super-admin. Pendant sa
+/// durée l'hôtel a toutes les fonctions, sans plafond de chambres, et ne paie que les frais de maintenance (voir PaiementMaintenance).
+/// Activer une licence crée aussi une ligne PaiementLicence qui court jusqu'à sa fin : l'hôtel compte comme payé partout, et à la fin de la
+/// licence il retombe sur l'abonnement mensuel normal. Journal : jamais supprimée, seulement annulée (traçabilité).
+model LicenceHotel {
+  id                        String           @id @default(uuid())
+  hotel                     Hotel            @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId                   String
+  annees                    Int
+  debutLe                   DateTime
+  finLe                     DateTime
+  /// Somme reçue en main propre : information seulement (le prix de la licence se décide hors de l'application).
+  montant                   Decimal?
+  devise                    Devise?
+  /// Frais de maintenance mensuels propres à cet hôtel, en dollars ; null = réglage de la plateforme (ParametresPlateforme.fraisMaintenanceUsd).
+  fraisMaintenanceUsd       Decimal?
+  note                      String?
+  paiementLicence           PaiementLicence? @relation(fields: [paiementLicenceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  paiementLicenceId         String?          @unique
+  enregistreParSuperAdminId String?
+  createdAt                 DateTime         @default(now())
+  annuleLe                  DateTime?
+  annuleParSuperAdminId     String?
+  motifAnnulation           String?
+  paiementsMaintenance      PaiementMaintenance[]
+
+  @@index([hotelId])
+}
+
+/// Frais de maintenance mensuels d'un hôtel qui a une licence (journal immuable, comme PaiementLicence). L'échéance de la maintenance se
+/// déduit du dernier paiement non annulé (ou du début de la licence + 30 jours si le premier mois est compris) : jamais stockée.
+model PaiementMaintenance {
+  id                        String               @id @default(uuid())
+  hotel                     Hotel                @relation(fields: [hotelId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  hotelId                   String
+  licence                   LicenceHotel?        @relation(fields: [licenceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  licenceId                 String?
+  mois                      Int
+  montant                   Decimal
+  devise                    Devise
+  methode                   MethodePaiementLicence
+  periodeCouverteJusquau    DateTime
+  note                      String?
+  /// null = payé dans l'application (voir PaiementAbonnement) ; sinon le super-admin qui l'a saisi à la main.
+  enregistreParSuperAdminId String?
+  paiementAbonnement        PaiementAbonnement?
+  createdAt                 DateTime             @default(now())
+  annuleLe                  DateTime?
+  annuleParSuperAdminId     String?
+  motifAnnulation           String?
+
+  @@index([hotelId])
 }
 
 model Utilisateur {
@@ -979,6 +1046,10 @@ model ParametresPlateforme {
   maxPhotosGalerieEssai         Int      @default(6)
   /// Hôtels créés au plus par 24 h depuis une même adresse internet ou un même appareil.
   maxInscriptionsParJour        Int      @default(2)
+  /// Licences (11/11/2026) : frais de maintenance mensuels en dollars (5 $ au départ), délai de grâce après l'échéance et jours de rappel avant.
+  fraisMaintenanceUsd           Decimal  @default(5)
+  joursGraceMaintenance         Int      @default(2)
+  joursPreavisMaintenance       Int      @default(5)
   updatedAt                     DateTime @updatedAt
 }
 

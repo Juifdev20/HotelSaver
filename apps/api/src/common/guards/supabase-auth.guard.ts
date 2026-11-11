@@ -8,7 +8,8 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { LIBELLE_FONCTION, etatAbonnement, fonctionsAutorisees, type Fonction as CodeFonction } from "@hotel-chicago/regles";
+import { LIBELLE_FONCTION, fonctionsAutorisees, type Fonction as CodeFonction } from "@hotel-chicago/regles";
+import { etatDeHotel, inclureValidite } from "../abonnement/validite";
 import { FONCTION_KEY } from "../decorators/fonction.decorator";
 import { lireCatalogue } from "../abonnement/catalogue";
 import { SANS_LICENCE_KEY } from "../decorators/sans-licence.decorator";
@@ -50,7 +51,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
     const utilisateur = await this.prisma.utilisateur.findUnique({
       where: { supabaseAuthId: sub },
-      include: { hotel: { include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } } } } },
+      include: { hotel: { include: inclureValidite() } },
     });
 
     if (!utilisateur || !utilisateur.actif) {
@@ -71,7 +72,7 @@ export class SupabaseAuthGuard implements CanActivate {
     // de minuit ne fait que poser le statut SUSPENDU et prévenir). Un hôtel bloqué garde TROIS routes (profil, abonnement, paiement,
     // marquées @SansLicence) : de quoi comprendre pourquoi et renouveler. Tout le reste répond 402, que les applications savent lire.
     const catalogue = await lireCatalogue(this.prisma);
-    const etat = etatAbonnement(utilisateur.hotel, utilisateur.hotel.paiementsLicence[0] ?? null, new Date(), catalogue.parametres);
+    const etat = etatDeHotel(utilisateur.hotel, catalogue.parametres);
     if (etat.bloque) {
       const exempte = this.reflector?.getAllAndOverride<boolean>(SANS_LICENCE_KEY, [context.getHandler(), context.getClass()]) === true;
       if (!exempte) {
@@ -81,7 +82,9 @@ export class SupabaseAuthGuard implements CanActivate {
             code: "ABONNEMENT_BLOQUE",
             message:
               etat.statut === "EXPIRE"
-                ? "L'abonnement de cet hôtel a expiré. Le patron peut le renouveler depuis l'application."
+                ? etat.licence
+                  ? "Les frais de maintenance de cet hôtel n'ont pas été payés. Le patron peut les payer depuis l'application."
+                  : "L'abonnement de cet hôtel a expiré. Le patron peut le renouveler depuis l'application."
                 : "L'accès de cet hôtel est suspendu. Contactez le support HotelSaver.",
           },
           402

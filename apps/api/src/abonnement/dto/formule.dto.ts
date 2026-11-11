@@ -154,6 +154,28 @@ export class ModifierParametresDto {
   @IsIn(FONCTIONS as readonly string[], { each: true, message: MESSAGE_FONCTION })
   fonctionsEssai?: string[];
 
+  // Licences (11/11/2026) : frais de maintenance mensuels, délai de grâce et rappel.
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: "Les frais de maintenance doivent être un nombre (2 décimales au plus)." })
+  @Min(0.5, { message: "Les frais de maintenance doivent être d'au moins 0,50 $ par mois." })
+  @Max(10_000)
+  fraisMaintenanceUsd?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(30)
+  joursGraceMaintenance?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  joursPreavisMaintenance?: number;
+
   @IsOptional()
   @IsBoolean()
   fraisAbonnementPayesParClient?: boolean;

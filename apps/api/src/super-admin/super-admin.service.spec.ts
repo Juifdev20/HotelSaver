@@ -132,7 +132,8 @@ describe("SuperAdminService", () => {
         expect.objectContaining({
           include: expect.objectContaining({
             branding: true,
-            paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 },
+            paiementsLicence: expect.objectContaining({ where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 }),
+            licences: expect.objectContaining({ take: 1 }),
           }),
         })
       );

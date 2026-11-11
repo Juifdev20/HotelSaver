@@ -918,3 +918,29 @@ body {
   justify-content: flex-end;
   margin: 8px 0;
 }
+
+/* Licence d'un hôtel (11/11/2026) */
+.licence-hotel {
+  width: min(820px, calc(100vw - 32px));
+}
+.licence-hotel__etat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  border-radius: 10px;
+  background: var(--surface-alt, rgba(127, 127, 127, 0.1));
+}
+.licence-hotel__bloc {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--bordure, rgba(127, 127, 127, 0.3));
+}
+.licence-hotel__bloc h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+.licence-hotel__sous-formulaire {
+  margin: 10px 0 14px;
+}

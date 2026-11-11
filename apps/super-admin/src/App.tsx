@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import { ClientSuperAdmin, ErreurApi, connecterViaApi, rafraichirSession } from "@hotel-chicago/api-client";
 import type { DonneesFormule, FormuleAdminVue, HotelAvecValidite, ParametresPlateformeVue, StatutLicence } from "@hotel-chicago/types";
-import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement, PaiementAbonnementSupport } from "@hotel-chicago/api-client";
+import type { DonneesActivationLicence, DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement, DonneesMaintenanceManuelle, PaiementAbonnementSupport } from "@hotel-chicago/api-client";
 import { configuration } from "./config";
 import { ecrireJetonRafraichissement, lireJetonRafraichissement, oublierJetonRafraichissement } from "./stockage";
 import { EcranConnexion } from "./EcranConnexion";
@@ -267,6 +267,32 @@ export default function App() {
     return liste;
   }
 
+  // --- Licences de 1, 2 ou 3 ans et frais de maintenance (11/11/2026)
+  async function listerLicences(hotelId: string) {
+    if (!client) throw new Error("Session expirée : reconnectez-vous.");
+    return client.listerLicences(hotelId);
+  }
+
+  async function activerLicence(hotelId: string, dto: DonneesActivationLicence) {
+    if (!client) throw new Error("Session expirée : reconnectez-vous.");
+    return client.activerLicence(hotelId, dto);
+  }
+
+  async function annulerLicence(hotelId: string, licenceId: string, motif: string) {
+    if (!client) throw new Error("Session expirée : reconnectez-vous.");
+    return client.annulerLicence(hotelId, licenceId, motif);
+  }
+
+  async function enregistrerMaintenance(hotelId: string, dto: DonneesMaintenanceManuelle) {
+    if (!client) throw new Error("Session expirée : reconnectez-vous.");
+    return client.enregistrerMaintenance(hotelId, dto);
+  }
+
+  async function annulerMaintenance(hotelId: string, paiementId: string, motif: string) {
+    if (!client) throw new Error("Session expirée : reconnectez-vous.");
+    return client.annulerMaintenance(hotelId, paiementId, motif);
+  }
+
   async function enregistrerPaiement(hotelId: string, dto: DonneesEnregistrementPaiement): Promise<boolean> {
     if (!client) return false;
     setErreurPaiement(null);
@@ -411,6 +437,12 @@ export default function App() {
       onListerPaiements={listerPaiements}
       onListerSupprimes={listerHotelsSupprimes}
       onAnnulerPaiement={annulerPaiement}
+      onListerLicences={listerLicences}
+      onActiverLicence={activerLicence}
+      onAnnulerLicence={annulerLicence}
+      onEnregistrerMaintenance={enregistrerMaintenance}
+      onAnnulerMaintenance={annulerMaintenance}
+      onLicenceChangee={() => client && void chargerHotels(client)}
       patronEnCours={patronEnCours}
       erreurPatron={erreurPatron}
       onDeconnexion={seDeconnecter}

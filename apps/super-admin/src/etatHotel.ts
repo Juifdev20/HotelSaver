@@ -38,6 +38,14 @@ export function etatAbonnementHotel(hotel: HotelListe, maintenant: Date = new Da
 }
 
 export function badgeAbonnement(hotel: HotelListe, maintenant: Date = new Date()): BadgeAbonnement {
+  // Licence en cours (11/11/2026) : ce qui décide de l'accès est la maintenance mensuelle, pas l'abonnement.
+  if (hotel.licence && hotel.statutLicence !== "RESILIE" && !(hotel.statutLicence === "SUSPENDU" && hotel.suspensionManuelle)) {
+    const l = hotel.licence;
+    const an = `${l.annees} an${l.annees > 1 ? "s" : ""}`;
+    if (l.maintenanceStatut === "EXPIRE") return { libelle: "Maintenance impayée", tone: "danger", aide: `Licence ${an} : frais de maintenance impayés depuis plus du délai de grâce, accès bloqué jusqu'au prochain paiement.` };
+    if (l.maintenanceStatut === "EN_GRACE") return { libelle: "Maintenance échue", tone: "warning", aide: `Licence ${an} : frais de maintenance échus, l'hôtel travaille encore pendant le délai de grâce.` };
+    return { libelle: `Licence ${an}`, tone: "success", aide: `Licence ${an} active jusqu'au ${dateAbonnement(l.finLe)}. Maintenance payée jusqu'au ${dateAbonnement(l.maintenanceJusquau)}.` };
+  }
   // Serveur plus ancien (pas de marque « à la main ») : on ne devine pas la cause d'une suspension.
   if (hotel.statutLicence === "SUSPENDU" && hotel.suspensionManuelle === undefined) {
     return { libelle: "Suspendu", tone: "danger", aide: "Suspendu : échéance dépassée ou suspension manuelle." };

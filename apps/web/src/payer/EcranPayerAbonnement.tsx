@@ -360,7 +360,22 @@ function Formulaire({ client, vue, onActualise }: { client: ClientApi; vue: VueA
   const [touche, setTouche] = useState(false);
   const champTel = useRef<HTMLInputElement>(null);
 
-  const formule = vue.formules.find((f) => f.code === formuleCode);
+  // Hôtel avec licence : pas de formule à choisir, seulement les frais de maintenance (11/11/2026). On les présente comme une « formule » unique
+  // pour que durée, monnaie, aperçu et récapitulatif fonctionnent tels quels.
+  const maintenance = vue.maintenance ?? null;
+  const formule: FormuleProposee | undefined = maintenance
+    ? {
+        code: "MAINTENANCE",
+        nom: "Frais de maintenance",
+        description: "",
+        recommandee: false,
+        maxChambres: null,
+        inclus: [],
+        fonctions: [],
+        prixMensuelUsd: maintenance.fraisMensuelUsd,
+        durees: maintenance.durees.map((d) => ({ ...d, moisOfferts: 0 })),
+      }
+    : vue.formules.find((f) => f.code === formuleCode);
   const duree = formule?.durees.find((d) => d.mois === mois) ?? formule?.durees[0];
   const prix = duree ? (devise === "USD" ? duree.prixUsd : duree.prixCdf) : null;
 
@@ -370,7 +385,7 @@ function Formulaire({ client, vue, onActualise }: { client: ClientApi; vue: VueA
     if (!formule || !duree || !cle) return;
     let actif = true;
     client
-      .apercuAbonnement(formule.code, duree.mois, devise)
+      .apercuAbonnement(maintenance ? "" : formule.code, duree.mois, devise, maintenance ? "MAINTENANCE" : "ABONNEMENT")
       .then((valeur) => actif && setApercu({ cle, valeur }))
       .catch(() => actif && setApercu({ cle, valeur: null }));
     return () => {
@@ -401,7 +416,7 @@ function Formulaire({ client, vue, onActualise }: { client: ClientApi; vue: VueA
       champTel.current?.focus();
       return;
     }
-    void suivi.payer({ formule: formule.code, mois: duree.mois, devise, operateur, telephone: telephone.trim() });
+    void suivi.payer({ ...(maintenance && { objet: "MAINTENANCE" as const }), formule: formule.code, mois: duree.mois, devise, operateur, telephone: telephone.trim() });
   }
 
   const peutPayer = vue.paiementEnLigne && vue.etat.renouvelable !== false;
@@ -509,7 +524,7 @@ function Formulaire({ client, vue, onActualise }: { client: ClientApi; vue: VueA
                 >
                   <CircleCheck size={30} />
                 </motion.span>
-                <h2>Merci, votre abonnement est payé !</h2>
+                <h2>{etat.paiement?.objet === "MAINTENANCE" ? "Merci, vos frais de maintenance sont payés !" : "Merci, votre abonnement est payé !"}</h2>
                 <p>
                   {etat.paiement?.periodeCouverteJusquau ?? etat.complement?.valideJusquau
                     ? `Votre hôtel est ouvert jusqu'au ${dateAbonnement((etat.paiement?.periodeCouverteJusquau ?? etat.complement?.valideJusquau) as string)}.`
@@ -539,7 +554,15 @@ function Formulaire({ client, vue, onActualise }: { client: ClientApi; vue: VueA
       {peutPayer && enSaisie && formule && (
         <div className="pay-grille">
           <form id={idForm} className="pay-etapes" onSubmit={payer} noValidate>
-            {/* 1. Formule */}
+            {/* 1. Formule (sans objet pour un hôtel avec licence : il ne paie que la maintenance) */}
+            {maintenance && (
+              <Entree className="pay-carte pay-etape" delai={0.05}>
+                <p className="pay-etape__libelle">
+                  <Crown size={16} aria-hidden="true" /> Votre hôtel a une licence : vous payez seulement les frais de maintenance, {montantAbonnement(maintenance.fraisMensuelUsd, "USD")} par période de 30 jours.
+                </p>
+              </Entree>
+            )}
+            {!maintenance && (
             <Entree className="pay-carte pay-etape" delai={0.05}>
               <h2 className="pay-etape__titre">
                 <span className="pay-etape__numero">1</span> Choisissez votre formule
@@ -592,10 +615,12 @@ function Formulaire({ client, vue, onActualise }: { client: ClientApi; vue: VueA
               </div>
             </Entree>
 
+            )}
+
             {/* 2. Durée et monnaie */}
             <Entree className="pay-carte pay-etape" delai={0.1}>
               <h2 className="pay-etape__titre">
-                <span className="pay-etape__numero">2</span> Durée et monnaie
+                <span className="pay-etape__numero">{maintenance ? 1 : 2}</span> Durée et monnaie
               </h2>
               <p className="pay-etape__libelle">
                 <CalendarClock size={16} aria-hidden="true" /> Pour combien de temps ?
@@ -639,7 +664,7 @@ function Formulaire({ client, vue, onActualise }: { client: ClientApi; vue: VueA
             {/* 3. Paiement Mobile Money — mêmes cartes à logos que l'acompte d'une réservation. */}
             <Entree className="pay-carte pay-etape" delai={0.15}>
               <h2 className="pay-etape__titre">
-                <span className="pay-etape__numero">3</span> Payer avec Mobile Money
+                <span className="pay-etape__numero">{maintenance ? 2 : 3}</span> Payer avec Mobile Money
               </h2>
               <fieldset className="acompte-groupe" role="radiogroup" aria-labelledby={`${idBase}-reseau`}>
                 <legend id={`${idBase}-reseau`}>Votre réseau Mobile Money</legend>
@@ -700,7 +725,7 @@ function Formulaire({ client, vue, onActualise }: { client: ClientApi; vue: VueA
                   <Crown size={20} />
                 </span>
                 <div>
-                  <strong>Formule {formule.nom}</strong>
+                  <strong>{maintenance ? "Frais de maintenance" : `Formule ${formule.nom}`}</strong>
                   <span>
                     {duree ? libelleDuree(duree.mois) : ""} · {devise === "USD" ? "en dollars" : "en francs congolais"}
                   </span>

@@ -43,6 +43,8 @@ describe("AuthController.moi", () => {
         joursEssai: true,
         site: { select: { slogan: true } },
         paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
+        // Licence en cours (11/11/2026) : voir common/abonnement/validite.ts.
+        licences: expect.objectContaining({ where: expect.objectContaining({ annuleLe: null }), take: 1 }),
       },
     });
     expect(profil).toEqual({

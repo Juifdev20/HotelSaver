@@ -11,8 +11,9 @@ import { AnnulerPaiementDto } from "./dto/annuler-paiement.dto";
 import { AjouterDomaineDto } from "./dto/ajouter-domaine.dto";
 import { extraireCouleursLogo } from "../common/palette/extraire-couleurs-logo";
 import { genererPalette } from "../common/palette/generer-palette";
-import { etatAbonnement, fonctionsAutorisees } from "@hotel-chicago/regles";
+import { fonctionsAutorisees } from "@hotel-chicago/regles";
 import { lireCatalogue } from "../common/abonnement/catalogue";
+import { etatDeHotel, inclureValidite, recalculerStatutHotel } from "../common/abonnement/validite";
 import { calculerFinValidite } from "./calculer-validite";
 import { RenderDomainsService } from "./render-domains.service";
 
@@ -32,19 +33,25 @@ export class SuperAdminService {
     const hotels = await this.prisma.hotel.findMany({
       include: {
         branding: true,
-        paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 },
+        ...inclureValidite(),
         _count: { select: { chambres: true } },
         // Patron : son numéro de connexion s'affiche dans la liste (15/10/2026).
         utilisateurs: { where: { role: "PATRON" }, select: { nom: true, telephone: true }, take: 1 },
       },
       orderBy: { createdAt: "desc" },
     });
-    return hotels.map(({ paiementsLicence, utilisateurs, _count, ...hotel }) => ({
-      ...hotel,
-      nombreChambres: _count?.chambres ?? 0,
-      patron: utilisateurs?.[0] ?? null,
-      valideJusquau: calculerFinValidite(hotel, paiementsLicence[0] ?? null),
-    }));
+    const { parametres } = await lireCatalogue(this.prisma);
+    return hotels.map(({ paiementsLicence, licences, utilisateurs, _count, ...hotel }) => {
+      const etat = etatDeHotel({ ...hotel, paiementsLicence, licences }, parametres);
+      return {
+        ...hotel,
+        nombreChambres: _count?.chambres ?? 0,
+        patron: utilisateurs?.[0] ?? null,
+        valideJusquau: calculerFinValidite(hotel, paiementsLicence[0] ?? null),
+        // Licence en cours (11/11/2026) : ses dates et l'échéance de la maintenance ; null = abonnement mensuel ou essai.
+        licence: etat.licence ? { ...etat.licence, maintenanceJusquau: etat.valideJusquau, maintenanceStatut: etat.statut, maintenanceJoursRestants: etat.joursRestants, bloque: etat.bloque } : null,
+      };
+    });
   }
 
   /** Le compte PATRON d'un hôtel (le plus ancien s'il y en a plusieurs). */
@@ -173,22 +180,10 @@ export class SuperAdminService {
     return this.listerPaiements(hotelId);
   }
 
-  /** Statut d'un hôtel ESSAI/ACTIF après la disparition d'un paiement : plus aucun paiement valide → ESSAI ; échéance dépassée
-   * (grâce comprise) → SUSPENDU. Une suspension manuelle ou une résiliation n'est jamais touchée. */
+  /** Statut d'un hôtel ESSAI/ACTIF après la disparition d'un paiement : voir `recalculerStatutHotel` (mêmes règles que la garde d'accès). */
   private async recalculerStatut(hotelId: string) {
-    const hotel = await this.prisma.hotel.findUniqueOrThrow({
-      where: { id: hotelId },
-      include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
-    });
-    if (hotel.suspensionManuelle || !["ESSAI", "ACTIF"].includes(hotel.statutLicence)) return;
     const { parametres } = await lireCatalogue(this.prisma);
-    const dernier = hotel.paiementsLicence[0] ?? null;
-    const base = dernier ? "ACTIF" : "ESSAI";
-    const etat = etatAbonnement({ ...hotel, statutLicence: base }, dernier, new Date(), parametres);
-    const nouveau = etat.bloque ? "SUSPENDU" : base;
-    if (nouveau !== hotel.statutLicence) {
-      await this.prisma.hotel.update({ where: { id: hotelId }, data: { statutLicence: nouveau, suspensionManuelle: false } });
-    }
+    await recalculerStatutHotel(this.prisma, hotelId, parametres);
   }
 
   /**
@@ -201,14 +196,14 @@ export class SuperAdminService {
   async suspendreHotelsExpires(): Promise<number> {
     const hotels = await this.prisma.hotel.findMany({
       where: { statutLicence: { in: ["ESSAI", "ACTIF"] } },
-      include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+      include: inclureValidite(),
     });
 
     const maintenant = new Date();
     const { parametres } = await lireCatalogue(this.prisma);
     // Suspendu seulement APRÈS le délai de grâce (3 jours) : c'est le même calcul que la garde d'accès (etatAbonnement), pour que le statut
     // posé ici ne contredise jamais ce que voit l'application.
-    const aSuspendre = hotels.filter((hotel) => etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, maintenant, parametres).bloque);
+    const aSuspendre = hotels.filter((hotel) => etatDeHotel(hotel, parametres, maintenant).bloque);
 
     if (aSuspendre.length > 0) {
       await this.prisma.hotel.updateMany({
@@ -222,7 +217,7 @@ export class SuperAdminService {
           hotelId: hotel.id,
           roles: [Role.PATRON],
           cleDedup: `licence-suspendue:${hotel.id}:${maintenant.toISOString().slice(0, 10)}`,
-          ...messages.licenceSuspendue(),
+          ...((hotel.licences?.length ?? 0) > 0 ? messages.maintenanceImpayee() : messages.licenceSuspendue()),
         });
       }
     }

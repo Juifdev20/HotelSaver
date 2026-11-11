@@ -19,6 +19,13 @@ export interface EcranAbonnementBloqueProps {
 }
 
 function titreEtExplication(etat: EtatAbonnement | null): { titre: string; explication: string } {
+  // Hôtel avec licence : ce qui bloque, ce sont les frais de maintenance impayés (11/11/2026).
+  if (etat?.licence && etat.statut !== "RESILIE" && etat.statut !== "SUSPENDU") {
+    return {
+      titre: "Les frais de maintenance de votre hôtel ne sont pas payés",
+      explication: "Pas d'inquiétude : votre licence est toujours valable et vos données sont conservées. Dès que les frais de maintenance sont payés, vous retrouvez l'application exactement comme vous l'avez laissée.",
+    };
+  }
   if (etat?.statut === "RESILIE") {
     return { titre: "Votre abonnement est résilié", explication: "Vos données sont conservées. Contactez le support HotelSaver pour rouvrir l'accès de votre hôtel." };
   }

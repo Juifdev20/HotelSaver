@@ -31,7 +31,7 @@ export class AbonnementController {
   @Roles(Role.PATRON)
   @Throttle({ default: { limit: 30, ttl: MINUTE } })
   apercu(@CurrentUser() utilisateur: UtilisateurAuthentifie, @Query() q: ApercuAbonnementQueryDto) {
-    return this.abonnement.apercu(utilisateur, q.formule, q.mois, q.devise);
+    return this.abonnement.apercu(utilisateur, q.formule, q.mois, q.devise, q.objet);
   }
 
   @Post("paiements")

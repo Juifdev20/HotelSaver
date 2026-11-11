@@ -1004,8 +1004,8 @@ export class ClientApi {
   }
 
   /** Prix, commission ScanLinkPay et total débité pour un achat d'abonnement, AVANT de payer. PATRON. */
-  async apercuAbonnement(formule: string, mois: number, devise: "USD" | "CDF"): Promise<ApercuPaiement> {
-    const q = new URLSearchParams({ formule, mois: String(mois), devise });
+  async apercuAbonnement(formule: string, mois: number, devise: "USD" | "CDF", objet: "ABONNEMENT" | "MAINTENANCE" = "ABONNEMENT"): Promise<ApercuPaiement> {
+    const q = new URLSearchParams({ formule, mois: String(mois), devise, ...(objet === "MAINTENANCE" ? { objet } : {}) });
     return this.requete<ApercuPaiement>(`/abonnement/apercu?${q.toString()}`);
   }
 

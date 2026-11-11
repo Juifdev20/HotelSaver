@@ -33,7 +33,8 @@ export function actualiserEtatAbonnement(etat: EtatAbonnement, maintenant: Date 
   const joursRestants = Math.ceil((Date.parse(etat.valideJusquau) - maintenant.getTime()) / JOUR_MS);
   const passe = maintenant.getTime() > Date.parse(etat.valideJusquau);
   const finGrace = maintenant.getTime() > Date.parse(etat.graceJusquau);
-  const alerte = etat.bloque || finGrace ? "EXPIRE" : passe ? "GRACE" : joursRestants <= 7 ? "BIENTOT" : null;
+  const preavis = etat.licence?.preavisJours ?? 7;
+  const alerte = etat.bloque || finGrace ? "EXPIRE" : passe ? "GRACE" : joursRestants <= preavis ? "BIENTOT" : null;
   const statut = etat.bloque || finGrace ? "EXPIRE" : passe ? "EN_GRACE" : etat.statut === "EN_GRACE" || etat.statut === "EXPIRE" ? etat.statut : etat.statut;
   return { ...etat, joursRestants, alerte, statut };
 }
@@ -57,6 +58,7 @@ function avisSuppression(etat: EtatAbonnement): string {
 export function resumerAbonnement(etat: EtatAbonnement, formule?: string | null): ResumeAbonnement {
   const fin = dateAbonnement(etat.valideJusquau);
   const nomFormule = formule ? ` (formule ${formule.charAt(0)}${formule.slice(1).toLowerCase()})` : "";
+  if (etat.licence && etat.statut !== "RESILIE" && etat.statut !== "SUSPENDU") return resumerLicence(etat, fin);
   switch (etat.statut) {
     case "RESILIE":
       return { niveau: "danger", titre: "Abonnement résilié", detail: "Contactez le support HotelSaver pour rouvrir l'accès de votre hôtel." };
@@ -81,12 +83,36 @@ export function resumerAbonnement(etat: EtatAbonnement, formule?: string | null)
   }
 }
 
+/** La carte « Votre licence » : la licence est active, ce qui décide de l'accès est le paiement mensuel des frais de maintenance. */
+function resumerLicence(etat: EtatAbonnement, fin: string): ResumeAbonnement {
+  const licence = etat.licence!;
+  const finLicence = dateAbonnement(licence.finLe);
+  const frais = montantAbonnement(licence.fraisMaintenanceUsd, "USD");
+  switch (etat.statut) {
+    case "EXPIRE":
+      return { niveau: "danger", titre: "Maintenance impayée", detail: `Les frais de maintenance (${frais}) étaient à payer le ${fin}. Payez-les pour rouvrir l'application ; vos données sont conservées.` };
+    case "EN_GRACE": {
+      const restant = Math.max(1, Math.ceil((Date.parse(etat.graceJusquau) - Date.now()) / JOUR_MS));
+      return { niveau: "danger", titre: "Maintenance échue", detail: `Les frais de maintenance (${frais}) étaient à payer le ${fin}. L'accès sera coupé dans ${jours(restant)} si vous ne payez pas.` };
+    }
+    default:
+      return etat.joursRestants <= licence.preavisJours
+        ? { niveau: "attention", titre: `Maintenance à payer ${etat.joursRestants <= 1 ? "demain" : `dans ${jours(etat.joursRestants)}`}`, detail: `Votre licence est valable jusqu'au ${finLicence}. Les frais de maintenance (${frais}) sont à payer avant le ${fin}.` }
+        : { niveau: "ok", titre: "Licence active", detail: `Valable jusqu'au ${finLicence}. Maintenance payée jusqu'au ${fin}.` };
+  }
+}
+
 /** Le bandeau affiché en haut de l'application à TOUS (null = rien à signaler). */
 export function bandeauAbonnement(etat: EtatAbonnement | undefined | null, maintenant: Date = new Date()): { niveau: NiveauAbonnement; texte: string } | null {
   if (!etat) return null;
   const e = actualiserEtatAbonnement(etat, maintenant);
   if (!e.alerte || e.alerte === "SUSPENDU" || e.alerte === "RESILIE") return null; // ceux-là bloquent : écran dédié
   const fin = dateAbonnement(e.valideJusquau);
+  if (e.licence) {
+    if (e.alerte === "BIENTOT") return { niveau: "attention", texte: `Frais de maintenance : plus que ${jours(Math.max(1, e.joursRestants))} pour payer (avant le ${fin}).` };
+    if (e.alerte === "GRACE") return { niveau: "danger", texte: `Frais de maintenance échus depuis le ${fin} : l'accès sera bientôt coupé. Payez maintenant.` };
+    return { niveau: "danger", texte: "Frais de maintenance impayés : payez pour rouvrir l'application." };
+  }
   if (e.alerte === "BIENTOT") return { niveau: "attention", texte: e.statut === "ESSAI" ? `Essai gratuit : plus que ${jours(Math.max(1, e.joursRestants))}. Choisissez une formule.` : `Abonnement : plus que ${jours(Math.max(1, e.joursRestants))} (jusqu'au ${fin}).` };
   if (e.alerte === "GRACE") return { niveau: "danger", texte: `Abonnement échu depuis le ${fin} : l'accès sera bientôt coupé. Renouvelez maintenant.${avisSuppression(e)}` };
   return { niveau: "danger", texte: "Abonnement expiré : renouvelez pour rouvrir l'application." };

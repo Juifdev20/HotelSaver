@@ -1,14 +1,15 @@
 import * as React from "react";
 import { useState } from "react";
 import { Button, StatusBadge, useTitrePage, type StatusTone } from "@hotel-chicago/ui";
-import type { DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement, PaiementLicenceSuperAdmin } from "@hotel-chicago/api-client";
+import type { DonneesActivationLicence, DonneesAjoutDomaine, DonneesCreationHotel, DonneesEnregistrementPaiement, DonneesMaintenanceManuelle, PaiementLicenceSuperAdmin } from "@hotel-chicago/api-client";
 import { formaterTelephoneRdc } from "@hotel-chicago/types";
-import type { FormuleAdminVue, HotelAvecValidite, HotelSupprimeVue, StatutLicence } from "@hotel-chicago/types";
+import type { FormuleAdminVue, HotelAvecValidite, HotelSupprimeVue, LicencesHotelVue, StatutLicence } from "@hotel-chicago/types";
 import { AIDE_FORMULES } from "./fonctions";
 import { FormulairePaiement } from "./FormulairePaiement";
 import { FormulaireDomaine } from "./FormulaireDomaine";
 import { FormulairePatron } from "./FormulairePatron";
 import { PaiementsHotel } from "./PaiementsHotel";
+import { LicenceHotel } from "./LicenceHotel";
 import { HotelsSupprimes } from "./HotelsSupprimes";
 import { DialogueConfirmation } from "./DialogueConfirmation";
 import { EnteteApp, type Onglet } from "./EnteteApp";
@@ -40,6 +41,14 @@ export interface EcranHotelsProps {
   /** Paiements d'un hôtel et annulation d'une saisie manuelle (17/10/2026). */
   onListerPaiements: (hotelId: string) => Promise<PaiementLicenceSuperAdmin[]>;
   onAnnulerPaiement: (hotelId: string, paiementId: string, motif: string) => Promise<PaiementLicenceSuperAdmin[]>;
+  /** Licences de 1, 2 ou 3 ans et frais de maintenance (11/11/2026). */
+  onListerLicences: (hotelId: string) => Promise<LicencesHotelVue>;
+  onActiverLicence: (hotelId: string, dto: DonneesActivationLicence) => Promise<LicencesHotelVue>;
+  onAnnulerLicence: (hotelId: string, licenceId: string, motif: string) => Promise<LicencesHotelVue>;
+  onEnregistrerMaintenance: (hotelId: string, dto: DonneesMaintenanceManuelle) => Promise<LicencesHotelVue>;
+  onAnnulerMaintenance: (hotelId: string, paiementId: string, motif: string) => Promise<LicencesHotelVue>;
+  /** Recharge la liste des hôtels après un changement de licence. */
+  onLicenceChangee: () => void;
   /** Hôtels supprimés automatiquement (essais abandonnés, 18/10/2026). */
   onListerSupprimes: () => Promise<HotelSupprimeVue[]>;
   patronEnCours: boolean;
@@ -121,6 +130,12 @@ export function EcranHotels({
   onListerPaiements,
   onListerSupprimes,
   onAnnulerPaiement,
+  onListerLicences,
+  onActiverLicence,
+  onAnnulerLicence,
+  onEnregistrerMaintenance,
+  onAnnulerMaintenance,
+  onLicenceChangee,
   patronEnCours,
   erreurPatron,
   onDeconnexion,
@@ -130,6 +145,7 @@ export function EcranHotels({
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
   const [hotelPourPaiement, setHotelPourPaiement] = useState<HotelListe | null>(null);
   const [hotelPourHistorique, setHotelPourHistorique] = useState<HotelListe | null>(null);
+  const [hotelPourLicence, setHotelPourLicence] = useState<HotelListe | null>(null);
   const [voirSupprimes, setVoirSupprimes] = useState(false);
   // Par id, pas par objet : l'hôtel affiché doit refléter les données à
   // jour après chaque action (ajout/vérification/retrait), sans fermer la
@@ -430,6 +446,9 @@ export function EcranHotels({
                         <Button variant="secondary" size="sm" aria-label={`Voir les paiements de ${hotel.nom}`} onClick={() => setHotelPourHistorique(hotel)}>
                           Paiements
                         </Button>
+                        <Button variant="secondary" size="sm" aria-label={`Licence de ${hotel.nom}`} onClick={() => setHotelPourLicence(hotel)}>
+                          Licence
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -511,6 +530,19 @@ export function EcranHotels({
           charger={() => onListerPaiements(hotelPourHistorique.id)}
           annuler={(paiementId, motif) => onAnnulerPaiement(hotelPourHistorique.id, paiementId, motif)}
           onFermer={() => setHotelPourHistorique(null)}
+        />
+      )}
+
+      {hotelPourLicence && (
+        <LicenceHotel
+          hotelNom={hotelPourLicence.nom}
+          charger={() => onListerLicences(hotelPourLicence.id)}
+          activer={(dto) => onActiverLicence(hotelPourLicence.id, dto)}
+          annuler={(licenceId, motif) => onAnnulerLicence(hotelPourLicence.id, licenceId, motif)}
+          enregistrerMaintenance={(dto) => onEnregistrerMaintenance(hotelPourLicence.id, dto)}
+          annulerMaintenance={(paiementId, motif) => onAnnulerMaintenance(hotelPourLicence.id, paiementId, motif)}
+          onChange={onLicenceChangee}
+          onFermer={() => setHotelPourLicence(null)}
         />
       )}
 

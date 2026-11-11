@@ -244,3 +244,98 @@ describe("protection contre les essais abusifs (18/10/2026)", () => {
     expect(messagePlafondEssai.chambres(10)).toBe("L'essai gratuit est limité à 10 chambres. Choisissez une formule dans Paramètres → Abonnement pour en ajouter.");
   });
 });
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Licences (11/11/2026)
+// ---------------------------------------------------------------------------------------------------------------------------------
+import { debutNouvelleLicence, finLicence, finMaintenance, nouvelleFinMaintenance, prixMaintenance, type ContexteLicence } from "./abonnement";
+
+describe("licence : accès décidé par les frais de maintenance", () => {
+  const debut = new Date("2026-11-01T00:00:00Z");
+  const hotel = { createdAt: new Date("2026-01-01T00:00:00Z"), statutLicence: "ACTIF" };
+  const licence = (over: Partial<ContexteLicence> = {}): ContexteLicence => ({
+    annees: 2,
+    debutLe: debut,
+    finLe: finLicence(debut, 2),
+    derniereMaintenanceJusquau: null,
+    fraisMaintenanceUsd: 5,
+    joursGraceMaintenance: 2,
+    joursPreavisMaintenance: 5,
+    ...over,
+  });
+  const jour = (n: number) => new Date(debut.getTime() + n * J);
+
+  it("la licence dure 1, 2 ou 3 ans du calendrier", () => {
+    expect(finLicence(debut, 1).toISOString()).toBe("2027-11-01T00:00:00.000Z");
+    expect(finLicence(debut, 3).toISOString()).toBe("2029-11-01T00:00:00.000Z");
+    expect(finLicence(new Date("2028-02-29T00:00:00Z"), 1).toISOString()).toBe("2029-02-28T00:00:00.000Z");
+  });
+
+  it("le premier mois de maintenance est compris : première échéance 30 jours après l'activation", () => {
+    expect(finMaintenance(licence()).toISOString()).toBe(new Date(debut.getTime() + 30 * J).toISOString());
+    const e = etatAbonnement(hotel, null, jour(1), {}, licence());
+    expect(e).toMatchObject({ statut: "ACTIF", bloque: false, alerte: null, joursRestants: 29, renouvelable: true });
+    expect(e.licence).toMatchObject({ annees: 2, fraisMaintenanceUsd: 5, preavisJours: 5 });
+  });
+
+  it("rappel 5 jours avant l'échéance, puis délai de 2 jours, puis accès coupé", () => {
+    expect(etatAbonnement(hotel, null, jour(24), {}, licence())).toMatchObject({ statut: "ACTIF", alerte: null });
+    expect(etatAbonnement(hotel, null, jour(26), {}, licence())).toMatchObject({ statut: "ACTIF", alerte: "BIENTOT", bloque: false });
+    expect(etatAbonnement(hotel, null, jour(31), {}, licence())).toMatchObject({ statut: "EN_GRACE", alerte: "GRACE", bloque: false });
+    expect(etatAbonnement(hotel, null, jour(33), {}, licence())).toMatchObject({ statut: "EXPIRE", alerte: "EXPIRE", bloque: true, renouvelable: true });
+  });
+
+  it("payer la maintenance rouvre l'accès : l'échéance repart de maintenant si elle était dépassée, de l'échéance si elle est à venir", () => {
+    const maintenant = jour(40);
+    const fin = nouvelleFinMaintenance(finMaintenance(licence()), maintenant, 1);
+    expect(fin.toISOString()).toBe(new Date(maintenant.getTime() + 30 * J).toISOString());
+    expect(etatAbonnement(hotel, null, maintenant, {}, licence({ derniereMaintenanceJusquau: fin }))).toMatchObject({ statut: "ACTIF", bloque: false });
+    // payer 3 mois d'avance en gardant les jours restants
+    const avance = nouvelleFinMaintenance(jour(40), jour(30), 3);
+    expect(avance.toISOString()).toBe(new Date(jour(40).getTime() + 90 * J).toISOString());
+  });
+
+  it("une suspension à la main et une résiliation priment ; hors des dates de la licence, c'est l'abonnement normal", () => {
+    expect(etatAbonnement({ ...hotel, statutLicence: "SUSPENDU", suspensionManuelle: true }, null, jour(1), {}, licence())).toMatchObject({ statut: "SUSPENDU", bloque: true, renouvelable: false });
+    expect(etatAbonnement({ ...hotel, statutLicence: "RESILIE" }, null, jour(1), {}, licence())).toMatchObject({ statut: "RESILIE", bloque: true });
+    // licence terminée : le dernier paiement (celui que crée l'activation, jusqu'à la fin de la licence) donne 3 jours de grâce puis l'accès est coupé
+    const fin = finLicence(debut, 2);
+    const paiement = { periodeCouverteJusquau: fin };
+    const apres = (n: number) => new Date(fin.getTime() + n * J);
+    expect(etatAbonnement(hotel, paiement, apres(1), {}, licence())).toMatchObject({ statut: "EN_GRACE", bloque: false });
+    expect(etatAbonnement(hotel, paiement, apres(1), {}, licence()).licence).toBeUndefined();
+    expect(etatAbonnement(hotel, paiement, apres(5), {}, licence())).toMatchObject({ statut: "EXPIRE", bloque: true });
+  });
+
+  it("prix de la maintenance : dollars exacts, francs arrondis au-dessus à 500, durées 1/3/6/12 sans réduction", () => {
+    expect(prixMaintenance({ fraisUsd: 5, mois: 1, devise: "USD" })).toBe(5);
+    expect(prixMaintenance({ fraisUsd: 5, mois: 12, devise: "USD" })).toBe(60);
+    expect(prixMaintenance({ fraisUsd: 5, mois: 1, devise: "CDF", tauxCdf: 2800 })).toBe(14000);
+    expect(prixMaintenance({ fraisUsd: 4.5, mois: 3, devise: "CDF", tauxCdf: 2810 })).toBe(38000); // 13,5 $ → 37 935 FC → 38 000
+    expect(prixMaintenance({ fraisUsd: 5, mois: 2, devise: "USD" })).toBe(0);
+    expect(prixMaintenance({ fraisUsd: 0, mois: 1, devise: "USD" })).toBe(0);
+  });
+
+  it("une nouvelle licence commence maintenant, ou à la fin de la licence en cours", () => {
+    const maintenant = jour(10);
+    expect(debutNouvelleLicence(null, maintenant)).toBe(maintenant);
+    expect(debutNouvelleLicence(jour(5), maintenant)).toBe(maintenant);
+    expect(debutNouvelleLicence(jour(400), maintenant).toISOString()).toBe(jour(400).toISOString());
+  });
+
+  it("textes : licence active, rappel, délai, maintenance impayée ; bandeau propre à la maintenance", () => {
+    const etat = (n: number) => etatAbonnement(hotel, null, new Date(Date.now()), {}, licence({ debutLe: new Date(Date.now() - (30 - n) * J), finLe: new Date(Date.now() + 700 * J) }));
+    expect(resumerAbonnement(etat(20))).toMatchObject({ niveau: "ok", titre: "Licence active" });
+    expect(resumerAbonnement(etat(3))).toMatchObject({ niveau: "attention" });
+    expect(resumerAbonnement(etat(3)).titre).toContain("Maintenance à payer");
+    expect(resumerAbonnement(etat(3)).detail).toContain("5 $");
+    expect(bandeauAbonnement(etat(20))).toBeNull();
+    expect(bandeauAbonnement(etat(3))?.texte).toContain("Frais de maintenance");
+    const echue = etat(-1);
+    expect(resumerAbonnement(echue)).toMatchObject({ niveau: "danger", titre: "Maintenance échue" });
+    expect(bandeauAbonnement(echue)).toMatchObject({ niveau: "danger" });
+    const impayee = etat(-10);
+    expect(resumerAbonnement(impayee)).toMatchObject({ niveau: "danger", titre: "Maintenance impayée" });
+    expect(bandeauAbonnement(impayee)?.texte).toContain("Frais de maintenance impayés");
+  });
+});

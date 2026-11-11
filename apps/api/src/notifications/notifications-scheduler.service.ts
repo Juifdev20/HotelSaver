@@ -4,8 +4,9 @@ import { PrismaClient } from "@hotel-chicago/database";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { DashboardService } from "../dashboard/dashboard.service";
 import { PRISMA } from "../prisma/prisma.module";
-import { finValidite } from "@hotel-chicago/regles";
+import { finMaintenance, finValidite } from "@hotel-chicago/regles";
 import { lireCatalogue } from "../common/abonnement/catalogue";
+import { contexteLicence, inclureValidite } from "../common/abonnement/validite";
 import { messages } from "./messages";
 import { NotificationsService } from "./notifications.service";
 import { libelleMois } from "../rapports/agregats/bornes";
@@ -217,11 +218,24 @@ export class NotificationsSchedulerService {
     try {
       const hotels = await this.prisma.hotel.findMany({
         where: { statutLicence: { in: ["ESSAI", "ACTIF"] } },
-        include: { paiementsLicence: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1 } },
+        include: inclureValidite(maintenant),
       });
       const { cle } = bornesDuJour(maintenant);
       const { parametres } = await lireCatalogue(this.prisma);
       for (const hotel of hotels) {
+        // Hôtel avec licence : ce qui arrive à échéance, ce sont les frais de maintenance (rappel chaque jour pendant le préavis réglé par le super-admin).
+        const licence = contexteLicence(hotel, parametres);
+        if (licence) {
+          const joursMaintenance = Math.ceil((finMaintenance(licence).getTime() - maintenant.getTime()) / JOUR_MS);
+          if (joursMaintenance < 1 || joursMaintenance > licence.joursPreavisMaintenance) continue;
+          await this.notifications.emettre({
+            hotelId: hotel.id,
+            roles: [Role.PATRON],
+            cleDedup: `maintenance-bientot:${hotel.id}:${cle}`,
+            ...messages.maintenanceBientotDue({ jours: joursMaintenance }),
+          });
+          continue;
+        }
         const fin = finValidite(hotel, hotel.paiementsLicence[0] ?? null, parametres.joursEssai);
         const jours = Math.ceil((fin.getTime() - maintenant.getTime()) / JOUR_MS);
         if (jours < 1 || jours > JOURS_PREAVIS_LICENCE) continue;

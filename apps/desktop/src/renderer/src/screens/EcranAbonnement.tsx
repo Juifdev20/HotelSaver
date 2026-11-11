@@ -135,6 +135,7 @@ function Chrono({ secondes }: { secondes: number }) {
 
 function CarteEtat({ etat, vue }: { etat: EtatAbonnement; vue: VueAbonnement | null }) {
   const resume = resumerAbonnement(etat, vue?.formuleActuelle ?? null);
+  const licence = etat.licence ?? null;
   // Compte à rebours seulement quand il a un sens (période en cours) ; suspendu, résilié ou expiré : le titre suffit.
   const compte = etat.joursRestants > 0 && etat.statut !== "SUSPENDU" && etat.statut !== "RESILIE";
   return (
@@ -144,7 +145,7 @@ function CarteEtat({ etat, vue }: { etat: EtatAbonnement; vue: VueAbonnement | n
           <IconeNiveau niveau={resume.niveau} />
         </span>
         <div className="ap-hero__textes">
-          <p className="ap-surtitre">Votre abonnement</p>
+          <p className="ap-surtitre">{licence ? "Votre licence" : "Votre abonnement"}</p>
           <h2 id="abo-etat-titre" className="ap-hero__titre">
             {resume.titre}
           </h2>
@@ -160,9 +161,13 @@ function CarteEtat({ etat, vue }: { etat: EtatAbonnement; vue: VueAbonnement | n
       <dl className="ap-hero__faits">
         <div>
           <dt>
-            <Crown size={14} aria-hidden="true" /> Formule actuelle
+            <Crown size={14} aria-hidden="true" /> {licence ? "Licence" : "Formule actuelle"}
           </dt>
-          <dd>{nomFormule(vue?.formuleActuelle, vue?.formules) ?? (etat.statut === "ESSAI" ? "Essai gratuit" : "Aucune")}</dd>
+          <dd>
+            {licence
+              ? `${licence.annees} an${licence.annees > 1 ? "s" : ""}, jusqu'au ${dateAbonnement(licence.finLe)}`
+              : (nomFormule(vue?.formuleActuelle, vue?.formules) ?? (etat.statut === "ESSAI" ? "Essai gratuit" : "Aucune"))}
+          </dd>
         </div>
         {vue && (
           <div>
@@ -174,7 +179,7 @@ function CarteEtat({ etat, vue }: { etat: EtatAbonnement; vue: VueAbonnement | n
         )}
         <div>
           <dt>
-            <CalendarClock size={14} aria-hidden="true" /> Valable jusqu'au
+            <CalendarClock size={14} aria-hidden="true" /> {licence ? "Maintenance payée jusqu'au" : "Valable jusqu'au"}
           </dt>
           <dd>{dateAbonnement(etat.valideJusquau)}</dd>
         </div>
@@ -228,7 +233,9 @@ function Historique({ historique, formules }: { historique: PaiementAbonnementVu
                   <td>{dateAbonnement(p.createdAt)}</td>
                   <td>
                     {/* Saisie du support sans formule ni durée (paiement reçu par un autre canal) : pas de « · 0 mois ». */}
-                    {[nomFormule(p.formule, formules), p.mois > 0 ? duree(p.mois) : null].filter(Boolean).join(" · ") || "Paiement manuel"}
+                    {p.objet === "MAINTENANCE"
+                      ? ["Maintenance", p.mois > 0 ? duree(p.mois) : null].filter(Boolean).join(" · ")
+                      : [nomFormule(p.formule, formules), p.mois > 0 ? duree(p.mois) : null].filter(Boolean).join(" · ") || "Paiement manuel"}
                   </td>
                   <td>
                     {montantAbonnement(p.montant, p.devise)}
@@ -303,6 +310,8 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
     suivi.reprendre(enCours);
   }, [vue.paiementEnCours, suivi]);
 
+  // Hôtel avec licence : pas de formule à choisir, seulement les frais de maintenance (11/11/2026).
+  const maintenance = vue.maintenance ?? null;
   const nombreChambres = vue.nombreChambres;
   const convient = (f: FormuleProposee) => f.maxChambres === null || f.maxChambres >= nombreChambres;
   const formulesPossibles = vue.formules.filter(convient);
@@ -318,20 +327,21 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
   const [touche, setTouche] = useState(false);
   const [suite, setSuite] = useState<{ enCours: boolean; erreur: string | null }>({ enCours: false, erreur: null });
 
-  const formule = vue.formules.find((f) => f.code === formuleCode);
-  const dureeChoisie = formule?.durees.find((d) => d.mois === mois) ?? formule?.durees[0];
+  const formule = maintenance ? undefined : vue.formules.find((f) => f.code === formuleCode);
+  const dureesPossibles = maintenance ? maintenance.durees.map((d) => ({ ...d, moisOfferts: 0 })) : (formule?.durees ?? []);
+  const dureeChoisie = dureesPossibles.find((d) => d.mois === mois) ?? dureesPossibles[0];
   const prix = dureeChoisie ? (devise === "USD" ? dureeChoisie.prixUsd : dureeChoisie.prixCdf) : null;
   const montant = prix !== null ? montantAbonnement(prix, devise) : null;
 
   // Aperçu des frais ScanLinkPay AVANT de payer : redemandé à chaque changement de formule, de durée ou de monnaie. Une réponse arrivée trop
   // tard (l'utilisateur a déjà changé de choix) est ignorée, jamais affichée à la place de la bonne.
-  const cleApercu = formule && dureeChoisie ? `${formule.code}|${dureeChoisie.mois}|${devise}` : null;
+  const cleApercu = (maintenance || formule) && dureeChoisie ? `${maintenance ? "MAINTENANCE" : formule!.code}|${dureeChoisie.mois}|${devise}` : null;
   const [apercu, setApercu] = useState<{ cle: string; valeur: ApercuPaiement | null } | null>(null);
   useEffect(() => {
-    if (!formule || !dureeChoisie || !cleApercu) return;
+    if ((!maintenance && !formule) || !dureeChoisie || !cleApercu) return;
     let actif = true;
     client
-      .apercuAbonnement(formule.code, dureeChoisie.mois, devise)
+      .apercuAbonnement(maintenance ? "" : formule!.code, dureeChoisie.mois, devise, maintenance ? "MAINTENANCE" : "ABONNEMENT")
       .then((valeur) => actif && setApercu({ cle: cleApercu, valeur }))
       // Aperçu impossible : on montre le prix seul, le paiement reste possible.
       .catch(() => actif && setApercu({ cle: cleApercu, valeur: null }));
@@ -373,11 +383,18 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
   async function payer(evenement: React.FormEvent) {
     evenement.preventDefault();
     setTouche(true);
-    if (probleme || !formule || !operateur || !dureeChoisie) {
+    if (probleme || (!maintenance && !formule) || !operateur || !dureeChoisie) {
       champTelephone.current?.focus();
       return;
     }
-    await suivi.payer({ formule: formule.code, mois: dureeChoisie.mois, devise, operateur, telephone: telephone.trim() });
+    await suivi.payer({
+      ...(maintenance && { objet: "MAINTENANCE" as const }),
+      formule: maintenance ? "MAINTENANCE" : formule!.code,
+      mois: dureeChoisie.mois,
+      devise,
+      operateur,
+      telephone: telephone.trim(),
+    });
   }
 
   async function continuer() {
@@ -432,7 +449,7 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
           </li>
           <li className="ap-progression__etape">
             <span className="ap-progression__point">3</span>
-            Abonnement activé
+            {maintenance ? "Maintenance payée" : "Abonnement activé"}
           </li>
         </ol>
         {etat.phase === "attente" && <Chrono secondes={etat.secondes} />}
@@ -470,7 +487,7 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
           <CheckCircle2 size={44} aria-hidden="true" />
         </span>
         <h2 id="abo-etape-titre" className="ap-phase__titre" tabIndex={-1} ref={titreEtape}>
-          Merci ! Abonnement actif{fin ? ` jusqu'au ${dateAbonnement(fin)}` : ""}.
+          {maintenance ? "Merci ! Maintenance payée" : "Merci ! Abonnement actif"}{fin ? ` jusqu'au ${dateAbonnement(fin)}` : ""}.
         </h2>
         <p className="ap-phase__texte">Votre paiement est confirmé. Vous pouvez continuer à travailler.</p>
         {p && (
@@ -529,7 +546,9 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
   }
 
   // ---- Saisie
-  const titre = mode === "bloque" ? "Renouveler l'abonnement" : vue.etat.statut === "ESSAI" ? "Choisir une formule" : "Renouveler l'abonnement";
+  const titre = maintenance ? "Payer les frais de maintenance" : mode === "bloque" ? "Renouveler l'abonnement" : vue.etat.statut === "ESSAI" ? "Choisir une formule" : "Renouveler l'abonnement";
+  // Les étapes se renumérotent quand il n'y a pas de formule à choisir.
+  const n = (numero: number) => (maintenance ? numero - 1 : numero);
   const descriptionTel = ["abo-tel-aide", afficherProbleme && probleme ? "abo-tel-erreur" : null].filter(Boolean).join(" ");
   const reseauDetecte = operateurDuNumero(telephone);
 
@@ -541,7 +560,9 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
           <h2 id="abo-form-titre" className="ap-paiement__titre" tabIndex={-1} ref={titreEtape}>
             {titre}
           </h2>
-          <p className="ap-paiement__sous-titre">Quatre étapes, moins d'une minute. Vous confirmez avec votre code secret Mobile Money : rien n'est débité sans lui.</p>
+          <p className="ap-paiement__sous-titre">
+            {maintenance ? "Trois" : "Quatre"} étapes, moins d'une minute. Vous confirmez avec votre code secret Mobile Money : rien n'est débité sans lui.
+          </p>
         </div>
         {mode !== "bloque" && vue.etat.statut === "ESSAI" && (
           <p className="ap-astuce">
@@ -555,6 +576,13 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
           </p>
         )}
 
+        {maintenance && (
+          <p className="ap-astuce">
+            <Info size={16} aria-hidden="true" /> Votre hôtel a une licence : vous payez seulement les frais de maintenance, {montantAbonnement(maintenance.fraisMensuelUsd, "USD")} par période de 30 jours.
+          </p>
+        )}
+
+        {!maintenance && (
         <fieldset className="ap-etape">
           <legend className="ap-etape__legende">
             <span className="ap-etape__numero">1</span> Choisissez une formule
@@ -630,13 +658,14 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
             })}
           </div>
         </fieldset>
+        )}
 
         <fieldset className="ap-etape">
           <legend className="ap-etape__legende">
-            <span className="ap-etape__numero">2</span> Choisissez la durée
+            <span className="ap-etape__numero">{n(2)}</span> Choisissez la durée
           </legend>
           <div className="ap-durees">
-            {(formule?.durees ?? []).map((d) => {
+            {dureesPossibles.map((d) => {
               const choisi = d.mois === dureeChoisie?.mois;
               const p = devise === "USD" ? d.prixUsd : d.prixCdf;
               return (
@@ -658,7 +687,7 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
 
         <fieldset className="ap-etape">
           <legend className="ap-etape__legende">
-            <span className="ap-etape__numero">3</span> Choisissez la monnaie
+            <span className="ap-etape__numero">{n(3)}</span> Choisissez la monnaie
           </legend>
           <div className="ap-segment">
             {(
@@ -680,7 +709,7 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
 
         <fieldset className="ap-etape">
           <legend className="ap-etape__legende">
-            <span className="ap-etape__numero">4</span> Payer avec Mobile Money
+            <span className="ap-etape__numero">{n(4)}</span> Payer avec Mobile Money
           </legend>
           <div className="ap-reseaux">
             {LISTE_OPERATEURS.map((o) => (
@@ -730,13 +759,11 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
         </fieldset>
       </div>
 
-      {formule && dureeChoisie && montant && (
+      {(maintenance || formule) && dureeChoisie && montant && (
         <aside className="ap-commande" aria-label="Votre commande" data-testid="abonnement-recap">
           <p className="ap-surtitre">Votre commande</p>
           <div className="ap-commande__ligne">
-            <span>
-              Formule <strong>{formule.nom}</strong>
-            </span>
+            <span>{maintenance ? <strong>Frais de maintenance</strong> : <>Formule <strong>{formule!.nom}</strong></>}</span>
             <span>{montant}</span>
           </div>
           <div className="ap-commande__ligne ap-commande__ligne--discrete">
@@ -773,7 +800,7 @@ function FormulairePaiement({ client, vue, mode, onPaiementReussi, recharger }: 
             )}
           </div>
           <p className="ap-commande__phrase">
-            Vous allez payer <strong>{aPayer}</strong> pour {duree(dureeChoisie.mois)} de la formule {formule.nom}. Une demande de confirmation va arriver sur le téléphone ; entrez votre code secret Mobile Money.
+            Vous allez payer <strong>{aPayer}</strong> pour {duree(dureeChoisie.mois)} {maintenance ? "de frais de maintenance" : `de la formule ${formule!.nom}`}. Une demande de confirmation va arriver sur le téléphone ; entrez votre code secret Mobile Money.
           </p>
           <Button type="submit" size="lg" className="ap-commande__bouton" disabled={calculEnCours} aria-busy={calculEnCours || undefined}>
             <Lock size={16} aria-hidden="true" />
@@ -816,10 +843,13 @@ export function ZonePaiement({ client, utilisateur, etat, lecture, horsLigne, mo
   // Suspendu à la main ou résilié : aucun formulaire, quel que soit le rôle.
   if (etat && !etat.renouvelable) return note("Contactez le support HotelSaver pour rouvrir l'accès de votre hôtel.", "abonnement-support");
   if (utilisateur.role !== Role.PATRON) {
+    const licence = etat?.licence ?? null;
     return note(
-      mode === "bloque"
-        ? "Demandez au patron de renouveler l'abonnement de l'hôtel. Seul le patron peut le payer."
-        : "Seul le patron peut payer l'abonnement. Demandez au patron de renouveler si besoin.",
+      licence
+        ? "Seul le patron peut payer les frais de maintenance. Demandez au patron de les payer."
+        : mode === "bloque"
+          ? "Demandez au patron de renouveler l'abonnement de l'hôtel. Seul le patron peut le payer."
+          : "Seul le patron peut payer l'abonnement. Demandez au patron de renouveler si besoin.",
       "abonnement-patron-seulement"
     );
   }
