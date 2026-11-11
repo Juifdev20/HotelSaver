@@ -6,6 +6,7 @@ import type { ProposeActionSejour } from "@hotel-chicago/regles";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { dateCourte } from "../dates";
+import { parTheme } from "../theme/theme";
 
 export type GenreCarte = "arrivee" | "depart" | "present";
 
@@ -17,13 +18,13 @@ const LABEL_STATUT: Record<StatutReservation, string> = {
   ANNULEE: "Annulée",
 };
 
-const TON_STATUT: Record<StatutReservation, { fond: string; texte: string }> = {
+const TON_STATUT: Record<StatutReservation, { fond: string; texte: string }> = parTheme(() => ({
   EN_ATTENTE: { fond: couleurs.alerteClair, texte: couleurs.alerte },
   CONFIRMEE: { fond: couleurs.bleuClair, texte: couleurs.bleu },
   EN_COURS: { fond: couleurs.succesClair, texte: couleurs.succes },
   TERMINEE: { fond: couleurs.bordure, texte: couleurs.encre },
   ANNULEE: { fond: couleurs.dangerClair, texte: couleurs.danger },
-};
+}));
 
 /** Nombre de nuits d'un séjour (au moins une). */
 export function nuitsDe(r: Pick<Reservation, "dateArrivee" | "dateDepart">): number {

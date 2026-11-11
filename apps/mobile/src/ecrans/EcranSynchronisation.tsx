@@ -12,6 +12,7 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { confirmerAction } from "../confirmer";
 import { messageErreur } from "../messagesErreur";
 import { heureCourte } from "../dates";
+import { parTheme } from "../theme/theme";
 
 export interface EcranSynchronisationProps {
   onRetour: () => void;
@@ -31,13 +32,13 @@ const LIBELLE_ENTITE: Record<string, string> = {
   TauxChange: "Taux de change",
 };
 
-const couleursNiveau: Record<NiveauSync, string> = {
+const couleursNiveau: Record<NiveauSync, string> = parTheme(() => ({
   ok: couleurs.succes,
   attente: couleurs.alerte,
   attention: couleurs.alerte,
   horsLigne: couleurs.encreFaible,
   danger: couleurs.danger,
-};
+}));
 // (teintes foncées : ce sont des couleurs de TEXTE, contraste ≥ 4,5:1)
 
 function formaterHeure(horodatage: string | null): string {

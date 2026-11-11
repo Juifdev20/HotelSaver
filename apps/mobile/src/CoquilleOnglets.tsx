@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { LayoutDashboard, BedDouble, CalendarDays, ClipboardList, Menu, ShoppingCart, Wallet } from "lucide-react-native";
-import { couleurs } from "./tokens";
+import { couleurs, fonds } from "./tokens";
+import { retourReglagesDemande } from "./theme/theme";
 import { IdOnglet, libelleOnglet, ongletsPourRole } from "./navigation";
 import { useSession } from "./contexteSession";
 import { EcranTableauDeBord } from "./ecrans/EcranTableauDeBord";
@@ -160,11 +161,13 @@ export function CoquilleOnglets() {
     <FournisseurVente>
     <FournisseurDemandeSejour>
     <Tab.Navigator
+      // Après un changement d'apparence l'arbre est remonté : on revient dans Plus (où se trouvent les Paramètres) plutôt qu'à l'Accueil.
+      initialRouteName={retourReglagesDemande() && onglets.some((o) => o.id === "plus") ? "plus" : undefined}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: couleurs.bleu,
         tabBarInactiveTintColor: couleurs.encreAttenuee,
-        tabBarStyle: { borderTopColor: couleurs.bordure },
+        tabBarStyle: { borderTopColor: couleurs.bordure, backgroundColor: couleurs.surface200 },
       }}
     >
       {onglets.map((onglet) => {
@@ -177,7 +180,7 @@ export function CoquilleOnglets() {
               title: onglet.libelle,
               tabBarIcon: ({ color, size }) => <Icone color={color} size={size} />,
               tabBarBadge: onglet.id === "comptes-ouverts" && nombreEnCours > 0 ? nombreEnCours : undefined,
-              tabBarBadgeStyle: { backgroundColor: couleurs.danger },
+              tabBarBadgeStyle: { backgroundColor: fonds.danger },
             }}
           >
             {(props) => {

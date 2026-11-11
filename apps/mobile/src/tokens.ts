@@ -5,7 +5,10 @@
  * à la main si la charte change, `packages/ui` n'étant pas utilisable tel
  * quel dans React Native (composants web/CSS, pas de StyleSheet RN).
  */
-export const couleurs = {
+import { fondSombre, texteSombre } from "@hotel-chicago/regles";
+import { estSombre } from "./theme/theme";
+
+const PALETTE_CLAIRE = {
   navy: "#0F2742",
   /** Couleur de marque, identique à l'écran de démarrage (app.json, colors.xml) :
    * fond de la bande du haut (barre d'état + en-tête) pour qu'il n'y ait qu'un seul bleu. */
@@ -49,6 +52,35 @@ export const couleurs = {
   violetClair: "#F4F3FF",
   neutre: "#5F6B7E",
 } as const;
+
+/**
+ * `couleurs` : la palette du thème COURANT, lue à chaque accès. Dans un `StyleSheet.create`, la valeur lue au chargement est la valeur claire, que le thème
+ * sombre traduit ensuite à la lecture du style (theme/theme.ts). Dans le rendu (icônes, styles en ligne) la valeur suit le thème : un texte ou une icône
+ * prend sa teinte claire en mode sombre ; les fonds, bordures et surfaces leur équivalent sombre. Un FOND franc (bouton bleu, pastille rouge…) s'écrit
+ * `fonds.bleu` : il reste franc en mode sombre pour garder le contraste du texte blanc dessus.
+ */
+type Palette = typeof PALETTE_CLAIRE;
+const EST_FOND = /^(surface|bordure)|Clair$/;
+const RESTE_FIXE = /(Marque|Forte|Hover|Vif|Vive)$/;
+
+function palette(role: "texte" | "fond"): Readonly<Palette> {
+  const objet = {} as Record<string, string>;
+  for (const nom of Object.keys(PALETTE_CLAIRE) as (keyof Palette)[]) {
+    const claire = PALETTE_CLAIRE[nom];
+    Object.defineProperty(objet, nom, {
+      enumerable: true,
+      get: () => {
+        if (!estSombre() || RESTE_FIXE.test(nom)) return claire;
+        if (role === "fond" || EST_FOND.test(nom)) return fondSombre(claire);
+        return texteSombre(claire);
+      },
+    });
+  }
+  return objet as unknown as Readonly<Palette>;
+}
+
+export const couleurs = palette("texte");
+export const fonds = palette("fond");
 
 export const espacements = {
   s1: 4,

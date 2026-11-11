@@ -29,6 +29,7 @@ import {
   Volume2,
 } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
+import { consommerRetourReglages, retourReglagesDemande } from "../theme/theme";
 import { LIBELLE_ROLE, fonctionManquante, sectionsPlusPourRole } from "../navigation";
 import { Role, peutOperer } from "@hotel-chicago/types";
 import type { CodeFonction } from "@hotel-chicago/types";
@@ -166,7 +167,11 @@ function LigneMenu({
  * principe que le swap d'écrans déjà utilisé au niveau de App.tsx. */
 export function EcranPlus() {
   const { client, utilisateur, changerDeProfil, seDeconnecter, rechargerProfil } = useSession();
-  const [vue, setVue] = useState<VuePlus>(VUE_LISTE);
+  // Après un changement d'apparence (arbre remonté), on rouvre Paramètres là où la personne se trouvait.
+  const [vue, setVue] = useState<VuePlus>(() => (retourReglagesDemande() ? { id: "parametres" } : VUE_LISTE));
+  useEffect(() => {
+    consommerRetourReglages();
+  }, []);
   const etatSync = useSyncEtat();
   const { demandePlus, consommerDemandePlus } = useNotifications();
   const alerteAbonnement = bandeauAbonnement(utilisateur.abonnement);

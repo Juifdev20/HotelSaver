@@ -21,6 +21,7 @@ import { imprimerLignes } from "../impression/imprimante";
 import { estRecuProvisoire, lireMontant } from "@hotel-chicago/regles";
 import { dateComplete, midiLubumbashi } from "../dates";
 import { messageErreur, messageImpressionEnvoyee } from "../messagesErreur";
+import { parTheme } from "../theme/theme";
 
 /** Motif d'annulation rapide ; le texte EXACT est reconnu par le serveur pour proposer le remboursement de l'acompte (non-présentation). */
 const MOTIF_NON_PRESENTATION = "Client non présenté";
@@ -51,13 +52,13 @@ const LABEL_STATUT: Record<StatutReservation, string> = {
   ANNULEE: "Annulée",
 };
 
-const COULEUR_STATUT: Record<StatutReservation, { fond: string; texte: string }> = {
+const COULEUR_STATUT: Record<StatutReservation, { fond: string; texte: string }> = parTheme(() => ({
   EN_ATTENTE: { fond: couleurs.alerteClair, texte: couleurs.alerte },
   CONFIRMEE: { fond: couleurs.bleuClair, texte: couleurs.bleu },
   EN_COURS: { fond: couleurs.succesClair, texte: couleurs.succes },
   TERMINEE: { fond: couleurs.bordure, texte: couleurs.encre },
   ANNULEE: { fond: couleurs.dangerClair, texte: couleurs.danger },
-};
+}));
 
 /** Dates affichées et saisies au jour de Lubumbashi, quel que soit le fuseau réglé sur le téléphone (dates.ts). */
 function dateCourte(iso: string): string {

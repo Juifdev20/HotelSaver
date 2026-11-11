@@ -13,3 +13,4 @@ export * from "./contrat-licence";
 export * from "./vente-cafeteria";
 export * from "./chambres";
 export * from "./sejours-du-jour";
+export * from "./theme-sombre";

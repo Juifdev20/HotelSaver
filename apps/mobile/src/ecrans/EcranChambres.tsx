@@ -19,6 +19,7 @@ import { messageErreur } from "../messagesErreur";
 import { actionPourChambre, comparerNumeros, compterParStatut, lireMontant, sejoursParChambre, typesDeChambres } from "@hotel-chicago/regles";
 import type { ProposeAction, SejoursDeLaChambre } from "@hotel-chicago/regles";
 import { dateCourte } from "../dates";
+import { parTheme } from "../theme/theme";
 
 const CLE_VUE = "hotelsaver:chambres:vue";
 
@@ -44,12 +45,12 @@ function resumeChambre(chambre: Chambre, sejours?: SejoursDeLaChambre): { ligne1
   return { ligne1: null, ligne2: prochaine ? `Prochaine arrivée le ${dateCourte(prochaine.dateArrivee)}` : "Prête à accueillir", icone: User };
 }
 
-const COULEUR_PAR_STATUT: Record<StatutChambre, { fond: string; texte: string }> = {
+const COULEUR_PAR_STATUT: Record<StatutChambre, { fond: string; texte: string }> = parTheme(() => ({
   [StatutChambre.LIBRE]: { fond: couleurs.succesClair, texte: couleurs.succes },
   [StatutChambre.RESERVEE]: { fond: couleurs.alerteClair, texte: couleurs.alerte },
   [StatutChambre.OCCUPEE]: { fond: couleurs.dangerClair, texte: couleurs.danger },
   [StatutChambre.NETTOYAGE]: { fond: couleurs.violetClair, texte: couleurs.violet },
-};
+}));
 
 const LABEL_PAR_STATUT: Record<StatutChambre, string> = {
   [StatutChambre.LIBRE]: "Libre",

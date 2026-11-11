@@ -5,7 +5,7 @@ import { FileSignature } from "lucide-react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { dateAbonnement } from "@hotel-chicago/regles";
 import type { ContratLicenceVue } from "@hotel-chicago/types";
-import { couleurs, espacements, rayons } from "../tokens";
+import { couleurs, espacements, rayons, fonds } from "../tokens";
 
 /**
  * Contrat de la licence (11/11/2026) : le patron lit le texte exact puis appuie sur « J'accepte ». Le serveur garde la date, le compte, l'adresse
@@ -47,7 +47,7 @@ export function CarteContratLicence({ client }: { client: Pick<ClientApi, "contr
   }
 
   return (
-    <View style={[styles.carte, { borderLeftColor: accepte ? couleurs.succes : couleurs.alerte }]}>
+    <View style={[styles.carte, { borderLeftColor: accepte ? fonds.succes : fonds.alerte }]}>
       <View style={styles.haut}>
         <FileSignature size={20} color={accepte ? couleurs.succes : couleurs.alerte} />
         <View style={styles.textes}>

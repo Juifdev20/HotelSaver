@@ -7,24 +7,25 @@ import { Bell, Building2, ChevronDown, ChevronRight, CloudOff, CreditCard, LogOu
 import { Role } from "@hotel-chicago/types";
 import { resumerEtatSync, type NiveauSync } from "@hotel-chicago/sync-engine";
 import { bandeauAbonnement } from "@hotel-chicago/regles";
-import { couleurs, espacements, rayons } from "../tokens";
+import { couleurs, espacements, rayons, fonds } from "../tokens";
 import { useSession } from "../contexteSession";
 import { LIBELLE_ROLE } from "../navigation";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useNotifications } from "../notifications/ContexteNotifications";
 import { FeuilleModale } from "./FeuilleModale";
 import { AvatarUtilisateur } from "./AvatarUtilisateur";
+import { parTheme } from "../theme/theme";
 
 /** Vert = vraiment à jour, orange = des changements attendent d'être envoyés ou la synchro est en difficulté, rouge =
  * un conflit ou une action refusée à vérifier, gris = hors ligne. Même vérité que l'écran « Synchronisation » (le texte
  * vient de resumerEtatSync, partagé avec le bureau). */
-const COULEUR_NIVEAU: Record<NiveauSync, string> = {
+const COULEUR_NIVEAU: Record<NiveauSync, string> = parTheme(() => ({
   ok: couleurs.succesVif,
   attente: couleurs.alerteVive,
   attention: couleurs.alerteVive,
   horsLigne: couleurs.encreFaible,
   danger: couleurs.dangerVif,
-};
+}));
 function couleurPointSync(etat: ReturnType<typeof useSyncEtat>): string {
   return COULEUR_NIVEAU[resumerEtatSync(etat).niveau];
 }
@@ -32,13 +33,13 @@ function couleurPointSync(etat: ReturnType<typeof useSyncEtat>): string {
 /** Bandeau texte fixe sous la barre : le point de 8 px ne suffisait pas (retour U4). Le TEXTE (« Hors ligne · 3 actions à envoyer »)
  * et l'icône portent l'information, la couleur n'est qu'un renfort. Rouge et cliquable vers « Synchronisation » quand une action
  * est refusée ou en conflit. Rien n'est affiché quand tout est à jour (ou pendant la toute première synchro). */
-const STYLE_BANDEAU: Record<NiveauSync, { fond: string; texte: string }> = {
+const STYLE_BANDEAU: Record<NiveauSync, { fond: string; texte: string }> = parTheme(() => ({
   ok: { fond: couleurs.succesClair, texte: couleurs.succes },
   attente: { fond: couleurs.alerteClair, texte: couleurs.alerte },
   attention: { fond: couleurs.alerteClair, texte: couleurs.alerte },
-  horsLigne: { fond: couleurs.encre, texte: "#fff" },
-  danger: { fond: couleurs.danger, texte: "#fff" },
-};
+  horsLigne: { fond: fonds.neutre, texte: "#fff" },
+  danger: { fond: fonds.danger, texte: "#fff" },
+}));
 
 function BandeauSync() {
   const etat = useSyncEtat();
@@ -76,7 +77,7 @@ function BandeauAbonnement() {
   const Icone = danger ? TriangleAlert : CreditCard;
   return (
     <Pressable
-      style={[styles.bandeau, { backgroundColor: danger ? couleurs.danger : couleurs.alerte }]}
+      style={[styles.bandeau, { backgroundColor: danger ? fonds.danger : fonds.alerte }]}
       onPress={ouvrirAbonnement}
       accessibilityRole="button"
       accessibilityLabel={`${bandeau.texte} Ouvrir l'écran Abonnement.`}
