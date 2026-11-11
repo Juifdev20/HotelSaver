@@ -19,6 +19,17 @@ Un hôtel peut **acheter une licence** en main propre (espèces…), hors de l'a
 - Les hôtels **sans licence** ne changent pas.
 - Technique : tables `LicenceHotel` et `PaiementMaintenance` (migration `20261111120000_licences_maintenance`) ; activer une licence crée aussi une ligne `PaiementLicence` qui court jusqu'à la fin de la licence (l'hôtel compte comme « payé » partout) ; l'état d'accès d'un hôtel avec licence est celui de sa maintenance (`etatAbonnement` reçoit la licence en cours ; le bandeau, la garde d'accès et la suspension automatique n'ont rien à savoir de plus). Code : `apps/api/src/abonnement/licences-admin.*`, `apps/api/src/common/abonnement/validite.ts`, `packages/regles/src/abonnement.ts`.
 
+## Preuve d'achat d'une licence (11/11/2026)
+Pour chaque licence, le super-admin dispose (liste des hôtels → **Licence**) de :
+- **Contrat (PDF)** : contrat de licence et de maintenance n° `LIC-AAAA-NNNN` — un seul hôtel, mises à jour comprises pendant la durée, frais de maintenance, délai, suspension, droit congolais. Le texte est **figé à l'activation** (avec son empreinte SHA-256).
+- **Reçu de licence (PDF)** : la preuve d'achat numérotée, avec cadres de signature et QR code de vérification.
+- **Reçu de maintenance (PDF)** pour chaque paiement (`MNT-AAAA-NNNNN`), avec la référence ScanLinkPay quand il est payé en ligne.
+- **Contrat signé** : photo ou scan du papier signé par les deux parties (PDF, JPEG, PNG) ; conservé dans un stockage privé.
+- **Dossier de preuve (PDF)** : tout en un document, à remettre à un avocat ou à un juge.
+Côté hôtel, le **patron** voit son contrat dans **Abonnement** (Windows et mobile), le lit et clique **« J'accepte »** : date, compte, adresse internet, appareil et empreinte du texte lu sont enregistrés. Envoyer un document : télécharger le PDF puis le transmettre par WhatsApp ou e-mail.
+**Avant la première licence** : renseigner l'identité de la société dans **Réglages de la plateforme → Identité de l'éditeur**, et faire relire le modèle (`packages/regles/src/contrat-licence.ts`) par un avocat.
+Technique : migration `20261111180000_licences_contrat_preuves` ; code `apps/api/src/abonnement/documents-licence/*` (service, PDF, page de vérification `GET /public/licences/verifier/:numero/:code`) ; variable d'environnement facultative `API_PUBLIC_URL` (sinon `RENDER_EXTERNAL_URL`) pour le QR code.
+
 ## Ce qui se passe à l'échéance
 | Moment | Ce que voit l'hôtel |
 |---|---|

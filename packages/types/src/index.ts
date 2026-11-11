@@ -749,6 +749,16 @@ export interface LicenceHotelVue {
   annuleLe: string | null;
   motifAnnulation: string | null;
   enregistreParNom: string | null;
+  /** Preuve d'achat (11/11/2026) : numéro du contrat/reçu (null = licence antérieure : créé à la première édition). */
+  numero: string | null;
+  contratVersion: number | null;
+  contratEmpreinte: string | null;
+  /** Acceptation dans l'application par le patron. */
+  accepteLe: string | null;
+  accepteParNom: string | null;
+  /** Exemplaire papier signé téléversé. */
+  scanEnvoyeLe: string | null;
+  scanType: string | null;
 }
 
 /** Un paiement de frais de maintenance vu par le super-admin. */
@@ -767,6 +777,8 @@ export interface PaiementMaintenanceVue {
   annuleLe: string | null;
   motifAnnulation: string | null;
   enregistreParNom: string | null;
+  /** Numéro du reçu (MNT-…), attribué à la première édition du reçu. */
+  numeroRecu: string | null;
 }
 
 /** Réponse de GET /super-admin/hotels/:id/licences (et des actions sur les licences). */
@@ -1124,6 +1136,8 @@ export interface EtatLicence {
   fraisMaintenanceUsd: number;
   /** Rappel affiché à partir de ce nombre de jours avant l'échéance de la maintenance. */
   preavisJours: number;
+  /** Contrat de la licence en cours (11/11/2026) : le patron doit l'accepter ; null = licence sans contrat (antérieure). */
+  contrat?: { licenceId: string; numero: string | null; accepteLe: string | null } | null;
 }
 
 export interface PlafondsEssai {
@@ -1447,6 +1461,46 @@ export interface ParametresPlateformeVue {
   fraisMaintenanceUsd: number;
   joursGraceMaintenance: number;
   joursPreavisMaintenance: number;
+  /** Identité de l'éditeur imprimée sur les contrats et les reçus (11/11/2026). */
+  editeurNom: string;
+  editeurAdresse: string | null;
+  editeurRccm: string | null;
+  editeurNif: string | null;
+  editeurRepresentant: string | null;
+  editeurFonction: string | null;
+  editeurTelephone: string | null;
+  editeurEmail: string | null;
+}
+
+/** Contrat de licence proposé au patron (GET /abonnement/contrat). */
+export interface ContratLicenceVue {
+  licenceId: string;
+  numero: string;
+  version: number;
+  texte: string;
+  /** Empreinte SHA-256 du texte : renvoyée à l'acceptation pour prouver quel texte a été lu. */
+  empreinte: string;
+  accepteLe: string | null;
+  accepteParNom: string | null;
+}
+
+/** Un document PDF (ou l'exemplaire signé) renvoyé par l'API : contenu en base64, à convertir en fichier côté écran. */
+export interface FichierDocumentVue {
+  nom: string;
+  type: string;
+  base64: string;
+}
+
+/** Vérification publique d'un contrat (page de contrôle du QR code) : seulement ce qu'il faut pour confirmer l'authenticité. */
+export interface VerificationLicenceVue {
+  authentique: boolean;
+  numero?: string;
+  hotel?: string;
+  annees?: number;
+  debutLe?: string;
+  finLe?: string;
+  annulee?: boolean;
+  accepteeLe?: string | null;
 }
 
 /** Hôtel supprimé automatiquement (essai abandonné), vu par le super-admin. */

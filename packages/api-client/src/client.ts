@@ -1,5 +1,6 @@
 import {
   ApercuPaiement,
+  ContratLicenceVue,
   DemandePaiementAbonnement,
   EtatAbonnement,
   ModifierReglagesPaiementEnLigne,
@@ -1007,6 +1008,16 @@ export class ClientApi {
   async apercuAbonnement(formule: string, mois: number, devise: "USD" | "CDF", objet: "ABONNEMENT" | "MAINTENANCE" = "ABONNEMENT"): Promise<ApercuPaiement> {
     const q = new URLSearchParams({ formule, mois: String(mois), devise, ...(objet === "MAINTENANCE" ? { objet } : {}) });
     return this.requete<ApercuPaiement>(`/abonnement/apercu?${q.toString()}`);
+  }
+
+  /** Contrat de la licence en cours (texte exact, empreinte, état d'acceptation) ; null sans licence. PATRON. */
+  async contratLicence(): Promise<ContratLicenceVue | null> {
+    return (await this.requete<ContratLicenceVue | null>("/abonnement/contrat")) ?? null;
+  }
+
+  /** Le patron accepte le contrat qu'il vient de lire (`empreinte` = celle reçue avec le texte). PATRON. */
+  async accepterContratLicence(licenceId: string, empreinte: string): Promise<ContratLicenceVue | null> {
+    return (await this.requete<ContratLicenceVue | null>("/abonnement/contrat/accepter", { method: "POST", body: JSON.stringify({ licenceId, empreinte }) })) ?? null;
   }
 
   /** Le compte ScanLinkPay de l'hôtel et la règle d'acompte en ligne. PATRON. */

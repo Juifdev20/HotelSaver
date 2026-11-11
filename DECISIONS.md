@@ -4037,3 +4037,20 @@ Détail : `docs/ABONNEMENT.md` (section « Licences »).
 - **Un hôtel avec licence ne peut pas acheter d'abonnement** (le serveur refuse) et un hôtel sans licence ne paie pas de maintenance ; les écrans (Windows, mobile, site `/payer`) affichent donc « Payer les frais de maintenance » à la place du choix de formule.
 - Migration `20261111120000_licences_maintenance` : nouvelles tables et colonnes, aucune donnée existante modifiée. À appliquer sur Test puis Prod AVANT de redéployer l'API (`pnpm --filter @hotel-chicago/database migrate:appliquer`).
 
+## 11/11/2026 — Preuve d'achat des licences : contrat, reçus, acceptation, dossier de preuve
+
+Détail : `docs/ABONNEMENT.md` (section « Preuve d'achat »).
+
+**Besoin du patron** : une preuve solide, utilisable devant un juge, qu'un hôtel a acheté une licence et accepté de payer des frais de maintenance mensuels.
+
+**Décisions** (validées par le patron : signature papier à la remise de l'argent ET acceptation dans l'application ; licence non remboursable sauf erreur de l'éditeur ; reçu de maintenance pour chaque paiement)
+- **Une licence couvre UN seul hôtel (une adresse)**, avec **toutes les mises à jour pendant toute sa durée** : c'est écrit dans le contrat (art. 3).
+- **Le contrat est fabriqué UNE fois, à l'activation** (`genererContratLicence`, `packages/regles/src/contrat-licence.ts`), puis son **texte exact et son empreinte SHA-256 sont écrits sur la licence** (`LicenceHotel.contratTexte/contratEmpreinte/contratVersion`) : un changement futur du modèle ou du nom de l'hôtel ne modifie jamais un contrat déjà proposé. Les licences antérieures reçoivent leur contrat à la première demande (idempotent, compare-and-swap).
+- **Numéros** : `LIC-AAAA-NNNN` (contrat et reçu de licence) et `MNT-AAAA-NNNNN` (reçu de maintenance, attribué à la première édition) viennent de séquences PostgreSQL : jamais de doublon.
+- **Acceptation dans l'application** (patron seulement) : on garde la date, le compte, l'adresse internet et l'appareil, et le patron doit renvoyer **l'empreinte du texte qu'il a lu** (refusée si le texte a changé) ; une seule acceptation par licence, jamais modifiée.
+- **Exemplaire papier signé** : le super-admin téléverse le scan (PDF/JPEG/PNG, 8 Mo, type vérifié par les premiers octets, jamais par le nom) dans un bucket Supabase **privé** « contrats » ; son SHA-256 est enregistré. Un nouvel envoi remplace le précédent dans le dossier, l'ancien fichier reste dans le stockage (jamais d'écrasement).
+- **Dossier de preuve** (un seul PDF) : résumé, reçu, contrat exact, acceptation, scan signé (reproduit s'il est une image), paiements de maintenance avec leurs références ScanLinkPay. **Vérification publique** : un QR code (si `API_PUBLIC_URL` ou `RENDER_EXTERNAL_URL` existe) ouvre une page qui confirme numéro + code (12 premiers caractères de l'empreinte) sans rien révéler d'autre.
+- **Identité de l'éditeur** (raison sociale, RCCM, NIF, adresse, signataire…) : réglée dans le super-admin (Réglages de la plateforme), imprimée sur les documents. À compléter AVANT d'activer une licence puisque le contrat est ensuite figé.
+- ⚠️ **Le modèle de contrat n'est pas un avis juridique** : à faire relire par un avocat congolais (tribunal compétent, résiliation, préavis de changement des frais, mise en demeure de 15 jours, protection des données).
+- Migration `20261111180000_licences_contrat_preuves` (colonnes et deux séquences, rien d'existant modifié). À appliquer AVANT de redéployer l'API.
+

@@ -1,4 +1,4 @@
-import type { DonneesFormule, FormuleAdminVue, LicencesHotelVue, ParametresPlateformeVue, PaiementAbonnementVue, Devise, HotelAvecValidite, HotelCree, HotelSupprimeVue, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
+import type { DonneesFormule, FichierDocumentVue, FormuleAdminVue, LicencesHotelVue, ParametresPlateformeVue, PaiementAbonnementVue, Devise, HotelAvecValidite, HotelCree, HotelSupprimeVue, MethodePaiementLicence, StatutLicence } from "@hotel-chicago/types";
 import { ErreurApi } from "./client";
 
 /** Champs de apps/api/src/super-admin/dto/creer-hotel.dto.ts (logoUrl omis :
@@ -264,6 +264,38 @@ export class ClientSuperAdmin {
   /** Frais de maintenance reçus à la main (espèces, virement…) : prolonge l'échéance de `mois` périodes de 30 jours. */
   async enregistrerMaintenance(hotelId: string, dto: DonneesMaintenanceManuelle): Promise<LicencesHotelVue> {
     return this.requete<LicencesHotelVue>(`/super-admin/hotels/${hotelId}/maintenance`, { method: "POST", body: JSON.stringify(dto) });
+  }
+
+  /** Contrat de licence (PDF) : le texte exact figé à l'activation, avec cadres de signature. Le numéro est créé à la première demande pour une licence ancienne. */
+  async contratLicencePdf(hotelId: string, licenceId: string): Promise<FichierDocumentVue> {
+    return this.requete<FichierDocumentVue>(`/super-admin/hotels/${hotelId}/licences/${licenceId}/contrat`);
+  }
+
+  /** Reçu de licence (PDF) : la preuve d'achat numérotée. */
+  async recuLicencePdf(hotelId: string, licenceId: string): Promise<FichierDocumentVue> {
+    return this.requete<FichierDocumentVue>(`/super-admin/hotels/${hotelId}/licences/${licenceId}/recu`);
+  }
+
+  /** Dossier de preuve (PDF) : reçu, contrat, acceptation, exemplaire signé et paiements de maintenance en un seul document. */
+  async dossierPreuvePdf(hotelId: string, licenceId: string): Promise<FichierDocumentVue> {
+    return this.requete<FichierDocumentVue>(`/super-admin/hotels/${hotelId}/licences/${licenceId}/dossier`);
+  }
+
+  /** Reçu d'un paiement de maintenance (PDF), numéroté à la première édition. */
+  async recuMaintenancePdf(hotelId: string, paiementId: string): Promise<FichierDocumentVue> {
+    return this.requete<FichierDocumentVue>(`/super-admin/hotels/${hotelId}/maintenance/${paiementId}/recu`);
+  }
+
+  /** Enregistre le contrat signé sur papier, numérisé ou photographié (PDF, JPEG ou PNG, 8 Mo au plus). */
+  async envoyerContratSigne(hotelId: string, licenceId: string, fichier: Blob, nom: string): Promise<{ ok: true }> {
+    const form = new FormData();
+    form.append("fichier", fichier, nom);
+    return this.requete<{ ok: true }>(`/super-admin/hotels/${hotelId}/licences/${licenceId}/scan`, { method: "POST", body: form });
+  }
+
+  /** Relit le contrat signé enregistré. */
+  async contratSigne(hotelId: string, licenceId: string): Promise<FichierDocumentVue> {
+    return this.requete<FichierDocumentVue>(`/super-admin/hotels/${hotelId}/licences/${licenceId}/scan`);
   }
 
   /** Annule un paiement de maintenance saisi à la main (motif obligatoire). */

@@ -9,7 +9,7 @@ import { FormulairePaiement } from "./FormulairePaiement";
 import { FormulaireDomaine } from "./FormulaireDomaine";
 import { FormulairePatron } from "./FormulairePatron";
 import { PaiementsHotel } from "./PaiementsHotel";
-import { LicenceHotel } from "./LicenceHotel";
+import { LicenceHotel, type DocumentsLicence } from "./LicenceHotel";
 import { HotelsSupprimes } from "./HotelsSupprimes";
 import { DialogueConfirmation } from "./DialogueConfirmation";
 import { EnteteApp, type Onglet } from "./EnteteApp";
@@ -47,6 +47,8 @@ export interface EcranHotelsProps {
   onAnnulerLicence: (hotelId: string, licenceId: string, motif: string) => Promise<LicencesHotelVue>;
   onEnregistrerMaintenance: (hotelId: string, dto: DonneesMaintenanceManuelle) => Promise<LicencesHotelVue>;
   onAnnulerMaintenance: (hotelId: string, paiementId: string, motif: string) => Promise<LicencesHotelVue>;
+  /** Documents de preuve d'une licence (contrat, reçus, contrat signé, dossier de preuve). */
+  documentsLicence: (hotelId: string) => DocumentsLicence;
   /** Recharge la liste des hôtels après un changement de licence. */
   onLicenceChangee: () => void;
   /** Hôtels supprimés automatiquement (essais abandonnés, 18/10/2026). */
@@ -135,6 +137,7 @@ export function EcranHotels({
   onAnnulerLicence,
   onEnregistrerMaintenance,
   onAnnulerMaintenance,
+  documentsLicence,
   onLicenceChangee,
   patronEnCours,
   erreurPatron,
@@ -541,6 +544,7 @@ export function EcranHotels({
           annuler={(licenceId, motif) => onAnnulerLicence(hotelPourLicence.id, licenceId, motif)}
           enregistrerMaintenance={(dto) => onEnregistrerMaintenance(hotelPourLicence.id, dto)}
           annulerMaintenance={(paiementId, motif) => onAnnulerMaintenance(hotelPourLicence.id, paiementId, motif)}
+          documents={documentsLicence(hotelPourLicence.id)}
           onChange={onLicenceChangee}
           onFermer={() => setHotelPourLicence(null)}
         />

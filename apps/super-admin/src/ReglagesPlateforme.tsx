@@ -47,6 +47,14 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
   const [fraisMaintenance, setFraisMaintenance] = useState(String(parametres.fraisMaintenanceUsd ?? 5));
   const [graceMaintenance, setGraceMaintenance] = useState(String(parametres.joursGraceMaintenance ?? 2));
   const [preavisMaintenance, setPreavisMaintenance] = useState(String(parametres.joursPreavisMaintenance ?? 5));
+  const [editeurNom, setEditeurNom] = useState(parametres.editeurNom ?? "HotelSaver");
+  const [editeurAdresse, setEditeurAdresse] = useState(parametres.editeurAdresse ?? "");
+  const [editeurRccm, setEditeurRccm] = useState(parametres.editeurRccm ?? "");
+  const [editeurNif, setEditeurNif] = useState(parametres.editeurNif ?? "");
+  const [editeurRepresentant, setEditeurRepresentant] = useState(parametres.editeurRepresentant ?? "");
+  const [editeurFonction, setEditeurFonction] = useState(parametres.editeurFonction ?? "");
+  const [editeurTelephone, setEditeurTelephone] = useState(parametres.editeurTelephone ?? "");
+  const [editeurEmail, setEditeurEmail] = useState(parametres.editeurEmail ?? "");
   const [erreur, setErreur] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
@@ -70,6 +78,14 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
     setFraisMaintenance(String(parametres.fraisMaintenanceUsd ?? 5));
     setGraceMaintenance(String(parametres.joursGraceMaintenance ?? 2));
     setPreavisMaintenance(String(parametres.joursPreavisMaintenance ?? 5));
+    setEditeurNom(parametres.editeurNom ?? "HotelSaver");
+    setEditeurAdresse(parametres.editeurAdresse ?? "");
+    setEditeurRccm(parametres.editeurRccm ?? "");
+    setEditeurNif(parametres.editeurNif ?? "");
+    setEditeurRepresentant(parametres.editeurRepresentant ?? "");
+    setEditeurFonction(parametres.editeurFonction ?? "");
+    setEditeurTelephone(parametres.editeurTelephone ?? "");
+    setEditeurEmail(parametres.editeurEmail ?? "");
   }, [parametres]);
 
   async function soumettre(e: React.FormEvent) {
@@ -101,6 +117,7 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
     if (gm === null) return setErreur("Le délai de grâce de la maintenance doit être un nombre entier de jours, de 0 à 30.");
     const pm = entier(preavisMaintenance, 1, 30);
     if (pm === null) return setErreur("Le rappel de la maintenance doit être un nombre entier de jours, de 1 à 30.");
+    if (editeurNom.trim().length < 2) return setErreur("Le nom de l'éditeur (société) est obligatoire : il est imprimé sur les contrats et les reçus.");
     setErreur(null);
     setEnCours(true);
     try {
@@ -121,6 +138,14 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
         fraisMaintenanceUsd: fm,
         joursGraceMaintenance: gm,
         joursPreavisMaintenance: pm,
+        editeurNom: editeurNom.trim(),
+        editeurAdresse: editeurAdresse.trim(),
+        editeurRccm: editeurRccm.trim(),
+        editeurNif: editeurNif.trim(),
+        editeurRepresentant: editeurRepresentant.trim(),
+        editeurFonction: editeurFonction.trim(),
+        editeurTelephone: editeurTelephone.trim(),
+        editeurEmail: editeurEmail.trim(),
       });
       setConfirmation("Réglages enregistrés. Les applications les reprennent à leur prochain chargement.");
     } catch (err) {
@@ -239,6 +264,32 @@ export function ReglagesPlateforme({ parametres, onEnregistrer }: ReglagesPlatef
             <input id={`${id}-preavis-maintenance`} className="champ" inputMode="numeric" value={preavisMaintenance} onChange={(e) => setPreavisMaintenance(e.target.value)} aria-describedby={`${id}-preavis-maintenance-aide`} />
             <p id={`${id}-preavis-maintenance-aide`} className="aide-champ">De 1 à 30. « Il vous reste N jours pour payer vos frais de maintenance ».</p>
           </div>
+        </div>
+      </fieldset>
+
+      <fieldset className="groupe-protection">
+        <legend className="titre-section titre-section--petit">Identité de l'éditeur (contrats et reçus)</legend>
+        <p className="aide-champ">
+          Imprimée sur chaque contrat de licence et chaque reçu. Complétez-la AVANT d'activer une licence : le contrat est figé au moment de l'activation et ne change plus ensuite.
+        </p>
+        <div className="grille-formulaire grille-formulaire--4">
+          {[
+            ["Nom de la société", editeurNom, setEditeurNom, "nom", "HotelSaver SARL"],
+            ["Adresse", editeurAdresse, setEditeurAdresse, "adresse", "Avenue…, Lubumbashi"],
+            ["N° RCCM", editeurRccm, setEditeurRccm, "rccm", "CD/LSH/RCCM/…"],
+            ["N° d'impôt (NIF)", editeurNif, setEditeurNif, "nif", "A…"],
+            ["Représentant (signataire)", editeurRepresentant, setEditeurRepresentant, "representant", "Nom et prénom"],
+            ["Fonction du signataire", editeurFonction, setEditeurFonction, "fonction", "Gérant"],
+            ["Téléphone", editeurTelephone, setEditeurTelephone, "telephone", "+243…"],
+            ["E-mail", editeurEmail, setEditeurEmail, "email", "contact@…"],
+          ].map(([libelle, valeur, setter, cle, exemple]) => (
+            <div key={cle as string}>
+              <label className="label" htmlFor={`${id}-editeur-${cle}`}>
+                {libelle as string}
+              </label>
+              <input id={`${id}-editeur-${cle}`} className="champ" value={valeur as string} maxLength={200} placeholder={exemple as string} onChange={(e) => (setter as (v: string) => void)(e.target.value)} />
+            </div>
+          ))}
         </div>
       </fieldset>
 

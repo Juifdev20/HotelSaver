@@ -944,3 +944,39 @@ body {
 .licence-hotel__sous-formulaire {
   margin: 10px 0 14px;
 }
+
+/* Preuve d'achat d'une licence (11/11/2026) */
+.licence-hotel__preuve {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-alt, rgba(127, 127, 127, 0.1));
+  font-size: 0.9rem;
+}
+.licence-hotel__ok {
+  color: var(--succes, #1f6b35);
+}
+.licence-hotel__attente {
+  color: var(--attention, #9a5b00);
+}
+.licence-hotel__boutons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.licence-hotel__envoi {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+.licence-hotel__envoi input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}

@@ -5,6 +5,7 @@ import { PRISMA } from "../prisma/prisma.module";
 import { lireCatalogue } from "../common/abonnement/catalogue";
 import { contexteLicence, etatDeHotel, inclureValidite, recalculerStatutHotel } from "../common/abonnement/validite";
 import type { ActiverLicenceDto, EnregistrerMaintenanceDto } from "./dto/licence.dto";
+import { ContratsLicenceService } from "./documents-licence/contrats-licence.service";
 
 /**
  * Licences de 1, 2 ou 3 ans (11/11/2026), activées à la main par le SUPER-ADMIN après réception de l'argent en main propre.
@@ -18,7 +19,10 @@ import type { ActiverLicenceDto, EnregistrerMaintenanceDto } from "./dto/licence
 export class LicencesAdminService {
   private readonly logger = new Logger(LicencesAdminService.name);
 
-  constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA) private readonly prisma: PrismaClient,
+    private readonly contrats: ContratsLicenceService
+  ) {}
 
   private async hotel(hotelId: string) {
     const hotel = await this.prisma.hotel.findUnique({ where: { id: hotelId }, select: { id: true, nom: true } });
@@ -66,6 +70,8 @@ export class LicencesAdminService {
       return creee;
     });
     this.logger.log(`Licence ${dto.annees} an(s) activée pour ${hotel.nom} (${hotelId}) du ${debut.toISOString()} au ${fin.toISOString()}`);
+    // Numéro et contrat figés dès l'activation. Si cette étape échoue, la licence reste valable : le contrat sera créé à la première demande (idempotent).
+    await this.contrats.assurerContrat(licence.id).catch((e) => this.logger.error(`Contrat de la licence ${licence.id} non créé à l'activation : ${e instanceof Error ? e.message : e}`));
     return this.lister(hotelId).then((r) => ({ ...r, licenceActivee: licence.id }));
   }
 
@@ -99,6 +105,13 @@ export class LicencesAdminService {
         annuleLe: l.annuleLe,
         motifAnnulation: l.motifAnnulation,
         enregistreParNom: l.enregistreParSuperAdminId ? (noms.get(l.enregistreParSuperAdminId) ?? null) : null,
+        numero: l.numero,
+        contratVersion: l.contratVersion,
+        contratEmpreinte: l.contratEmpreinte,
+        accepteLe: l.accepteLe,
+        accepteParNom: l.accepteParNom,
+        scanEnvoyeLe: l.scanEnvoyeLe,
+        scanType: l.scanType,
       })),
       maintenances: maintenances.map((m) => ({
         id: m.id,
@@ -114,6 +127,7 @@ export class LicencesAdminService {
         annuleLe: m.annuleLe,
         motifAnnulation: m.motifAnnulation,
         enregistreParNom: m.enregistreParSuperAdminId ? (noms.get(m.enregistreParSuperAdminId) ?? null) : null,
+        numeroRecu: m.numeroRecu,
       })),
     };
   }

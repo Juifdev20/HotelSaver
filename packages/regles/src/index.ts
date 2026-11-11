@@ -9,3 +9,4 @@ export * from "./abonnement-texte";
 export * from "./chambre-prise";
 export * from "./compte-cafeteria";
 export * from "./mouvement-stock";
+export * from "./contrat-licence";

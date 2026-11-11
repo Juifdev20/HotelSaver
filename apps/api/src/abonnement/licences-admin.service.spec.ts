@@ -83,7 +83,7 @@ describe("Licences activées à la main par le super-admin", () => {
 
   it("active une licence de 2 ans : toutes les fonctions (plus de formule), actif, et une ligne de paiement qui court jusqu'à la fin", async () => {
     const { prisma, hotel } = creerPrisma();
-    const r = await new LicencesAdminService(prisma).activer("h1", { annees: 2, montant: 600, devise: "USD", note: "Reçu en main propre" } as any, "sa-1");
+    const r = await new LicencesAdminService(prisma, { assurerContrat: jest.fn(async () => ({})) } as any).activer("h1", { annees: 2, montant: 600, devise: "USD", note: "Reçu en main propre" } as any, "sa-1");
 
     expect(prisma.licences).toHaveLength(1);
     const l = prisma.licences[0];
@@ -99,7 +99,7 @@ describe("Licences activées à la main par le super-admin", () => {
 
   it("des frais de maintenance propres à l'hôtel remplacent le réglage de la plateforme (5 $)", async () => {
     const { prisma } = creerPrisma();
-    const r = await new LicencesAdminService(prisma).activer("h1", { annees: 1, fraisMaintenanceUsd: 8 } as any, "sa-1");
+    const r = await new LicencesAdminService(prisma, { assurerContrat: jest.fn(async () => ({})) } as any).activer("h1", { annees: 1, fraisMaintenanceUsd: 8 } as any, "sa-1");
     expect(r.etat.licence?.fraisMaintenanceUsd).toBe(8);
     expect(r.fraisMaintenanceParDefautUsd).toBe(5);
   });
@@ -107,13 +107,13 @@ describe("Licences activées à la main par le super-admin", () => {
   it("acheter une nouvelle licence alors qu'une court encore : la nouvelle commence à la fin de l'ancienne", async () => {
     const fin = new Date(Date.now() + 100 * JOUR);
     const { prisma } = creerPrisma({ licences: [{ id: "l0", annees: 1, debutLe: new Date(Date.now() - 265 * JOUR), finLe: fin, annuleLe: null }] });
-    await new LicencesAdminService(prisma).activer("h1", { annees: 1 } as any, "sa-1");
+    await new LicencesAdminService(prisma, { assurerContrat: jest.fn(async () => ({})) } as any).activer("h1", { annees: 1 } as any, "sa-1");
     expect(prisma.licences[1].debutLe.toISOString()).toBe(fin.toISOString());
   });
 
   it("annuler la licence : elle et son paiement sont marqués annulés (jamais effacés) et l'hôtel retombe sur son état normal", async () => {
     const { prisma, hotel } = creerPrisma({ hotel: { createdAt: new Date(Date.now() - 100 * JOUR) } });
-    const s = new LicencesAdminService(prisma);
+    const s = new LicencesAdminService(prisma, { assurerContrat: jest.fn(async () => ({})) } as any);
     await s.activer("h1", { annees: 1 } as any, "sa-1");
     await s.annuler("h1", "l1", "  Argent non reçu  ", "sa-1");
     expect(prisma.licences[0]).toMatchObject({ motifAnnulation: "Argent non reçu", annuleParSuperAdminId: "sa-1" });
@@ -126,7 +126,7 @@ describe("Licences activées à la main par le super-admin", () => {
 
   it("maintenance reçue à la main : prolonge de 30 jours par mois, réactive l'hôtel ; refusée sans licence en cours", async () => {
     const { prisma, hotel } = creerPrisma();
-    const s = new LicencesAdminService(prisma);
+    const s = new LicencesAdminService(prisma, { assurerContrat: jest.fn(async () => ({})) } as any);
     await expect(s.enregistrerMaintenance("h1", { mois: 1, montant: 5, devise: "USD", methode: "ESPECES" } as any, "sa-1")).rejects.toThrow(BadRequestException);
 
     await s.activer("h1", { annees: 1 } as any, "sa-1");
@@ -143,7 +143,7 @@ describe("Licences activées à la main par le super-admin", () => {
 
   it("annuler une maintenance saisie à la main : tracée ; un paiement en ligne réellement reçu ne s'annule pas ici", async () => {
     const { prisma } = creerPrisma();
-    const s = new LicencesAdminService(prisma);
+    const s = new LicencesAdminService(prisma, { assurerContrat: jest.fn(async () => ({})) } as any);
     await s.activer("h1", { annees: 1 } as any, "sa-1");
     await s.enregistrerMaintenance("h1", { mois: 1, montant: 5, devise: "USD", methode: "ESPECES" } as any, "sa-1");
     await s.annulerMaintenance("h1", "m1", "Montant faux", "sa-1");

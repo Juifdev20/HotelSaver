@@ -4,7 +4,7 @@ import { Button, useDialogue } from "@hotel-chicago/ui";
 import type { DonneesActivationLicence, DonneesMaintenanceManuelle } from "@hotel-chicago/api-client";
 import { dateAbonnement } from "@hotel-chicago/regles";
 import { Devise, MethodePaiementLicence } from "@hotel-chicago/types";
-import type { LicenceHotelVue, LicencesHotelVue, PaiementMaintenanceVue } from "@hotel-chicago/types";
+import type { FichierDocumentVue, LicenceHotelVue, LicencesHotelVue, PaiementMaintenanceVue } from "@hotel-chicago/types";
 
 const LIBELLE_METHODE: Record<string, string> = { VIREMENT: "Virement", MOBILE_MONEY: "Mobile Money", ESPECES: "Espèces", AUTRE: "Autre" };
 const date = (iso: string) => dateAbonnement(iso);
@@ -14,6 +14,29 @@ const nombre = (saisie: string): number | null => {
   return /^\d+(\.\d{1,2})?$/.test(t) ? Number(t) : null;
 };
 
+/** Documents de preuve d'une licence (11/11/2026) : chaque appel renvoie un fichier à télécharger. */
+export interface DocumentsLicence {
+  contrat: (licenceId: string) => Promise<FichierDocumentVue>;
+  recu: (licenceId: string) => Promise<FichierDocumentVue>;
+  dossier: (licenceId: string) => Promise<FichierDocumentVue>;
+  signe: (licenceId: string) => Promise<FichierDocumentVue>;
+  recuMaintenance: (paiementId: string) => Promise<FichierDocumentVue>;
+  envoyerSigne: (licenceId: string, fichier: File) => Promise<void>;
+}
+
+/** Enregistre sur l'ordinateur un document reçu de l'API (contenu en base64). */
+export function telechargerDocument(f: FichierDocumentVue): void {
+  const octets = Uint8Array.from(atob(f.base64), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([octets], { type: f.type }));
+  const lien = document.createElement("a");
+  lien.href = url;
+  lien.download = f.nom;
+  document.body.appendChild(lien);
+  lien.click();
+  lien.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 export interface LicenceHotelProps {
   hotelNom: string;
   charger: () => Promise<LicencesHotelVue>;
@@ -21,6 +44,7 @@ export interface LicenceHotelProps {
   annuler: (licenceId: string, motif: string) => Promise<LicencesHotelVue>;
   enregistrerMaintenance: (dto: DonneesMaintenanceManuelle) => Promise<LicencesHotelVue>;
   annulerMaintenance: (paiementId: string, motif: string) => Promise<LicencesHotelVue>;
+  documents: DocumentsLicence;
   /** Appelée après chaque changement : la liste des hôtels se met à jour (badge, échéance). */
   onChange: () => void;
   onFermer: () => void;
@@ -32,7 +56,7 @@ type Annulation = { type: "licence"; licence: LicenceHotelVue } | { type: "maint
  * Licence d'un hôtel (11/11/2026) : activer une licence de 1, 2 ou 3 ans après réception de l'argent en main propre, voir où en est la
  * maintenance mensuelle, enregistrer une maintenance reçue à la main, annuler une saisie erronée (motif obligatoire, jamais effacée).
  */
-export function LicenceHotel({ hotelNom, charger, activer, annuler, enregistrerMaintenance, annulerMaintenance, onChange, onFermer }: LicenceHotelProps) {
+export function LicenceHotel({ hotelNom, charger, activer, annuler, enregistrerMaintenance, annulerMaintenance, documents, onChange, onFermer }: LicenceHotelProps) {
   const idTitre = useId();
   const ref = useDialogue<HTMLDivElement>({ onEchap: onFermer });
   const [vue, setVue] = useState<LicencesHotelVue | null>(null);
@@ -107,6 +131,37 @@ export function LicenceHotel({ hotelNom, charger, activer, annuler, enregistrerM
       setMontantM("");
       setNoteM("");
       setMaintenanceOuverte(false);
+    }
+  }
+
+  /** Télécharge un document de preuve ; recharge ensuite la liste (le numéro d'une licence ancienne est créé à la première demande). */
+  async function recupererDocument(action: () => Promise<FichierDocumentVue>) {
+    setEnCours(true);
+    setErreur(null);
+    setMessage(null);
+    try {
+      telechargerDocument(await action());
+      setVue(await charger());
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Le document n'a pas pu être créé.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  async function envoyerSigne(licenceId: string, fichier: File | undefined) {
+    if (!fichier) return;
+    setEnCours(true);
+    setErreur(null);
+    setMessage(null);
+    try {
+      await documents.envoyerSigne(licenceId, fichier);
+      setVue(await charger());
+      setMessage("Contrat signé enregistré dans le dossier de l'hôtel.");
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "L'envoi du contrat signé a échoué.");
+    } finally {
+      setEnCours(false);
     }
   }
 
@@ -238,6 +293,47 @@ export function LicenceHotel({ hotelNom, charger, activer, annuler, enregistrerM
                         Annulée le {date(l.annuleLe)} : {l.motifAnnulation}
                       </span>
                     )}
+                    <div className="licence-hotel__preuve" aria-label={`Preuve d'achat de la licence du ${date(l.debutLe)}`}>
+                      <span>
+                        <strong>Contrat :</strong> {l.numero ? `n° ${l.numero}` : "numéro créé au premier téléchargement"}
+                      </span>
+                      <span className={l.accepteLe ? "licence-hotel__ok" : "licence-hotel__attente"}>
+                        {l.accepteLe ? `Accepté dans l'application le ${date(l.accepteLe)}${l.accepteParNom ? ` par ${l.accepteParNom}` : ""}` : "Pas encore accepté par le patron dans l'application"}
+                      </span>
+                      <span className={l.scanEnvoyeLe ? "licence-hotel__ok" : "licence-hotel__attente"}>
+                        {l.scanEnvoyeLe ? `Exemplaire signé reçu le ${date(l.scanEnvoyeLe)}` : "Pas encore de contrat signé sur papier"}
+                      </span>
+                      <div className="licence-hotel__boutons">
+                        <Button variant="secondary" size="sm" disabled={enCours} onClick={() => void recupererDocument(() => documents.contrat(l.id))}>
+                          Contrat (PDF)
+                        </Button>
+                        <Button variant="secondary" size="sm" disabled={enCours} onClick={() => void recupererDocument(() => documents.recu(l.id))}>
+                          Reçu de licence (PDF)
+                        </Button>
+                        <Button size="sm" disabled={enCours} onClick={() => void recupererDocument(() => documents.dossier(l.id))}>
+                          Dossier de preuve (PDF)
+                        </Button>
+                        {l.scanEnvoyeLe && (
+                          <Button variant="secondary" size="sm" disabled={enCours} onClick={() => void recupererDocument(() => documents.signe(l.id))}>
+                            Voir le contrat signé
+                          </Button>
+                        )}
+                        {!l.annuleLe && (
+                          <label className="licence-hotel__envoi">
+                            <span className="bouton bouton--secondaire bouton--petit">{l.scanEnvoyeLe ? "Remplacer le contrat signé" : "Ajouter le contrat signé"}</span>
+                            <input
+                              type="file"
+                              accept="application/pdf,image/jpeg,image/png"
+                              disabled={enCours}
+                              onChange={(e) => {
+                                void envoyerSigne(l.id, e.target.files?.[0]);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   {l.annuleLe ? (
                     <span className="paiements-hotel__etiquette">Annulée</span>
@@ -340,6 +436,9 @@ export function LicenceHotel({ hotelNom, charger, activer, annuler, enregistrerM
                         </span>
                       )}
                     </div>
+                    <Button variant="secondary" size="sm" disabled={enCours} onClick={() => void recupererDocument(() => documents.recuMaintenance(p.id))}>
+                      {p.numeroRecu ? `Reçu ${p.numeroRecu}` : "Reçu (PDF)"}
+                    </Button>
                     {p.annuleLe ? (
                       <span className="paiements-hotel__etiquette">Annulé</span>
                     ) : p.source === "MANUEL" ? (

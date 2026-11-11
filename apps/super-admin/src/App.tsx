@@ -7,6 +7,7 @@ import { configuration } from "./config";
 import { ecrireJetonRafraichissement, lireJetonRafraichissement, oublierJetonRafraichissement } from "./stockage";
 import { EcranConnexion } from "./EcranConnexion";
 import { EcranHotels } from "./EcranHotels";
+import type { DocumentsLicence } from "./LicenceHotel";
 import { EcranPaiements } from "./EcranPaiements";
 import { EcranAbonnements } from "./EcranAbonnements";
 import { EcranConditions } from "./EcranConditions";
@@ -293,6 +294,23 @@ export default function App() {
     return client.annulerMaintenance(hotelId, paiementId, motif);
   }
 
+  function documentsLicence(hotelId: string): DocumentsLicence {
+    const c = () => {
+      if (!client) throw new Error("Session expirée : reconnectez-vous.");
+      return client;
+    };
+    return {
+      contrat: (licenceId) => c().contratLicencePdf(hotelId, licenceId),
+      recu: (licenceId) => c().recuLicencePdf(hotelId, licenceId),
+      dossier: (licenceId) => c().dossierPreuvePdf(hotelId, licenceId),
+      signe: (licenceId) => c().contratSigne(hotelId, licenceId),
+      recuMaintenance: (paiementId) => c().recuMaintenancePdf(hotelId, paiementId),
+      envoyerSigne: async (licenceId, fichier) => {
+        await c().envoyerContratSigne(hotelId, licenceId, fichier, fichier.name);
+      },
+    };
+  }
+
   async function enregistrerPaiement(hotelId: string, dto: DonneesEnregistrementPaiement): Promise<boolean> {
     if (!client) return false;
     setErreurPaiement(null);
@@ -442,6 +460,7 @@ export default function App() {
       onAnnulerLicence={annulerLicence}
       onEnregistrerMaintenance={enregistrerMaintenance}
       onAnnulerMaintenance={annulerMaintenance}
+      documentsLicence={documentsLicence}
       onLicenceChangee={() => client && void chargerHotels(client)}
       patronEnCours={patronEnCours}
       erreurPatron={erreurPatron}

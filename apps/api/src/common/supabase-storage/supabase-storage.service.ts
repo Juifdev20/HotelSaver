@@ -1,6 +1,6 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import { BUCKET_GUIDES, BUCKET_MEDIA, BUCKET_RAPPORTS, NOM_FICHIER_VALIDE, prefixeUrlHotel } from "./urls-hotel";
+import { BUCKET_CONTRATS, BUCKET_GUIDES, BUCKET_MEDIA, BUCKET_RAPPORTS, NOM_FICHIER_VALIDE, prefixeUrlHotel } from "./urls-hotel";
 
 /**
  * Stockage via l'API Storage de Supabase (clé service_role), comme
@@ -17,6 +17,7 @@ export class SupabaseStorageService {
   private bucketPret = false;
   private bucketRapportsPret = false;
   private bucketGuidesPret = false;
+  private bucketContratsPret = false;
 
   private config() {
     const cle = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -180,6 +181,53 @@ export class SupabaseStorageService {
     const elements = (await reponse.json()) as { name: string; metadata?: { size?: number } | null }[];
     const fichier = elements.find((e) => e.name === chemin.slice(i + 1));
     return fichier ? (fichier.metadata?.size ?? 0) : null;
+  }
+
+  private async assurerBucketContrats(): Promise<void> {
+    if (this.bucketContratsPret) return;
+    const { cle, url } = this.config();
+    const reponse = await fetch(`${url}/storage/v1/bucket`, {
+      method: "POST",
+      headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: BUCKET_CONTRATS,
+        name: BUCKET_CONTRATS,
+        // PRIVÉ : ce sont des pièces de preuve, lues seulement par le super-admin à travers l'API.
+        public: false,
+        file_size_limit: 10 * 1024 * 1024,
+        allowed_mime_types: ["application/pdf", "image/jpeg", "image/png"],
+      }),
+    });
+    if (!reponse.ok && reponse.status !== 409) {
+      const corps = await reponse.text().catch(() => "");
+      if (!/already exists|Duplicate/i.test(corps)) {
+        throw new InternalServerErrorException(`Création du bucket contrats refusée (${reponse.status}).`);
+      }
+    }
+    this.bucketContratsPret = true;
+  }
+
+  /** Dépose un exemplaire signé. Jamais d'écrasement (`x-upsert: false`) : un fichier déposé reste dans le bucket, même remplacé dans le dossier. */
+  async envoyerContrat(chemin: string, contenu: Buffer, type: string): Promise<void> {
+    await this.assurerBucketContrats();
+    const { cle, url } = this.config();
+    const reponse = await fetch(`${url}/storage/v1/object/${BUCKET_CONTRATS}/${chemin}`, {
+      method: "POST",
+      headers: { apikey: cle, Authorization: `Bearer ${cle}`, "Content-Type": type, "x-upsert": "false" },
+      body: contenu,
+    });
+    if (!reponse.ok) {
+      const corps = await reponse.text().catch(() => "");
+      throw new InternalServerErrorException(`Enregistrement de l'exemplaire signé refusé (${reponse.status}) : ${corps.slice(0, 200)}`);
+    }
+  }
+
+  /** Lit un exemplaire signé (clé service_role) ; null s'il n'existe pas. */
+  async lireContrat(chemin: string): Promise<Buffer | null> {
+    const { cle, url } = this.config();
+    const reponse = await fetch(`${url}/storage/v1/object/${BUCKET_CONTRATS}/${chemin}`, { headers: { apikey: cle, Authorization: `Bearer ${cle}` } });
+    if (!reponse.ok) return null;
+    return Buffer.from(await reponse.arrayBuffer());
   }
 
   /** URL signée à durée courte pour ouvrir un guide du bucket privé. `nom` : nom du fichier proposé au téléchargement. */

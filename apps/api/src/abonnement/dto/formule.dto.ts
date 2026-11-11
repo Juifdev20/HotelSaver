@@ -176,6 +176,48 @@ export class ModifierParametresDto {
   @Max(30)
   joursPreavisMaintenance?: number;
 
+  // Identité de l'éditeur imprimée sur les contrats et les reçus de licence (11/11/2026). Une chaîne vide efface la valeur.
+  @IsOptional()
+  @IsString()
+  @MinLength(2, { message: "Le nom de l'éditeur est obligatoire." })
+  @MaxLength(120)
+  editeurNom?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  editeurAdresse?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  editeurRccm?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  editeurNif?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  editeurRepresentant?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  editeurFonction?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  editeurTelephone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  editeurEmail?: string;
+
   @IsOptional()
   @IsBoolean()
   fraisAbonnementPayesParClient?: boolean;

@@ -8,6 +8,9 @@ export const BUCKET_RAPPORTS = "rapports";
 /** Bucket PRIVÉ des guides d'utilisation PDF (20/10/2026) — lecture uniquement par URL signée, après contrôle du rôle. */
 export const BUCKET_GUIDES = "guides";
 
+/** Bucket PRIVÉ des exemplaires papier signés des contrats de licence (11/11/2026) — jamais d'URL publique : le super-admin les lit par l'API. */
+export const BUCKET_CONTRATS = "contrats";
+
 /** Début de toute URL publique d'un fichier appartenant à cet hôtel. Les
  * fichiers sont rangés sous `<hotelId>/…` dans le bucket, ce qui permet de
  * vérifier l'appartenance d'une URL sans table de médias. */

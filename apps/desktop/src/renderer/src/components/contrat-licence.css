@@ -1,0 +1,57 @@
+.cl {
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-lg);
+  padding: var(--hc-space-4);
+  background: var(--hc-surface, #fff);
+}
+.cl--attente {
+  border-left: 4px solid var(--hc-warning, #a85a00);
+}
+.cl--ok {
+  border-left: 4px solid var(--hc-success, #0b7a48);
+}
+.cl__haut {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  flex-wrap: wrap;
+}
+.cl__haut > div {
+  flex: 1 1 260px;
+}
+.cl__titre {
+  margin: 0;
+  font-size: 1rem;
+}
+.cl__detail {
+  margin: 2px 0 0;
+  color: var(--hc-ink-muted, #5f6b7e);
+  font-size: 0.9rem;
+}
+.cl__corps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+  margin-top: var(--hc-space-4);
+}
+.cl__texte {
+  max-height: 340px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--hc-space-3);
+  white-space: pre-wrap;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-sm);
+}
+.cl__case {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.cl__erreur {
+  margin: 0;
+  color: var(--hc-danger, #b42318);
+}

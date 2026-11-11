@@ -30,6 +30,7 @@
     "jwks-rsa": "^3.2.2",
     "node-vibrant": "^4.0.4",
     "pdfkit": "0.15.2",
+    "qrcode": "1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sharp": "^0.35.5"
@@ -46,6 +47,7 @@
     "@types/multer": "^2.3.0",
     "@types/node": "^20.16.10",
     "@types/pdfkit": "0.13.9",
+    "@types/qrcode": "1.5.5",
     "@types/supertest": "^6.0.2",
     "jest": "^29.7.0",
     "nodemon": "^3.1.14",

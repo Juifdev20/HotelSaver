@@ -1,6 +1,6 @@
 import { Devise, MethodePaiementLicence } from "@hotel-chicago/database";
 import { Type } from "class-transformer";
-import { IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from "class-validator";
+import { IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateIf } from "class-validator";
 import { DUREES_LICENCE_ANNEES, MOIS_MAINTENANCE } from "@hotel-chicago/regles";
 
 /** Activation d'une licence par le super-admin, après réception de l'argent en main propre. */
@@ -64,4 +64,13 @@ export class EnregistrerMaintenanceDto {
   @IsString()
   @MaxLength(200)
   note?: string;
+}
+
+/** Le patron accepte le contrat de sa licence : il renvoie l'empreinte du texte qu'il vient de lire. */
+export class AccepterContratDto {
+  @IsUUID()
+  licenceId!: string;
+
+  @Matches(/^[0-9a-fA-F]{64}$/, { message: "Empreinte du contrat invalide : rouvrez le contrat puis acceptez." })
+  empreinte!: string;
 }

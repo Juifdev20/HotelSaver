@@ -30,6 +30,7 @@ import { Button, LogoOperateur, LogosMobileMoney, StatusBadge, useTitrePage } fr
 import type { StatusTone } from "@hotel-chicago/ui";
 import { AlertTriangle, BedDouble, CalendarClock, Check, CheckCircle2, CircleCheck, Crown, Gift, Info, Lock, Receipt, ShieldCheck, Smartphone, Sparkles, XCircle } from "lucide-react";
 import { BlocAide } from "../components/BlocAide";
+import { CarteContratLicence } from "../components/CarteContratLicence";
 import "./abonnement.css";
 import "./abonnement-pro.css";
 
@@ -906,6 +907,7 @@ export function EcranAbonnement({ client, utilisateur, horsLigne, onPaiementReus
 
       <div className="abo ap">
         {etat ? <CarteEtat etat={etat} vue={lecture.vue} /> : <p className="abo-message hc-text-body">L'état de votre abonnement n'est pas encore connu. Connectez-vous à Internet pour le lire.</p>}
+        {utilisateur.role === Role.PATRON && etat?.licence && !horsLigne && <CarteContratLicence client={client} />}
         <ZonePaiement client={client} utilisateur={utilisateur} etat={etat} lecture={lecture} horsLigne={horsLigne} mode="page" onPaiementReussi={onPaiementReussi} />
         {utilisateur.role === Role.PATRON && lecture.vue && <Historique historique={lecture.vue.historique} formules={lecture.vue.formules} />}
         <BlocAide contact={lecture.vue?.contactSupport} message="Bonjour, j'ai une question sur mon abonnement HotelSaver." />

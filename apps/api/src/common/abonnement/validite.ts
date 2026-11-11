@@ -19,6 +19,8 @@ export function inclureValidite(maintenant: Date = new Date()) {
         debutLe: true,
         finLe: true,
         fraisMaintenanceUsd: true,
+        numero: true,
+        accepteLe: true,
         paiementsMaintenance: { where: { annuleLe: null }, orderBy: { periodeCouverteJusquau: "desc" }, take: 1, select: { periodeCouverteJusquau: true } },
       },
     },
@@ -50,7 +52,11 @@ export function etatDeHotel(
   parametres: Partial<Pick<ParametresAbonnement, "joursEssai" | "joursGrace"> & ParametresProtectionEssai> & ReglagesLicence,
   maintenant: Date = new Date()
 ): EtatAbonnement {
-  return etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, maintenant, parametres, contexteLicence(hotel, parametres));
+  const etat = etatAbonnement(hotel, hotel.paiementsLicence[0] ?? null, maintenant, parametres, contexteLicence(hotel, parametres));
+  // Contrat de la licence en cours (11/11/2026) : permet aux écrans de rappeler au patron de l'accepter.
+  const courante = hotel.licences?.[0];
+  if (etat.licence && courante) return { ...etat, licence: { ...etat.licence, contrat: { licenceId: courante.id, numero: courante.numero ?? null, accepteLe: courante.accepteLe?.toISOString() ?? null } } };
+  return etat;
 }
 
 /**

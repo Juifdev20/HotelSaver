@@ -441,6 +441,27 @@ model LicenceHotel {
   motifAnnulation           String?
   paiementsMaintenance      PaiementMaintenance[]
 
+  // --- Preuve d'achat et contrat (11/11/2026) ---
+  /// Numéro unique du contrat et du reçu de licence (LIC-2026-0001). null = licence activée avant le contrat : il est créé à la première demande.
+  numero                    String?          @unique
+  /// Le contrat EXACT proposé à l'hôtel, figé à l'activation (les mots ne changent plus, même si le modèle évolue), avec sa version et son empreinte SHA-256.
+  contratVersion            Int?
+  contratTexte              String?
+  contratEmpreinte          String?
+  /// Acceptation dans l'application par le patron (« J'accepte ») : qui, quand, d'où, avec quel appareil.
+  accepteLe                 DateTime?
+  accepteParUtilisateurId   String?
+  accepteParNom             String?
+  accepteIp                 String?
+  accepteAppareil           String?
+  /// Exemplaire papier signé, numérisé (bucket privé « contrats »), avec son empreinte SHA-256.
+  scanChemin                String?
+  scanType                  String?
+  scanTaille                Int?
+  scanEmpreinte             String?
+  scanEnvoyeLe              DateTime?
+  scanEnvoyeParSuperAdminId String?
+
   @@index([hotelId])
 }
 
@@ -458,6 +479,8 @@ model PaiementMaintenance {
   methode                   MethodePaiementLicence
   periodeCouverteJusquau    DateTime
   note                      String?
+  /// Numéro du reçu de maintenance (MNT-2026-0001), attribué à la première édition du reçu puis jamais modifié.
+  numeroRecu                String?               @unique
   /// null = payé dans l'application (voir PaiementAbonnement) ; sinon le super-admin qui l'a saisi à la main.
   enregistreParSuperAdminId String?
   paiementAbonnement        PaiementAbonnement?
@@ -1050,6 +1073,15 @@ model ParametresPlateforme {
   fraisMaintenanceUsd           Decimal  @default(5)
   joursGraceMaintenance         Int      @default(2)
   joursPreavisMaintenance       Int      @default(5)
+  /// Identité de l'éditeur imprimée sur les contrats et les reçus (11/11/2026), réglable dans le super-admin.
+  editeurNom                    String   @default("HotelSaver")
+  editeurAdresse                String?
+  editeurRccm                   String?
+  editeurNif                    String?
+  editeurRepresentant           String?
+  editeurFonction               String?
+  editeurTelephone              String?
+  editeurEmail                  String?
   updatedAt                     DateTime @updatedAt
 }
 

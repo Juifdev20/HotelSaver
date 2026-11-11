@@ -9,11 +9,15 @@ import { FormulesAdminService } from "./formules-admin.service";
 import { LinkPayClient } from "./linkpay.client";
 import { LicencesAdminController } from "./licences-admin.controller";
 import { LicencesAdminService } from "./licences-admin.service";
+import { ContratsLicenceService } from "./documents-licence/contrats-licence.service";
+import { VerificationLicenceController } from "./documents-licence/verification-licence.controller";
+import { MediaModule } from "../media/media.module";
 
 @Module({
-  imports: [PrismaModule],
-  controllers: [AbonnementController, SupportAbonnementController, FormulesAdminController, LicencesAdminController],
-  providers: [FormulesAdminService, AbonnementService, AbonnementSchedulerService, LinkPayClient, LicencesAdminService],
+  // MediaModule exporte SupabaseStorageService (exemplaires signés des contrats).
+  imports: [PrismaModule, MediaModule],
+  controllers: [AbonnementController, SupportAbonnementController, FormulesAdminController, LicencesAdminController, VerificationLicenceController],
+  providers: [FormulesAdminService, AbonnementService, AbonnementSchedulerService, LinkPayClient, LicencesAdminService, ContratsLicenceService],
   exports: [AbonnementService, LinkPayClient],
 })
 export class AbonnementModule {}

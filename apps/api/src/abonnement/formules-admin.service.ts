@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { Prisma, type PrismaClient } from "@hotel-chicago/database";
 import { PRISMA } from "../prisma/prisma.module";
 import { invaliderCatalogue, lireCatalogue } from "../common/abonnement/catalogue";
+import { CHAMPS_EDITEUR_FACULTATIFS, lireEditeur } from "../common/abonnement/editeur";
 import { ChangerFormuleHotelDto, CreerFormuleDto, ModifierFormuleDto, ModifierParametresDto } from "./dto/formule.dto";
 
 /** Administration des formules et des réglages d'abonnement par le SUPER-ADMIN (écran « Abonnements » du super-admin). */
@@ -107,14 +108,20 @@ export class FormulesAdminService {
 
   async lireParametres() {
     const { parametres } = await lireCatalogue(this.prisma, 0);
-    return parametres;
+    return { ...parametres, ...(await lireEditeur(this.prisma)) };
   }
 
   async modifierParametres(dto: ModifierParametresDto) {
+    // Identité de l'éditeur : une chaîne vide efface la valeur (sauf le nom, qui est obligatoire).
+    const donnees: Record<string, unknown> = { ...dto };
+    for (const champ of CHAMPS_EDITEUR_FACULTATIFS) {
+      const valeur = donnees[champ];
+      if (typeof valeur === "string") donnees[champ] = valeur.trim() || null;
+    }
     await this.prisma.parametresPlateforme.upsert({
       where: { id: "plateforme" },
-      update: { ...dto, ...(dto.fonctionsEssai !== undefined && { fonctionsEssai: [...new Set(dto.fonctionsEssai)] }) },
-      create: { id: "plateforme", fonctionsEssai: dto.fonctionsEssai ?? ["RECEPTION", "CAFETERIA", "SITE_PUBLIC", "DOMAINE_PERSONNALISE", "ACOMPTE_EN_LIGNE"], ...dto },
+      update: { ...donnees, ...(dto.fonctionsEssai !== undefined && { fonctionsEssai: [...new Set(dto.fonctionsEssai)] }) },
+      create: { id: "plateforme", fonctionsEssai: dto.fonctionsEssai ?? ["RECEPTION", "CAFETERIA", "SITE_PUBLIC", "DOMAINE_PERSONNALISE", "ACOMPTE_EN_LIGNE"], ...donnees },
     });
     invaliderCatalogue();
     return this.lireParametres();

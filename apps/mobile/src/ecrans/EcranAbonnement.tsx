@@ -6,6 +6,8 @@ import { EnteteMobile } from "../composants/EnteteMobile";
 import { EnteteRetour } from "../composants/EnteteRetour";
 import { ConteneurFormulaire } from "../composants/ConteneurFormulaire";
 import { PanneauAbonnement } from "../composants/PanneauAbonnement";
+import { CarteContratLicence } from "../composants/CarteContratLicence";
+import { Role } from "@hotel-chicago/types";
 
 export interface EcranAbonnementProps {
   onRetour: () => void;
@@ -30,6 +32,7 @@ export function EcranAbonnement({ onRetour }: EcranAbonnementProps) {
           onPaiementConfirme={apresRenouvellement}
           onContinuer={onRetour}
         />
+        {utilisateur.role === Role.PATRON && utilisateur.abonnement?.licence && <CarteContratLicence client={client} />}
       </ConteneurFormulaire>
     </View>
   );
