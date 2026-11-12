@@ -1,7 +1,7 @@
 import * as React from "react";
 import { signalOk } from "../sons/sons";
 import { useMemo, useRef, useState } from "react";
-import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { ErreurApi, type ClientApi } from "@hotel-chicago/api-client";
 import { construireEtiquette, genererEan13Interne } from "@hotel-chicago/receipts";
 import { Devise, Produit, Role, TypeProduit, UtilisateurAuthentifie } from "@hotel-chicago/types";
@@ -399,7 +399,7 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         <TextInput style={styles.rechercheSaisie} value={recherche} onChangeText={setRecherche} placeholder="Chercher un produit" placeholderTextColor={couleurs.encreFaible} accessibilityLabel="Chercher un produit" />
       </View>
       {categories.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.chips}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsZone} contentContainerStyle={styles.chips}>
           {[null, ...categories].map((c) => (
             <Pressable key={c ?? "toutes"} style={[styles.chip, categorieFiltre === c && styles.chipActif]} onPress={() => setCategorieFiltre(c)} accessibilityRole="button" accessibilityState={{ selected: categorieFiltre === c }}>
               <Text style={[styles.chipTexte, categorieFiltre === c && styles.chipTexteActif]}>{c ?? "Tous"}</Text>
@@ -427,44 +427,59 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         refreshControl={<RefreshControl refreshing={enCours} onRefresh={recharger} />}
         renderItem={({ item }) => (
           <Pressable
-            style={styles.carte}
+            style={[styles.carte, !item.actif && styles.carteInactive]}
             onPress={() => peutModifier && ouvrirEdition(item)}
             disabled={!peutModifier}
             accessibilityRole={peutModifier ? "button" : undefined}
             accessibilityHint={peutModifier ? "Modifier ce produit" : undefined}
           >
-            <View style={styles.carteEntete}>
-              <Text style={styles.nom}>{item.nom}</Text>
-              <View style={{ flexDirection: "row", gap: espacements.s1 }}>
-                {item.typeProduit === TypeProduit.PLAT && (
-                  <View style={styles.badgePlat}>
-                    <Text style={styles.badgePlatTexte}>Plat</Text>
-                  </View>
-                )}
-                {item.commandableEnLigne && (
-                  <View style={styles.badgeSite}>
-                    <Text style={styles.badgeSiteTexte}>Site</Text>
-                  </View>
-                )}
-                {!item.actif && (
-                  <View style={styles.badgeInactif}>
-                    <Text style={styles.badgeInactifTexte}>Inactif</Text>
-                  </View>
-                )}
+            <View style={styles.carteCorps}>
+              {item.typeProduit === TypeProduit.PLAT && item.photo ? (
+                <Image source={{ uri: item.photo }} style={styles.vignette} accessibilityIgnoresInvertColors />
+              ) : (
+                <View style={[styles.vignette, styles.vignetteIcone, item.typeProduit === TypeProduit.PLAT && styles.vignettePlat]}>
+                  {item.typeProduit === TypeProduit.PLAT ? <Utensils size={26} color="#2E7D32" /> : <Beer size={26} color={couleurs.bleu} />}
+                </View>
+              )}
+              <View style={styles.carteTextes}>
+                <Text style={styles.nom} numberOfLines={2}>{item.nom}</Text>
+                <Text style={styles.categorie} numberOfLines={1}>{item.categorie}</Text>
+                <View style={styles.badges}>
+                  {item.commandableEnLigne && (
+                    <View style={styles.badgeSite}>
+                      <Text style={styles.badgeSiteTexte}>Sur le site</Text>
+                    </View>
+                  )}
+                  {!item.actif && (
+                    <View style={styles.badgeInactif}>
+                      <Text style={styles.badgeInactifTexte}>Inactif</Text>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-            <Text style={styles.categorie}>{item.categorie}</Text>
-            <View style={styles.carteBas}>
-              <Text style={styles.prix}>{formatMontant(item.prix, item.devise)}</Text>
-              <Text style={styles.stock}>
-                {item.typeProduit === TypeProduit.PLAT
-                  ? item.portionsDisponibles == null
-                    ? "Préparé à la commande"
-                    : item.portionsDisponibles > 0
-                      ? `Portions : ${item.portionsDisponibles}`
-                      : "Épuisé"
-                  : `Stock : ${item.stockActuel}`}
-              </Text>
+              <View style={styles.carteDroite}>
+                <Text style={styles.prix}>{formatMontant(item.prix, item.devise)}</Text>
+                {(() => {
+                  const plat = item.typeProduit === TypeProduit.PLAT;
+                  const stock = Number(item.stockActuel);
+                  const epuise = plat ? item.portionsDisponibles === 0 : stock <= 0;
+                  const bas = !plat && !epuise && stock <= Number(item.seuilAlerte);
+                  const texte = plat
+                    ? item.portionsDisponibles == null
+                      ? "À la commande"
+                      : item.portionsDisponibles > 0
+                        ? `${item.portionsDisponibles} portion${item.portionsDisponibles > 1 ? "s" : ""}`
+                        : "Épuisé"
+                    : epuise
+                      ? "Épuisé"
+                      : `${item.stockActuel} en stock`;
+                  return (
+                    <View style={[styles.pastilleStock, epuise ? styles.pastilleEpuise : bas ? styles.pastilleBas : null]}>
+                      <Text style={[styles.pastilleStockTexte, epuise ? { color: couleurs.danger } : bas ? { color: couleurs.alerte } : null]}>{texte}</Text>
+                    </View>
+                  );
+                })()}
+              </View>
             </View>
             {item.typeProduit !== TypeProduit.PLAT && item.codeBarres && (
               <View style={styles.carteCode}>
@@ -536,6 +551,45 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         titre={produitEnEdition ? "Modifier le produit" : "Nouveau produit"}
         modifie={formulaireModifie}
         enCours={enEnvoi}
+        // Boutons TOUJOURS visibles sous le formulaire (hors défilement) : plus besoin de descendre pour « Enregistrer ».
+        pied={
+          <>
+          {erreurFormulaire && (
+            <Text style={styles.erreurFormulaire} accessibilityRole="alert">
+              {erreurFormulaire}
+            </Text>
+          )}
+
+          <View style={styles.boutonsModale}>
+            {produitEnEdition && (
+              <Pressable
+                style={styles.boutonDanger}
+                onPress={demanderSuppression}
+                disabled={enEnvoi}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: enEnvoi }}
+              >
+                <Text style={styles.boutonDangerTexte}>Supprimer</Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={styles.bouton}
+              onPress={() => void enregistrer()}
+              disabled={enEnvoi}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: enEnvoi, busy: enEnvoi }}
+            >
+              <Text style={styles.boutonTexte}>
+                {enEnvoi
+                  ? "…"
+                  : nbEtiquettes > 0
+                    ? `Enregistrer et imprimer ${nbEtiquettes} étiquette${nbEtiquettes > 1 ? "s" : ""}`
+                    : "Enregistrer"}
+              </Text>
+            </Pressable>
+          </View>
+          </>
+        }
       >
         <Text style={styles.label}>Type de produit</Text>
         <View style={styles.selecteurType} accessibilityRole="radiogroup" accessibilityLabel="Type de produit">
@@ -763,40 +817,6 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
           </View>
         )}
 
-        {erreurFormulaire && (
-          <Text style={styles.erreurFormulaire} accessibilityRole="alert">
-            {erreurFormulaire}
-          </Text>
-        )}
-
-        <View style={styles.boutonsModale}>
-          {produitEnEdition && (
-            <Pressable
-              style={styles.boutonDanger}
-              onPress={demanderSuppression}
-              disabled={enEnvoi}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: enEnvoi }}
-            >
-              <Text style={styles.boutonDangerTexte}>Supprimer</Text>
-            </Pressable>
-          )}
-          <Pressable
-            style={styles.bouton}
-            onPress={() => void enregistrer()}
-            disabled={enEnvoi}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: enEnvoi, busy: enEnvoi }}
-          >
-            <Text style={styles.boutonTexte}>
-              {enEnvoi
-                ? "…"
-                : nbEtiquettes > 0
-                  ? `Enregistrer et imprimer ${nbEtiquettes} étiquette${nbEtiquettes > 1 ? "s" : ""}`
-                  : "Enregistrer"}
-            </Text>
-          </Pressable>
-        </View>
       </FeuilleModale>
 
       {/* FAB bas-droite — modification réservée au PATRON (comme avant). */}
@@ -845,7 +865,9 @@ const styles = StyleSheet.create({
   aideOnglet: { fontSize: 12.5, color: couleurs.encreAttenuee, paddingHorizontal: espacements.s4, paddingTop: espacements.s2, lineHeight: 18 },
   recherche: { flexDirection: "row", alignItems: "center", gap: espacements.s2, minHeight: 44, marginHorizontal: espacements.s4, marginTop: espacements.s2, paddingHorizontal: espacements.s3, borderRadius: rayons.sm + 4, borderWidth: 1, borderColor: couleurs.bordure, backgroundColor: couleurs.surface200 },
   rechercheSaisie: { flex: 1, fontSize: 14, color: couleurs.encre, paddingVertical: 0 },
-  chips: { gap: espacements.s2, paddingHorizontal: espacements.s4, paddingTop: espacements.s2 },
+  // Un ScrollView a flexShrink:1 par défaut : sans ceci la rangée de catégories était écrasée par la liste (coupée en deux à l'écran).
+  chipsZone: { flexGrow: 0, flexShrink: 0 },
+  chips: { gap: espacements.s2, paddingHorizontal: espacements.s4, paddingTop: espacements.s3, paddingBottom: espacements.s1, alignItems: "center" },
   chip: { minHeight: 34, paddingHorizontal: espacements.s3, borderRadius: rayons.pill, borderWidth: 1, borderColor: couleurs.bordure, backgroundColor: couleurs.surface200, justifyContent: "center" },
   chipActif: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
   chipTexte: { fontSize: 13, fontWeight: "700", color: couleurs.encre },
@@ -860,7 +882,7 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
   // 88px de marge basse : le FAB ne recouvre pas la dernière carte.
-  liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },
+  liste: { padding: espacements.s4, paddingBottom: 110, gap: espacements.s3 },
   videConteneur: { alignItems: "center", padding: espacements.s7, gap: espacements.s2 },
   videTitre: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
   carte: {
@@ -868,10 +890,21 @@ const styles = StyleSheet.create({
     borderRadius: rayons.lg,
     borderWidth: 1,
     borderColor: couleurs.bordure,
-    padding: espacements.s4,
-    gap: 4,
+    padding: espacements.s3,
+    gap: espacements.s2,
   },
-  carteEntete: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  carteInactive: { opacity: 0.6 },
+  carteCorps: { flexDirection: "row", alignItems: "center", gap: espacements.s3 },
+  vignette: { width: 64, height: 64, borderRadius: rayons.md, backgroundColor: couleurs.surface100 },
+  vignetteIcone: { alignItems: "center", justifyContent: "center", backgroundColor: couleurs.bleuClair },
+  vignettePlat: { backgroundColor: "#E8F5E9" },
+  carteTextes: { flex: 1, gap: 2 },
+  badges: { flexDirection: "row", gap: espacements.s1, flexWrap: "wrap", marginTop: 2 },
+  carteDroite: { alignItems: "flex-end", gap: 6 },
+  pastilleStock: { borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 3, backgroundColor: couleurs.surface100 },
+  pastilleBas: { backgroundColor: couleurs.alerteClair },
+  pastilleEpuise: { backgroundColor: couleurs.dangerClair },
+  pastilleStockTexte: { fontSize: 12, fontWeight: "700", color: couleurs.encreAttenuee },
   nom: { fontSize: 16, fontWeight: "700", color: couleurs.encre },
   badgeInactif: { backgroundColor: couleurs.dangerClair, borderRadius: rayons.pill, paddingHorizontal: espacements.s2, paddingVertical: 2 },
   badgeInactifTexte: { fontSize: 10, fontWeight: "700", color: couleurs.danger },
@@ -907,7 +940,7 @@ const styles = StyleSheet.create({
     backgroundColor: couleurs.bleuClair,
   },
   boutonCodeTexte: { color: couleurs.bleu, fontWeight: "700", fontSize: 13 },
-  carteCode: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: espacements.s1 },
+  carteCode: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: espacements.s2, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: couleurs.bordure },
   codeTexte: { fontSize: 12, color: couleurs.encreAttenuee, letterSpacing: 1 },
   boutonEtiquette: {
     flexDirection: "row",
@@ -961,7 +994,7 @@ const styles = StyleSheet.create({
   aideSwitch: { fontSize: 12, color: couleurs.encreFaible },
   ligneSwitch: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   erreurFormulaire: { color: couleurs.danger, fontSize: 13 },
-  boutonsModale: { flexDirection: "row", gap: espacements.s3, marginTop: espacements.s2 },
+  boutonsModale: { flexDirection: "row", gap: espacements.s3 },
   boutonDanger: {
     flex: 1,
     minHeight: 44,
