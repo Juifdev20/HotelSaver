@@ -73,6 +73,8 @@ function messageErreurProfil(erreur: Error): string {
   return erreur.message;
 }
 
+const LIBELLE_ROLE_COMPTE: Record<Role, string> = { [Role.PATRON]: "Patron", [Role.RECEPTIONNISTE]: "Réception", [Role.CAFETARIA]: "Cafétaria" };
+
 export function App() {
   const [configuration, setConfiguration] = useState<ConfigurationApp | null>(null);
   const [miroir, setMiroir] = useState<Miroir | null>(null);
@@ -81,6 +83,11 @@ export function App() {
   const [modeHorsLigne, setModeHorsLigne] = useState(false);
   const [joursRestants, setJoursRestants] = useState<number | null>(null);
   const [utilisateur, setUtilisateur] = useState<ProfilConnecte | null>(null);
+  // Changement de compte du patron (12/11/2026) : « visite » du compte d'un employé, en mémoire seulement (le gestionnaire de session ne
+  // l'enregistre pas : au prochain lancement on retrouve le patron).
+  const [visite, setVisite] = useState<{ id: string; nom: string; role: Role; patronNom: string } | null>(null);
+  const [comptes, setComptes] = useState<{ id: string; nom: string; role: Role }[]>([]);
+  const [versionComptes, setVersionComptes] = useState(0);
   const gestionnaire = useRef<GestionnaireSession | null>(null);
   const profilRef = useRef<ProfilConnecte | null>(null);
   profilRef.current = utilisateur;
@@ -218,6 +225,7 @@ export function App() {
   // celui du miroir. Le jeton, lui, est lu à chaque requête auprès du gestionnaire de session (renouvelé sans recréer le client).
   // Il est enveloppé pour repérer un refus « fonction non incluse » du serveur (voir client-surveille.ts) et réagir tout de suite.
   const rafraichirProfilRef = useRef<() => void>(() => undefined);
+  const retourMonCompteRef = useRef<() => Promise<void>>(async () => undefined);
   const client: ClientApi | null = useMemo(
     () =>
       miroir
@@ -247,6 +255,10 @@ export function App() {
       if (!g) return;
       try {
         const retour = await g.entretenir();
+        if (retour.visiteTerminee) {
+          void retourMonCompteRef.current().catch(() => undefined);
+          return;
+        }
         if (retour.profil) {
           setUtilisateur((courant) => (JSON.stringify(courant) === JSON.stringify(retour.profil) ? courant : retour.profil!));
         }
@@ -326,7 +338,7 @@ export function App() {
   // Abonnement : l'écran « expiré » remplace l'application UNIQUEMENT si le serveur l'a dit (profil relu en ligne avec `bloque`, ou une
   // synchronisation refusée en 402). Un profil mémorisé et ancien, ouvert sans Internet, ne bloque jamais : il n'affiche qu'un bandeau.
   const abonnementBloque = ecran === "application" && !modeHorsLigne && (utilisateur?.abonnement?.bloque === true || etatSync?.abonnementBloque === true);
-  const centre = useNotifications(ecran === "application" && !abonnementBloque ? client : null, (lien) => lienRef.current(lien));
+  const centre = useNotifications(ecran === "application" && !abonnementBloque ? client : null, (lien) => lienRef.current(lien), utilisateur?.userId);
   const ouvrirNotification = (notification: NotificationApp) => {
     void centre.marquerLue(notification.id);
     ouvrirLien(lienDeNotification(notification));
@@ -463,6 +475,71 @@ export function App() {
     }
   }
 
+  /** Liste des comptes du personnel (patron seulement, hors visite). */
+  useEffect(() => {
+    if (!client || !utilisateur || utilisateur.role !== Role.PATRON || visite) return;
+    let annule = false;
+    client
+      .listerUtilisateurs()
+      .then((liste) => {
+        if (!annule) setComptes(liste.filter((u) => u.actif && u.role !== Role.PATRON).map((u) => ({ id: u.id, nom: u.nom, role: u.role })));
+      })
+      .catch(() => undefined); // hors ligne : la dernière liste connue reste affichée
+    return () => {
+      annule = true;
+    };
+  }, [client, utilisateur?.userId, utilisateur?.role, visite, versionComptes]);
+
+  /** Ce qui attend d'être envoyé doit partir sous l'identité qui l'a créé : on synchronise avant de changer de compte, sinon on refuse. */
+  async function viderLaFileAvantChangement(): Promise<void> {
+    if (!miroir) throw new Error("L'application n'est pas encore prête.");
+    await miroir.moteur.forcerSynchronisation().catch(() => undefined);
+    if ((await miroir.actionsEnAttente()) > 0) {
+      throw new Error("Des actions ne sont pas encore envoyées au serveur. Patientez un instant (et vérifiez la connexion), puis réessayez.");
+    }
+  }
+
+  function aprèsChangementDeCompte(profil: ProfilConnecte) {
+    setUtilisateur(profil);
+    setCompteCafeteriaOuvert(null);
+    setReservationAFacturer(null);
+    setReservationAOuvrir(null);
+    setArriveeAEnregistrer(null);
+    setPageRefusee(null);
+    setPage("tableau-de-bord");
+  }
+
+  /** Le patron passe au compte d'un employé de son hôtel, sans mot de passe : le serveur ouvre une session pour ce compte. Exige Internet. */
+  async function basculerVers(cibleId: string): Promise<void> {
+    const g = gestionnaire.current;
+    const courant = profilRef.current;
+    if (!g || !client || !courant) throw new Error("L'application n'est pas encore prête.");
+    const patronNom = visite?.patronNom ?? courant.nom;
+    // Depuis la visite d'un employé : on repasse d'abord par le patron (seul lui peut ouvrir un autre compte).
+    if (g.enVisite()) await retourMonCompte();
+    else await viderLaFileAvantChangement();
+    let jetons: { accessToken: string; refreshToken: string; expiresAt: number };
+    try {
+      jetons = await client.basculerVersCompte(cibleId);
+    } catch (e) {
+      throw new Error(e instanceof ErreurApi && e.statusCode === 0 ? "Changer de compte demande Internet. Vérifiez la connexion et réessayez." : e instanceof Error ? e.message : "Changement de compte impossible.");
+    }
+    const profil = await g.commencerVisite(jetons);
+    setVisite({ id: profil.userId, nom: profil.nom, role: profil.role, patronNom });
+    aprèsChangementDeCompte(profil);
+  }
+
+  /** Retour au compte du patron : son jeton, resté en place, est renouvelé tout de suite. */
+  async function retourMonCompte(): Promise<void> {
+    const g = gestionnaire.current;
+    if (!g || !g.enVisite()) return;
+    await viderLaFileAvantChangement();
+    const retour = await g.terminerVisite();
+    setVisite(null);
+    if (retour.profil) aprèsChangementDeCompte(retour.profil);
+  }
+  retourMonCompteRef.current = retourMonCompte;
+
   /** Ferme la session. Les actions pas encore envoyées RESTENT sur l'appareil (base locale de l'hôtel) et partiront à la prochaine
    * connexion — on le dit avant, pour que personne ne croie les avoir perdues. */
   async function seDeconnecter() {
@@ -472,6 +549,7 @@ export function App() {
     }
     miroir?.fermer();
     await gestionnaire.current?.deconnecter();
+    setVisite(null);
     setMiroir(null);
     setEtatSync(null);
     setModeHorsLigne(false);
@@ -486,6 +564,7 @@ export function App() {
     const email = gestionnaire.current?.email() ?? undefined;
     miroir?.fermer();
     await gestionnaire.current?.deconnecter();
+    setVisite(null);
     setMiroir(null);
     setEtatSync(null);
     setModeHorsLigne(false);
@@ -535,6 +614,7 @@ export function App() {
     miroir.fermer();
     await gestionnaire.current?.deconnecter();
     await supprimerBaseIndexedDb(nom);
+    setVisite(null);
     setMiroir(null);
     setEtatSync(null);
     setUtilisateur(null);
@@ -781,6 +861,11 @@ export function App() {
         onToutMarquerLu={() => void centre.toutMarquerLu()}
         onEffacerNotification={(id) => void centre.effacer(id)}
         onToutEffacer={() => void centre.toutEffacer()}
+        comptes={comptes}
+        visite={visite}
+        onBasculer={basculerVers}
+        onRetourCompte={retourMonCompte}
+        onOuvrirComptes={() => setVersionComptes((n) => n + 1)}
         resumeAbonnement={
           utilisateur.abonnement
             ? (() => {
@@ -800,6 +885,16 @@ export function App() {
                   : `Session ouverte sans Internet. Vos actions sont enregistrées sur cet ordinateur et partiront dès le retour de la connexion.${joursRestants !== null && joursRestants <= 3 ? ` Reconnexion à Internet obligatoire dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}.` : ""}`}
               </div>
             ) : null}
+            {visite && (
+              <div className="bandeau-visite hc-text-body" role="status" data-testid="bandeau-visite">
+                <span>
+                  Vous utilisez le compte de <strong>{visite.nom}</strong> ({LIBELLE_ROLE_COMPTE[visite.role]}).
+                </span>
+                <button type="button" className="bandeau-visite__bouton" onClick={() => void retourMonCompte().catch((e: Error) => window.alert(e.message))}>
+                  Revenir à mon compte
+                </button>
+              </div>
+            )}
             <BandeauMiseAJour onOuvrir={() => naviguer("parametres")} />
             {page !== "abonnement" && <BandeauAbonnement etat={utilisateur.abonnement} onOuvrir={() => naviguer("abonnement")} />}
           </>

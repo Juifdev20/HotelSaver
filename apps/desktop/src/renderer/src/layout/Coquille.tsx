@@ -29,6 +29,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  Undo2,
   ShoppingCart,
   Sun,
   Ticket,
@@ -160,6 +161,12 @@ export interface CoquilleProps {
   /** ✕ sur une notification, et « Tout effacer » : seulement MA liste. */
   onEffacerNotification?: (id: string) => void;
   onToutEffacer?: () => void;
+  /** Changement de compte du patron (12/11/2026) : comptes du personnel, compte utilisé en « visite » (null = le sien), passage à un compte et retour. */
+  comptes?: { id: string; nom: string; role: Role }[];
+  visite?: { nom: string; role: Role; patronNom: string } | null;
+  onBasculer?: (utilisateurId: string) => Promise<void>;
+  onRetourCompte?: () => Promise<void>;
+  onOuvrirComptes?: () => void;
   /** Pastille d'abonnement de la carte du profil (barre latérale) : texte court + gravité ; absente = pas de pastille. */
   resumeAbonnement?: { titre: string; niveau: "ok" | "attention" | "danger" };
   /** Alerte de stock : « Ne plus m'alerter pour ce produit » (pour moi seul). */
@@ -210,6 +217,57 @@ function LienNavigation({
   );
 }
 
+function SelecteurComptes({
+  comptes,
+  visite,
+  courantId,
+  onBasculer,
+  onRetour,
+  apres,
+}: {
+  comptes: { id: string; nom: string; role: Role }[];
+  visite: { nom: string; role: Role; patronNom: string } | null;
+  courantId: string;
+  onBasculer: (id: string) => Promise<void>;
+  onRetour: () => Promise<void>;
+  apres: () => void;
+}) {
+  const [enCours, setEnCours] = useState<string | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  async function lancer(cle: string, action: () => Promise<void>) {
+    setEnCours(cle);
+    setErreur(null);
+    try {
+      await action();
+      apres();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Changement de compte impossible.");
+    } finally {
+      setEnCours(null);
+    }
+  }
+  const autres = comptes.filter((c) => c.id !== courantId);
+  if (!visite && autres.length === 0) return null;
+  return (
+    <div className="selecteur-comptes" data-testid="selecteur-comptes">
+      <p className="hc-text-label texte-discret selecteur-comptes__titre">Changer de compte</p>
+      {visite && (
+        <button type="button" className="coquille__item-menu selecteur-comptes__retour" role="menuitem" disabled={enCours !== null} onClick={() => void lancer("retour", onRetour)}>
+          <Undo2 size={17} aria-hidden="true" />
+          <span>Revenir à mon compte<small>{visite.patronNom} · Patron</small></span>
+        </button>
+      )}
+      {autres.map((c) => (
+        <button key={c.id} type="button" className="coquille__item-menu" role="menuitem" disabled={enCours !== null} onClick={() => void lancer(c.id, () => onBasculer(c.id))}>
+          <span className="coquille__avatar coquille__avatar--petit" aria-hidden="true">{initiales(c.nom)}</span>
+          <span>{c.nom}<small>{enCours === c.id ? "Ouverture…" : LIBELLE_ROLE[c.role]}</small></span>
+        </button>
+      ))}
+      {erreur && <p role="alert" className="hc-text-caption texte-erreur selecteur-comptes__erreur">{erreur}</p>}
+    </div>
+  );
+}
+
 export function Coquille({
   utilisateur,
   pageActive,
@@ -225,6 +283,11 @@ export function Coquille({
   onToutMarquerLu,
   onEffacerNotification,
   onToutEffacer,
+  comptes,
+  visite,
+  onBasculer,
+  onRetourCompte,
+  onOuvrirComptes,
   resumeAbonnement,
   pastilles,
   indicateurSynchro,
@@ -584,7 +647,10 @@ export function Coquille({
                 className="coquille__utilisateur"
                 data-testid="utilisateur-connecte"
                 ref={refBoutonProfil}
-                onClick={() => setMenuProfilOuvert((v) => !v)}
+                onClick={() => {
+                  if (!menuProfilOuvert) onOuvrirComptes?.();
+                  setMenuProfilOuvert((v) => !v);
+                }}
                 aria-expanded={menuProfilOuvert}
                 aria-haspopup="menu"
               >
@@ -603,6 +669,16 @@ export function Coquille({
                   <p className="hc-text-caption texte-discret coquille__menu-sous-entete" role="presentation">
                     {LIBELLE_ROLE[utilisateur.role]}
                   </p>
+                  {onBasculer && onRetourCompte && (
+                    <SelecteurComptes
+                      comptes={comptes ?? []}
+                      visite={visite ?? null}
+                      courantId={utilisateur.userId}
+                      onBasculer={onBasculer}
+                      onRetour={onRetourCompte}
+                      apres={() => setMenuProfilOuvert(false)}
+                    />
+                  )}
                   <button
                     type="button"
                     className="coquille__item-menu"
@@ -710,6 +786,16 @@ export function Coquille({
               variante="laterale"
             />
           </nav>
+          {onBasculer && onRetourCompte && (
+            <SelecteurComptes
+              comptes={comptes ?? []}
+              visite={visite ?? null}
+              courantId={utilisateur.userId}
+              onBasculer={onBasculer}
+              onRetour={onRetourCompte}
+              apres={() => setMenuMobileOuvert(false)}
+            />
+          )}
           <div className="coquille__pied-tiroir">
             <button type="button" className="lien-nav lien-nav--laterale lien-nav--danger" onClick={onDeconnexion}>
               <LogOut size={19} strokeWidth={1.9} aria-hidden="true" />

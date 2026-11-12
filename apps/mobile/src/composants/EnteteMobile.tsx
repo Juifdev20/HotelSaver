@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell, Building2, ChevronDown, ChevronRight, CloudOff, CreditCard, LogOut, RefreshCw, TriangleAlert, Download } from "lucide-react-native";
+import { Bell, Building2, ChevronDown, ChevronRight, CloudOff, CreditCard, LogOut, RefreshCw, TriangleAlert, Download, Undo2 } from "lucide-react-native";
 import { Role } from "@hotel-chicago/types";
 import { resumerEtatSync, type NiveauSync } from "@hotel-chicago/sync-engine";
 import { bandeauAbonnement } from "@hotel-chicago/regles";
@@ -14,6 +14,7 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useNotifications } from "../notifications/ContexteNotifications";
 import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { FeuilleModale } from "./FeuilleModale";
+import { FeuilleChangerDeCompte } from "./FeuilleChangerDeCompte";
 import { AvatarUtilisateur } from "./AvatarUtilisateur";
 import { parTheme } from "../theme/theme";
 
@@ -114,6 +115,26 @@ function BandeauMiseAJour() {
   );
 }
 
+/** Le patron utilise le compte d'un employé : rappel permanent et retour en un toucher (12/11/2026). */
+function BandeauVisite({ onOuvrir }: { onOuvrir: () => void }) {
+  const { visite } = useSession();
+  if (!visite) return null;
+  return (
+    <Pressable
+      style={[styles.bandeau, { backgroundColor: fonds.navy }]}
+      onPress={onOuvrir}
+      accessibilityRole="button"
+      accessibilityLabel={`Vous utilisez le compte de ${visite.nom}, ${LIBELLE_ROLE[visite.role]}. Toucher pour revenir à votre compte.`}
+    >
+      <Undo2 size={16} color="#fff" />
+      <Text style={[styles.bandeauTexte, { color: "#fff" }]} numberOfLines={2}>
+        Compte de {visite.nom} ({LIBELLE_ROLE[visite.role]}) · Revenir à mon compte
+      </Text>
+      <ChevronRight size={16} color="#fff" />
+    </Pressable>
+  );
+}
+
 /**
  * Bande du haut de tous les écrans connectés (maquette du patron, 15/10/2026) :
  * fond blanc, horloge/batterie en sombre ; logo seul + « HotelSaver / Gestion
@@ -122,7 +143,9 @@ function BandeauMiseAJour() {
  * profil — patron seulement, comme dans Plus — et déconnexion).
  */
 export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccueil?: boolean; sansBandeauAbonnement?: boolean } = {}) {
-  const { utilisateur, changerDeProfil, seDeconnecter } = useSession();
+  const { utilisateur, seDeconnecter, visite, comptes } = useSession();
+  const [changementOuvert, setChangementOuvert] = useState(false);
+  const peutChanger = utilisateur.role === Role.PATRON || visite !== null;
   const { nonLues, ouvrirCentre } = useNotifications();
   const insets = useSafeAreaInsets();
   const etatSync = useSyncEtat();
@@ -188,6 +211,8 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
       {!sansBandeauAbonnement && <BandeauAbonnement />}
       <BandeauSync />
       <BandeauMiseAJour />
+      <BandeauVisite onOuvrir={() => setChangementOuvert(true)} />
+      <FeuilleChangerDeCompte visible={changementOuvert} onFermer={() => setChangementOuvert(false)} />
 
       <FeuilleModale visible={menuOuvert} onFermer={() => setMenuOuvert(false)} titre="Mon compte">
         <View style={styles.compte}>
@@ -201,16 +226,17 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
           <Building2 size={16} color={couleurs.encreAttenuee} />
           <Text style={styles.compteHotelTexte}>{utilisateur.hotelNom}</Text>
         </View>
-        {utilisateur.role === Role.PATRON && (
+        {peutChanger && (
           <Pressable
             style={styles.action}
             onPress={() => {
               setMenuOuvert(false);
-              changerDeProfil();
+              setChangementOuvert(true);
             }}
+            accessibilityRole="button"
           >
             <RefreshCw size={18} color={couleurs.bleu} />
-            <Text style={styles.actionTexte}>Changer de profil</Text>
+            <Text style={styles.actionTexte}>{visite ? "Revenir à mon compte ou changer" : comptes.length > 0 ? "Changer de compte" : "Changer de compte"}</Text>
           </Pressable>
         )}
         <Pressable style={styles.action} onPress={confirmerDeconnexion}>

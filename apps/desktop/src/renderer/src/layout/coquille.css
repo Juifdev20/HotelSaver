@@ -948,3 +948,41 @@
 .coquille--reduite .carte-profil__textes {
   display: none;
 }
+
+/* ---------- Changement de compte du patron (12/11/2026) ---------- */
+.selecteur-comptes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--hc-space-2) 0;
+  border-bottom: 1px solid var(--hc-border);
+  margin-bottom: var(--hc-space-1);
+}
+.selecteur-comptes__titre {
+  margin: 0;
+  padding: var(--hc-space-1) var(--hc-space-3);
+}
+.selecteur-comptes .coquille__item-menu span {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.selecteur-comptes .coquille__item-menu small {
+  color: var(--hc-ink-muted);
+  font-size: 12px;
+}
+.selecteur-comptes__retour {
+  background: rgba(37, 99, 235, 0.09);
+  color: var(--hc-blue);
+}
+.selecteur-comptes__erreur {
+  padding: 0 var(--hc-space-3);
+}
+.coquille__avatar--petit {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+.coquille__tiroir .selecteur-comptes {
+  padding: var(--hc-space-3);
+}

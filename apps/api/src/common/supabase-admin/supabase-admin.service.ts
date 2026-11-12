@@ -131,6 +131,31 @@ export class SupabaseAdminService {
     console.error(`[mot de passe oublié] Supabase a refusé (${reponse.status}) : ${json.error_code ?? json.code ?? "erreur"}`); // jamais le corps complet (peut citer l'adresse e-mail)
   }
 
+  /**
+   * Ouvre une session pour un compte SANS son mot de passe (changement de compte du patron). Supabase n'a pas d'« usurpation » directe :
+   * on fait générer à l'administration un lien de connexion (rien n'est envoyé par e-mail : on n'en lit que le jeton), puis on le valide
+   * tout de suite, ce qui donne une vraie session (jeton d'accès + jeton de renouvellement) comme une connexion normale.
+   */
+  async creerSessionPour(email: string): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
+    const url = process.env.SUPABASE_URL;
+    const cle = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !cle) throw new InternalServerErrorException("SUPABASE_URL/SUPABASE_ANON_KEY non configurés.");
+    const lien = await this.appel("POST", "/generate_link", { type: "magiclink", email });
+    const jetonLien: string | undefined = lien?.hashed_token;
+    if (!jetonLien) throw new InternalServerErrorException("Supabase Auth n'a pas fourni de lien de connexion.");
+    const reponse = await fetch(`${url}/auth/v1/verify`, {
+      method: "POST",
+      headers: { apikey: cle, "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "magiclink", token_hash: jetonLien }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const json: any = await reponse.json().catch(() => ({}));
+    if (!reponse.ok || !json?.access_token || !json?.refresh_token) {
+      throw new InternalServerErrorException(`Supabase Auth a refusé d'ouvrir la session (${reponse.status}).`);
+    }
+    return { access_token: json.access_token, refresh_token: json.refresh_token, expires_in: json.expires_in ?? 3600 };
+  }
+
   /** Identifiant Supabase Auth du détenteur d'un jeton d'accès, ou null si le
    * jeton est invalide ou expiré. */
   async idDepuisJeton(jeton: string): Promise<string | null> {

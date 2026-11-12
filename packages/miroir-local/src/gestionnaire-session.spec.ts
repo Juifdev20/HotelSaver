@@ -306,3 +306,63 @@ describe("sécurité de la session (audit du 10/10/2026)", () => {
     expect(await hors.accesEnCours()).toMatchObject({ autorise: false, raison: "delai" });
   });
 });
+
+describe("changement de compte du patron (visite, 12/11/2026)", () => {
+  const jetonEmploye = (m: ReturnType<typeof monde>): JetonSession => ({ accessToken: "at-employe", refreshToken: "rt-employe", expiresAt: m.etat.maintenant.getTime() / 1000 + 3600 });
+
+  it("pendant la visite, le jeton de l'employé sert ; les comptes mémorisés (compte actif, jeton du patron) ne bougent pas", async () => {
+    const m = monde();
+    const s = m.session();
+    await s.connecter("patron@hotel.cd", "secret-123");
+    const avant = JSON.stringify(m.etat.memo);
+    const patronAccess = s.accessToken();
+    await s.commencerVisite(jetonEmploye(m));
+    expect(s.enVisite()).toBe(true);
+    expect(s.accessToken()).toBe("at-employe");
+    await s.entretenir();
+    await s.memoriserProfil(profil({ nom: "Employé" }));
+    expect(JSON.stringify(m.etat.memo)).toBe(avant);
+    // « Revenir à mon compte » : on retrouve le patron (jeton renouvelé), la visite est finie.
+    const retour = await s.terminerVisite();
+    expect(s.enVisite()).toBe(false);
+    expect(retour.mode).toBe("en-ligne");
+    expect(s.accessToken()).not.toBe("at-employe");
+    expect(s.accessToken()).not.toBe(patronAccess); // renouvelé
+  });
+
+  it("fermer l'application pendant une visite : au lancement suivant on retrouve le patron, jamais l'employé", async () => {
+    const m = monde();
+    const s = m.session();
+    await s.connecter("patron@hotel.cd", "secret-123");
+    await s.commencerVisite(jetonEmploye(m));
+    const relance = m.session();
+    const r = await relance.demarrer();
+    expect(r).toMatchObject({ etat: "connecte", email: "patron@hotel.cd" });
+    expect(relance.enVisite()).toBe(false);
+  });
+
+  it("les jetons de la visite se renouvellent seuls (en mémoire) ; refusés par le serveur, la visite s'arrête et demande le retour au patron", async () => {
+    const m = monde();
+    const s = m.session();
+    await s.connecter("patron@hotel.cd", "secret-123");
+    await s.commencerVisite({ ...jetonEmploye(m), expiresAt: m.etat.maintenant.getTime() / 1000 + 60 });
+    const r1 = await s.entretenir();
+    expect(r1.visiteTerminee).toBeUndefined();
+    expect(s.accessToken()).toMatch(/^at-\d+$/); // jeton de la visite renouvelé
+    m.etat.refreshValide = false;
+    await s.commencerVisite({ ...jetonEmploye(m), expiresAt: m.etat.maintenant.getTime() / 1000 + 60 });
+    const r2 = await s.entretenir();
+    expect(r2.visiteTerminee).toBe(true);
+    expect(s.enVisite()).toBe(false);
+  });
+
+  it("se déconnecter met fin à la visite", async () => {
+    const m = monde();
+    const s = m.session();
+    await s.connecter("patron@hotel.cd", "secret-123");
+    await s.commencerVisite(jetonEmploye(m));
+    await s.deconnecter();
+    expect(s.enVisite()).toBe(false);
+    expect(s.accessToken()).toBeNull();
+  });
+});
