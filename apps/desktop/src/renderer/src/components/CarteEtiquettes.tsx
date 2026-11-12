@@ -56,7 +56,7 @@ export function CarteEtiquettes({ client, produit, interfaceImprimante, exemplai
   async function imprimer() {
     if (!courant.codeBarres) return;
     if (!interfaceImprimante) {
-      setMessage({ texte: "Aucune imprimante configurée — Paramètres > Imprimante.", reussi: false });
+      setMessage({ texte: "Aucune imprimante configurée — Réglages > Imprimante.", reussi: false });
       return;
     }
     setEnCours(true);

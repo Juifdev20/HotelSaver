@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { Prisma, PrismaClient, Role as RolePrisma } from "@hotel-chicago/database";
-import type { EtatPushNotifications, ListeNotifications, LienNotification, NotificationApp, ResultatTestPush, Role, TypeNotification, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { MINUTES_AVANT_DISPARITION_NOTIFICATION, type EtatPushNotifications, type ListeNotifications, type LienNotification, type NotificationApp, type ResultatTestPush, type Role, type TypeNotification, type UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { PRISMA } from "../prisma/prisma.module";
 import type { MessageNotification } from "./messages";
 import { PushService } from "./push.service";
@@ -20,6 +20,19 @@ const JOURS_CONSERVATION_NOTIFICATIONS = 60;
 const JOURS_CONSERVATION_APPAREILS = 90;
 
 const enRole = (role: Role): RolePrisma => role as unknown as RolePrisma;
+
+/** « Effacée » = marquée lue à une date très ancienne : la règle « lue depuis plus de 30 min » la masque, sans nouvelle colonne ni migration. */
+const DATE_EFFACEE = new Date(0);
+
+/** Ce que MOI je vois : mon hôtel, mon rôle, et ni les notifications effacées ni celles lues depuis plus de 30 minutes. */
+function visiblesPour(utilisateur: UtilisateurAuthentifie, maintenant = new Date()): Prisma.NotificationWhereInput {
+  const limite = new Date(maintenant.getTime() - MINUTES_AVANT_DISPARITION_NOTIFICATION * 60_000);
+  return {
+    hotelId: utilisateur.hotelId,
+    roles: { has: enRole(utilisateur.role) },
+    NOT: { lectures: { some: { utilisateurId: utilisateur.userId, luLe: { lt: limite } } } },
+  };
+}
 
 @Injectable()
 export class NotificationsService {
@@ -86,13 +99,13 @@ export class NotificationsService {
 
   /** Notifications de MON hôtel destinées à MON rôle (le `hotelId` vient du jeton, jamais du client). */
   async lister(utilisateur: UtilisateurAuthentifie, options: { depuis?: string; limite?: number }): Promise<ListeNotifications> {
-    const portee: Prisma.NotificationWhereInput = { hotelId: utilisateur.hotelId, roles: { has: enRole(utilisateur.role) } };
+    const portee = visiblesPour(utilisateur);
     const [lignes, nonLues] = await Promise.all([
       this.prisma.notification.findMany({
         where: { ...portee, ...(options.depuis ? { createdAt: { gt: new Date(options.depuis) } } : {}) },
         orderBy: { createdAt: "desc" },
         take: Math.min(options.limite ?? LIMITE_PAR_DEFAUT, 100),
-        include: { lectures: { where: { utilisateurId: utilisateur.userId }, select: { utilisateurId: true } } },
+        include: { lectures: { where: { utilisateurId: utilisateur.userId }, select: { utilisateurId: true, luLe: true } } },
       }),
       this.prisma.notification.count({ where: { ...portee, lectures: { none: { utilisateurId: utilisateur.userId } } } }),
     ]);
@@ -105,6 +118,7 @@ export class NotificationsService {
       lien: n.lien as unknown as LienNotification,
       createdAt: n.createdAt.toISOString(),
       lue: n.lectures.length > 0,
+      luLe: n.lectures[0]?.luLe?.toISOString() ?? null,
     }));
     return { notifications, nonLues };
   }
@@ -119,9 +133,32 @@ export class NotificationsService {
     await this.prisma.notificationLue.createMany({ data: [{ notificationId: id, utilisateurId: utilisateur.userId }], skipDuplicates: true });
   }
 
+  /** Efface UNE notification de MA liste (les autres personnes la gardent). Même portée que la liste : impossible d'effacer celle d'un autre hôtel ou rôle. */
+  async effacer(utilisateur: UtilisateurAuthentifie, id: string): Promise<void> {
+    const notification = await this.prisma.notification.findFirst({
+      where: { id, hotelId: utilisateur.hotelId, roles: { has: enRole(utilisateur.role) } },
+      select: { id: true },
+    });
+    if (!notification) throw new NotFoundException("Notification introuvable.");
+    await this.marquerEffacees(utilisateur, [id]);
+  }
+
+  /** « Tout effacer » : toutes les notifications que je vois en ce moment. */
+  async effacerToutes(utilisateur: UtilisateurAuthentifie): Promise<{ effacees: number }> {
+    const visibles = await this.prisma.notification.findMany({ where: visiblesPour(utilisateur), select: { id: true }, take: 500 });
+    if (visibles.length > 0) await this.marquerEffacees(utilisateur, visibles.map((n) => n.id));
+    return { effacees: visibles.length };
+  }
+
+  private async marquerEffacees(utilisateur: UtilisateurAuthentifie, ids: string[]): Promise<void> {
+    await this.prisma.notificationLue.createMany({ data: ids.map((notificationId) => ({ notificationId, utilisateurId: utilisateur.userId, luLe: DATE_EFFACEE })), skipDuplicates: true });
+    // Déjà lue (la ligne existait) : on la date d'autrefois pour qu'elle disparaisse tout de suite.
+    await this.prisma.notificationLue.updateMany({ where: { notificationId: { in: ids }, utilisateurId: utilisateur.userId }, data: { luLe: DATE_EFFACEE } });
+  }
+
   async marquerToutesLues(utilisateur: UtilisateurAuthentifie): Promise<void> {
     const nonLues = await this.prisma.notification.findMany({
-      where: { hotelId: utilisateur.hotelId, roles: { has: enRole(utilisateur.role) }, lectures: { none: { utilisateurId: utilisateur.userId } } },
+      where: { ...visiblesPour(utilisateur), lectures: { none: { utilisateurId: utilisateur.userId } } },
       select: { id: true },
       take: 500,
     });

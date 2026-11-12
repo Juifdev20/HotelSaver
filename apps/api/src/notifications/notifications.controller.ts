@@ -33,6 +33,12 @@ export class NotificationsController {
     return { ok: true };
   }
 
+  /** « Tout effacer » (de MA liste). Route littérale AVANT ":id". */
+  @Delete()
+  async effacerToutes(@CurrentUser() utilisateur: UtilisateurAuthentifie) {
+    return this.notificationsService.effacerToutes(utilisateur);
+  }
+
   @Post("appareils")
   @HttpCode(200)
   async enregistrerAppareil(@Body() dto: EnregistrerAppareilDto, @CurrentUser() utilisateur: UtilisateurAuthentifie) {
@@ -73,6 +79,12 @@ export class NotificationsController {
   @Delete("alertes-stock/coupures")
   reactiver(@Body() dto: CouperAlerteStockDto, @CurrentUser() utilisateur: UtilisateurAuthentifie) {
     return this.alertesStock.reactiver(utilisateur, dto.produitId ?? null);
+  }
+
+  @Delete(":id")
+  async effacer(@Param("id") id: string, @CurrentUser() utilisateur: UtilisateurAuthentifie) {
+    await this.notificationsService.effacer(utilisateur, id);
+    return { ok: true };
   }
 
   @Post(":id/lue")

@@ -5,7 +5,7 @@ import { ErreurApi, type ClientApi } from "@hotel-chicago/api-client";
 import { construireEtiquette, genererEan13Interne } from "@hotel-chicago/receipts";
 import { Devise, Produit, Role, TypeProduit, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import { Button, StatusBadge, formatMontant } from "@hotel-chicago/ui";
-import { Camera, Printer, UtensilsCrossed } from "lucide-react";
+import { Camera, Package, Printer, Search, UtensilsCrossed, X } from "lucide-react";
 import { ScannerWebcam } from "../components/ScannerWebcam";
 import { PanneauFormulaire } from "../components/PanneauFormulaire";
 import { SelecteurPhotos, nettoyerImages } from "../components/SelecteurPhotos";
@@ -15,7 +15,7 @@ import { lireMontant, lireQuantite } from "@hotel-chicago/miroir-local";
 export interface EcranMenuProps {
   client: ClientApi;
   utilisateur: UtilisateurAuthentifie;
-  /** Imprimante configurée (Paramètres) — pour les étiquettes code-barres. */
+  /** Imprimante configurée (Réglages) — pour les étiquettes code-barres. */
   interfaceImprimante?: string | null;
 }
 
@@ -52,6 +52,10 @@ function placeholdersPour(typeProduit: TypeProduit) {
 export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: EcranMenuProps) {
   const peutModifier = utilisateur.role === Role.PATRON;
   const [produits, setProduits] = useState<Produit[] | null>(null);
+  // « Produits » (12/11/2026, ex-Menu) : deux onglets, une recherche, et « Que voulez-vous ajouter ? » avant le formulaire.
+  const [onglet, setOnglet] = useState<"articles" | "plats">("articles");
+  const [recherche, setRecherche] = useState("");
+  const [choixAjout, setChoixAjout] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const [produitEnEdition, setProduitEnEdition] = useState<Produit | null>(null);
@@ -85,9 +89,11 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
 
   useEffect(charger, [client]);
 
-  function ouvrirCreation() {
+  function ouvrirCreation(type: TypeProduit = TypeProduit.ARTICLE) {
+    setChoixAjout(false);
     setProduitEnEdition(null);
-    setFormulaire(FORMULAIRE_VIDE);
+    setFormulaire({ ...FORMULAIRE_VIDE, typeProduit: type });
+    setOnglet(type === TypeProduit.PLAT ? "plats" : "articles");
     setCodeGenere(false);
     setMessageEtiquette(null);
     setNbEtiquettesSaisi(null);
@@ -135,7 +141,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
   async function imprimerEtiquette(produit: Produit | null = produitEnEdition) {
     if (!produit?.codeBarres) return;
     if (!interfaceImprimante) {
-      setMessageEtiquette("Aucune imprimante configurée — Paramètres > Imprimante.");
+      setMessageEtiquette("Aucune imprimante configurée — Réglages > Imprimante.");
       return;
     }
     setMessageEtiquette(null);
@@ -260,7 +266,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
       if (!estPlat && enregistre.codeBarres && n > 0) {
         setMessageListe(`Impression de ${n} étiquette${n > 1 ? "s" : ""} pour « ${enregistre.nom} »…`);
         try {
-          if (!interfaceImprimante) throw new Error("Aucune imprimante configurée — Paramètres > Imprimante.");
+          if (!interfaceImprimante) throw new Error("Aucune imprimante configurée — Réglages > Imprimante.");
           await window.hotelChicago.imprimer(interfaceImprimante, construireEtiquette(enregistre, n));
           setMessageListe(`✓ « ${enregistre.nom} » enregistré — ${n} étiquette${n > 1 ? "s" : ""} imprimée${n > 1 ? "s" : ""}.`);
         } catch (erreurImpression) {
@@ -289,7 +295,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
 
   async function supprimer(produit: Produit) {
     const confirme = await demander({
-      titre: `Supprimer « ${produit.nom} » du menu ?`,
+      titre: `Supprimer « ${produit.nom} » ?`,
       message: "Le produit disparaît de la caisse et du site de l'hôtel. Les ventes déjà enregistrées ne changent pas.",
       libelleConfirmer: "Supprimer ce produit",
       destructif: true,
@@ -308,21 +314,77 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
     }
   }
 
+  const terme = recherche.toLowerCase().trim();
+  const produitsAffiches = (produits ?? []).filter(
+    (p) =>
+      (onglet === "plats" ? p.typeProduit === TypeProduit.PLAT : p.typeProduit !== TypeProduit.PLAT) &&
+      (!terme || p.nom.toLowerCase().includes(terme) || p.categorie.toLowerCase().includes(terme))
+  );
+
   return (
     <div className="page">
       <header className="page__entete">
         <div>
-          <h1 className="hc-text-display-md page__titre">Menu</h1>
+          <h1 className="hc-text-display-md page__titre">Produits</h1>
           <p className="hc-text-body page__sous-titre">
-            {peutModifier ? "Gérez les produits en vente." : "Seul le Patron peut modifier le menu."}
+            {peutModifier ? "Ce que vous vendez : articles en stock et plats préparés." : "Seul le Patron peut modifier les produits."}
           </p>
         </div>
         {peutModifier && (
-          <Button type="button" onClick={ouvrirCreation}>
-            Nouveau produit
+          <Button type="button" onClick={() => setChoixAjout(true)}>
+            + Ajouter
           </Button>
         )}
       </header>
+
+      <div className="puces" role="group" aria-label="Type de produit">
+        <button type="button" className="puce" aria-pressed={onglet === "articles"} onClick={() => setOnglet("articles")}>
+          Articles en stock{produits ? ` (${produits.filter((p) => p.typeProduit !== TypeProduit.PLAT).length})` : ""}
+        </button>
+        <button type="button" className="puce" aria-pressed={onglet === "plats"} onClick={() => setOnglet("plats")}>
+          Plats préparés{produits ? ` (${produits.filter((p) => p.typeProduit === TypeProduit.PLAT).length})` : ""}
+        </button>
+      </div>
+
+      <label className="champ-recherche">
+        <Search size={18} aria-hidden="true" />
+        <span className="visuellement-cache">Rechercher un produit</span>
+        <input type="search" placeholder="Rechercher par nom ou catégorie…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
+        {recherche && (
+          <button type="button" className="champ-recherche__effacer" onClick={() => setRecherche("")} aria-label="Effacer">
+            <X size={16} aria-hidden="true" />
+          </button>
+        )}
+      </label>
+
+      {choixAjout && peutModifier && (
+        <PanneauFormulaire
+          titre="Que voulez-vous ajouter ?"
+          sousTitre="Un article en stock se compte et se scanne ; un plat préparé se fait à la commande."
+          onFermer={() => setChoixAjout(false)}
+          erreur={null}
+          actions={
+            <Button type="button" variant="secondary" onClick={() => setChoixAjout(false)}>
+              Annuler
+            </Button>
+          }
+        >
+          <button type="button" className="choix-ajout" onClick={() => ouvrirCreation(TypeProduit.ARTICLE)}>
+            <Package size={22} aria-hidden="true" />
+            <span>
+              <strong>Article en stock</strong>
+              <small>Boisson, snack… avec quantité en stock et code-barres.</small>
+            </span>
+          </button>
+          <button type="button" className="choix-ajout" onClick={() => ouvrirCreation(TypeProduit.PLAT)}>
+            <UtensilsCrossed size={22} aria-hidden="true" />
+            <span>
+              <strong>Plat préparé</strong>
+              <small>Préparé en cuisine, avec photo et portions.</small>
+            </span>
+          </button>
+        </PanneauFormulaire>
+      )}
 
       {erreur && (
         <p role="alert" className="hc-text-body texte-erreur">
@@ -632,7 +694,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
                 />
               </div>
               <p className="hc-text-caption texte-discret">
-                Le plat apparaît sur le site web de l'hôtel si la commande en ligne est activée dans Paramètres.
+                Le plat apparaît sur le site web de l'hôtel si la commande en ligne est activée dans Réglages.
               </p>
             </>
           )}
@@ -641,14 +703,16 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
 
       {produits === null && !erreur && <p className="hc-text-body texte-discret">Chargement…</p>}
 
-      {produits?.length === 0 && (
+      {produits && produitsAffiches.length === 0 && (
         <div className="etat-vide">
           <UtensilsCrossed size={32} strokeWidth={1.5} aria-hidden="true" />
-          <p className="hc-text-subheading">Aucun produit enregistré</p>
+          <p className="hc-text-subheading">
+            {recherche ? "Aucun produit ne correspond." : onglet === "plats" ? "Aucun plat préparé enregistré" : "Aucun article en stock enregistré"}
+          </p>
         </div>
       )}
 
-      {produits && produits.length > 0 && (
+      {produits && produitsAffiches.length > 0 && (
         <div className="carte-tableau" data-testid="tableau-menu">
           <table className="tableau">
             <thead>
@@ -663,7 +727,7 @@ export function EcranMenu({ client, utilisateur, interfaceImprimante = null }: E
               </tr>
             </thead>
             <tbody>
-              {produits.map((p) => (
+              {produitsAffiches.map((p) => (
                 <tr key={p.id}>
                   <td className="hc-text-body-strong">{p.nom}</td>
                   <td className="texte-discret">{p.categorie}</td>

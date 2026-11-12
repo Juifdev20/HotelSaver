@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  Coins,
   CreditCard,
   FileText,
   HandCoins,
@@ -38,7 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { useDialogue, useTitrePage } from "@hotel-chicago/ui";
-import { EntreeNavigation, IdPage, entreesBarreDuBas, libellePage, sectionsPourRole } from "../navigation";
+import { EntreeNavigation, IdPage, entreesBarreDuBas, libellePage, pageDeLaBarre, sectionsPourRole } from "../navigation";
 import { fonctionOuverte } from "../fonctions";
 // Logo de l'APPLICATION HotelSaver (identité plateforme, distincte du logo
 // de chaque hôtel — voir DECISIONS.md « branding application vs hôtel »).
@@ -94,6 +95,7 @@ const ICONES: Record<IdPage, LucideIcon> = {
   depenses: Wallet,
   guides: BookOpen,
   synchronisation: RefreshCw,
+  "taux-de-change": Coins,
 };
 
 const LIBELLE_ROLE: Record<Role, string> = {
@@ -155,6 +157,11 @@ export interface CoquilleProps {
   nonLues: number;
   onOuvrirNotification: (notification: NotificationApp) => void;
   onToutMarquerLu: () => void;
+  /** ✕ sur une notification, et « Tout effacer » : seulement MA liste. */
+  onEffacerNotification?: (id: string) => void;
+  onToutEffacer?: () => void;
+  /** Pastille d'abonnement de la carte du profil (barre latérale) : texte court + gravité ; absente = pas de pastille. */
+  resumeAbonnement?: { titre: string; niveau: "ok" | "attention" | "danger" };
   /** Alerte de stock : « Ne plus m'alerter pour ce produit » (pour moi seul). */
   onCouperAlerteStock?: (produitId: string) => Promise<void>;
   /** Petits nombres affichés sur une entrée de la navigation (ex. remboursements à faire). */
@@ -216,6 +223,9 @@ export function Coquille({
   onOuvrirNotification,
   onCouperAlerteStock,
   onToutMarquerLu,
+  onEffacerNotification,
+  onToutEffacer,
+  resumeAbonnement,
   pastilles,
   indicateurSynchro,
   bandeau,
@@ -225,6 +235,7 @@ export function Coquille({
   const [menuProfilOuvert, setMenuProfilOuvert] = useState(false);
   const [notificationsOuvertes, setNotificationsOuvertes] = useState(false);
   const [coupes, setCoupes] = useState<Record<string, "occupe" | "fait">>({});
+  const [confirmerToutEffacer, setConfirmerToutEffacer] = useState(false);
   const [recherche, setRecherche] = useState("");
   const [barreReduitePrefereeParUtilisateur, setBarreReduite] = useState(barreReduitePreferee);
   const fenetreCompacte = useFenetreCompacte();
@@ -325,7 +336,7 @@ export function Coquille({
             <LienNavigation
               key={entree.id}
               entree={entree}
-              actif={entree.id === pageActive}
+              actif={entree.id === pageDeLaBarre(pageActive)}
               onNaviguer={naviguer}
               variante="laterale"
               pastille={pastilles?.[entree.id]}
@@ -364,11 +375,32 @@ export function Coquille({
         <nav className="coquille__nav">{navigationComplete}</nav>
         <div className="coquille__pied-laterale">
           <LienNavigation
-            entree={{ id: "parametres", libelle: "Paramètres", libelleCourt: "Réglages", disponible: true }}
-            actif={pageActive === "parametres"}
+            entree={{ id: "parametres", libelle: "Réglages", libelleCourt: "Réglages", disponible: true }}
+            actif={pageDeLaBarre(pageActive) === "parametres"}
             onNaviguer={naviguer}
             variante="laterale"
           />
+          {/* Carte du profil : l'abonnement reste toujours à un clic (pastille), quoi qu'il y ait dans Réglages. */}
+          <button
+            type="button"
+            className="carte-profil"
+            data-testid="carte-profil"
+            onClick={() => naviguer("abonnement")}
+            title={resumeAbonnement ? `${resumeAbonnement.titre} : voir l'abonnement` : "Voir l'abonnement"}
+          >
+            <span className="coquille__avatar" aria-hidden="true">
+              {initiales(utilisateur.nom)}
+            </span>
+            <span className="carte-profil__textes">
+              <span className="hc-text-body-strong carte-profil__nom">{utilisateur.nom}</span>
+              <span className="hc-text-caption carte-profil__role">{LIBELLE_ROLE[utilisateur.role]}</span>
+              {resumeAbonnement && (
+                <span className={`carte-profil__pastille carte-profil__pastille--${resumeAbonnement.niveau}`}>
+                  {resumeAbonnement.titre} ›
+                </span>
+              )}
+            </span>
+          </button>
         </div>
       </aside>
 
@@ -431,53 +463,105 @@ export function Coquille({
                 >
                   <div className="coquille__notifications-entete">
                     <p className="hc-text-body-strong">Notifications</p>
-                    {nonLues > 0 && (
-                      <button type="button" className="coquille__lien-discret" onClick={onToutMarquerLu}>
-                        Tout marquer comme lu
-                      </button>
-                    )}
+                    <span className="coquille__notifications-actions">
+                      {nonLues > 0 && (
+                        <button type="button" className="coquille__lien-discret" onClick={onToutMarquerLu}>
+                          Tout lire
+                        </button>
+                      )}
+                      {onToutEffacer && notifications.length > 0 && !confirmerToutEffacer && (
+                        <button type="button" className="coquille__lien-discret coquille__lien-discret--danger" onClick={() => setConfirmerToutEffacer(true)}>
+                          Tout effacer
+                        </button>
+                      )}
+                    </span>
                   </div>
+                  {confirmerToutEffacer && (
+                    <div className="coquille__notifications-confirmation" role="alertdialog" aria-label="Tout effacer ?">
+                      <p className="hc-text-caption">Effacer toutes vos notifications ? Les autres personnes gardent les leurs.</p>
+                      <span className="coquille__notifications-actions">
+                        <button type="button" className="coquille__lien-discret" onClick={() => setConfirmerToutEffacer(false)}>
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          className="coquille__lien-discret coquille__lien-discret--danger"
+                          onClick={() => {
+                            setConfirmerToutEffacer(false);
+                            onToutEffacer?.();
+                          }}
+                        >
+                          Oui, tout effacer
+                        </button>
+                      </span>
+                    </div>
+                  )}
                   {notifications.length === 0 ? (
                     <p className="hc-text-caption texte-discret">Aucune notification pour le moment.</p>
                   ) : (
                     <ul className="coquille__notifications-liste">
-                      {notifications.map((n) => (
-                        <li key={n.id}>
-                          <button
-                            type="button"
-                            className={`coquille__notification${n.lue ? "" : " coquille__notification--non-lue"}`}
-                            onClick={() => {
-                              setNotificationsOuvertes(false);
-                              onOuvrirNotification(n);
-                            }}
-                          >
-                            <span className="hc-text-body-strong">{n.titre}</span>
-                            <span className="hc-text-caption">{n.corps}</span>
-                            <span className="hc-text-caption texte-discret">{formaterDateNotification(n.createdAt)}</span>
-                          </button>
-                          {onCouperAlerteStock && (n.type === "STOCK_BAS" || n.type === "STOCK_EPUISE") && n.lien.id && (
-                            <button
-                              type="button"
-                              className="coquille__notification-couper hc-text-caption"
-                              disabled={coupes[n.lien.id] !== undefined}
-                              onClick={() => {
-                                const produitId = n.lien.id!;
-                                setCoupes((c) => ({ ...c, [produitId]: "occupe" }));
-                                void onCouperAlerteStock(produitId).then(
-                                  () => setCoupes((c) => ({ ...c, [produitId]: "fait" })),
-                                  () =>
-                                    setCoupes((c) => {
-                                      const { [produitId]: _retire, ...reste } = c;
-                                      return reste;
-                                    })
-                                );
-                              }}
-                            >
-                              {coupes[n.lien.id] === "fait" ? "C'est coupé : ce produit ne vous sera plus annoncé" : "Ne plus m'alerter pour ce produit"}
-                            </button>
-                          )}
-                        </li>
-                      ))}
+                      {[
+                        { cle: "nouvelles", titre: "Nouvelles", liste: notifications.filter((n) => !n.lue) },
+                        { cle: "lues", titre: "Déjà lues", liste: notifications.filter((n) => n.lue) },
+                      ]
+                        .filter((groupe) => groupe.liste.length > 0)
+                        .map((groupe) => (
+                          <React.Fragment key={groupe.cle}>
+                            <li className="coquille__notifications-groupe hc-text-label texte-discret" aria-hidden="true">
+                              {groupe.titre}
+                            </li>
+                            {groupe.liste.map((n) => {
+                              return (
+                                <li key={n.id} className="coquille__notifications-ligne">
+                                  <button
+                                    type="button"
+                                    className={`coquille__notification${n.lue ? "" : " coquille__notification--non-lue"}`}
+                                    onClick={() => {
+                                      setNotificationsOuvertes(false);
+                                      onOuvrirNotification(n);
+                                    }}
+                                  >
+                                    <span className="hc-text-body-strong">{n.titre}</span>
+                                    <span className="hc-text-caption">{n.corps}</span>
+                                    <span className="hc-text-caption texte-discret">{formaterDateNotification(n.createdAt)}</span>
+                                  </button>
+                                  {onEffacerNotification && (
+                                    <button
+                                      type="button"
+                                      className="coquille__notification-effacer"
+                                      aria-label={`Effacer la notification : ${n.titre}`}
+                                      title="Effacer"
+                                      onClick={() => onEffacerNotification(n.id)}
+                                    >
+                                      <X size={15} aria-hidden="true" />
+                                    </button>
+                                  )}
+                                  {onCouperAlerteStock && (n.type === "STOCK_BAS" || n.type === "STOCK_EPUISE") && n.lien.id && (
+                                    <button
+                                      type="button"
+                                      className="coquille__notification-couper hc-text-caption"
+                                      disabled={coupes[n.lien.id] !== undefined}
+                                      onClick={() => {
+                                        const produitId = n.lien.id!;
+                                        setCoupes((c) => ({ ...c, [produitId]: "occupe" }));
+                                        void onCouperAlerteStock(produitId).then(
+                                          () => setCoupes((c) => ({ ...c, [produitId]: "fait" })),
+                                          () =>
+                                            setCoupes((c) => {
+                                              const { [produitId]: _retire, ...reste } = c;
+                                              return reste;
+                                            })
+                                        );
+                                      }}
+                                    >
+                                      {coupes[n.lien.id] === "fait" ? "C'est coupé : ce produit ne vous sera plus annoncé" : "Ne plus m'alerter pour ce produit"}
+                                    </button>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </React.Fragment>
+                        ))}
                     </ul>
                   )}
                 </div>
@@ -529,7 +613,19 @@ export function Coquille({
                     }}
                   >
                     <Settings size={17} aria-hidden="true" />
-                    Paramètres
+                    Réglages
+                  </button>
+                  <button
+                    type="button"
+                    className="coquille__item-menu"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuProfilOuvert(false);
+                      naviguer("abonnement");
+                    }}
+                  >
+                    <CreditCard size={17} aria-hidden="true" />
+                    Abonnement
                   </button>
                   <button
                     type="button"
@@ -549,7 +645,7 @@ export function Coquille({
 
         {/* Fenêtre étroite : l'avatar/nom/rôle de la barre du haut est masqué
             (faute de place) ; cette ligne le remplace, purement informative
-            (Paramètres/Déconnexion restent dans le tiroir « Plus »). */}
+            (Réglages/Déconnexion restent dans le tiroir « Plus »). */}
         <div className="coquille__accueil-etroit coquille__seulement-etroit" data-testid="accueil-mobile">
           <span className="coquille__avatar" aria-hidden="true">
             {initiales(utilisateur.nom)}
@@ -602,8 +698,14 @@ export function Coquille({
           <nav className="coquille__nav">
             {navigationComplete}
             <LienNavigation
-              entree={{ id: "parametres", libelle: "Paramètres", libelleCourt: "Réglages", disponible: true }}
-              actif={pageActive === "parametres"}
+              entree={{ id: "parametres", libelle: "Réglages", libelleCourt: "Réglages", disponible: true }}
+              actif={pageDeLaBarre(pageActive) === "parametres"}
+              onNaviguer={naviguer}
+              variante="laterale"
+            />
+            <LienNavigation
+              entree={{ id: "abonnement", libelle: "Abonnement", libelleCourt: "Abonnement", disponible: true }}
+              actif={pageActive === "abonnement"}
               onNaviguer={naviguer}
               variante="laterale"
             />

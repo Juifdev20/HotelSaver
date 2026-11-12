@@ -16,7 +16,7 @@ function creer() {
       count: jest.fn().mockResolvedValue(0),
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
-    notificationLue: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    notificationLue: { createMany: jest.fn().mockResolvedValue({ count: 1 }), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     appareilPush: {
       findMany: jest.fn().mockResolvedValue([{ jeton: "jeton-1" }, { jeton: "jeton-2" }]),
       upsert: jest.fn().mockResolvedValue({}),
@@ -215,6 +215,44 @@ describe("NotificationsService.annoncerMiseAJour", () => {
     prisma.notification.create.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("doublon", { code: "P2002", clientVersion: "x" }));
     expect(await service.annoncerMiseAJour("1.0.11")).toEqual({ hotels: 0, appareils: 0 });
     expect(push.envoyer).not.toHaveBeenCalled();
+  });
+});
+
+describe("NotificationsService — effacer et disparition (30 min après lecture)", () => {
+  it("la liste masque les notifications effacées ou lues depuis plus de 30 minutes, et renvoie la date de lecture", async () => {
+    const { service, prisma } = creer();
+    const luLe = new Date("2026-11-12T08:00:00Z");
+    prisma.notification.findMany.mockResolvedValue([{ id: "n-1", type: "STOCK_BAS", titre: "t", corps: "c", lien: { ecran: "stock" }, createdAt: new Date("2026-11-12T07:00:00Z"), lectures: [{ utilisateurId: "u-patron", luLe }] }]);
+    const r = await service.lister(PATRON, {});
+    const where = prisma.notification.findMany.mock.calls[0][0].where;
+    expect(where.hotelId).toBe("hotel-A");
+    expect(where.NOT.lectures.some).toMatchObject({ utilisateurId: "u-patron", luLe: { lt: expect.any(Date) } });
+    const limite = where.NOT.lectures.some.luLe.lt.getTime();
+    expect(Date.now() - limite).toBeGreaterThan(29 * 60_000);
+    expect(Date.now() - limite).toBeLessThan(31 * 60_000);
+    expect(r.notifications[0]).toMatchObject({ lue: true, luLe: luLe.toISOString() });
+  });
+
+  it("effacer : même portée que la liste (hôtel + rôle), puis la notification est datée d'autrefois pour MOI seulement", async () => {
+    const { service, prisma } = creer();
+    await service.effacer(CAFETARIA, "n-9");
+    expect(prisma.notification.findFirst).toHaveBeenCalledWith({ where: { id: "n-9", hotelId: "hotel-A", roles: { has: "CAFETARIA" } }, select: { id: true } });
+    expect(prisma.notificationLue.createMany).toHaveBeenCalledWith({ data: [{ notificationId: "n-9", utilisateurId: "u-caf", luLe: new Date(0) }], skipDuplicates: true });
+    expect(prisma.notificationLue.updateMany).toHaveBeenCalledWith({ where: { notificationId: { in: ["n-9"] }, utilisateurId: "u-caf" }, data: { luLe: new Date(0) } });
+  });
+
+  it("effacer une notification introuvable (autre hôtel) → 404, rien n'est écrit", async () => {
+    const { service, prisma } = creer();
+    prisma.notification.findFirst.mockResolvedValue(null);
+    await expect(service.effacer(AUTRE_HOTEL, "n-1")).rejects.toThrow(NotFoundException);
+    expect(prisma.notificationLue.createMany).not.toHaveBeenCalled();
+  });
+
+  it("tout effacer : toutes celles que je vois, et seulement elles", async () => {
+    const { service, prisma } = creer();
+    prisma.notification.findMany.mockResolvedValue([{ id: "a" }, { id: "b" }]);
+    expect(await service.effacerToutes(PATRON)).toEqual({ effacees: 2 });
+    expect(prisma.notificationLue.updateMany.mock.calls[0][0].where).toEqual({ notificationId: { in: ["a", "b"] }, utilisateurId: "u-patron" });
   });
 });
 

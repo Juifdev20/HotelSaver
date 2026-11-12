@@ -33,14 +33,27 @@ export interface EcranCuisineProps {
   client: ClientApi;
   /** Clic sur l'en-tête d'une commande : ouvre le détail complet du compte. */
   onOuvrirCompte?: (compteId: string) => void;
+  /** Affiché dans l'onglet « En cuisine » de « En cours » : pas de titre de page, la page est celle d'« En cours ». */
+  integre?: boolean;
 }
+
+/** Ligne marquée « Prêt » sur CE poste : elle reste visible dans « Prêt à servir » 30 min (le serveur ne renvoie plus que les lignes à préparer). */
+interface LignePrete {
+  ligne: LigneCuisine;
+  compteId: string;
+  tableOuNom: string;
+  ouvertLe: string;
+  a: number;
+}
+const MINUTES_PRET_VISIBLE = 30;
 
 /**
  * Écran de cuisine (KDS — Kitchen Display System).
  * Affiche les lignes EN_ATTENTE et EN_PREPARATION groupées par table.
  * Actualisation automatique toutes les 10 secondes.
  */
-export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
+export function EcranCuisine({ client, onOuvrirCompte, integre = false }: EcranCuisineProps) {
+  const [prets, setPrets] = useState<LignePrete[]>([]);
   const [groupes, setGroupes] = useState<GroupeCuisine[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -101,6 +114,13 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
     setErreurAction(null);
     try {
       await client.majStatutLigne(ligneId, statut);
+      if (statut === StatutLigne.PRET) {
+        const groupe = groupes.find((g) => g.lignes.some((l) => l.id === ligneId));
+        const ligne = groupe?.lignes.find((l) => l.id === ligneId);
+        if (groupe && ligne) {
+          setPrets((p) => [{ ligne: { ...ligne, statut: StatutLigne.PRET }, compteId: groupe.compteId, tableOuNom: groupe.tableOuNom, ouvertLe: groupe.ouvertLe, a: Date.now() }, ...p]);
+        }
+      }
       charger(true);
     } catch (e) {
       setErreurAction(
@@ -118,11 +138,84 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
   const attente = groupes.flatMap((g) => g.lignes).filter((l) => l.statut === StatutLigne.EN_ATTENTE).length;
   const enPrep = groupes.flatMap((g) => g.lignes).filter((l) => l.statut === StatutLigne.EN_PREPARATION).length;
 
+  const pretsVisibles = prets.filter((p) => maintenant - p.a < MINUTES_PRET_VISIBLE * 60_000);
+  const groupesPrets: GroupeCuisine[] = [];
+  for (const p of pretsVisibles) {
+    const existant = groupesPrets.find((g) => g.compteId === p.compteId);
+    if (existant) existant.lignes.push(p.ligne);
+    else groupesPrets.push({ compteId: p.compteId, tableOuNom: p.tableOuNom, ouvertLe: p.ouvertLe, lignes: [p.ligne] });
+  }
+  const filtrer = (statut: StatutLigne): GroupeCuisine[] =>
+    groupes.map((g) => ({ ...g, lignes: g.lignes.filter((l) => l.statut === statut) })).filter((g) => g.lignes.length > 0);
+
+  function carte(groupe: GroupeCuisine) {
+    const plusAncienne = groupe.lignes[0]?.createdAt ?? groupe.ouvertLe;
+    const diffMin = Math.floor((maintenant - new Date(plusAncienne).getTime()) / 60_000);
+    const pret = groupe.lignes.every((l) => l.statut === StatutLigne.PRET);
+    const urgente = !pret && diffMin >= 15;
+    const alerte = !pret && diffMin >= 8;
+    return (
+      <div key={groupe.compteId} className={`kds-carte${urgente ? " kds-carte--urgente" : alerte ? " kds-carte--alerte" : ""}`}>
+        <div className="kds-carte__entete">
+          {onOuvrirCompte ? (
+            <button type="button" className="kds-carte__table kds-carte__table--lien" onClick={() => onOuvrirCompte(groupe.compteId)} title="Ouvrir le compte">
+              {groupe.tableOuNom}
+            </button>
+          ) : (
+            <span className="hc-text-label kds-carte__table">{groupe.tableOuNom}</span>
+          )}
+          <span className={`hc-text-caption kds-carte__timer${urgente ? " kds-carte__timer--urgente" : ""}`}>
+            <Clock size={12} aria-hidden="true" />
+            {dureeDepuis(plusAncienne, maintenant)}
+          </span>
+        </div>
+        <div className="kds-carte__lignes">
+          {groupe.lignes.map((ligne) => {
+            const occupee = enCours.has(ligne.id);
+            const enAttente = ligne.statut === StatutLigne.EN_ATTENTE;
+            const estPret = ligne.statut === StatutLigne.PRET;
+            return (
+              <div key={ligne.id} className={`kds-ligne kds-ligne--${estPret ? "pret" : enAttente ? "attente" : "preparation"}`}>
+                <div className="kds-ligne__info">
+                  <span className="hc-text-body-strong">
+                    {ligne.quantite > 1 && <span className="kds-ligne__qte">{ligne.quantite}×</span>}
+                    {ligne.produit.nom}
+                  </span>
+                  {ligne.sousCompte.nom && <span className="hc-text-caption texte-discret">pour {ligne.sousCompte.nom}</span>}
+                  {ligne.note && <span className="hc-text-caption kds-ligne__note">{ligne.note}</span>}
+                </div>
+                {estPret ? (
+                  <span className="hc-text-caption kds-ligne__servir">À servir</span>
+                ) : (
+                  <button
+                    type="button"
+                    className={`kds-ligne__btn${enAttente ? " kds-ligne__btn--prendre" : " kds-ligne__btn--pret"}`}
+                    onClick={() => avancerStatut(ligne.id, enAttente ? StatutLigne.EN_PREPARATION : StatutLigne.PRET, ligne.produit.nom)}
+                    disabled={occupee}
+                    aria-label={enAttente ? `Prendre en charge ${ligne.produit.nom}` : `Marquer prêt ${ligne.produit.nom}`}
+                  >
+                    {occupee ? "…" : enAttente ? "Prendre en charge" : "Prêt ✓"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  const colonnes: { cle: string; titre: string; groupes: GroupeCuisine[]; vide: string }[] = [
+    { cle: "attente", titre: "À prendre en charge", groupes: filtrer(StatutLigne.EN_ATTENTE), vide: "Rien à prendre en charge." },
+    { cle: "preparation", titre: "En préparation", groupes: filtrer(StatutLigne.EN_PREPARATION), vide: "Rien en préparation." },
+    { cle: "pret", titre: "Prêt à servir", groupes: groupesPrets, vide: "Les plats prêts apparaissent ici." },
+  ];
+
   return (
-    <div className="page page--cuisine" ref={refPage}>
-      <header className="page__entete">
+    <div className={integre ? "page--cuisine-integree page--cuisine" : "page page--cuisine"} ref={refPage}>
+      <header className={integre ? "page__entete page__entete--discret" : "page__entete"}>
         <div>
-          <h1 className="hc-text-display-md page__titre">Cuisine</h1>
+          {!integre && <h1 className="hc-text-display-md page__titre">Cuisine</h1>}
           <p className="hc-text-body page__sous-titre" aria-live="polite">
             {attente > 0 && (
               <span className="kds-compteur kds-compteur--attente">{attente} en attente</span>
@@ -143,13 +236,7 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
           >
             {pleinEcran ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
           </button>
-          <button
-            type="button"
-            className="kds-rafraichir"
-            onClick={() => charger()}
-            title="Actualiser maintenant"
-            aria-label="Actualiser"
-          >
+          <button type="button" className="kds-rafraichir" onClick={() => charger()} title="Actualiser maintenant" aria-label="Actualiser">
             <RefreshCw size={18} aria-hidden="true" />
           </button>
         </div>
@@ -169,84 +256,25 @@ export function EcranCuisine({ client, onOuvrirCompte }: EcranCuisineProps) {
         </p>
       )}
 
-      {chargement && groupes.length === 0 ? (
+      {chargement && groupes.length === 0 && pretsVisibles.length === 0 ? (
         <p className="hc-text-body texte-discret">Chargement…</p>
-      ) : groupes.length === 0 ? (
+      ) : groupes.length === 0 && pretsVisibles.length === 0 ? (
         <div className="kds-vide">
           <ChefHat size={48} aria-hidden="true" />
           <p className="hc-text-body-strong">Cuisine à jour !</p>
           <p className="hc-text-body texte-discret">Toutes les commandes ont été servies.</p>
         </div>
       ) : (
-        <div className="kds-grille">
-          {groupes.map((groupe) => {
-            const plusAncienne = groupe.lignes[0]?.createdAt ?? groupe.ouvertLe;
-            const diffMin = Math.floor((maintenant - new Date(plusAncienne).getTime()) / 60_000);
-            const urgente = diffMin >= 15;
-            const alerte = diffMin >= 8;
-            return (
-              <div
-                key={groupe.compteId}
-                className={`kds-carte${urgente ? " kds-carte--urgente" : alerte ? " kds-carte--alerte" : ""}`}
-              >
-                <div className="kds-carte__entete">
-                  {onOuvrirCompte ? (
-                    <button
-                      type="button"
-                      className="kds-carte__table kds-carte__table--lien"
-                      onClick={() => onOuvrirCompte(groupe.compteId)}
-                      title="Ouvrir le compte"
-                    >
-                      {groupe.tableOuNom}
-                    </button>
-                  ) : (
-                    <span className="hc-text-label kds-carte__table">{groupe.tableOuNom}</span>
-                  )}
-                  <span className={`hc-text-caption kds-carte__timer${urgente ? " kds-carte__timer--urgente" : ""}`}>
-                    <Clock size={12} aria-hidden="true" />
-                    {dureeDepuis(plusAncienne, maintenant)}
-                  </span>
-                </div>
-
-                <div className="kds-carte__lignes">
-                  {groupe.lignes.map((ligne) => {
-                    const occupee = enCours.has(ligne.id);
-                    const enAttente = ligne.statut === StatutLigne.EN_ATTENTE;
-                    return (
-                      <div
-                        key={ligne.id}
-                        className={`kds-ligne kds-ligne--${enAttente ? "attente" : "preparation"}`}
-                      >
-                        <div className="kds-ligne__info">
-                          <span className="hc-text-body-strong">
-                            {ligne.quantite > 1 && <span className="kds-ligne__qte">{ligne.quantite}×</span>}
-                            {ligne.produit.nom}
-                          </span>
-                          {ligne.sousCompte.nom && (
-                            <span className="hc-text-caption texte-discret">pour {ligne.sousCompte.nom}</span>
-                          )}
-                          {ligne.note && (
-                            <span className="hc-text-caption kds-ligne__note">{ligne.note}</span>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          className={`kds-ligne__btn${enAttente ? " kds-ligne__btn--prendre" : " kds-ligne__btn--pret"}`}
-                          onClick={() =>
-                            avancerStatut(ligne.id, enAttente ? StatutLigne.EN_PREPARATION : StatutLigne.PRET, ligne.produit.nom)
-                          }
-                          disabled={occupee}
-                          aria-label={enAttente ? `Prendre en charge ${ligne.produit.nom}` : `Marquer prêt ${ligne.produit.nom}`}
-                        >
-                          {occupee ? "…" : enAttente ? "Prendre en charge" : "Prêt ✓"}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
+        <div className="kds-colonnes">
+          {colonnes.map((c) => (
+            <section key={c.cle} className={`kds-colonne kds-colonne--${c.cle}`} aria-label={c.titre}>
+              <h2 className="kds-colonne__titre hc-text-label">
+                {c.titre}
+                <span className="kds-colonne__nombre">{c.groupes.reduce((n, g) => n + g.lignes.length, 0)}</span>
+              </h2>
+              {c.groupes.length === 0 ? <p className="hc-text-caption texte-discret kds-colonne__vide">{c.vide}</p> : c.groupes.map(carte)}
+            </section>
+          ))}
         </div>
       )}
     </div>

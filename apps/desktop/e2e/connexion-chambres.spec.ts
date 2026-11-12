@@ -120,7 +120,7 @@ test("connexion réelle → tableau de bord puis Chambres avec les vraies donné
   await expect(navigation).toBeVisible();
 
   // L'état RÉEL du serveur (déplacé de la barre du haut vers Paramètres, cf. maquette du client) reste vérifiable.
-  await navigation.getByRole("button", { name: "Paramètres" }).click();
+  await navigation.getByRole("button", { name: "Réglages" }).click();
   await expect(fenetre.getByTestId("indicateur-connexion")).toHaveText("Serveur connecté");
   await navigation.getByRole("button", { name: "Tableau de bord" }).click();
 

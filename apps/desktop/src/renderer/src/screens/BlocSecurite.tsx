@@ -20,7 +20,7 @@ const DELAIS = [5, 10, 15, 30, 60];
 /**
  * Sécurité du compte sur ce poste. Rien n'est imposé en plus de ce qui existe déjà : le verrou après inactivité est DÉSACTIVÉ tant
  * que l'utilisateur ne le choisit pas (les équipes qui travaillent vite n'aiment pas être interrompues), et le mot de passe au
- * lancement (par défaut pour le patron, qui voit les finances) peut être retiré.
+ * lancement est facultatif (désactivé par défaut, patron compris : sessions longues, 12/11/2026).
  */
 export function BlocSecurite({ client, preferences, onChangerPreferences }: BlocSecuriteProps) {
   const [actuel, setActuel] = useState("");

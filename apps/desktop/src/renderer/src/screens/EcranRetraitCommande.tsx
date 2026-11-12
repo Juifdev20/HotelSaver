@@ -7,6 +7,8 @@ export interface EcranRetraitCommandeProps {
   client: ClientApi;
   /** Ouvre le détail du compte trouvé (lignes, encaissement, servir). */
   onOuvrirCompte: (compteId: string) => void;
+  /** Affiché dans le panneau « Retirer une commande web » d'« En cours » : sans titre de page. */
+  integre?: boolean;
 }
 
 /**
@@ -15,7 +17,7 @@ export interface EcranRetraitCommandeProps {
  * une fois le compte encaissé et clôturé, la référence devient obsolète —
  * elle ne peut pas être réutilisée pour se faire servir une deuxième fois.
  */
-export function EcranRetraitCommande({ client, onOuvrirCompte }: EcranRetraitCommandeProps) {
+export function EcranRetraitCommande({ client, onOuvrirCompte, integre = false }: EcranRetraitCommandeProps) {
   const [reference, setReference] = useState("");
   const [chargement, setChargement] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -35,13 +37,15 @@ export function EcranRetraitCommande({ client, onOuvrirCompte }: EcranRetraitCom
   }
 
   return (
-    <div className="page">
-      <header className="page__entete">
-        <div>
-          <h1 className="hc-text-display-md page__titre">Retrait commande</h1>
-          <p className="hc-text-body page__sous-titre">Commande passée sur le site web de l'hôtel</p>
-        </div>
-      </header>
+    <div className={integre ? undefined : "page"}>
+      {!integre && (
+        <header className="page__entete">
+          <div>
+            <h1 className="hc-text-display-md page__titre">Retrait commande</h1>
+            <p className="hc-text-body page__sous-titre">Commande passée sur le site web de l'hôtel</p>
+          </div>
+        </header>
+      )}
 
       <div className="carte-tableau carte-ticket">
         <form

@@ -420,7 +420,7 @@ export function EcranChambres({ client, utilisateur, rechercheInitiale, onNavigu
 
       {estPatron && !operer && (
         <p className="chambres-bandeau hc-text-body" role="note">
-          Vous consultez la réception. Pour enregistrer des arrivées et des départs, activez « le patron peut aussi opérer » dans les Paramètres.
+          Vous consultez la réception. Pour enregistrer des arrivées et des départs, activez « le patron peut aussi opérer » dans les Réglages.
         </p>
       )}
 

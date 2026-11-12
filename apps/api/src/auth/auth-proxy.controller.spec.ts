@@ -87,6 +87,21 @@ describe("AuthProxyController", () => {
     expect(JSON.parse(init.body as string)).toEqual({ refresh_token: "r1" });
   });
 
+  it("même jeton de renouvellement présenté deux fois (réponse perdue) : une seule demande à Supabase, même réponse rejouée", async () => {
+    simulerSupabase(200, { access_token: "t2", refresh_token: "r2", expires_in: 3600 });
+    const premier = await controleur.rafraichir({ refreshToken: "ancien-rejouable" });
+    const second = await controleur.rafraichir({ refreshToken: "ancien-rejouable" });
+    expect(second).toEqual(premier);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("un renouvellement refusé n'est pas gardé : le suivant repart de zéro", async () => {
+    simulerSupabase(400, { error_code: "refresh_token_already_used" });
+    await expect(controleur.rafraichir({ refreshToken: "refuse-une-fois" })).rejects.toBeInstanceOf(HttpException);
+    simulerSupabase(200, { access_token: "t3", refresh_token: "r3", expires_in: 3600 });
+    await expect(controleur.rafraichir({ refreshToken: "refuse-une-fois" })).resolves.toMatchObject({ access_token: "t3" });
+  });
+
   it("rejoue le statut et le corps Supabase en cas d'erreur (client → français)", async () => {
     simulerSupabase(400, { error_code: "invalid_credentials", msg: "Invalid login credentials" });
     try {

@@ -36,7 +36,7 @@ export type {
   TauxChange,
   Utilisateur,
 } from "./client";
-export { connecterAvecMotDePasse, rafraichirSession, connecterViaApi, rafraichirViaApi } from "./supabase-auth";
+export { connecterAvecMotDePasse, rafraichirSession, connecterViaApi, rafraichirViaApi, rafraichirAvecSecours, sessionRefusee } from "./supabase-auth";
 export type { ConfigSupabaseAuth, SessionSupabase } from "./supabase-auth";
 export { inscrireHotel, lireConditionsUtilisation, listerChambresDisponibles, listerMenu, creerDemandeReservationPublique, obtenirSuiviReservation, annulerReservationPublique, preEnregistrerReservation, creerCommandeWeb, obtenirInfoPublique, listerHotelsPartenaires, demanderReinitialisationMotDePasse, reinitialiserMotDePasse, obtenirFormulesPubliques, apercuAcompte, payerAcompte, lirePaiementAcompte } from "./public";
 export type { ConfigApiPublique } from "./public";

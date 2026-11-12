@@ -13,7 +13,7 @@ import { EcranVente } from "./ecrans/EcranVente";
 import { FournisseurVente, useVente } from "./vente/ContexteVente";
 import { FournisseurDemandeSejour, useDemandeSejour } from "./sejours/ContexteDemandeSejour";
 import { Role } from "@hotel-chicago/types";
-import { EcranComptesOuverts } from "./ecrans/EcranComptesOuverts";
+import { EcranEnCours } from "./ecrans/EcranEnCours";
 import { EcranCompteCafeteria } from "./ecrans/EcranCompteCafeteria";
 import { useNotifications } from "./notifications/ContexteNotifications";
 import { useNombreComptesOuverts } from "./hooks/useNombreComptesOuverts";
@@ -61,7 +61,7 @@ function EcranOngletComptesOuverts({ navigation }: { navigation: BottomTabNaviga
     return <EcranCompteCafeteria client={client} compteId={compteId} onRetour={() => setCompteId(null)} />;
   }
   return (
-    <EcranComptesOuverts
+    <EcranEnCours
       onOuvrirCompte={(id, compte) => {
         // La cafétaria reprend une table dans « Vente » (son onglet, avec les produits) ; une commande du site et le patron gardent le détail du compte.
         if (utilisateur.role === Role.CAFETARIA && compte && compte.origine !== "SITE_PUBLIC") {

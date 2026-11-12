@@ -24,7 +24,8 @@ export type IdPage =
   | "rapports"
   | "depenses"
   | "guides"
-  | "synchronisation";
+  | "synchronisation"
+  | "taux-de-change";
 
 export interface EntreeNavigation {
   id: IdPage;
@@ -57,47 +58,51 @@ export const SECTIONS: SectionNavigation[] = [
       { id: "chambres", libelle: "Chambres", libelleCourt: "Chambres", roles: RECEPTION, disponible: true },
       // « Séjours » (11/11/2026) remplace « Réservations » et « Arrivées et départs » : ce qu'il y a à faire aujourd'hui, et toutes les réservations.
       { id: "reservations", libelle: "Séjours", libelleCourt: "Séjours", roles: RECEPTION, disponible: true },
-      // Acomptes payés en ligne à rendre ou à garder : c'est l'argent du patron, lui seul décide (pastille « à faire » dans la barre).
-      { id: "remboursements", libelle: "Remboursements", libelleCourt: "Rembours.", roles: [Role.PATRON], disponible: true },
-      { id: "journal-journee", libelle: "Journal de la journée", libelleCourt: "Journal", roles: RECEPTION, disponible: true },
       { id: "clients", libelle: "Clients", libelleCourt: "Clients", roles: RECEPTION, disponible: true },
       { id: "facturation", libelle: "Facturation", libelleCourt: "Factures", roles: RECEPTION, disponible: true },
+      { id: "journal-journee", libelle: "Journal du jour", libelleCourt: "Journal", roles: RECEPTION, disponible: true },
+      // Acomptes payés en ligne à rendre ou à garder : c'est l'argent du patron, lui seul décide (pastille « à faire » dans la barre).
+      { id: "remboursements", libelle: "Remboursements", libelleCourt: "Rembours.", roles: [Role.PATRON], disponible: true },
     ],
   },
   {
-    titre: "Cafétaria",
+    titre: "Cafétéria",
+    // 12/11/2026 : « Cuisine » et « Retrait commande » vivent dans « En cours » (onglet / bouton), « Inventaire » dans « Stock »,
+    // et « Menu » s'appelle « Produits » (articles en stock + plats préparés). Les identifiants de page restent valides (anciens liens).
     entrees: [
       { id: "caisse", libelle: "Vente", libelleCourt: "Vente", roles: CAFETARIA, disponible: true },
       { id: "comptes-ouverts", libelle: "En cours", libelleCourt: "En cours", roles: CAFETARIA, disponible: true },
-      { id: "retrait-commande", libelle: "Retrait commande", libelleCourt: "Retrait", roles: CAFETARIA, disponible: true },
-      { id: "cuisine", libelle: "Cuisine", libelleCourt: "Cuisine", roles: CAFETARIA, disponible: true },
-      { id: "menu", libelle: "Menu", libelleCourt: "Menu", roles: CAFETARIA, disponible: true },
+      { id: "menu", libelle: "Produits", libelleCourt: "Produits", roles: CAFETARIA, disponible: true },
       { id: "stock", libelle: "Stock", libelleCourt: "Stock", roles: CAFETARIA, disponible: true },
-      { id: "inventaire", libelle: "Inventaire", libelleCourt: "Inventaire", roles: CAFETARIA, disponible: true },
     ],
   },
   {
-    titre: "Rapports",
+    titre: "Argent",
     entrees: [
-      { id: "rapports", libelle: "Rapports mensuels", libelleCourt: "Rapports", roles: TOUS, disponible: true },
+      { id: "rapports", libelle: "Rapports", libelleCourt: "Rapports", roles: TOUS, disponible: true },
       // Dépenses (07/10/2026) : saisies par la réception et la cafétaria,
       // consultées par le patron (filtrage par rôle dans l'écran + l'API).
       { id: "depenses", libelle: "Dépenses", libelleCourt: "Dépenses", roles: TOUS, disponible: true },
+      { id: "taux-de-change", libelle: "Taux de change", libelleCourt: "Taux", roles: [Role.PATRON], disponible: true },
     ],
   },
   {
     titre: "Mon hôtel",
-    entrees: [{ id: "site-hotel", libelle: "Site de l'hôtel", libelleCourt: "Site", roles: [Role.PATRON], disponible: true }],
+    entrees: [
+      { id: "site-hotel", libelle: "Site de l'hôtel", libelleCourt: "Site", roles: [Role.PATRON], disponible: true },
+      { id: "utilisateurs", libelle: "Utilisateurs", libelleCourt: "Utilisateurs", roles: [Role.PATRON], disponible: true },
+    ],
   },
-  {
-    titre: "Aide",
-    // Guide PDF (20/10/2026) : le serveur ne donne à chaque rôle que le guide de son poste (le patron, tous).
-    entrees: [{ id: "guides", libelle: "Guide d'utilisation", libelleCourt: "Guide", roles: TOUS, disponible: true }],
-  },
-  // Pas de section "Administration" séparée : Utilisateurs et Taux de change
-  // (PATRON uniquement) vivent dans l'écran Paramètres pour garder la barre
-  // latérale courte (demande du client du 25/09/2026).
+  // « Réglages » (ex-Paramètres + Guide + À propos) a sa propre entrée en bas de la barre (voir la Coquille), pas de section « Aide ».
 ];
+
+/** Anciennes pages devenues des onglets : la page de la barre qui les contient. */
+export function pageDeLaBarre(id: IdPage): IdPage {
+  if (id === "cuisine" || id === "retrait-commande") return "comptes-ouverts";
+  if (id === "inventaire") return "stock";
+  if (id === "guides" || id === "imprimante" || id === "synchronisation") return "parametres";
+  return id;
+}
 
 /** Pages purement opérationnelles : le patron n'y a accès que s'il a le droit d'opérer (séparation des tâches). */
 const PAGES_OPERATIONNELLES: IdPage[] = ["caisse"];
@@ -127,7 +132,12 @@ export function entreesBarreDuBas(role: Role, operer = true, cuisineActivee = fa
 }
 
 export function libellePage(id: IdPage): string {
-  if (id === "parametres") return "Paramètres";
+  if (id === "parametres") return "Réglages";
+  if (id === "taux-de-change") return "Taux de change";
+  if (id === "cuisine") return "Cuisine";
+  if (id === "retrait-commande") return "Retrait commande";
+  if (id === "inventaire") return "Inventaire";
+  if (id === "guides") return "Guide d'utilisation";
   if (id === "imprimante") return "Imprimante";
   if (id === "utilisateurs") return "Utilisateurs";
   if (id === "synchronisation") return "Synchronisation";

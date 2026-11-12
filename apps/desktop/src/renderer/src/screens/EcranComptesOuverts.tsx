@@ -11,6 +11,8 @@ export interface EcranComptesOuvertsProps {
   utilisateur: ProfilConnecte;
   interfaceImprimante: string | null;
   onOuvrirCompte: (compteId: string, compte?: CompteCafeteria) => void;
+  /** Affiché dans « En cours » (qui porte le titre de la page et les onglets). */
+  integre?: boolean;
 }
 
 function totalCompte(compte: CompteCafeteria): { usd: number; cdf: number } {
@@ -63,7 +65,7 @@ function JournalVentes({
 
   async function reimprimer(vente: VenteCafeteria) {
     if (!interfaceImprimante) {
-      setMessage("Aucune imprimante configurée — Paramètres > Imprimante.");
+      setMessage("Aucune imprimante configurée — Réglages > Imprimante.");
       return;
     }
     setEnCours(vente.id);
@@ -253,7 +255,7 @@ function JournalVentes({
 /** Équivalent desktop de apps/mobile/src/ecrans/EcranComptesOuverts.tsx — lit la
  * base locale du poste (client = miroir : marche sans Internet), même logique, plus le journal des ventes
  * (réimpression/détail/annulation) en dessous des comptes ouverts. */
-export function EcranComptesOuverts({ client, utilisateur, interfaceImprimante, onOuvrirCompte }: EcranComptesOuvertsProps) {
+export function EcranComptesOuverts({ client, utilisateur, interfaceImprimante, onOuvrirCompte, integre = false }: EcranComptesOuvertsProps) {
   const [comptes, setComptes] = useState<CompteCafeteria[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -267,15 +269,17 @@ export function EcranComptesOuverts({ client, utilisateur, interfaceImprimante, 
   useEffect(charger, [client]);
 
   return (
-    <div className="page">
-      <header className="page__entete">
-        <div>
-          <h1 className="hc-text-display-md page__titre">Comptes ouverts</h1>
-          <p className="hc-text-body page__sous-titre">
-            {comptes ? `${comptes.length} compte${comptes.length > 1 ? "s" : ""} ouvert${comptes.length > 1 ? "s" : ""}` : "Chargement…"}
-          </p>
-        </div>
-      </header>
+    <div className={integre ? "page--integree" : "page"}>
+      {!integre && (
+        <header className="page__entete">
+          <div>
+            <h1 className="hc-text-display-md page__titre">En cours</h1>
+            <p className="hc-text-body page__sous-titre">
+              {comptes ? `${comptes.length} compte${comptes.length > 1 ? "s" : ""} ouvert${comptes.length > 1 ? "s" : ""}` : "Chargement…"}
+            </p>
+          </div>
+        </header>
+      )}
 
       {erreur && (
         <p role="alert" className="hc-text-body texte-erreur">
