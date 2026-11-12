@@ -66,9 +66,9 @@ export function installerFilSecoursNavigateur(): void {
     surNotificationOuverte: () => () => undefined,
     // Hors Electron : pas d'installateur à mettre à jour.
     miseAJour: {
-      etat: () => Promise.resolve({ etat: "indisponible", versionInstallee: "", version: null, notes: "", progres: 0, erreur: null, verifieeLe: null }),
-      verifier: () => Promise.resolve({ etat: "indisponible", versionInstallee: "", version: null, notes: "", progres: 0, erreur: null, verifieeLe: null }),
-      telecharger: () => Promise.resolve({ etat: "indisponible", versionInstallee: "", version: null, notes: "", progres: 0, erreur: null, verifieeLe: null }),
+      etat: () => Promise.resolve({ etat: "indisponible", versionInstallee: "", version: null, notes: "", progres: 0, erreur: null, verifieeLe: null, assistant: false }),
+      verifier: () => Promise.resolve({ etat: "indisponible", versionInstallee: "", version: null, notes: "", progres: 0, erreur: null, verifieeLe: null, assistant: false }),
+      telecharger: () => Promise.resolve({ etat: "indisponible", versionInstallee: "", version: null, notes: "", progres: 0, erreur: null, verifieeLe: null, assistant: false }),
       installer: () => Promise.resolve(),
       surChangement: () => () => undefined,
       surOuverture: () => () => undefined,

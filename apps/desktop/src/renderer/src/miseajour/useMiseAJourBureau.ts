@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { EtatMiseAJourBureau } from "../../../main/mise-a-jour";
 
-const INCONNU: EtatMiseAJourBureau = { etat: "inconnu", versionInstallee: "", version: null, notes: "", progres: 0, erreur: null, verifieeLe: null };
+const INCONNU: EtatMiseAJourBureau = { etat: "inconnu", versionInstallee: "", version: null, notes: "", progres: 0, erreur: null, verifieeLe: null, assistant: false };
 
 /** État des mises à jour tenu par le processus principal (electron-updater) : lu au montage, puis poussé à chaque évolution. */
 export function useMiseAJourBureau() {

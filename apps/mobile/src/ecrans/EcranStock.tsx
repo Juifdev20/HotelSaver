@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
   ongletTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encre },
   ongletTexteActif: { color: "#fff" },
   // 88px de marge basse : le FAB ne recouvre pas la dernière carte.
-  liste: { padding: espacements.s4, paddingBottom: 88, gap: espacements.s3 },
+  liste: { padding: espacements.s4, paddingBottom: 120, gap: espacements.s3 },
   videConteneur: { alignItems: "center", padding: espacements.s7, gap: espacements.s2 },
   videTitre: { fontSize: 15, fontWeight: "600", color: couleurs.encre },
   carteEntete: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

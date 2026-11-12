@@ -4123,3 +4123,10 @@ Constat du patron : les utilisateurs devaient se reconnecter après une période
 4. **Téléphone resté en veille** : les minuteurs s'arrêtent, le jeton d'accès (~1 h) expire. Au retour au premier plan (absence de plus de 5 min) il est renouvelé aussitôt.
 
 À vérifier côté Supabase (tableau de bord, Authentication › Sessions, projets Test ET Prod) : « Time-box user sessions » et « Inactivity timeout » doivent être vides/désactivés (sinon Supabase coupe lui-même la session), « Detect and revoke potentially compromised refresh tokens » peut rester activé, durée du jeton d'accès (JWT expiry) 3600 s suffit.
+
+## Mise à jour du bureau qui ne s'installait pas : fermeture complète, journal, assistant en secours (12/11/2026)
+
+Constat : « Redémarrer maintenant » fermait la fenêtre, l'ancienne version revenait, la mise à jour était reproposée et rien ne se passait, même après un redémarrage de l'ordinateur. L'installation silencieuse ne disait rien quand elle échouait (journal d'electron-updater désactivé).
+- **Fermeture définitive avant l'installateur** : fenêtre détruite (elle ne faisait que se masquer), zone de notification retirée, verrou d'instance libéré (sinon l'application relancée s'arrêtait aussitôt), arrêt forcé au bout de 6 s si la fermeture traîne (l'installateur attend que l'application ait disparu).
+- **Journal** `mise-a-jour.log` (dossier de données, `%APPDATA%\HotelSaver`) : vérifications, téléchargement, erreurs, tentative d'installation. **Trace de la tentative** avant la fermeture : au lancement suivant, si la version installée n'a pas avancé, l'application le sait et passe en **mode assistant** : le bouton devient « Ouvrir l'assistant d'installation » et ouvre l'installateur téléchargé de façon visible (il montre ses erreurs éventuelles).
+- Les corrections ne protègent que les mises à jour DEPUIS la 1.0.12 : la 1.0.11 installée garde son ancien comportement, la 1.0.12 s'installe une fois à la main (HotelSaver-Setup-1.0.12.exe, après « Quitter » dans la zone de notification).

@@ -64,7 +64,9 @@ export function CarteMiseAJour() {
 
       {prete && (
         <p className="hc-text-body">
-          Le téléchargement est terminé. Redémarrez maintenant pour appliquer la mise à jour — ou plus tard : elle s'installera toute seule quand vous quitterez l'application.
+          {etat.assistant
+            ? "Le téléchargement est terminé. L'assistant d'installation de Windows va s'ouvrir : suivez-le jusqu'à « Terminer »."
+            : "Le téléchargement est terminé. Redémarrez maintenant pour appliquer la mise à jour — ou plus tard : elle s'installera toute seule quand vous quitterez l'application."}
         </p>
       )}
 
@@ -83,7 +85,7 @@ export function CarteMiseAJour() {
           aria-label={prete ? "Redémarrer et installer la mise à jour" : disponible ? "Télécharger la mise à jour" : enCours ? "Téléchargement en cours" : "Aucune mise à jour disponible"}
         >
           {prete ? <RotateCw size={18} aria-hidden="true" /> : <Download size={18} aria-hidden="true" />}
-          {prete ? "Redémarrer maintenant" : enCours ? `Téléchargement… ${etat.progres} %` : disponible ? "Télécharger la mise à jour" : "Mettre à jour"}
+          {prete ? (etat.assistant ? "Ouvrir l'assistant d'installation" : "Redémarrer maintenant") : enCours ? `Téléchargement… ${etat.progres} %` : disponible ? "Télécharger la mise à jour" : "Mettre à jour"}
         </button>
         {!enCours && !prete && (
           <button type="button" className="maj-bouton maj-bouton--lien" onClick={() => void verifier()} disabled={etat.etat === "verification"}>
