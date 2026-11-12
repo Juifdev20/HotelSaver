@@ -14,7 +14,7 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useNotifications } from "../notifications/ContexteNotifications";
 import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { FeuilleModale } from "./FeuilleModale";
-import { FeuilleChangerDeCompte } from "./FeuilleChangerDeCompte";
+import { FeuilleChangerDeCompte, ListeComptes } from "./FeuilleChangerDeCompte";
 import { AvatarUtilisateur } from "./AvatarUtilisateur";
 import { parTheme } from "../theme/theme";
 
@@ -143,7 +143,7 @@ function BandeauVisite({ onOuvrir }: { onOuvrir: () => void }) {
  * profil — patron seulement, comme dans Plus — et déconnexion).
  */
 export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccueil?: boolean; sansBandeauAbonnement?: boolean } = {}) {
-  const { utilisateur, seDeconnecter, visite, comptes } = useSession();
+  const { utilisateur, seDeconnecter, visite } = useSession();
   const [changementOuvert, setChangementOuvert] = useState(false);
   const peutChanger = utilisateur.role === Role.PATRON || visite !== null;
   const { nonLues, ouvrirCentre } = useNotifications();
@@ -226,18 +226,12 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
           <Building2 size={16} color={couleurs.encreAttenuee} />
           <Text style={styles.compteHotelTexte}>{utilisateur.hotelNom}</Text>
         </View>
+        {/* Changer de compte : directement dans ce menu (un toucher sur le compte voulu), sans étape de plus. */}
         {peutChanger && (
-          <Pressable
-            style={styles.action}
-            onPress={() => {
-              setMenuOuvert(false);
-              setChangementOuvert(true);
-            }}
-            accessibilityRole="button"
-          >
-            <RefreshCw size={18} color={couleurs.bleu} />
-            <Text style={styles.actionTexte}>{visite ? "Revenir à mon compte ou changer" : comptes.length > 0 ? "Changer de compte" : "Changer de compte"}</Text>
-          </Pressable>
+          <View style={styles.sectionComptes}>
+            <Text style={styles.sectionComptesTitre}>{visite ? "Vous utilisez un autre compte" : "Changer de compte"}</Text>
+            <ListeComptes apres={() => setMenuOuvert(false)} />
+          </View>
         )}
         <Pressable style={styles.action} onPress={confirmerDeconnexion}>
           <LogOut size={18} color={couleurs.danger} />
@@ -312,6 +306,8 @@ const styles = StyleSheet.create({
     borderRadius: rayons.sm,
     backgroundColor: couleurs.surface100,
   },
+  sectionComptes: { gap: espacements.s2 },
+  sectionComptesTitre: { fontSize: 12, fontWeight: "700", color: couleurs.encreAttenuee, textTransform: "uppercase", letterSpacing: 0.5 },
   compteHotelTexte: { fontSize: 14, color: couleurs.encre, fontWeight: "600" },
   action: {
     flexDirection: "row",

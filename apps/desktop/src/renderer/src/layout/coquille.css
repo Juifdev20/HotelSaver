@@ -568,7 +568,8 @@
   z-index: 30;
   display: flex;
   flex-direction: column;
-  background-color: var(--hc-navy);
+  /* Mêmes couleurs que la barre latérale (clair en mode clair, marine en mode sombre) : avant, fond marine fixe et textes du thème clair = illisible. */
+  background-color: var(--sb-fond);
 }
 
 .coquille__tiroir-entete {
@@ -576,11 +577,11 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--hc-space-4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--sb-bordure);
 }
 
 .coquille__tiroir-entete .coquille__bouton-icone {
-  color: #ffffff;
+  color: var(--sb-texte-fort);
 }
 
 .coquille__pied-tiroir {
@@ -985,4 +986,24 @@
 }
 .coquille__tiroir .selecteur-comptes {
   padding: var(--hc-space-3);
+}
+
+/* Tiroir de la fenêtre étroite : il garde toujours ses libellés, même quand la barre latérale est réduite aux icônes. */
+.coquille--reduite .coquille__tiroir .lien-nav__libelle {
+  display: block;
+}
+.coquille--reduite .coquille__tiroir .lien-nav--laterale {
+  justify-content: flex-start;
+  padding: 0 var(--hc-space-3);
+}
+.coquille--reduite .coquille__tiroir .nav-section__titre {
+  height: auto;
+  margin: 0 var(--hc-space-3) var(--hc-space-1);
+  overflow: visible;
+  font-size: inherit;
+  background: none;
+}
+.coquille--reduite .coquille__tiroir .coquille__nav {
+  padding-left: var(--hc-space-3);
+  padding-right: var(--hc-space-3);
 }
