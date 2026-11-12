@@ -1,4 +1,4 @@
-import { ClientApi, connecterViaApi, rafraichirSession } from "@hotel-chicago/api-client";
+import { ClientApi, connecterViaApi, rafraichirAvecSecours } from "@hotel-chicago/api-client";
 import { GestionnaireSession, type CompteLocal } from "@hotel-chicago/miroir-local";
 import type { ConfigurationApp } from "../../../main/config-store";
 
@@ -9,7 +9,8 @@ export function creerGestionnaireSession(config: ConfigurationApp): Gestionnaire
   return new GestionnaireSession({
     // Connexion par numéro (15/10/2026) : via le relais de l'API, qui traduit le numéro en compte Supabase (un appel direct ne connaît que l'e-mail).
     authentifier: (identifiant, motDePasse) => connecterViaApi([config.apiUrl], identifiant, motDePasse),
-    rafraichir: (refreshToken) => rafraichirSession(supabase, refreshToken),
+    // Par le relais de l'API (qui évite qu'une réponse perdue ne rende le jeton inutilisable), puis en direct auprès de Supabase en secours.
+    rafraichir: (refreshToken) => rafraichirAvecSecours([config.apiUrl], supabase, refreshToken),
     chargerProfil: (accessToken) => new ClientApi(config.apiUrl, () => accessToken).moi(),
     lire: async () => {
       const actuelle = await window.hotelChicago.lireConfiguration();

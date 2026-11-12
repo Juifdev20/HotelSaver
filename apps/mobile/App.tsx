@@ -9,11 +9,11 @@ import { appliquerSchema, estSombre, versionTheme as versionDuTheme } from "./sr
 import { couleurs } from "./src/tokens";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
-import { ActivityIndicator, Image, Linking, StyleSheet, Text, View } from "react-native";
-import { ClientApi, ErreurApi, connecterAvecMotDePasse, connecterViaApi, demanderReinitialisationMotDePasse, inscrireHotel, rafraichirSession, rafraichirViaApi } from "@hotel-chicago/api-client";
+import { ActivityIndicator, AppState, Image, Linking, StyleSheet, Text, View } from "react-native";
+import { ClientApi, ErreurApi, connecterAvecMotDePasse, connecterViaApi, demanderReinitialisationMotDePasse, inscrireHotel, rafraichirAvecSecours, sessionRefusee } from "@hotel-chicago/api-client";
 import { evaluerAcces, ouvrirMiroir, type Miroir } from "@hotel-chicago/miroir-local";
 import { ouvrirPersistanceHotel } from "./src/stockage/baseLocale";
-import { Role, type InscriptionHotelPayload, type ProfilConnecte } from "@hotel-chicago/types";
+import { type InscriptionHotelPayload, type ProfilConnecte } from "@hotel-chicago/types";
 import { candidatsApi, lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
 import {
   ProfilEnregistre,
@@ -326,12 +326,11 @@ export default function App() {
       // Reconnexion silencieuse au dernier profil utilisé sur cet appareil
       // (le seul s'il n'y en a qu'un) — évite de repasser par la sélection de
       // profil à chaque lancement quand ce n'est pas un appareil partagé.
-      // Jamais pour un PATRON : ce compte exige le mot de passe partout,
-      // y compris ici — sinon un redémarrage de l'app ouvrirait sa session
-      // sur un téléphone entre des mains d'employés (retour terrain 28/09).
+      // Patron compris (12/11/2026 : sessions longues, on ne redemande pas le mot de passe à chaque ouverture) ; le verrou après
+      // inactivité reste un choix de chacun dans Réglages › Sécurité. Changer de profil, lui, exige toujours le mot de passe.
       const dernierId = liste.length === 1 ? liste[0].utilisateurId : await lireDernierUtilisateur();
       const profil = liste.find((p) => p.utilisateurId === dernierId);
-      if (profil && profil.role !== Role.PATRON) {
+      if (profil) {
         const jeton = await lireJetonRafraichissement(profil.utilisateurId);
         const cache = jeton ? await lireProfilCache(profil.utilisateurId) : null;
         // Durée de grâce hors ligne (14 jours depuis le dernier contact avec le serveur, horloge qui ne recule jamais) : au-delà,
@@ -429,7 +428,9 @@ export default function App() {
       await ecrireContactServeur(utilisateurId);
       return "ok";
     } catch (erreur) {
-      return erreur instanceof Error && erreur.message.startsWith("Impossible de joindre") ? "hors-ligne" : "expiree";
+      // Déconnexion UNIQUEMENT si le serveur a refusé la session (jeton révoqué, déjà utilisé, compte désactivé). Réseau coupé, serveur qui
+      // se réveille (502/503), trop de demandes (429), erreur 5xx : la session est intacte, on réessaie plus tard.
+      return sessionRefusee(erreur) ? "expiree" : "hors-ligne";
     } finally {
       renouvellementEnCours.current = false;
     }
@@ -492,6 +493,32 @@ export default function App() {
     })();
   }
 
+  // Téléphone resté en veille ou application longtemps en arrière-plan : les minuteurs ne tournent pas, le jeton d'accès (≈ 1 h) a pu expirer.
+  // Au retour au premier plan on le renouvelle tout de suite, sans rien demander à l'utilisateur.
+  useEffect(() => {
+    if (!sessionActive || !utilisateur || !configuration) return;
+    const config = configuration;
+    const utilisateurId = utilisateur.userId;
+    let departLe: number | null = null;
+    const abonnement = AppState.addEventListener("change", (etat) => {
+      if (etat !== "active") {
+        if (departLe === null) departLe = Date.now();
+        return;
+      }
+      const absentDepuis = departLe === null ? 0 : Date.now() - departLe;
+      departLe = null;
+      if (absentDepuis < 5 * 60_000) return;
+      void (async () => {
+        const avait = jetonRef.current !== null;
+        const retour = await renouvelerJeton(config, utilisateurId);
+        if (retour === "expiree") return sessionExpiree();
+        if (retour === "ok" && !avait) void renouvelerEnArrierePlan(config, utilisateurId, true);
+      })();
+    });
+    return () => abonnement.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionActive, utilisateur?.userId, configuration]);
+
   // Tant que la session est ouverte : renouvellement toutes les 40 min (le jeton d'accès vit ~1 h) ; si le jeton
   // n'a pas pu être obtenu (téléphone hors ligne au démarrage), nouvelle tentative toutes les 30 s.
   useEffect(() => {
@@ -549,14 +576,7 @@ export default function App() {
   }
 
   async function rafraichir(config: ConfigurationApp, jetonRafraichissement: string) {
-    try {
-      return await rafraichirViaApi(candidatsApi(), jetonRafraichissement);
-    } catch (e) {
-      if (e instanceof ErreurApi && e.statusCode === 404) {
-        return rafraichirSession({ url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, jetonRafraichissement);
-      }
-      throw e;
-    }
+    return rafraichirAvecSecours(candidatsApi(), { url: config.supabaseUrl, anonKey: config.supabaseAnonKey }, jetonRafraichissement);
   }
 
   async function seConnecter(identifiant: string, motDePasse: string) {

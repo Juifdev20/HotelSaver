@@ -3,7 +3,7 @@
  * Aucune dépendance à l'interface ni à Electron : tout ce qui touche le monde extérieur est injecté (voir DepsSession), donc ce
  * fichier se teste entièrement.
  */
-import { ErreurApi } from "@hotel-chicago/api-client";
+import { ErreurApi, sessionRefusee } from "@hotel-chicago/api-client";
 import type { ProfilConnecte } from "@hotel-chicago/types";
 import {
   avancerHorloge,
@@ -88,7 +88,7 @@ export class GestionnaireSession {
     if (!cle || !compte) return { etat: "connexion-requise" };
 
     // Mot de passe redemandé à chaque lancement : par défaut pour le patron (il voit les finances de l'hôtel), au choix pour les autres.
-    if (compte.preferences?.verrouLancement ?? compte.profil?.role === "PATRON") {
+    if (compte.preferences?.verrouLancement ?? false) {
       return { etat: "connexion-requise", email: compte.email, verrou: true };
     }
 
@@ -102,9 +102,11 @@ export class GestionnaireSession {
       const jeton = await this.deps.rafraichir(compte.refreshToken);
       return await this.finaliserConnexionEnLigne(jeton, compte.email, compte.verificateur, memo);
     } catch (e) {
-      if (estErreurReseau(e)) return this.ouvrirHorsLigne(compte, cle);
-      // Session refusée par le serveur (jeton révoqué/expiré, compte désactivé, licence suspendue) : reconnexion, données conservées.
-      return { etat: "connexion-requise", email: compte.email, message: e instanceof Error ? e.message : undefined };
+      // Reconnexion demandée UNIQUEMENT si le serveur a refusé la session (jeton révoqué/déjà utilisé, compte désactivé) : données conservées.
+      // Tout le reste (réseau coupé, serveur qui se réveille, 429, 5xx) n'est pas une fin de session : le poste s'ouvre avec ses données
+      // locales (mode hors ligne) et retrouve le serveur seul — voir `entretenir`.
+      if (sessionRefusee(e)) return { etat: "connexion-requise", email: compte.email, message: e instanceof Error ? e.message : undefined };
+      return this.ouvrirHorsLigne(compte, cle);
     }
   }
 
@@ -197,6 +199,19 @@ export class GestionnaireSession {
    * serveur dès que le réseau revient. Renvoie `profil` quand on vient de repasser en ligne ou que le profil a été relu.
    */
   async entretenir(): Promise<{ profil?: ProfilConnecte; mode: ModeSession }> {
+    // Un seul renouvellement à la fois : un jeton de renouvellement ne sert qu'une fois, deux appels simultanés (minuteur + retour de veille)
+    // feraient croire à Supabase à un vol de session.
+    if (!this.entretienEnCours) {
+      this.entretienEnCours = this.entretenirUneFois().finally(() => {
+        this.entretienEnCours = null;
+      });
+    }
+    return this.entretienEnCours;
+  }
+
+  private entretienEnCours: Promise<{ profil?: ProfilConnecte; mode: ModeSession }> | null = null;
+
+  private async entretenirUneFois(): Promise<{ profil?: ProfilConnecte; mode: ModeSession }> {
     const cle = this.emailActif;
     if (!cle) return { mode: this.mode };
     const maintenantS = this.deps.maintenant().getTime() / 1000;
@@ -270,7 +285,7 @@ export class GestionnaireSession {
     const memo = await this.deps.lire();
     const compte = this.emailActif ? memo.comptes[this.emailActif] : undefined;
     return {
-      verrouLancement: compte?.preferences?.verrouLancement ?? compte?.profil?.role === "PATRON",
+      verrouLancement: compte?.preferences?.verrouLancement ?? false,
       inactiviteMinutes: compte?.preferences?.inactiviteMinutes ?? null,
     };
   }

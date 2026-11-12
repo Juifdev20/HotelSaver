@@ -6,13 +6,13 @@ const JOUR = 86_400_000;
 const profil = (extra: object = {}): any => ({ userId: "u1", hotelId: "h1", role: "RECEPTIONNISTE", nom: "Marie", statutLicence: "ACTIF", ...extra });
 
 function monde() {
-  const etat = { reseau: true, maintenant: new Date("2026-10-01T08:00:00Z"), memo: { comptes: {}, compteActif: null } as ComptesMemorises, mdpValide: "secret-123", licence: "ACTIF", refreshValide: true };
+  const etat = { reseau: true, maintenant: new Date("2026-10-01T08:00:00Z"), memo: { comptes: {}, compteActif: null } as ComptesMemorises, mdpValide: "secret-123", licence: "ACTIF", refreshValide: true, erreurServeur: 0 };
   let compteur = 0;
   const jeton = (): JetonSession => ({ accessToken: `at-${++compteur}`, refreshToken: `rt-${compteur}`, expiresAt: etat.maintenant.getTime() / 1000 + 3600 });
   const reseau = () => { if (!etat.reseau) throw new ErreurApi(0, "Impossible de joindre le serveur de connexion."); };
   const deps: DepsSession = {
     authentifier: async (email, mdp) => { reseau(); if (mdp !== etat.mdpValide) throw new Error("Numéro (ou e-mail) ou mot de passe incorrect."); return jeton(); },
-    rafraichir: async () => { reseau(); if (!etat.refreshValide) throw new Error("Votre session a expiré. Reconnectez-vous."); return jeton(); },
+    rafraichir: async () => { reseau(); if (etat.erreurServeur) throw new ErreurApi(etat.erreurServeur, "Le service de connexion a répondu avec une erreur."); if (!etat.refreshValide) throw new ErreurApi(401, "Votre session a expiré. Reconnectez-vous."); return jeton(); },
     chargerProfil: async () => { reseau(); if (etat.licence === "SUSPENDU") throw new ErreurApi(401, "Cet hôtel n'a plus accès à la plateforme."); return profil({ statutLicence: etat.licence }); },
     lire: async () => structuredClone(etat.memo),
     ecrire: async (d) => { etat.memo = structuredClone(d); },
@@ -210,24 +210,40 @@ describe("déconnexion", () => {
 describe("sécurité de la session (audit du 10/10/2026)", () => {
   const patron = () => profil({ role: "PATRON" });
 
-  it("le patron doit retaper son mot de passe à chaque lancement (réglage modifiable), le personnel non", async () => {
+  it("personne n'a à retaper son mot de passe au lancement par défaut (patron compris) ; chacun peut choisir de le demander", async () => {
     const m = monde();
     const s = m.session();
     await s.connecter("marie@hotel.cd", "secret-123");
-    // Personnel : session reprise sans mot de passe.
     expect(await m.session().demarrer()).toMatchObject({ etat: "connecte" });
-    // Patron : mot de passe redemandé, e-mail pré-rempli.
+    // Patron : session reprise aussi (demande du 12/11/2026 : sessions longues).
     m.etat.memo.comptes["marie@hotel.cd"].profil = patron();
-    expect(await m.session().demarrer()).toEqual({ etat: "connexion-requise", email: "marie@hotel.cd", verrou: true });
-    // Le patron peut choisir de ne plus le faire.
+    expect(await m.session().demarrer()).toMatchObject({ etat: "connecte" });
+    // Le verrou reste un choix, pour le patron comme pour le personnel.
     const s2 = m.session();
     await s2.connecter("marie@hotel.cd", "secret-123");
-    await s2.definirPreferences({ verrouLancement: false });
-    expect(await m.session().demarrer()).toMatchObject({ etat: "connecte" });
-    // Le personnel peut choisir de le demander.
-    m.etat.memo.comptes["marie@hotel.cd"].profil = profil();
     await s2.definirPreferences({ verrouLancement: true });
-    expect(await m.session().demarrer()).toMatchObject({ etat: "connexion-requise", verrou: true });
+    expect(await m.session().demarrer()).toEqual({ etat: "connexion-requise", email: "marie@hotel.cd", verrou: true });
+  });
+
+  it("un serveur qui se réveille (502/503), trop de demandes (429) ou une erreur 500 ne déconnectent pas : le poste s'ouvre avec ses données", async () => {
+    for (const code of [429, 500, 502, 503, 504]) {
+      const m = monde();
+      await m.session().connecter("marie@hotel.cd", "secret-123");
+      m.etat.erreurServeur = code;
+      expect(await m.session().demarrer()).toMatchObject({ etat: "connecte", mode: "hors-ligne" });
+      // Le serveur répond de nouveau : la session se rétablit seule, sans mot de passe.
+      m.etat.erreurServeur = 0;
+      const g = m.session();
+      await g.demarrer();
+      expect((await g.entretenir()).mode).toBeDefined();
+    }
+  });
+
+  it("un renouvellement refusé (jeton déjà utilisé ou révoqué) demande bien de se reconnecter", async () => {
+    const m = monde();
+    await m.session().connecter("marie@hotel.cd", "secret-123");
+    m.etat.refreshValide = false;
+    expect(await m.session().demarrer()).toMatchObject({ etat: "connexion-requise", email: "marie@hotel.cd" });
   });
 
   it("aucun verrou d'inactivité par défaut", async () => {

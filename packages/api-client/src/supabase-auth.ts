@@ -67,7 +67,7 @@ async function traiterReponseJeton(reponse: Response): Promise<SessionSupabase> 
   const corps = await reponse.json().catch(() => ({}));
 
   if (!reponse.ok) {
-    throw new Error(messageErreurAuth(reponse.status, corps));
+    throw new ErreurApi(reponse.status, messageErreurAuth(reponse.status, corps));
   }
 
   return {
@@ -157,4 +157,25 @@ export async function connecterViaApi(urls: string[], identifiant: string, motDe
 export async function rafraichirViaApi(urls: string[], refreshToken: string): Promise<SessionSupabase> {
   const reponse = await envoyerViaApi(urls, "/auth/rafraichir", { refreshToken });
   return traiterReponseJetonApi(reponse);
+}
+
+/**
+ * Le serveur a-t-il VRAIMENT refusé le renouvellement de la session (jeton de renouvellement inconnu, déjà utilisé, révoqué, compte désactivé) ?
+ * Seul ce cas déconnecte l'utilisateur. Réseau coupé, serveur qui se réveille (502/503/504), trop de demandes (429), erreur 5xx, délai dépassé :
+ * la session est intacte, on réessaie plus tard (12/11/2026 — avant, n'importe quelle erreur ramenait à l'écran de connexion).
+ */
+export function sessionRefusee(e: unknown): boolean {
+  return e instanceof ErreurApi && (e.statusCode === 400 || e.statusCode === 401 || e.statusCode === 403);
+}
+
+/** Renouvellement par le relais de l'API, puis, si le relais est absent (vieille API) ou injoignable, en direct auprès de Supabase. */
+export async function rafraichirAvecSecours(urls: string[], config: ConfigSupabaseAuth, refreshToken: string): Promise<SessionSupabase> {
+  try {
+    return await rafraichirViaApi(urls, refreshToken);
+  } catch (e) {
+    if (e instanceof ErreurApi && (e.statusCode === 404 || e.statusCode === 0 || e.statusCode >= 500)) {
+      return rafraichirSession(config, refreshToken);
+    }
+    throw e;
+  }
 }
