@@ -303,6 +303,8 @@ export function Coquille({
   const [barreReduitePrefereeParUtilisateur, setBarreReduite] = useState(barreReduitePreferee);
   const fenetreCompacte = useFenetreCompacte();
   const barreReduite = barreReduitePrefereeParUtilisateur || fenetreCompacte;
+  // Changer de compte : réservé au PATRON (ou au patron en cours de visite sur le compte d'un employé). Les autres rôles n'y ont aucun accès.
+  const peutChangerDeCompte = utilisateur.role === Role.PATRON || visite != null;
   const sections = sectionsPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true, utilisateur.fonctions);
   const barreDuBas = entreesBarreDuBas(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true, utilisateur.fonctions);
   // La recherche mène à l'écran Chambres : sans la réception, elle n'a plus de sens.
@@ -631,7 +633,7 @@ export function Coquille({
               )}
             </div>
 
-            {visite && onRetourCompte && (
+            {peutChangerDeCompte && visite && onRetourCompte && (
               <button
                 type="button"
                 className="coquille__retour-compte coquille__masque-etroit"
@@ -680,7 +682,7 @@ export function Coquille({
                   <p className="hc-text-caption texte-discret coquille__menu-sous-entete" role="presentation">
                     {LIBELLE_ROLE[utilisateur.role]}
                   </p>
-                  {onBasculer && onRetourCompte && (
+                  {peutChangerDeCompte && onBasculer && onRetourCompte && (
                     <SelecteurComptes
                       comptes={comptes ?? []}
                       visite={visite ?? null}
@@ -741,7 +743,7 @@ export function Coquille({
             <span className="hc-text-body-strong">Bonjour, {utilisateur.nom}</span>
             <span className="hc-text-caption coquille__role">{LIBELLE_ROLE[utilisateur.role]}</span>
           </span>
-          {visite && onRetourCompte && (
+          {peutChangerDeCompte && visite && onRetourCompte && (
             <button type="button" className="coquille__retour-compte" onClick={() => void onRetourCompte().catch((e: Error) => window.alert(e.message))}>
               <Undo2 size={15} aria-hidden="true" /> Mon compte
             </button>
@@ -802,7 +804,7 @@ export function Coquille({
               variante="laterale"
             />
           </nav>
-          {onBasculer && onRetourCompte && (
+          {peutChangerDeCompte && onBasculer && onRetourCompte && (
             <SelecteurComptes
               comptes={comptes ?? []}
               visite={visite ?? null}
