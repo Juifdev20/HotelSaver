@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
-import { MINUTES_AVANT_DISPARITION_NOTIFICATION, Role, UtilisateurAuthentifie, peutOperer, type NotificationApp } from "@hotel-chicago/types";
+import { Role, UtilisateurAuthentifie, peutOperer, type NotificationApp } from "@hotel-chicago/types";
 import {
   Bell,
   BedDouble,
@@ -157,7 +157,7 @@ export interface CoquilleProps {
   nonLues: number;
   onOuvrirNotification: (notification: NotificationApp) => void;
   onToutMarquerLu: () => void;
-  /** ✕ sur une notification, et « Tout effacer » : seulement MA liste. Une notification lue disparaît seule 30 min après sa lecture. */
+  /** ✕ sur une notification, et « Tout effacer » : seulement MA liste. */
   onEffacerNotification?: (id: string) => void;
   onToutEffacer?: () => void;
   /** Pastille d'abonnement de la carte du profil (barre latérale) : texte court + gravité ; absente = pas de pastille. */
@@ -511,9 +511,6 @@ export function Coquille({
                               {groupe.titre}
                             </li>
                             {groupe.liste.map((n) => {
-                              const minutes = n.luLe
-                                ? Math.max(1, Math.ceil((Date.parse(n.luLe) + MINUTES_AVANT_DISPARITION_NOTIFICATION * 60_000 - Date.now()) / 60_000))
-                                : null;
                               return (
                                 <li key={n.id} className="coquille__notifications-ligne">
                                   <button
@@ -526,10 +523,7 @@ export function Coquille({
                                   >
                                     <span className="hc-text-body-strong">{n.titre}</span>
                                     <span className="hc-text-caption">{n.corps}</span>
-                                    <span className="hc-text-caption texte-discret">
-                                      {formaterDateNotification(n.createdAt)}
-                                      {minutes !== null ? ` · disparaît dans ${minutes} min` : ""}
-                                    </span>
+                                    <span className="hc-text-caption texte-discret">{formaterDateNotification(n.createdAt)}</span>
                                   </button>
                                   {onEffacerNotification && (
                                     <button
@@ -570,9 +564,6 @@ export function Coquille({
                         ))}
                     </ul>
                   )}
-                  <p className="hc-text-caption texte-discret coquille__notifications-pied">
-                    Une notification lue disparaît seule {MINUTES_AVANT_DISPARITION_NOTIFICATION} min après sa lecture. Effacer ne touche que votre liste.
-                  </p>
                 </div>
               )}
             </div>

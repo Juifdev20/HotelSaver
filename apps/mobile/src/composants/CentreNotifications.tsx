@@ -2,8 +2,8 @@ import * as React from "react";
 import { useMemo, useState } from "react";
 import { Animated, FlatList, Modal, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft, Bell, CalendarDays, CheckCheck, Clock, Package, ShieldAlert, Sun, Trash2 } from "lucide-react-native";
-import { CATEGORIE_PAR_TYPE, MINUTES_AVANT_DISPARITION_NOTIFICATION, type NotificationApp } from "@hotel-chicago/types";
+import { ArrowLeft, Bell, CalendarDays, CheckCheck, Package, ShieldAlert, Sun, Trash2 } from "lucide-react-native";
+import { CATEGORIE_PAR_TYPE, type NotificationApp } from "@hotel-chicago/types";
 import { confirmerAction } from "../confirmer";
 import { couleurs, espacements, rayons } from "../tokens";
 import { useNotifications } from "../notifications/ContexteNotifications";
@@ -27,25 +27,15 @@ type Ligne = { cle: string; titre: string } | { cle: string; notification: Notif
 
 const LARGEUR_EFFACER = 104;
 
-/** « disparaît dans 18 min » : le temps qu'il reste à une notification lue (30 min après sa lecture). */
-function disparitionDans(n: NotificationApp, maintenant: number): string | null {
-  if (!n.luLe) return null;
-  const restant = Date.parse(n.luLe) + MINUTES_AVANT_DISPARITION_NOTIFICATION * 60_000 - maintenant;
-  if (restant <= 0) return null;
-  const minutes = Math.ceil(restant / 60_000);
-  return minutes <= 1 ? "moins d'1 min" : `${minutes} min`;
-}
-
 /**
  * Une notification : un toucher l'ouvre ; en la glissant vers la gauche on découvre « Effacer ». Les lecteurs d'écran ont l'action « Effacer » (sans geste).
  */
-function LigneNotification({ n, maintenant, onOuvrir, onEffacer, pied }: { n: NotificationApp; maintenant: number; onOuvrir: () => void; onEffacer: () => void; pied?: React.ReactNode }) {
+function LigneNotification({ n, onOuvrir, onEffacer, pied }: { n: NotificationApp; onOuvrir: () => void; onEffacer: () => void; pied?: React.ReactNode }) {
   const decalage = React.useRef(new Animated.Value(0)).current;
   const ouvert = React.useRef(false);
   const finDeGeste = React.useRef(0); // un « clic » qui suit tout de suite un glissement n'est pas un toucher
   const [revele, setRevele] = React.useState(false);
   const Icone = ICONES[CATEGORIE_PAR_TYPE[n.type]];
-  const dans = disparitionDans(n, maintenant);
   const aller = (valeur: number) => {
     ouvert.current = valeur !== 0;
     if (valeur !== 0) setRevele(true);
@@ -89,7 +79,7 @@ function LigneNotification({ n, maintenant, onOuvrir, onEffacer, pied }: { n: No
               else onOuvrir();
             }}
             accessibilityRole="button"
-            accessibilityLabel={`${n.lue ? "" : "Non lue. "}${n.titre}. ${n.corps}${dans ? `. Disparaît dans ${dans}` : ""}`}
+            accessibilityLabel={`${n.lue ? "" : "Non lue. "}${n.titre}. ${n.corps}`}
             accessibilityActions={[{ name: "delete", label: "Effacer" }]}
             onAccessibilityAction={(e) => {
               if (e.nativeEvent.actionName === "delete") onEffacer();
@@ -106,12 +96,6 @@ function LigneNotification({ n, maintenant, onOuvrir, onEffacer, pied }: { n: No
                   {libelleJour(n.createdAt) === "Aujourd'hui" ? "" : `${libelleJour(n.createdAt)} · `}
                   {heure(n.createdAt)}
                 </Text>
-                {dans && (
-                  <View style={styles.minuteur}>
-                    <Clock size={12} color={couleurs.alerte} />
-                    <Text style={styles.minuteurTexte}>disparaît dans {dans}</Text>
-                  </View>
-                )}
               </View>
             </View>
             {!n.lue && <View style={styles.point} />}
@@ -123,19 +107,11 @@ function LigneNotification({ n, maintenant, onOuvrir, onEffacer, pied }: { n: No
   );
 }
 
-/** Centre de notifications plein écran (ouvert par la cloche de l'en-tête) : les nouvelles, puis les déjà lues qui s'effacent toutes seules 30 min après leur lecture. */
+/** Centre de notifications plein écran (ouvert par la cloche de l'en-tête) : les nouvelles, puis les déjà lues (qui s'effacent toutes seules, sans rien afficher). */
 export function CentreNotifications() {
   const { notifications, nonLues, centreOuvert, fermerCentre, toutMarquerLu, toutEffacer, effacer, ouvrirNotification, couperAlerteStock } = useNotifications();
   // Produits dont l'alerte vient d'être coupée depuis cette liste (le bouton devient une confirmation).
   const [coupes, setCoupes] = useState<Record<string, "occupe" | "fait">>({});
-  // Fait avancer les « disparaît dans … min » pendant que la liste est ouverte.
-  const [maintenant, setMaintenant] = useState(() => Date.now());
-  React.useEffect(() => {
-    if (!centreOuvert) return;
-    setMaintenant(Date.now());
-    const minuteur = setInterval(() => setMaintenant(Date.now()), 20_000);
-    return () => clearInterval(minuteur);
-  }, [centreOuvert]);
 
   async function couper(produitId: string) {
     setCoupes((c) => ({ ...c, [produitId]: "occupe" }));
@@ -160,7 +136,7 @@ export function CentreNotifications() {
       for (const n of nouvelles) resultat.push({ cle: n.id, notification: n });
     }
     if (lues.length > 0) {
-      resultat.push({ cle: "titre-lues", titre: "DÉJÀ LUES · disparaissent 30 min après leur lecture" });
+      resultat.push({ cle: "titre-lues", titre: "DÉJÀ LUES" });
       for (const n of lues) resultat.push({ cle: n.id, notification: n });
     }
     return resultat;
@@ -216,7 +192,7 @@ export function CentreNotifications() {
             data={lignes}
             keyExtractor={(l) => l.cle}
             contentContainerStyle={{ paddingBottom: insets.bottom + espacements.s4 }}
-            ListFooterComponent={<Text style={styles.aide}>Glissez une notification vers la gauche pour l'effacer. Les lues s'effacent toutes seules après 30 minutes.</Text>}
+            ListFooterComponent={<Text style={styles.aide}>Glissez une notification vers la gauche pour l'effacer.</Text>}
             renderItem={({ item }) => {
               if ("titre" in item) return <Text style={styles.jour}>{item.titre}</Text>;
               const n = item.notification;
@@ -224,7 +200,7 @@ export function CentreNotifications() {
               return (
                 <LigneNotification
                   n={n}
-                  maintenant={maintenant}
+                 
                   onOuvrir={() => ouvrirNotification(n)}
                   onEffacer={() => void effacer(n.id)}
                   pied={
@@ -261,8 +237,6 @@ const styles = StyleSheet.create({
   effacerBouton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
   effacerTexte: { color: "#fff", fontWeight: "800", fontSize: 13 },
   meta: { flexDirection: "row", alignItems: "center", gap: espacements.s3, marginTop: 2 },
-  minuteur: { flexDirection: "row", alignItems: "center", gap: 4 },
-  minuteurTexte: { fontSize: 12, fontWeight: "700", color: couleurs.alerte },
   aide: { fontSize: 12.5, color: couleurs.encreAttenuee, textAlign: "center", paddingHorizontal: espacements.s5, paddingTop: espacements.s3 },
   videRond: { width: 84, height: 84, borderRadius: 42, backgroundColor: couleurs.succesClair, alignItems: "center", justifyContent: "center" },
   videTitre: { fontSize: 20, fontWeight: "800", color: couleurs.encre },
