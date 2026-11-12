@@ -212,7 +212,17 @@ if (premiereInstance) {
     ipcMain.handle("maj:etat", () => etatMiseAJour());
     ipcMain.handle("maj:verifier", () => verifierMiseAJour(true));
     ipcMain.handle("maj:telecharger", () => telechargerMiseAJour());
-    ipcMain.handle("maj:installer", () => installerMiseAJour(() => (quitterVraiment = true)));
+    ipcMain.handle("maj:installer", () =>
+      installerMiseAJour(() => {
+        // Fermeture DÉFINITIVE avant l'installateur : sans elle, la fenêtre se contentait de se masquer, le verrou d'instance restait pris et
+        // l'application relancée par l'installateur s'arrêtait aussitôt.
+        quitterVraiment = true;
+        app.releaseSingleInstanceLock();
+        zoneNotification?.destroy();
+        zoneNotification = null;
+        for (const f of BrowserWindow.getAllWindows()) f.destroy();
+      })
+    );
     const prevenir = (titre: string, corps: string) => {
       if (!Notification.isSupported()) return;
       const notification = new Notification({ title: titre, body: corps, icon: join(__dirname, "../../resources/icon.png") });
