@@ -17,6 +17,7 @@ import { BlocSecuriteMobile } from "../composants/BlocSecuriteMobile";
 import { useSession } from "../contexteSession";
 import { URL_SUPPRESSION_COMPTE, ouvrirLienSur } from "../liens";
 import { CarteApparence } from "../composants/CarteApparence";
+import { FeuilleChangerDeCompte } from "../composants/FeuilleChangerDeCompte";
 
 export interface EcranParametresMobileProps {
   client: ClientApi;
@@ -79,6 +80,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
   const miseAJour = useMiseAJour();
   const nouvelleVersion = miseAJour.etat === "disponible" || miseAJour.etat === "telechargement" || miseAJour.etat === "prete";
   const [enregistrement, setEnregistrement] = useState(false);
+  const [changementOuvert, setChangementOuvert] = useState(false);
   const { miroir, effacerDonneesAppareil, utilisateur: profil } = useSession();
   const resumeAbonnement = profil.abonnement ? resumerAbonnement(actualiserEtatAbonnement(profil.abonnement)) : null;
   const patronOpere = utilisateur?.patronPeutOperer === true;
@@ -288,11 +290,9 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
                 </View>
               </View>
               {utilisateur.role === Role.PATRON ? (
-                onChangerProfil && (
-                  <Pressable style={styles.boutonSecondaire} onPress={onChangerProfil} accessibilityRole="button">
-                    <Text style={styles.boutonSecondaireTexte}>Changer de profil</Text>
-                  </Pressable>
-                )
+                <Pressable style={styles.boutonSecondaire} onPress={() => setChangementOuvert(true)} accessibilityRole="button">
+                  <Text style={styles.boutonSecondaireTexte}>Changer de compte</Text>
+                </Pressable>
               ) : (
                 onSeDeconnecter && (
                   <Pressable style={styles.boutonDanger} onPress={confirmerDeconnexion} accessibilityRole="button">
@@ -311,6 +311,7 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
             </View>
           )}
       </ConteneurFormulaire>
+      <FeuilleChangerDeCompte visible={changementOuvert} onFermer={() => setChangementOuvert(false)} />
     </View>
   );
 }

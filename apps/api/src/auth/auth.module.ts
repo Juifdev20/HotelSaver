@@ -3,11 +3,12 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { AuthController } from "./auth.controller";
 import { AuthProxyController } from "./auth-proxy.controller";
 import { MotDePasseController } from "./mot-de-passe.controller";
+import { BasculementController } from "./basculement.controller";
 import { SupabaseAdminService } from "../common/supabase-admin/supabase-admin.service";
 
 @Module({
   imports: [PrismaModule],
-  controllers: [AuthController, AuthProxyController, MotDePasseController],
+  controllers: [AuthController, AuthProxyController, MotDePasseController, BasculementController],
   providers: [SupabaseAdminService],
 })
 export class AuthModule {}

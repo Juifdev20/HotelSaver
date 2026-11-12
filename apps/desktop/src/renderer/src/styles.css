@@ -2886,3 +2886,29 @@ button {
 @media (max-width: 1099px) {
   .kds-colonnes { grid-template-columns: 1fr; }
 }
+
+/* Bandeau « vous utilisez le compte de … » (changement de compte du patron) */
+.bandeau-visite {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-2) var(--hc-space-4);
+  background: var(--hc-navy, #0f2742);
+  color: #fff;
+}
+.bandeau-visite__bouton {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 var(--hc-space-3);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--hc-radius-sm, 8px);
+  background: transparent;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bandeau-visite__bouton:hover,
+.bandeau-visite__bouton:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+}

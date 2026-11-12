@@ -43,7 +43,7 @@ async function annoncerAlertesStock(client: ClientApi, nouvelles: NotificationAp
  * flux persistant). Chaque nouvelle notification de MON hôtel et MON rôle (filtrage côté serveur)
  * déclenche une notification Windows, visible même fenêtre masquée dans la zone de notification.
  */
-export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: LienApp) => void) {
+export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: LienApp) => void, identite?: string) {
   const [notificationsBrutes, setNotifications] = useState<NotificationApp[]>([]);
   const [nonLues, setNonLues] = useState(0);
   // Une notification lue disparaît 30 min après sa lecture (le serveur ne la renvoie plus non plus) : on recompte chaque minute.
@@ -121,7 +121,8 @@ export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: 
       arrete = true;
       clearInterval(minuteur);
     };
-  }, [client]);
+  // `identite` : changer de compte (patron) repart d'une liste vide, celle du nouveau compte.
+  }, [client, identite]);
 
   const marquerLue = useCallback(
     async (id: string) => {

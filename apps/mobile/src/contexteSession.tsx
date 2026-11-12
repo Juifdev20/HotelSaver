@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import type { MoteurSync } from "@hotel-chicago/sync-engine";
 import type { Miroir } from "@hotel-chicago/miroir-local";
-import type { ProfilConnecte } from "@hotel-chicago/types";
+import type { ProfilConnecte, Role } from "@hotel-chicago/types";
 
 /** Évite de faire passer `client`/`utilisateur` en props à travers chaque
  * écran de la navigation par onglets — react-navigation ne les transmet
@@ -28,6 +28,30 @@ export interface Session {
   /** À appeler quand un paiement d'abonnement vient d'être confirmé : relit le profil auprès du serveur (sans cache), le mémorise,
    * réaffiche l'application si elle était bloquée et force une synchronisation. Échoue si le téléphone est hors ligne. */
   apresRenouvellement: () => Promise<void>;
+  /** Changement de compte du patron (12/11/2026) : comptes du personnel de l'hôtel, compte actuellement utilisé en « visite » (null = le sien),
+   * passage à un compte sans se déconnecter ni retaper d'identifiants, et retour au compte du patron. Les deux fonctions lèvent une erreur lisible. */
+  comptes: ComptePersonnel[];
+  visite: VisiteCompte | null;
+  basculerVers: (utilisateurId: string) => Promise<void>;
+  retourMonCompte: () => Promise<void>;
+  /** Relit la liste des comptes (à l'ouverture du sélecteur : un compte créé depuis peu doit y figurer). */
+  rafraichirComptes: () => void;
+}
+
+/** Compte du personnel vers lequel le patron peut basculer. */
+export interface ComptePersonnel {
+  id: string;
+  nom: string;
+  role: Role;
+}
+
+/** Le patron utilise actuellement le compte d'un employé (« visite » : en mémoire seulement, jamais enregistrée). */
+export interface VisiteCompte {
+  id: string;
+  nom: string;
+  role: Role;
+  patronId: string;
+  patronNom: string;
 }
 
 const ContexteSession = createContext<Session | null>(null);

@@ -13,7 +13,7 @@ import { ActivityIndicator, AppState, Image, Linking, StyleSheet, Text, View } f
 import { ClientApi, ErreurApi, connecterAvecMotDePasse, connecterViaApi, demanderReinitialisationMotDePasse, inscrireHotel, rafraichirAvecSecours, sessionRefusee } from "@hotel-chicago/api-client";
 import { evaluerAcces, ouvrirMiroir, type Miroir } from "@hotel-chicago/miroir-local";
 import { ouvrirPersistanceHotel } from "./src/stockage/baseLocale";
-import { type InscriptionHotelPayload, type ProfilConnecte } from "@hotel-chicago/types";
+import { Role, type InscriptionHotelPayload, type ProfilConnecte } from "@hotel-chicago/types";
 import { candidatsApi, lireConfiguration, type ConfigurationApp } from "./src/stockage/configuration";
 import {
   ProfilEnregistre,
@@ -43,6 +43,8 @@ import { FournisseurNotifications } from "./src/notifications/ContexteNotificati
 import { CentreNotifications } from "./src/composants/CentreNotifications";
 import { navigationRef } from "./src/notifications/navigationRef";
 import { retirerAppareil } from "./src/notifications/push";
+import { messageErreur } from "./src/messagesErreur";
+import type { ComptePersonnel, VisiteCompte } from "./src/contexteSession";
 import { useVerrouInactivite } from "./src/hooks/useVerrouInactivite";
 import { ecouterFonctionNonIncluse } from "./src/fonctions";
 import { identifiantAppareil } from "./src/stockage/identifiantAppareil";
@@ -179,6 +181,12 @@ export default function App() {
     return jetonRef.current;
   };
   const [utilisateur, setUtilisateur] = useState<ProfilConnecte | null>(null);
+  // Changement de compte du patron (12/11/2026) : « visite » du compte d'un employé. Les jetons de la visite restent EN MÉMOIRE (rien n'est
+  // écrit dans le téléphone) : au redémarrage de l'application, on retrouve le patron. Le jeton du patron, lui, reste à sa place, intact.
+  const [visite, setVisite] = useState<VisiteCompte | null>(null);
+  const visiteRef = useRef<{ refreshToken: string; patronId: string } | null>(null);
+  const [comptes, setComptes] = useState<ComptePersonnel[]>([]);
+  const [versionComptes, setVersionComptes] = useState(0);
   // Abonnement : l'application n'est remplacée par l'écran « abonnement expiré » que si le SERVEUR l'a dit pendant cette ouverture
   // (profil reçu du serveur avec `abonnement.bloque`, ou synchronisation refusée en 402). Un profil mémorisé ancien ne bloque jamais :
   // il peut dater d'avant un paiement fait ailleurs. `profilFraisPour` = l'utilisateur dont le profil vient d'être relu auprès du serveur.
@@ -420,6 +428,14 @@ export default function App() {
     if (renouvellementEnCours.current) return "en-cours";
     renouvellementEnCours.current = true;
     try {
+      const enVisite = visiteRef.current;
+      if (enVisite) {
+        // Visite d'un compte d'employé : on renouvelle SES jetons, en mémoire ; ceux du patron ne sont pas touchés.
+        const session = await rafraichir(config, enVisite.refreshToken);
+        jetonRef.current = session.accessToken;
+        enVisite.refreshToken = session.refreshToken;
+        return "ok";
+      }
       const jeton = await lireJetonRafraichissement(utilisateurId);
       if (!jeton) return "expiree";
       const session = await rafraichir(config, jeton);
@@ -438,6 +454,18 @@ export default function App() {
 
   /** Session irrécupérable (refus du serveur) : retour à la sélection de profil, comme une déconnexion. */
   function sessionExpiree() {
+    if (visiteRef.current) {
+      // La session de la visite a pris fin : on revient simplement au compte du patron.
+      void retourMonCompte().catch(() => {
+        visiteRef.current = null;
+        setVisite(null);
+        jetonRef.current = null;
+        setSessionActive(false);
+        setUtilisateur(null);
+        retourSelectionProfil();
+      });
+      return;
+    }
     jetonRef.current = null;
     setSessionActive(false);
     setUtilisateur(null);
@@ -618,6 +646,81 @@ export default function App() {
     }
   }
 
+  /** Liste des comptes du personnel (patron seulement, hors visite : un employé ne peut pas la lire). */
+  useEffect(() => {
+    if (!client || !utilisateur || utilisateur.role !== Role.PATRON || visite) return;
+    let annule = false;
+    client
+      .listerUtilisateurs()
+      .then((liste) => {
+        if (!annule) setComptes(liste.filter((u) => u.actif && u.role !== Role.PATRON).map((u) => ({ id: u.id, nom: u.nom, role: u.role })));
+      })
+      .catch(() => undefined); // hors ligne : la dernière liste connue reste affichée
+    return () => {
+      annule = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, utilisateur?.userId, utilisateur?.role, visite, versionComptes]);
+
+  /** Ce qui est en attente d'envoi doit partir sous l'identité qui l'a créé : on synchronise avant de changer de compte, sinon on refuse. */
+  async function viderLaFileAvantChangement(): Promise<void> {
+    if (!moteurSync) throw new Error("L'application n'est pas encore prête.");
+    await moteurSync.forcerSynchronisation().catch(() => undefined);
+    if (moteurSync.etatActuel().enAttente > 0) {
+      throw new Error("Des actions ne sont pas encore envoyées au serveur. Patientez un instant (et vérifiez la connexion), puis réessayez.");
+    }
+  }
+
+  /** Le patron passe au compte d'un employé de son hôtel, sans mot de passe : le serveur ouvre une session pour ce compte. Exige Internet. */
+  async function basculerVers(cibleId: string): Promise<void> {
+    const courant = profilRef.current;
+    if (!configuration || !courant || !client) throw new Error("L'application n'est pas encore prête.");
+    const patronId = visiteRef.current?.patronId ?? courant.userId;
+    // Depuis la visite d'un employé : on repasse d'abord par le patron (seul lui peut ouvrir un autre compte).
+    if (visiteRef.current) await retourMonCompte();
+    else await viderLaFileAvantChangement();
+    const patronNom = profilRef.current?.nom ?? courant.nom;
+    let jetons: { accessToken: string; refreshToken: string };
+    try {
+      jetons = await client.basculerVersCompte(cibleId);
+    } catch (e) {
+      throw new Error(e instanceof ErreurApi && e.statusCode === 0 ? "Changer de compte demande Internet. Vérifiez la connexion et réessayez." : messageErreur(e));
+    }
+    const frais = await new ClientApi(candidatsApi(), () => jetons.accessToken).moi();
+    visiteRef.current = { refreshToken: jetons.refreshToken, patronId };
+    jetonRef.current = jetons.accessToken;
+    setVisite({ id: frais.userId, nom: frais.nom, role: frais.role, patronId, patronNom });
+    setUtilisateur(frais);
+    setProfilFraisPour(frais.userId);
+  }
+
+  /** Retour au compte du patron : son jeton, resté en place, est renouvelé ; hors ligne, on reprend avec son profil mémorisé. */
+  async function retourMonCompte(): Promise<void> {
+    const v = visiteRef.current;
+    if (!v || !configuration) return;
+    await viderLaFileAvantChangement();
+    visiteRef.current = null;
+    setVisite(null);
+    jetonRef.current = null;
+    const etat = await renouvelerJeton(configuration, v.patronId);
+    if (etat === "expiree") {
+      sessionExpiree();
+      return;
+    }
+    const cache = await lireProfilCache(v.patronId);
+    let profil: ProfilConnecte | null = cache;
+    if (etat === "ok") {
+      try {
+        profil = await new ClientApi(candidatsApi(), () => jetonRef.current).moi();
+        await ecrireProfilCache(profil.userId, profil);
+        setProfilFraisPour(profil.userId);
+      } catch {
+        // profil mémorisé
+      }
+    }
+    if (profil) setUtilisateur(profil);
+  }
+
   async function retourSelectionProfil() {
     const liste = await listerProfils();
     setProfils(liste);
@@ -632,6 +735,8 @@ export default function App() {
    * Réservé au PATRON dans l'UI — les employés passent par seDeconnecter. */
   function changerDeProfil() {
     void retirerAppareil(client);
+    visiteRef.current = null;
+    setVisite(null);
     jetonRef.current = null;
     setSessionActive(false);
     setUtilisateur(null);
@@ -642,8 +747,10 @@ export default function App() {
    * la reconnexion de CE compte exige le mot de passe. Le patron garde
    * "Changer de profil" (voir EcranPlus). */
   async function seDeconnecter() {
-    const id = utilisateur?.userId;
+    const id = visiteRef.current?.patronId ?? utilisateur?.userId;
     await retirerAppareil(client);
+    visiteRef.current = null;
+    setVisite(null);
     jetonRef.current = null;
     setSessionActive(false);
     setUtilisateur(null);
@@ -746,7 +853,7 @@ export default function App() {
       {contenuPret && (
         <SafeAreaProvider>
           <FrontiereErreur>
-          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, effacerDonneesAppareil, moteurSync, miroir: miroir!, apresRenouvellement, rechargerProfil: async () => {
+          <FournisseurSession session={{ client, utilisateur, changerDeProfil, seDeconnecter, effacerDonneesAppareil, moteurSync, miroir: miroir!, apresRenouvellement, comptes, visite, basculerVers, retourMonCompte, rafraichirComptes: () => setVersionComptes((n) => n + 1), rechargerProfil: async () => {
             // Relecture auprès du serveur d'abord (le profil sert aussi à décider du blocage d'abonnement) ; hors ligne, la copie en cache.
             let serveur = true;
             let frais: ProfilConnecte;
@@ -769,7 +876,7 @@ export default function App() {
               <EcranAbonnementBloque onContinuer={apresRenouvellement} />
             ) : (
               <FournisseurNotifications client={client} role={utilisateur.role} fonctions={utilisateur.fonctions}>
-                <NavigationContainer key={`navigation-${versionTheme}`} ref={navigationRef} theme={themeNavigation}>
+                <NavigationContainer key={`navigation-${versionTheme}-${utilisateur.userId}`} ref={navigationRef} theme={themeNavigation}>
                   <CoquilleOnglets />
                 </NavigationContainer>
                 <CentreNotifications key={`centre-${versionTheme}`} />

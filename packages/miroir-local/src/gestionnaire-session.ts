@@ -53,6 +53,13 @@ const MARGE_RENOUVELLEMENT_S = 10 * 60;
 const MAX_ECHECS_HORS_LIGNE = 5;
 const BLOCAGE_HORS_LIGNE_MS = 30_000;
 
+/** Résultat d'un passage d'entretien. `visiteTerminee` : la visite d'un compte a été refusée par le serveur, l'application doit revenir au patron. */
+export interface RetourEntretien {
+  profil?: ProfilConnecte;
+  mode: ModeSession;
+  visiteTerminee?: boolean;
+}
+
 export const estErreurReseau = (e: unknown): boolean => e instanceof ErreurApi && e.statusCode === 0;
 
 export class GestionnaireSession {
@@ -68,7 +75,41 @@ export class GestionnaireSession {
   constructor(private readonly deps: DepsSession) {}
 
   accessToken(): string | null {
-    return this.jeton?.accessToken ?? null;
+    return this.visite?.jeton.accessToken ?? this.jeton?.accessToken ?? null;
+  }
+
+  // ------------------------------------------------------------------------------------------------ visite (changement de compte du patron)
+
+  /** Le patron utilise le compte d'un employé (12/11/2026). La visite vit EN MÉMOIRE seulement : rien n'est écrit dans les comptes mémorisés, le
+   * compte du patron et son jeton restent tels quels, et au prochain lancement on retrouve le patron. */
+  private visite: { jeton: JetonSession; profil: ProfilConnecte } | null = null;
+
+  enVisite(): boolean {
+    return this.visite !== null;
+  }
+
+  /** Ouvre la visite avec les jetons du compte d'un employé (obtenus du serveur) ; renvoie son profil. */
+  async commencerVisite(jeton: JetonSession): Promise<ProfilConnecte> {
+    const profil = await this.deps.chargerProfil(jeton.accessToken);
+    this.visite = { jeton, profil };
+    return profil;
+  }
+
+  /** Fin de la visite : retour au compte du patron, dont le jeton est renouvelé tout de suite (il a pu expirer entre-temps). */
+  async terminerVisite(): Promise<RetourEntretien> {
+    this.visite = null;
+    if (this.jeton) this.jeton = { ...this.jeton, expiresAt: 0 }; // force le renouvellement
+    const retour = await this.entretenir();
+    // Hors ligne (renouvellement impossible) : le profil mémorisé du patron sert, le jeton se renouvellera au retour du réseau.
+    return { ...retour, profil: retour.profil ?? (await this.profilMemorise()) ?? undefined };
+  }
+
+  /** Profil mémorisé du compte actif (celui du patron, pendant une visite). */
+  async profilMemorise(): Promise<ProfilConnecte | null> {
+    const cle = this.emailActif;
+    if (!cle) return null;
+    const memo = await this.deps.lire();
+    return memo.comptes[cle]?.profil ?? null;
   }
 
   modeActuel(): ModeSession {
@@ -198,9 +239,10 @@ export class GestionnaireSession {
    * À appeler régulièrement : renouvelle le jeton avant son expiration, et, après une ouverture hors ligne, retrouve l'accès au
    * serveur dès que le réseau revient. Renvoie `profil` quand on vient de repasser en ligne ou que le profil a été relu.
    */
-  async entretenir(): Promise<{ profil?: ProfilConnecte; mode: ModeSession }> {
+  async entretenir(): Promise<RetourEntretien> {
     // Un seul renouvellement à la fois : un jeton de renouvellement ne sert qu'une fois, deux appels simultanés (minuteur + retour de veille)
     // feraient croire à Supabase à un vol de session.
+    if (this.visite) return this.entretenirVisite();
     if (!this.entretienEnCours) {
       this.entretienEnCours = this.entretenirUneFois().finally(() => {
         this.entretienEnCours = null;
@@ -209,9 +251,28 @@ export class GestionnaireSession {
     return this.entretienEnCours;
   }
 
-  private entretienEnCours: Promise<{ profil?: ProfilConnecte; mode: ModeSession }> | null = null;
+  private entretienEnCours: Promise<RetourEntretien> | null = null;
 
-  private async entretenirUneFois(): Promise<{ profil?: ProfilConnecte; mode: ModeSession }> {
+  /** Renouvelle les jetons de la visite (en mémoire). Si le serveur les refuse, la visite se termine : `visiteTerminee` demande le retour au patron. */
+  private async entretenirVisite(): Promise<RetourEntretien> {
+    const v = this.visite;
+    if (!v) return { mode: this.mode };
+    const maintenantS = this.deps.maintenant().getTime() / 1000;
+    if (v.jeton.expiresAt - maintenantS >= MARGE_RENOUVELLEMENT_S) return { mode: this.mode };
+    try {
+      const jeton = await this.deps.rafraichir(v.jeton.refreshToken);
+      if (this.visite === v) this.visite = { jeton, profil: v.profil };
+      return { mode: this.mode };
+    } catch (e) {
+      if (sessionRefusee(e)) {
+        this.visite = null;
+        return { mode: this.mode, visiteTerminee: true };
+      }
+      return { mode: this.mode };
+    }
+  }
+
+  private async entretenirUneFois(): Promise<RetourEntretien> {
     const cle = this.emailActif;
     if (!cle) return { mode: this.mode };
     const maintenantS = this.deps.maintenant().getTime() / 1000;
@@ -253,7 +314,7 @@ export class GestionnaireSession {
   /** Mémorise un profil relu auprès du serveur (réglages changés par le patron). */
   async memoriserProfil(profil: ProfilConnecte): Promise<void> {
     const cle = this.emailActif;
-    if (!cle) return;
+    if (!cle || this.visite) return; // pendant une visite, le profil affiché n'est pas celui du compte mémorisé
     const memo = await this.deps.lire();
     const compte = memo.comptes[cle];
     if (compte) await this.deps.ecrire({ comptes: { ...memo.comptes, [cle]: { ...compte, profil } }, compteActif: cle });
@@ -304,6 +365,7 @@ export class GestionnaireSession {
   /** Ferme la session. Les données de l'hôtel restent sur le poste (elles servent au travail hors ligne) ; le jeton de renouvellement,
    * lui, est effacé : sans mot de passe ou nouvelle connexion, plus d'accès au serveur. */
   async deconnecter(): Promise<void> {
+    this.visite = null;
     const memo = await this.deps.lire();
     const comptes = { ...memo.comptes };
     if (this.emailActif && comptes[this.emailActif]) comptes[this.emailActif] = { ...comptes[this.emailActif], refreshToken: null };

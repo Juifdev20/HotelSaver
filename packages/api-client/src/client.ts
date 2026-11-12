@@ -1083,6 +1083,19 @@ export class ClientApi {
     await this.requete<{ ok: true }>("/auth/mot-de-passe", { method: "POST", body: JSON.stringify({ motDePasseActuel, nouveauMotDePasse }) });
   }
 
+  /**
+   * PATRON — passe au compte (réception, cafétaria) d'un utilisateur de son hôtel sans mot de passe : le serveur ouvre une vraie session pour ce
+   * compte. Renvoie les jetons de CE compte ; les applications les gardent en mémoire seulement (« visite ») et reviennent au patron au
+   * redémarrage ou à « Revenir à mon compte ».
+   */
+  async basculerVersCompte(utilisateurId: string): Promise<{ accessToken: string; refreshToken: string; expiresAt: number }> {
+    const r = await this.requete<{ access_token: string; refresh_token: string; expires_in: number }>("/auth/basculer", {
+      method: "POST",
+      body: JSON.stringify({ utilisateurId }),
+    });
+    return { accessToken: r.access_token, refreshToken: r.refresh_token, expiresAt: Math.floor(Date.now() / 1000) + r.expires_in };
+  }
+
   protected async requete<T>(chemin: string, options: RequestInit = {}): Promise<T> {
     const token = await this.getAccessToken();
     // Un FormData fixe lui-même son Content-Type (avec la frontière multipart).

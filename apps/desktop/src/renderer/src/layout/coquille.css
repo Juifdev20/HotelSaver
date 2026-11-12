@@ -568,7 +568,8 @@
   z-index: 30;
   display: flex;
   flex-direction: column;
-  background-color: var(--hc-navy);
+  /* Mêmes couleurs que la barre latérale (clair en mode clair, marine en mode sombre) : avant, fond marine fixe et textes du thème clair = illisible. */
+  background-color: var(--sb-fond);
 }
 
 .coquille__tiroir-entete {
@@ -576,11 +577,11 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--hc-space-4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--sb-bordure);
 }
 
 .coquille__tiroir-entete .coquille__bouton-icone {
-  color: #ffffff;
+  color: var(--sb-texte-fort);
 }
 
 .coquille__pied-tiroir {
@@ -947,4 +948,88 @@
 }
 .coquille--reduite .carte-profil__textes {
   display: none;
+}
+
+/* ---------- Changement de compte du patron (12/11/2026) ---------- */
+.selecteur-comptes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--hc-space-2) 0;
+  border-bottom: 1px solid var(--hc-border);
+  margin-bottom: var(--hc-space-1);
+}
+.selecteur-comptes__titre {
+  margin: 0;
+  padding: var(--hc-space-1) var(--hc-space-3);
+}
+.selecteur-comptes .coquille__item-menu span {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.selecteur-comptes .coquille__item-menu small {
+  color: var(--hc-ink-muted);
+  font-size: 12px;
+}
+.selecteur-comptes__retour {
+  background: rgba(37, 99, 235, 0.09);
+  color: var(--hc-blue);
+}
+.selecteur-comptes__erreur {
+  padding: 0 var(--hc-space-3);
+}
+.coquille__avatar--petit {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+.coquille__tiroir .selecteur-comptes {
+  padding: var(--hc-space-3);
+}
+
+/* Tiroir de la fenêtre étroite : il garde toujours ses libellés, même quand la barre latérale est réduite aux icônes. */
+.coquille--reduite .coquille__tiroir .lien-nav__libelle {
+  display: block;
+}
+.coquille--reduite .coquille__tiroir .lien-nav--laterale {
+  justify-content: flex-start;
+  padding: 0 var(--hc-space-3);
+}
+.coquille--reduite .coquille__tiroir .nav-section__titre {
+  height: auto;
+  margin: 0 var(--hc-space-3) var(--hc-space-1);
+  overflow: visible;
+  font-size: inherit;
+  background: none;
+}
+.coquille--reduite .coquille__tiroir .coquille__nav {
+  padding-left: var(--hc-space-3);
+  padding-right: var(--hc-space-3);
+}
+
+/* Repère permanent pendant la visite d'un compte (changement de compte du patron) : anneau orange + bouton « Mon compte ». */
+.coquille__utilisateur--visite .coquille__avatar {
+  box-shadow: 0 0 0 2px var(--hc-surface, #fff), 0 0 0 4px #f79009;
+}
+.coquille__utilisateur--visite {
+  background: rgba(247, 144, 9, 0.12);
+}
+.coquille__retour-compte {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 var(--hc-space-3);
+  border: 1px solid #f79009;
+  border-radius: 999px;
+  background: rgba(247, 144, 9, 0.12);
+  color: #b45309;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.coquille__retour-compte:hover,
+.coquille__retour-compte:focus-visible {
+  background: rgba(247, 144, 9, 0.24);
 }

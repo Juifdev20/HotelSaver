@@ -1,9 +1,9 @@
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Bell, Building2, ChevronDown, ChevronRight, CloudOff, CreditCard, LogOut, RefreshCw, TriangleAlert, Download } from "lucide-react-native";
+import { Bell, Building2, ChevronDown, ChevronRight, CloudOff, CreditCard, LogOut, RefreshCw, TriangleAlert, Download, Undo2 } from "lucide-react-native";
 import { Role } from "@hotel-chicago/types";
 import { resumerEtatSync, type NiveauSync } from "@hotel-chicago/sync-engine";
 import { bandeauAbonnement } from "@hotel-chicago/regles";
@@ -14,6 +14,7 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useNotifications } from "../notifications/ContexteNotifications";
 import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { FeuilleModale } from "./FeuilleModale";
+import { FeuilleChangerDeCompte, ListeComptes } from "./FeuilleChangerDeCompte";
 import { AvatarUtilisateur } from "./AvatarUtilisateur";
 import { parTheme } from "../theme/theme";
 
@@ -114,6 +115,38 @@ function BandeauMiseAJour() {
   );
 }
 
+/** Le patron vient de passer sur le compte d'un employé : confirmation complète 4 secondes, puis le repère discret de l'en-tête (anneau + rôle) prend le relais. */
+const DUREE_BANDEAU_VISITE_MS = 4000;
+function BandeauVisite({ onOuvrir }: { onOuvrir: () => void }) {
+  const { visite } = useSession();
+  const [affiche, setAffiche] = useState(false);
+  const idVisite = visite?.id ?? null;
+  useEffect(() => {
+    if (!idVisite) {
+      setAffiche(false);
+      return;
+    }
+    setAffiche(true);
+    const minuteur = setTimeout(() => setAffiche(false), DUREE_BANDEAU_VISITE_MS);
+    return () => clearTimeout(minuteur);
+  }, [idVisite]);
+  if (!visite || !affiche) return null;
+  return (
+    <Pressable
+      style={[styles.bandeau, { backgroundColor: fonds.navy }]}
+      onPress={onOuvrir}
+      accessibilityRole="button"
+      accessibilityLabel={`Vous utilisez le compte de ${visite.nom}, ${LIBELLE_ROLE[visite.role]}. Toucher pour revenir à votre compte.`}
+    >
+      <Undo2 size={16} color="#fff" />
+      <Text style={[styles.bandeauTexte, { color: "#fff" }]} numberOfLines={2}>
+        Vous utilisez le compte de {visite.nom} ({LIBELLE_ROLE[visite.role]})
+      </Text>
+      <ChevronRight size={16} color="#fff" />
+    </Pressable>
+  );
+}
+
 /**
  * Bande du haut de tous les écrans connectés (maquette du patron, 15/10/2026) :
  * fond blanc, horloge/batterie en sombre ; logo seul + « HotelSaver / Gestion
@@ -122,7 +155,9 @@ function BandeauMiseAJour() {
  * profil — patron seulement, comme dans Plus — et déconnexion).
  */
 export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccueil?: boolean; sansBandeauAbonnement?: boolean } = {}) {
-  const { utilisateur, changerDeProfil, seDeconnecter } = useSession();
+  const { utilisateur, seDeconnecter, visite } = useSession();
+  const [changementOuvert, setChangementOuvert] = useState(false);
+  const peutChanger = utilisateur.role === Role.PATRON || visite !== null;
   const { nonLues, ouvrirCentre } = useNotifications();
   const insets = useSafeAreaInsets();
   const etatSync = useSyncEtat();
@@ -148,10 +183,13 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
             {/* Le logo est déjà un carré bleu arrondi : affiché seul (recadré
              * sans sa marge transparente), jamais dans une seconde tuile. */}
             <Image source={require("../../assets/hotelsaver-logo-carre.png")} style={styles.logo} resizeMode="contain" />
-            <View>
-              <Text style={styles.marqueTexte}>HotelSaver</Text>
-              <Text style={styles.marqueSousTexte}>Gestion hôtelière</Text>
-            </View>
+            {/* Pendant une visite, le repère « rôle » prend la place du texte : l'en-tête reste lisible sur un petit téléphone. */}
+            {!visite && (
+              <View>
+                <Text style={styles.marqueTexte}>HotelSaver</Text>
+                <Text style={styles.marqueSousTexte}>Gestion hôtelière</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.droite}>
@@ -178,7 +216,15 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
               accessibilityRole="button"
               accessibilityLabel="Menu du compte"
             >
-              <AvatarUtilisateur taille={38} />
+              {/* Repère permanent pendant une visite : anneau orange autour de l'avatar + rôle du compte utilisé. */}
+              {visite && (
+                <View style={styles.reperVisite}>
+                  <Text style={styles.reperVisiteTexte} numberOfLines={1}>{LIBELLE_ROLE[visite.role]}</Text>
+                </View>
+              )}
+              <View style={visite ? styles.anneauVisite : undefined}>
+                <AvatarUtilisateur taille={visite ? 34 : 38} />
+              </View>
               <ChevronDown size={16} color={couleurs.encreAttenuee} />
             </Pressable>
           </View>
@@ -188,6 +234,8 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
       {!sansBandeauAbonnement && <BandeauAbonnement />}
       <BandeauSync />
       <BandeauMiseAJour />
+      <BandeauVisite onOuvrir={() => setChangementOuvert(true)} />
+      <FeuilleChangerDeCompte visible={changementOuvert} onFermer={() => setChangementOuvert(false)} />
 
       <FeuilleModale visible={menuOuvert} onFermer={() => setMenuOuvert(false)} titre="Mon compte">
         <View style={styles.compte}>
@@ -201,17 +249,12 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
           <Building2 size={16} color={couleurs.encreAttenuee} />
           <Text style={styles.compteHotelTexte}>{utilisateur.hotelNom}</Text>
         </View>
-        {utilisateur.role === Role.PATRON && (
-          <Pressable
-            style={styles.action}
-            onPress={() => {
-              setMenuOuvert(false);
-              changerDeProfil();
-            }}
-          >
-            <RefreshCw size={18} color={couleurs.bleu} />
-            <Text style={styles.actionTexte}>Changer de profil</Text>
-          </Pressable>
+        {/* Changer de compte : directement dans ce menu (un toucher sur le compte voulu), sans étape de plus. */}
+        {peutChanger && (
+          <View style={styles.sectionComptes}>
+            <Text style={styles.sectionComptesTitre}>{visite ? "Vous utilisez un autre compte" : "Changer de compte"}</Text>
+            <ListeComptes apres={() => setMenuOuvert(false)} />
+          </View>
         )}
         <Pressable style={styles.action} onPress={confirmerDeconnexion}>
           <LogOut size={18} color={couleurs.danger} />
@@ -286,6 +329,11 @@ const styles = StyleSheet.create({
     borderRadius: rayons.sm,
     backgroundColor: couleurs.surface100,
   },
+  reperVisite: { maxWidth: 96, paddingHorizontal: espacements.s2, paddingVertical: 3, marginRight: 4, borderRadius: rayons.pill, backgroundColor: couleurs.alerteClair, borderWidth: 1, borderColor: couleurs.alerteVive },
+  reperVisiteTexte: { fontSize: 11, fontWeight: "800", color: couleurs.alerte },
+  anneauVisite: { padding: 2, borderRadius: rayons.pill, borderWidth: 2, borderColor: couleurs.alerteVive },
+  sectionComptes: { gap: espacements.s2 },
+  sectionComptesTitre: { fontSize: 12, fontWeight: "700", color: couleurs.encreAttenuee, textTransform: "uppercase", letterSpacing: 0.5 },
   compteHotelTexte: { fontSize: 14, color: couleurs.encre, fontWeight: "600" },
   action: {
     flexDirection: "row",
