@@ -2817,3 +2817,72 @@ button {
   cursor: pointer;
   color: var(--hc-ink-muted);
 }
+
+/* « Que voulez-vous ajouter ? » (Produits) */
+.choix-ajout {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  width: 100%;
+  padding: var(--hc-space-4);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius-md, 10px);
+  background: var(--hc-surface, transparent);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.choix-ajout:hover,
+.choix-ajout:focus-visible {
+  border-color: var(--hc-blue);
+  background: rgba(37, 99, 235, 0.06);
+}
+.choix-ajout span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.choix-ajout small {
+  color: var(--hc-ink-muted);
+}
+
+/* Cuisine en 3 colonnes (12/11/2026) : à prendre en charge / en préparation / prêt à servir */
+.kds-colonnes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--hc-space-4);
+  align-items: start;
+}
+.kds-colonne {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-3);
+  padding: var(--hc-space-3);
+  border-radius: var(--hc-radius-md, 10px);
+  background: rgba(127, 127, 127, 0.07);
+  min-height: 160px;
+}
+.kds-colonne__titre {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+}
+.kds-colonne__nombre {
+  min-width: 24px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.2);
+  text-align: center;
+  font-size: 12px;
+}
+.kds-colonne--attente .kds-colonne__nombre { background: var(--hc-warning-light); color: var(--hc-warning); }
+.kds-colonne--preparation .kds-colonne__nombre { background: var(--hc-info-light); color: var(--hc-info); }
+.kds-colonne--pret .kds-colonne__nombre { background: rgba(22, 163, 74, 0.16); color: #15803d; }
+.kds-ligne--pret { border-left: 3px solid #12b76a; }
+.kds-ligne__servir { color: #15803d; font-weight: 700; }
+.page--cuisine-integree { display: flex; flex-direction: column; gap: var(--hc-space-3); }
+.page__entete--discret { margin-bottom: 0; }
+@media (max-width: 1099px) {
+  .kds-colonnes { grid-template-columns: 1fr; }
+}

@@ -219,7 +219,7 @@ export function EcranReservationDetail({
 
   async function reimprimerRecu() {
     if (!interfaceImprimante) {
-      setMessage("Aucune imprimante configurée — Paramètres > Imprimante.");
+      setMessage("Aucune imprimante configurée — Réglages > Imprimante.");
       return;
     }
     await action(async () => {

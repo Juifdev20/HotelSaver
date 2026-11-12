@@ -257,7 +257,7 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
 
     // Paramètres → Abonnement : état actif et historique du paiement.
     await page.getByTestId("utilisateur-connecte").click();
-    await page.getByRole("menuitem", { name: /Paramètres/ }).click();
+    await page.getByRole("menuitem", { name: /Réglages/ }).click();
     await page.getByTestId("parametres-abonnement").getByRole("button", { name: "Gérer" }).click();
     await expect_(page.getByRole("heading", { name: "Abonnement", level: 1 })).toBeVisible();
     await expect_(page.getByTestId("abonnement-etat")).toContainText("Abonnement actif");
@@ -306,7 +306,7 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(menu()).toBeVisible(30_000);
     await expect_(menu().getByRole("button", { name: "Chambres", exact: true })).toBeVisible();
     await expect_(menu().getByRole("button", { name: "Séjours", exact: true })).toBeVisible();
-    for (const nom of ["Caisse", "Comptes ouverts", "Retrait commande", "Cuisine", "Menu", "Stock", "Inventaire", "Site de l'hôtel"]) {
+    for (const nom of ["Vente", "En cours", "Produits", "Stock", "Site de l'hôtel"]) {
       await expect_(menu().getByRole("button", { name: nom, exact: true })).toHaveCount(0);
     }
     await expect_(menu().getByText("Cafétaria", { exact: true })).toHaveCount(0);
@@ -322,22 +322,22 @@ const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javas
     await expect_(page.getByRole("button", { name: "Voir les formules" })).toBeVisible();
     await expect_(page.getByTestId("bloc-aide")).toContainText("WhatsApp +243 828 497 218");
 
-    // Paramètres : le paiement en ligne des acomptes est verrouillé (non inclus), avec un chemin vers les formules.
+    // Réglages : le paiement en ligne des acomptes est verrouillé (non inclus), avec un chemin vers les formules.
     await page.getByTestId("utilisateur-connecte").click();
-    await page.getByRole("menuitem", { name: /Paramètres/ }).click();
+    await page.getByRole("menuitem", { name: /Réglages/ }).click();
     await expect_(page.getByTestId("paiement-en-ligne-verrouille")).toContainText("Votre formule actuelle ne l'inclut pas");
     await page.getByTestId("paiement-en-ligne").getByRole("button", { name: "Voir les formules" }).click();
     await expect_(page.getByRole("heading", { name: "Abonnement", level: 1 })).toBeVisible();
     await seDeconnecterDeLApplication();
   });
 
-  it("(f) formule Pro : le patron relie son compte ScanLinkPay (nom vérifié), fixe 30 % et les conditions dans Paramètres", async () => {
+  it("(f) formule Pro : le patron relie son compte ScanLinkPay (nom vérifié), fixe 30 % et les conditions dans Réglages", async () => {
     await seConnecter(E.auth.patron);
     await expect_(menu()).toBeVisible(30_000);
     await expect_(menu().getByRole("button", { name: "Stock", exact: true })).toBeVisible();
     await expect_(menu().getByRole("button", { name: "Site de l'hôtel", exact: true })).toBeVisible();
     await page.getByTestId("utilisateur-connecte").click();
-    await page.getByRole("menuitem", { name: /Paramètres/ }).click();
+    await page.getByRole("menuitem", { name: /Réglages/ }).click();
     const carte = page.getByTestId("paiement-en-ligne");
     await expect_(carte).toContainText("Vos clients paient l'acompte de leur réservation");
 

@@ -828,3 +828,123 @@
   cursor: default;
   text-decoration: none;
 }
+
+/* ---------- Notifications : effacer (12/11/2026) ---------- */
+.coquille__notifications-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+}
+.coquille__lien-discret--danger {
+  color: var(--hc-danger);
+}
+.coquille__notifications-confirmation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hc-space-2);
+  margin-bottom: var(--hc-space-2);
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border-radius: 8px;
+  background: rgba(220, 38, 38, 0.08);
+}
+.coquille__notifications-groupe {
+  padding: var(--hc-space-2) var(--hc-space-3) 0;
+  list-style: none;
+}
+.coquille__notifications-ligne {
+  position: relative;
+}
+.coquille__notifications-ligne .coquille__notification {
+  padding-right: 36px;
+}
+.coquille__notification-effacer {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--hc-ink-muted);
+  cursor: pointer;
+}
+.coquille__notification-effacer:hover,
+.coquille__notification-effacer:focus-visible {
+  background: rgba(127, 127, 127, 0.2);
+  color: var(--hc-danger);
+}
+.coquille__notifications-pied {
+  margin: var(--hc-space-2) 0 0;
+  padding-top: var(--hc-space-2);
+  border-top: 1px solid var(--hc-border);
+}
+
+/* ---------- Carte du profil (pied de la barre latérale) ---------- */
+.carte-profil {
+  display: flex;
+  align-items: center;
+  gap: var(--hc-space-3);
+  width: 100%;
+  margin-top: var(--hc-space-2);
+  padding: var(--hc-space-2) var(--hc-space-3);
+  border: 1px solid var(--sb-bordure);
+  border-radius: var(--hc-radius-sm);
+  background: var(--sb-survol);
+  color: var(--sb-texte-fort);
+  text-align: left;
+  cursor: pointer;
+}
+.carte-profil:hover {
+  background: var(--sb-pastille);
+}
+.carte-profil:focus-visible {
+  outline: 2px solid var(--hc-blue);
+  outline-offset: 2px;
+}
+.carte-profil__textes {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.carte-profil__nom,
+.carte-profil__role {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.carte-profil__role {
+  color: var(--sb-texte-faible);
+}
+.carte-profil__pastille {
+  align-self: flex-start;
+  margin-top: 3px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.carte-profil__pastille--ok {
+  background: rgba(22, 163, 74, 0.16);
+  color: #15803d;
+}
+.carte-profil__pastille--attention {
+  background: rgba(217, 119, 6, 0.18);
+  color: #b45309;
+}
+.carte-profil__pastille--danger {
+  background: rgba(220, 38, 38, 0.16);
+  color: #b91c1c;
+}
+.coquille--reduite .carte-profil {
+  justify-content: center;
+  padding: var(--hc-space-2) 0;
+}
+.coquille--reduite .carte-profil__textes {
+  display: none;
+}

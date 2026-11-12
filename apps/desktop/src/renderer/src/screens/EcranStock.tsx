@@ -9,29 +9,35 @@ import { CarteEtiquettes } from "../components/CarteEtiquettes";
 import { PanneauFormulaire } from "../components/PanneauFormulaire";
 import { useTri } from "../components/useTri";
 import { usePagination } from "../components/Pagination";
+import { EcranInventaire } from "./EcranInventaire";
+import type { UtilisateurAuthentifie } from "@hotel-chicago/types";
 
 export interface EcranStockProps {
   client: ClientApi;
   /** Caisse : ENTRÉES seulement ; perte et ajustement réservés au patron (même règle que le serveur, 18/10/2026). */
   role: string;
   interfaceImprimante?: string | null;
+  /** Pour l'onglet « Inventaire » (comptage physique), ouvert dans cet écran depuis le 12/11/2026. */
+  utilisateur?: UtilisateurAuthentifie;
+  /** Ancien lien « Inventaire » : ouvre directement l'onglet de comptage. */
+  vueInitiale?: "inventaire" | "mouvements" | "comptage";
 }
 
 const TYPES: { valeur: "ENTREE" | "PERTE" | "AJUSTEMENT"; libelle: string }[] = [
-  { valeur: "ENTREE",      libelle: "Entrée en stock"   },
-  { valeur: "PERTE",       libelle: "Perte / casse"     },
-  { valeur: "AJUSTEMENT",  libelle: "Ajustement"        },
+  { valeur: "ENTREE",      libelle: "Réception"         },
+  { valeur: "PERTE",       libelle: "Perte ou casse"    },
+  { valeur: "AJUSTEMENT",  libelle: "Correction"        },
 ];
 
 const LIBELLE_TYPE: Record<string, string> = {
-  ENTREE:      "Entrée",
+  ENTREE:      "Réception",
   SORTIE_VENTE:"Vente",
   RETOUR_VENTE:"Retour (annulation)",
   PERTE:       "Perte",
-  AJUSTEMENT:  "Ajustement",
+  AJUSTEMENT:  "Correction",
 };
 
-type Vue = "inventaire" | "mouvements";
+type Vue = "inventaire" | "mouvements" | "comptage";
 
 function niveauStock(produit: Produit): "epuise" | "bas" | "ok" {
   const stock = Number(produit.stockActuel);
@@ -46,11 +52,11 @@ function niveauStock(produit: Produit): "epuise" | "bas" | "ok" {
  *  - Inventaire  : liste de tous les produits avec niveau de stock, seuil et évolution du jour
  *  - Mouvements  : historique complet des entrées / sorties / pertes / ajustements
  */
-export function EcranStock({ client, role, interfaceImprimante = null }: EcranStockProps) {
+export function EcranStock({ client, role, interfaceImprimante = null, utilisateur, vueInitiale }: EcranStockProps) {
   const typesPermis = TYPES.filter((t) => typesMouvementAutorises(role).includes(t.valeur));
   // Après une entrée : étiquettes de prix, une par article entré.
   const [etiquettes, setEtiquettes] = useState<{ produit: Produit; nombre: number; entete?: string } | null>(null);
-  const [vue, setVue]               = useState<Vue>("inventaire");
+  const [vue, setVue]               = useState<Vue>(vueInitiale ?? "inventaire");
   const [produits, setProduits]     = useState<Produit[]>([]);
   const [mouvements, setMouvements] = useState<MouvementStock[]>([]);
   const [erreur, setErreur]         = useState<string | null>(null);
@@ -174,14 +180,14 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
       <header className="page__entete">
         <div>
           <h1 className="hc-text-display-md page__titre">Stock</h1>
-          <p className="hc-text-body page__sous-titre">{produits.length} produit{produits.length > 1 ? "s" : ""} au catalogue</p>
+          <p className="hc-text-body page__sous-titre">Ce qu'il y a en rayon, ce qui est entré ou sorti, et le comptage physique.</p>
         </div>
         <div style={{ display: "flex", gap: "var(--hc-space-2)" }}>
           <button type="button" className="kds-rafraichir" onClick={charger} title="Actualiser" aria-label="Actualiser">
             <RefreshCw size={18} aria-hidden="true" />
           </button>
           <Button type="button" onClick={() => ouvrirFormulaire()}>
-            {typesPermis.length > 1 ? "Nouveau mouvement" : "Entrée en stock"}
+            Ajouter du stock
           </Button>
         </div>
       </header>
@@ -189,6 +195,7 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
       {erreur && <p role="alert" className="hc-text-body texte-erreur">{erreur}</p>}
 
       {/* Tuiles résumé */}
+      {vue !== "comptage" && (
       <div className="stock-tuiles">
         <div className="stock-tuile">
           <Package size={20} className="stock-tuile__icone stock-tuile__icone--ok" aria-hidden="true" />
@@ -219,22 +226,28 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
           </div>
         </div>
       </div>
+      )}
 
       {/* Onglets */}
       <div className="puces" role="group" aria-label="Vue">
         <button type="button" className="puce" aria-pressed={vue === "inventaire"} onClick={() => setVue("inventaire")}>
-          Inventaire
+          En stock
         </button>
         <button type="button" className="puce" aria-pressed={vue === "mouvements"} onClick={() => setVue("mouvements")}>
-          Mouvements
+          Historique
         </button>
+        {utilisateur && (
+          <button type="button" className="puce" aria-pressed={vue === "comptage"} onClick={() => setVue("comptage")}>
+            Inventaire
+          </button>
+        )}
       </div>
 
       {/* Formulaire nouveau mouvement */}
       {formulaireOuvert && (
         <PanneauFormulaire
-          titre="Nouveau mouvement de stock"
-          sousTitre="Le stock du produit est mis à jour aussitôt."
+          titre="Ajouter du stock"
+          sousTitre="Que s'est-il passé ? Le stock du produit est mis à jour aussitôt."
           onFermer={() => !enEnvoi && setFormulaireOuvert(false)}
           erreur={erreurForm}
           actions={
@@ -385,7 +398,7 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
                             className="lien-action"
                             onClick={() => ouvrirFormulaire(p.id)}
                           >
-                            {typesPermis.length > 1 ? "Mouvement" : "Entrée"}
+                            {typesPermis.length > 1 ? "Ajouter" : "Réception"}
                           </button>
                           {" "}
                           <button
@@ -423,7 +436,10 @@ export function EcranStock({ client, role, interfaceImprimante = null }: EcranSt
         </>
       )}
 
-      {/* ── VUE MOUVEMENTS ── */}
+      {/* ── VUE INVENTAIRE (comptage physique) ── */}
+      {vue === "comptage" && utilisateur && <EcranInventaire client={client} utilisateur={utilisateur} integre />}
+
+      {/* ── VUE HISTORIQUE (mouvements) ── */}
       {vue === "mouvements" && (
         <>
           {mouvements.length === 0 && !erreur && (

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import type { LienNotification, NotificationApp } from "@hotel-chicago/types";
+import { MINUTES_AVANT_DISPARITION_NOTIFICATION, type LienNotification, type NotificationApp } from "@hotel-chicago/types";
 import { annoncerStock } from "./sons";
 
 /** Lien d'une notification côté bureau : comme celui du serveur, plus l'écran « Remboursements » (le serveur ne le connaît pas encore). */
@@ -44,10 +44,20 @@ async function annoncerAlertesStock(client: ClientApi, nouvelles: NotificationAp
  * déclenche une notification Windows, visible même fenêtre masquée dans la zone de notification.
  */
 export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: LienApp) => void) {
-  const [notifications, setNotifications] = useState<NotificationApp[]>([]);
+  const [notificationsBrutes, setNotifications] = useState<NotificationApp[]>([]);
   const [nonLues, setNonLues] = useState(0);
+  // Une notification lue disparaît 30 min après sa lecture (le serveur ne la renvoie plus non plus) : on recompte chaque minute.
+  const [maintenant, setMaintenant] = useState(() => Date.now());
+  useEffect(() => {
+    const minuteur = setInterval(() => setMaintenant(Date.now()), 30_000);
+    return () => clearInterval(minuteur);
+  }, []);
+  const notifications = useMemo(
+    () => notificationsBrutes.filter((n) => !n.luLe || Date.parse(n.luLe) + MINUTES_AVANT_DISPARITION_NOTIFICATION * 60_000 > maintenant),
+    [notificationsBrutes, maintenant]
+  );
   const liste = useRef<NotificationApp[]>([]);
-  liste.current = notifications;
+  liste.current = notificationsBrutes;
   const curseur = useRef<string | null>(null);
   const surLien = useRef(onOuvrirLien);
   surLien.current = onOuvrirLien;
@@ -117,7 +127,7 @@ export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: 
     async (id: string) => {
       if (!client) return;
       if (liste.current.some((n) => n.id === id && !n.lue)) setNonLues((c) => Math.max(0, c - 1));
-      setNotifications((l) => l.map((n) => (n.id === id ? { ...n, lue: true } : n)));
+      setNotifications((l) => l.map((n) => (n.id === id ? { ...n, lue: true, luLe: n.luLe ?? new Date().toISOString() } : n)));
       try {
         await client.marquerNotificationLue(id);
       } catch {
@@ -129,10 +139,38 @@ export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: 
 
   const toutMarquerLu = useCallback(async () => {
     if (!client) return;
-    setNotifications((l) => l.map((n) => ({ ...n, lue: true })));
+    const instant = new Date().toISOString();
+    setNotifications((l) => l.map((n) => ({ ...n, lue: true, luLe: n.luLe ?? instant })));
     setNonLues(0);
     try {
       await client.marquerToutesNotificationsLues();
+    } catch {
+      // idem
+    }
+  }, [client]);
+
+  /** ✕ : efface UNE notification de MA liste (les autres personnes gardent la leur). */
+  const effacer = useCallback(
+    async (id: string) => {
+      if (!client) return;
+      if (liste.current.some((n) => n.id === id && !n.lue)) setNonLues((c) => Math.max(0, c - 1));
+      setNotifications((l) => l.filter((n) => n.id !== id));
+      try {
+        await client.effacerNotification(id);
+      } catch {
+        // Hors ligne : elle reviendra au prochain relevé, l'utilisateur peut recommencer.
+      }
+    },
+    [client]
+  );
+
+  /** « Tout effacer » (après confirmation côté écran). */
+  const toutEffacer = useCallback(async () => {
+    if (!client) return;
+    setNotifications([]);
+    setNonLues(0);
+    try {
+      await client.effacerToutesNotifications();
     } catch {
       // idem
     }
@@ -147,5 +185,5 @@ export function useNotifications(client: ClientApi | null, onOuvrirLien: (lien: 
     [client]
   );
 
-  return { notifications, nonLues, marquerLue, toutMarquerLu, couperAlerteStock };
+  return { notifications, nonLues, marquerLue, toutMarquerLu, effacer, toutEffacer, couperAlerteStock };
 }

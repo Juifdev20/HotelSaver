@@ -22,7 +22,8 @@ import { EcranJourneeReception } from "./screens/EcranJourneeReception";
 import { EcranClients } from "./screens/EcranClients";
 import { EcranFacturation } from "./screens/EcranFacturation";
 import { EcranImprimante } from "./screens/EcranImprimante";
-import { EcranParametres } from "./screens/EcranParametres";
+import { EcranParametres, GestionTauxChange } from "./screens/EcranParametres";
+import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
 import { EcranTableauDeBord } from "./screens/EcranTableauDeBord";
 import { EcranUtilisateurs } from "./screens/EcranUtilisateurs";
 import { EcranSiteHotel } from "./screens/EcranSiteHotel";
@@ -31,11 +32,8 @@ import { EnCours } from "./screens/EnCours";
 import { FournisseurVente, useVente } from "./vente/ContexteVente";
 import { EcranComptesOuverts } from "./screens/EcranComptesOuverts";
 import { EcranCompteCafeteria } from "./screens/EcranCompteCafeteria";
-import { EcranCuisine } from "./screens/EcranCuisine";
-import { EcranRetraitCommande } from "./screens/EcranRetraitCommande";
 import { EcranMenu } from "./screens/EcranMenu";
 import { EcranStock } from "./screens/EcranStock";
-import { EcranInventaire } from "./screens/EcranInventaire";
 import { EcranRapports } from "./screens/EcranRapports";
 import { EcranGuides } from "./screens/EcranGuides";
 import { EcranDepenses } from "./screens/EcranDepenses";
@@ -297,6 +295,9 @@ export function App() {
     // Les droits du RÔLE décident si le lien est suivi ; une fonction non incluse dans la formule, elle, mène au panneau « non incluse »
     // (on n'envoie pas l'utilisateur ailleurs sans explication).
     const autorisees = sectionsPourRole(utilisateur.role, peutOperer(utilisateur), utilisateur.cuisineActivee === true).flatMap((section) => section.entrees.map((entree) => entree.id as string));
+    // Anciennes pages devenues onglets (Cuisine, Retrait commande, Inventaire) : leurs liens restent valides.
+    if (autorisees.includes("comptes-ouverts")) autorisees.push("retrait-commande", ...(utilisateur.cuisineActivee === true ? ["cuisine"] : []));
+    if (autorisees.includes("stock")) autorisees.push("inventaire");
     setReservationAFacturer(null);
     setPageRefusee(null);
     setReservationAOuvrir(lien.ecran === "reservations" && lien.id && autorisees.includes("reservations") ? lien.id : null);
@@ -673,7 +674,8 @@ export function App() {
     } else if (page === "caisse") {
       // « Vente » (11/11/2026) : produits d'abord, ticket à droite ; la table n'est créée que si le client reste. Voir EcranVente.
       contenu = <EcranVente client={client} utilisateur={utilisateur} interfaceImprimante={configuration.imprimanteInterface} synchronisation={synchronisationEcran} />;
-    } else if (page === "comptes-ouverts") {
+    } else if (page === "comptes-ouverts" || page === "cuisine" || page === "retrait-commande") {
+      // « Cuisine » et « Retrait commande » vivent dans « En cours » depuis le 12/11/2026 : leurs anciens liens ouvrent le bon onglet.
       contenu = compteCafeteriaOuvert ? (
         <EcranCompteCafeteria
           client={client}
@@ -685,39 +687,19 @@ export function App() {
         />
       ) : (
         <EnCours
+          key={page}
           client={client}
           utilisateur={utilisateur}
           interfaceImprimante={configuration.imprimanteInterface}
           onOuvrirDetail={setCompteCafeteriaOuvert}
           onNaviguer={naviguer}
-        />
-      );
-    } else if (page === "cuisine") {
-      contenu = (
-        <EcranCuisine
-          client={client}
-          onOuvrirCompte={(compteId) => {
-            setCompteCafeteriaOuvert(compteId);
-            setPage("comptes-ouverts");
-          }}
-        />
-      );
-    } else if (page === "retrait-commande") {
-      contenu = (
-        <EcranRetraitCommande
-          client={client}
-          onOuvrirCompte={(compteId) => {
-            setCompteCafeteriaOuvert(compteId);
-            setPage("comptes-ouverts");
-          }}
+          ongletInitial={page === "cuisine" ? "cuisine" : "tables"}
         />
       );
     } else if (page === "menu") {
       contenu = <EcranMenu client={client} utilisateur={utilisateur} interfaceImprimante={configuration.imprimanteInterface} />;
-    } else if (page === "stock") {
-      contenu = <EcranStock client={client} role={utilisateur.role} interfaceImprimante={configuration.imprimanteInterface} />;
-    } else if (page === "inventaire") {
-      contenu = <EcranInventaire client={client} utilisateur={utilisateur} />;
+    } else if (page === "stock" || page === "inventaire") {
+      contenu = <EcranStock key={page} vueInitiale={page === "inventaire" ? "comptage" : undefined} client={client} role={utilisateur.role} interfaceImprimante={configuration.imprimanteInterface} utilisateur={utilisateur} />;
     } else if (page === "imprimante") {
       contenu = (
         <EcranImprimante
@@ -727,6 +709,20 @@ export function App() {
           onEnregistrer={enregistrerParametres}
           onRetour={() => naviguer("parametres")}
         />
+      );
+    } else if (page === "taux-de-change") {
+      contenu = (
+        <div className="page page--colonnes">
+          <header className="page__entete">
+            <div>
+              <h1 className="hc-text-display-md page__titre">Taux de change</h1>
+              <p className="hc-text-body page__sous-titre">Combien de francs congolais vaut 1 $ : il sert aux paiements croisés.</p>
+            </div>
+          </header>
+          <div className="carte-formulaire">
+            <GestionTauxChange client={client} />
+          </div>
+        </div>
       );
     } else if (page === "site-hotel") {
       contenu = <EcranSiteHotel client={client} />;
@@ -783,6 +779,16 @@ export function App() {
         onOuvrirNotification={ouvrirNotification}
         onCouperAlerteStock={centre.couperAlerteStock}
         onToutMarquerLu={() => void centre.toutMarquerLu()}
+        onEffacerNotification={(id) => void centre.effacer(id)}
+        onToutEffacer={() => void centre.toutEffacer()}
+        resumeAbonnement={
+          utilisateur.abonnement
+            ? (() => {
+                const r = resumerAbonnement(actualiserEtatAbonnement(utilisateur.abonnement));
+                return { titre: r.titre, niveau: r.niveau };
+              })()
+            : undefined
+        }
         pastilles={{ remboursements: nbRemboursements }}
         indicateurSynchro={<IndicateurSynchro etat={etatSync} joursRestants={modeHorsLigne ? joursRestants : null} onOuvrir={() => naviguer("synchronisation")} />}
         bandeau={

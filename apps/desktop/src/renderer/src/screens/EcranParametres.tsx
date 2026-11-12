@@ -4,7 +4,7 @@ import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { Devise, Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
 import type { ProfilConnecte } from "@hotel-chicago/types";
 import { Button, formatMontant } from "@hotel-chicago/ui";
-import { Bell, ChefHat, Coins, CreditCard, Globe, Moon, Printer, Rows3, ShieldCheck, Sun, Users, Volume2 } from "lucide-react";
+import { BookOpen, Bell, ChefHat, Coins, CreditCard, Globe, Moon, Printer, RefreshCw, Rows3, ShieldCheck, Sun, Users, Volume2 } from "lucide-react";
 import { appliquerDensite, densiteEnregistree, type Densite } from "../densite";
 import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
 import type { IdPage } from "../navigation";
@@ -35,7 +35,7 @@ export interface EcranParametresProps {
 
 /** Taux de change USD/CDF (PATRON, section 9.4) : taux en vigueur, saisie
  * du nouveau taux du jour, historique (50 dernières lignes). */
-function GestionTauxChange({ client }: { client: ClientApi }) {
+export function GestionTauxChange({ client }: { client: ClientApi }) {
   const [historique, setHistorique] = useState<TauxChange[] | null>(null);
   const [saisie, setSaisie] = useState("");
   const [enCours, setEnCours] = useState(false);
@@ -191,8 +191,8 @@ export function EcranParametres({
     <div className="page page--colonnes">
       <header className="page__entete">
         <div>
-          <h1 className="hc-text-display-md page__titre">Paramètres</h1>
-          <p className="hc-text-body page__sous-titre">Configuration de ce poste.</p>
+          <h1 className="hc-text-display-md page__titre">Réglages</h1>
+          <p className="hc-text-body page__sous-titre">Ce poste, votre compte, votre hôtel et l'aide, au même endroit.</p>
         </div>
       </header>
 
@@ -316,6 +316,15 @@ export function EcranParametres({
                 Configurer
               </Button>
             </div>
+            <div className="parametres-ligne">
+              <span className="parametres-ligne__icone">
+                <RefreshCw size={18} aria-hidden="true" />
+              </span>
+              <span className="hc-text-body">Synchronisation</span>
+              <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("synchronisation")}>
+                Voir
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -398,21 +407,6 @@ export function EcranParametres({
             )}
           </div>
 
-          {/* Taux de change dans sa propre carte */}
-          <div className="carte-formulaire">
-            <p className="hc-text-label texte-discret">Taux de change</p>
-            {client ? (
-              <GestionTauxChange client={client} />
-            ) : (
-              <div className="parametres-ligne">
-                <span className="parametres-ligne__icone">
-                  <Coins size={18} aria-hidden="true" />
-                </span>
-                <span className="hc-text-body texte-discret">Disponible une fois connecté</span>
-              </div>
-            )}
-          </div>
-
           {/* Paiement en ligne ScanLinkPay */}
           {client && <BlocPaiementEnLigne client={client} onNaviguer={onNaviguer} />}
         </div>
@@ -432,6 +426,24 @@ export function EcranParametres({
               </span>
               <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("abonnement")}>
                 {utilisateur.role === Role.PATRON ? "Gérer" : "Voir"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── AIDE ─────────────────────────────────────────────── */}
+      {onNaviguer && (
+        <div className="parametres-section">
+          <h2 className="parametres-section__titre">Aide</h2>
+          <div className="carte-formulaire">
+            <div className="parametres-ligne">
+              <span className="parametres-ligne__icone">
+                <BookOpen size={18} aria-hidden="true" />
+              </span>
+              <span className="hc-text-body">Guide d'utilisation</span>
+              <Button type="button" variant="secondary" size="sm" onClick={() => onNaviguer("guides")}>
+                Ouvrir
               </Button>
             </div>
           </div>

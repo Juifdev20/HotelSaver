@@ -31,21 +31,21 @@ const ROLES = (process.env.CAPTURES_ROLES ?? "patron,recep,caf").split(",");
 const TAILLES = (process.env.CAPTURES_TAILLES ?? "1440x900,1280x720,1920x1080").split(",").map((t) => t.split("x").map(Number) as [number, number]);
 
 const PAGES_PAR_ROLE: Record<string, string[]> = {
-  patron: ["Tableau de bord", "Chambres", "Séjours", "Remboursements", "Journal de la journée", "Clients", "Facturation", "Caisse", "Comptes ouverts", "Retrait commande", "Cuisine", "Menu", "Stock", "Inventaire", "Rapports mensuels", "Dépenses", "Site de l'hôtel", "Guide d'utilisation", "Paramètres"],
-  recep: ["Tableau de bord", "Chambres", "Séjours", "Journal de la journée", "Clients", "Facturation", "Rapports mensuels", "Dépenses"],
-  caf: ["Tableau de bord", "Caisse", "Comptes ouverts", "Retrait commande", "Cuisine", "Menu", "Stock", "Inventaire", "Rapports mensuels", "Dépenses"],
+  patron: ["Tableau de bord", "Chambres", "Séjours", "Clients", "Facturation", "Journal du jour", "Remboursements", "Vente", "En cours", "Produits", "Stock", "Rapports", "Dépenses", "Taux de change", "Site de l'hôtel", "Utilisateurs", "Réglages"],
+  recep: ["Tableau de bord", "Chambres", "Séjours", "Clients", "Facturation", "Journal du jour", "Rapports", "Dépenses"],
+  caf: ["Tableau de bord", "Vente", "En cours", "Produits", "Stock", "Rapports", "Dépenses"],
 };
 
 /** Écrans secondaires : après avoir ouvert la page, on clique sur le bouton puis on photographie le formulaire ou la fenêtre qui s'ouvre. */
 const ACTIONS: { role: string; page: string; bouton: RegExp; nom: string; ensuite?: RegExp }[] = [
   { role: "patron", page: "Chambres", bouton: /Nouvelle chambre/, nom: "formulaire-nouvelle-chambre" },
   { role: "patron", page: "Séjours", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
-  { role: "patron", page: "Menu", bouton: /Nouveau produit/, nom: "formulaire-nouveau-produit" },
-  { role: "patron", page: "Stock", bouton: /Nouveau mouvement/, nom: "formulaire-nouveau-mouvement" },
+  { role: "patron", page: "Produits", bouton: /Ajouter/, nom: "choix-ajout-produit" },
+  { role: "patron", page: "Stock", bouton: /Ajouter du stock/, nom: "formulaire-ajout-stock" },
   { role: "recep", page: "Dépenses", bouton: /Nouvelle dépense/, nom: "formulaire-depense" },
   { role: "recep", page: "Facturation", bouton: /^Détail$/, nom: "detail-recu" },
   { role: "recep", page: "Séjours", bouton: /Nouvelle réservation/, nom: "formulaire-nouvelle-reservation" },
-  { role: "caf", page: "Caisse", bouton: /Vente rapide/, nom: "caisse-vente-rapide" },
+  { role: "caf", page: "Vente", bouton: /Vente rapide/, nom: "caisse-vente-rapide" },
   { role: "patron", page: "Séjours", bouton: /Planning/, nom: "reservations-planning" },
   { role: "recep", page: "Séjours", bouton: /Ouvrir le séjour de|Ouvrir la réservation de/, nom: "reservation-detail" },
   { role: "recep", page: "Clients", bouton: /^Aline Kabila$|Aline/, nom: "client-detail" },
@@ -279,7 +279,7 @@ async function remplir(A: JeuHotel) {
         page.on("pageerror", (e) => erreurs.push(String(e)));
         for (const libelle of PAGES_PAR_ROLE[role].filter((n) => !process.env.CAPTURES_PAGES || process.env.CAPTURES_PAGES.split(",").includes(n))) {
           let ok = true;
-          const nom = libelle === "Paramètres" ? "Paramètres" : new RegExp(`^${libelle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+          const nom = new RegExp(`^${libelle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
           const laterale = page.getByRole("complementary", { name: "Navigation principale" });
           if (await laterale.isVisible().catch(() => false)) {
             await laterale.getByRole("button", { name: nom }).first().click({ timeout: 4000 }).catch(() => (ok = false));

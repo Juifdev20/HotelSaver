@@ -4,7 +4,7 @@ import { useMiseAJourBureau } from "./useMiseAJourBureau";
 import "./miseajour.css";
 
 /**
- * Paramètres › Mise à jour. Le bouton est grisé tant qu'aucune nouvelle version n'existe, actif dès qu'il y en a une : télécharger (en arrière-plan, avec la
+ * Réglages › Mise à jour. Le bouton est grisé tant qu'aucune nouvelle version n'existe, actif dès qu'il y en a une : télécharger (en arrière-plan, avec la
  * progression), puis « Redémarrer maintenant » — ou plus tard : la mise à jour s'installe alors toute seule quand on quitte l'application (« Quitter » dans la
  * zone de notification de Windows).
  */

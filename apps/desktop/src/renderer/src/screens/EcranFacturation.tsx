@@ -15,7 +15,7 @@ import { BadgeProvisoire, PHRASE_RECU_PROVISOIRE, estRecuProvisoire } from "../c
 export interface EcranFacturationProps {
   client: ClientApi;
   utilisateur: ProfilConnecte;
-  /** Connexion imprimante configurée (Paramètres > Imprimante) — null tant
+  /** Connexion imprimante configurée (Réglages > Imprimante) — null tant
    * qu'aucune n'est réglée, le bouton d'impression le signale alors. */
   interfaceImprimante: string | null;
   /** Présent quand on arrive d'une autre page (Réservations, Arrivées et
@@ -204,7 +204,7 @@ function DetailFacturation({
   async function imprimerRecu() {
     if (!factureCreee || !reservation) return;
     if (!interfaceImprimante) {
-      setMessageImpression("Aucune imprimante configurée — réglez-la depuis Paramètres > Imprimante.");
+      setMessageImpression("Aucune imprimante configurée — réglez-la depuis Réglages > Imprimante.");
       return;
     }
     setEnImpression(true);
@@ -561,7 +561,7 @@ function JournalRecus({
 
   async function reimprimer(facture: Facture) {
     if (!interfaceImprimante) {
-      setMessage("Aucune imprimante configurée — Paramètres > Imprimante.");
+      setMessage("Aucune imprimante configurée — Réglages > Imprimante.");
       return;
     }
     setEnCours(facture.id);

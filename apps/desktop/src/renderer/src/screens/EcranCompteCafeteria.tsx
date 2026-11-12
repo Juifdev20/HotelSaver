@@ -303,7 +303,7 @@ export function EcranCompteCafeteria({
   async function imprimerRecu() {
     if (!lignesRecu || !venteEncaissee) return;
     if (!interfaceImprimante) {
-      setMessageImpression("Aucune imprimante configurée — réglez-la depuis Paramètres > Imprimante.");
+      setMessageImpression("Aucune imprimante configurée — réglez-la depuis Réglages > Imprimante.");
       return;
     }
     setEnImpression(true);
@@ -637,7 +637,7 @@ export function EcranCompteCafeteria({
 
       {compteOuvert && !operer && (
         <p className="hc-text-caption texte-discret bandeau-lecture-seule" role="note">
-          Lecture seule — ajouter des consommations et encaisser sont réservés au personnel de la cafétaria. Le réglage se trouve dans Paramètres.
+          Lecture seule — ajouter des consommations et encaisser sont réservés au personnel de la cafétaria. Le réglage se trouve dans Réglages.
         </p>
       )}
 

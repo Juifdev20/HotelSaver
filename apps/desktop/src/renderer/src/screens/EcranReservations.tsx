@@ -266,7 +266,7 @@ export function EcranReservations({ client, onNaviguer, onFacturer, peutOperer =
       </header>
       {!peutOperer && (
         <p className="hc-text-caption texte-discret bandeau-lecture-seule" role="note">
-          Lecture seule — cette opération est réservée au personnel (réception / caisse). Le réglage se trouve dans Paramètres.
+          Lecture seule — cette opération est réservée au personnel (réception / caisse). Le réglage se trouve dans Réglages.
         </p>
       )}
 

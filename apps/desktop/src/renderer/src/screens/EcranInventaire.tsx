@@ -9,6 +9,8 @@ import { useConfirmation } from "../components/DialogueConfirmation";
 export interface EcranInventaireProps {
   client: ClientApi;
   utilisateur: UtilisateurAuthentifie;
+  /** Affiché dans l'onglet « Inventaire » de Stock (sans son propre titre de page). */
+  integre?: boolean;
 }
 
 type Onglet = "wizard" | "historique";
@@ -42,7 +44,7 @@ function listerNoms(noms: string[]): string {
   return noms.length <= 5 ? noms.join(", ") : `${noms.slice(0, 5).join(", ")} et ${noms.length - 5} autre(s)`;
 }
 
-export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInventaireProps) {
+export function EcranInventaire({ client, utilisateur: _utilisateur, integre = false }: EcranInventaireProps) {
   const [onglet, setOnglet]           = useState<Onglet>("wizard");
   const [etape,  setEtape]            = useState<Etape>(1);
 
@@ -198,13 +200,16 @@ export function EcranInventaire({ client, utilisateur: _utilisateur }: EcranInve
   }
 
   return (
-    <div className="page">
-      <header className="page__entete">
-        <div>
-          <h1 className="hc-text-display-md page__titre">Inventaire physique</h1>
-          <p className="hc-text-body page__sous-titre">Évaluez le stock réel et comparez au stock théorique.</p>
-        </div>
-      </header>
+    <div className={integre ? undefined : "page"}>
+      {/* Intégré à « Stock » (onglet Inventaire) : le titre de la page est celui de Stock. */}
+      {!integre && (
+        <header className="page__entete">
+          <div>
+            <h1 className="hc-text-display-md page__titre">Inventaire physique</h1>
+            <p className="hc-text-body page__sous-titre">Évaluez le stock réel et comparez au stock théorique.</p>
+          </div>
+        </header>
+      )}
 
       {/* Onglets principaux */}
       <div className="puces" role="group" aria-label="Section">

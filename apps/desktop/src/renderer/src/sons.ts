@@ -8,7 +8,7 @@ import stockEpuiseDebut from "./assets/sons/stock_epuise_debut.mp3";
 /**
  * Tout ce que le poste dit ou fait sonner : le BIP d'un scan (généré, aucun fichier) et la VOIX — phrases enregistrées d'une même voix de femme
  * (Delphine : français, et « Please try again » en anglais), identiques sur tous les postes et sans connexion ; seul le nom du produit d'une alerte de
- * stock est lu par la voix de Windows. Le son suit le volume de Windows ; chacun se coupe dans Paramètres › Sons et voix. Un son ne doit jamais faire
+ * stock est lu par la voix de Windows. Le son suit le volume de Windows ; chacun se coupe dans Réglages › Sons et voix. Un son ne doit jamais faire
  * échouer un scan : tout est silencieux en cas de problème.
  */
 

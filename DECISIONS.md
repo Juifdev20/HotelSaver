@@ -4102,3 +4102,14 @@ Besoin : les utilisateurs devaient retourner sur le site, retélécharger et ré
 - Limite : la fonction n'existe pas dans 1.0.10 ; la première version qui la contient doit s'installer à la main une dernière fois.
 
 - **Applications 1.0.11** (versionCode 12, 11/11/2026) : cafétéria « Vente / En cours », chambres en cartes, onglet Séjours (téléphone et bureau), mode sombre mobile, mises à jour intégrées, diagnostic des notifications. Aucune migration de base. Construire l'installateur Windows et l'APK de release sur le poste du patron (clé de signature, `google-services.json` et Windows y sont) puis publier la release avec les fichiers listés dans AGENTS.md.
+
+## Réorganisation des menus et notifications effaçables (12/11/2026)
+
+Demande du patron (téléphone « Plus » illisible : Cuisine / Menu / Stock mélangés ; 7 lignes de réglages ; notifications qui s'accumulent). Validé sur maquettes, téléphone ET bureau :
+
+- **Menu → Produits** (onglets « Articles en stock » / « Plats préparés » ; « + Ajouter » demande d'abord « Article en stock ou plat préparé »).
+- **Stock** s'ouvre sur les quantités (onglets En stock / Historique / Inventaire ; « Ajouter du stock » : Réception / Perte ou casse / Correction). L'écran « Inventaire » (comptage) devient un onglet de Stock.
+- **Cuisine** et **Retrait commande** vivent dans **En cours** (onglet « En cuisine » seulement si le suivi cuisine est activé ; bouton « Retirer une commande web »). Les identifiants de page `cuisine`, `retrait-commande`, `inventaire`, `guides`… restent valides (anciens liens, notifications) : `pageDeLaBarre` (bureau) les rattache à l'entrée de la barre qui les contient.
+  Sur le bureau la cuisine est un tableau à 3 colonnes ; le serveur ne renvoie que les lignes À prendre / En préparation, donc « Prêt à servir » montre, 30 min, les lignes marquées prêtes SUR CE POSTE (pas de changement d'API).
+- **Réglages** (ex-Paramètres) regroupe les réglages du poste, l'abonnement, l'hôtel et l'aide (Guide). Téléphone : « Plus » en tuiles (Réception / Cafétéria / Argent / Mon hôtel, plus courtes pour la réception et la cafétaria) + une seule entrée « Réglages ». Bureau : barre latérale regroupée (Réception, Cafétéria, Argent avec « Taux de change », Mon hôtel avec « Utilisateurs »), « Réglages » en bas et une carte du profil dont la pastille « Abonnement actif › » ouvre toujours l'abonnement.
+- **Notifications** : chacun efface les siennes (✕ / glisser sur téléphone ; « Tout effacer » avec confirmation) ; une notification **lue disparaît 30 min après sa lecture** (libère la base) ; une non lue reste (60 jours au plus). Par utilisateur : effacer chez moi ne touche pas les autres. Aucune migration : « effacée » = `NotificationLue.luLe = 1970` (epoch), le filtre serveur `visiblesPour` écarte toute lecture de plus de 30 min ; le client filtre aussi chaque minute (`MINUTES_AVANT_DISPARITION_NOTIFICATION`, `packages/types`).
