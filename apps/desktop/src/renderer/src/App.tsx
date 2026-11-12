@@ -88,6 +88,18 @@ export function App() {
   const [visite, setVisite] = useState<{ id: string; nom: string; role: Role; patronNom: string } | null>(null);
   const [comptes, setComptes] = useState<{ id: string; nom: string; role: Role }[]>([]);
   const [versionComptes, setVersionComptes] = useState(0);
+  // Confirmation complète 4 secondes après le changement de compte, puis le repère discret de l'en-tête (anneau + bouton « Mon compte ») prend le relais.
+  const [bandeauVisiteOuvert, setBandeauVisiteOuvert] = useState(false);
+  const idVisite = visite?.id ?? null;
+  useEffect(() => {
+    if (!idVisite) {
+      setBandeauVisiteOuvert(false);
+      return;
+    }
+    setBandeauVisiteOuvert(true);
+    const minuteur = setTimeout(() => setBandeauVisiteOuvert(false), 4000);
+    return () => clearTimeout(minuteur);
+  }, [idVisite]);
   const gestionnaire = useRef<GestionnaireSession | null>(null);
   const profilRef = useRef<ProfilConnecte | null>(null);
   profilRef.current = utilisateur;
@@ -885,7 +897,7 @@ export function App() {
                   : `Session ouverte sans Internet. Vos actions sont enregistrées sur cet ordinateur et partiront dès le retour de la connexion.${joursRestants !== null && joursRestants <= 3 ? ` Reconnexion à Internet obligatoire dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}.` : ""}`}
               </div>
             ) : null}
-            {visite && (
+            {visite && bandeauVisiteOuvert && (
               <div className="bandeau-visite hc-text-body" role="status" data-testid="bandeau-visite">
                 <span>
                   Vous utilisez le compte de <strong>{visite.nom}</strong> ({LIBELLE_ROLE_COMPTE[visite.role]}).

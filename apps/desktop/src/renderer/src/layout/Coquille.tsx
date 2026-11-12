@@ -631,6 +631,17 @@ export function Coquille({
               )}
             </div>
 
+            {visite && onRetourCompte && (
+              <button
+                type="button"
+                className="coquille__retour-compte coquille__masque-etroit"
+                data-testid="retour-compte"
+                onClick={() => void onRetourCompte().catch((e: Error) => window.alert(e.message))}
+                title={`Revenir à mon compte (${visite.patronNom})`}
+              >
+                <Undo2 size={15} aria-hidden="true" /> Mon compte
+              </button>
+            )}
             <button
               type="button"
               className="coquille__bouton-icone-rond coquille__masque-etroit"
@@ -644,7 +655,7 @@ export function Coquille({
             <div className="coquille__menu-conteneur coquille__masque-etroit" ref={refProfil}>
               <button
                 type="button"
-                className="coquille__utilisateur"
+                className={`coquille__utilisateur${visite ? " coquille__utilisateur--visite" : ""}`}
                 data-testid="utilisateur-connecte"
                 ref={refBoutonProfil}
                 onClick={() => {
@@ -730,6 +741,11 @@ export function Coquille({
             <span className="hc-text-body-strong">Bonjour, {utilisateur.nom}</span>
             <span className="hc-text-caption coquille__role">{LIBELLE_ROLE[utilisateur.role]}</span>
           </span>
+          {visite && onRetourCompte && (
+            <button type="button" className="coquille__retour-compte" onClick={() => void onRetourCompte().catch((e: Error) => window.alert(e.message))}>
+              <Undo2 size={15} aria-hidden="true" /> Mon compte
+            </button>
+          )}
         </div>
 
         <main className="coquille__contenu" id="contenu-principal" tabIndex={-1} ref={refContenu}>

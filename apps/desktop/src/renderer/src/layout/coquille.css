@@ -1007,3 +1007,29 @@
   padding-left: var(--hc-space-3);
   padding-right: var(--hc-space-3);
 }
+
+/* Repère permanent pendant la visite d'un compte (changement de compte du patron) : anneau orange + bouton « Mon compte ». */
+.coquille__utilisateur--visite .coquille__avatar {
+  box-shadow: 0 0 0 2px var(--hc-surface, #fff), 0 0 0 4px #f79009;
+}
+.coquille__utilisateur--visite {
+  background: rgba(247, 144, 9, 0.12);
+}
+.coquille__retour-compte {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 var(--hc-space-3);
+  border: 1px solid #f79009;
+  border-radius: 999px;
+  background: rgba(247, 144, 9, 0.12);
+  color: #b45309;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.coquille__retour-compte:hover,
+.coquille__retour-compte:focus-visible {
+  background: rgba(247, 144, 9, 0.24);
+}

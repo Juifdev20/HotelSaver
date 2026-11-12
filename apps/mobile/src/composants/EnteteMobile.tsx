@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -115,10 +115,22 @@ function BandeauMiseAJour() {
   );
 }
 
-/** Le patron utilise le compte d'un employé : rappel permanent et retour en un toucher (12/11/2026). */
+/** Le patron vient de passer sur le compte d'un employé : confirmation complète 4 secondes, puis le repère discret de l'en-tête (anneau + rôle) prend le relais. */
+const DUREE_BANDEAU_VISITE_MS = 4000;
 function BandeauVisite({ onOuvrir }: { onOuvrir: () => void }) {
   const { visite } = useSession();
-  if (!visite) return null;
+  const [affiche, setAffiche] = useState(false);
+  const idVisite = visite?.id ?? null;
+  useEffect(() => {
+    if (!idVisite) {
+      setAffiche(false);
+      return;
+    }
+    setAffiche(true);
+    const minuteur = setTimeout(() => setAffiche(false), DUREE_BANDEAU_VISITE_MS);
+    return () => clearTimeout(minuteur);
+  }, [idVisite]);
+  if (!visite || !affiche) return null;
   return (
     <Pressable
       style={[styles.bandeau, { backgroundColor: fonds.navy }]}
@@ -128,7 +140,7 @@ function BandeauVisite({ onOuvrir }: { onOuvrir: () => void }) {
     >
       <Undo2 size={16} color="#fff" />
       <Text style={[styles.bandeauTexte, { color: "#fff" }]} numberOfLines={2}>
-        Compte de {visite.nom} ({LIBELLE_ROLE[visite.role]}) · Revenir à mon compte
+        Vous utilisez le compte de {visite.nom} ({LIBELLE_ROLE[visite.role]})
       </Text>
       <ChevronRight size={16} color="#fff" />
     </Pressable>
@@ -171,10 +183,13 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
             {/* Le logo est déjà un carré bleu arrondi : affiché seul (recadré
              * sans sa marge transparente), jamais dans une seconde tuile. */}
             <Image source={require("../../assets/hotelsaver-logo-carre.png")} style={styles.logo} resizeMode="contain" />
-            <View>
-              <Text style={styles.marqueTexte}>HotelSaver</Text>
-              <Text style={styles.marqueSousTexte}>Gestion hôtelière</Text>
-            </View>
+            {/* Pendant une visite, le repère « rôle » prend la place du texte : l'en-tête reste lisible sur un petit téléphone. */}
+            {!visite && (
+              <View>
+                <Text style={styles.marqueTexte}>HotelSaver</Text>
+                <Text style={styles.marqueSousTexte}>Gestion hôtelière</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.droite}>
@@ -201,7 +216,15 @@ export function EnteteMobile({ sansBandeauAbonnement = false }: { afficherAccuei
               accessibilityRole="button"
               accessibilityLabel="Menu du compte"
             >
-              <AvatarUtilisateur taille={38} />
+              {/* Repère permanent pendant une visite : anneau orange autour de l'avatar + rôle du compte utilisé. */}
+              {visite && (
+                <View style={styles.reperVisite}>
+                  <Text style={styles.reperVisiteTexte} numberOfLines={1}>{LIBELLE_ROLE[visite.role]}</Text>
+                </View>
+              )}
+              <View style={visite ? styles.anneauVisite : undefined}>
+                <AvatarUtilisateur taille={visite ? 34 : 38} />
+              </View>
               <ChevronDown size={16} color={couleurs.encreAttenuee} />
             </Pressable>
           </View>
@@ -306,6 +329,9 @@ const styles = StyleSheet.create({
     borderRadius: rayons.sm,
     backgroundColor: couleurs.surface100,
   },
+  reperVisite: { maxWidth: 96, paddingHorizontal: espacements.s2, paddingVertical: 3, marginRight: 4, borderRadius: rayons.pill, backgroundColor: couleurs.alerteClair, borderWidth: 1, borderColor: couleurs.alerteVive },
+  reperVisiteTexte: { fontSize: 11, fontWeight: "800", color: couleurs.alerte },
+  anneauVisite: { padding: 2, borderRadius: rayons.pill, borderWidth: 2, borderColor: couleurs.alerteVive },
   sectionComptes: { gap: espacements.s2 },
   sectionComptesTitre: { fontSize: 12, fontWeight: "700", color: couleurs.encreAttenuee, textTransform: "uppercase", letterSpacing: 0.5 },
   compteHotelTexte: { fontSize: 14, color: couleurs.encre, fontWeight: "600" },
