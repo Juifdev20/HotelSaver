@@ -15,6 +15,8 @@ import { useSyncEtat } from "../hooks/useSyncEtat";
 export interface EcranComptesOuvertsProps {
   onOuvrirCompte: (compteId: string, compte?: CompteCafeteria) => void;
   onRetour: () => void;
+  /** Dans l'écran « En cours » : sans en-tête (l'écran qui l'accueille le fournit). */
+  integre?: boolean;
 }
 
 function totalCompte(compte: CompteCafeteria): { usd: number; cdf: number } {
@@ -31,7 +33,7 @@ function totalCompte(compte: CompteCafeteria): { usd: number; cdf: number } {
 }
 
 /** Lit la base locale de l'appareil (marche hors ligne) — même patron que EcranChambres.tsx. */
-export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOuvertsProps) {
+export function EcranComptesOuverts({ onOuvrirCompte, onRetour, integre = false }: EcranComptesOuvertsProps) {
   const { moteurSync, client } = useSession();
   const etatSync = useSyncEtat();
   const [comptes, setComptes] = useState<CompteCafeteria[] | null>(null);
@@ -70,14 +72,14 @@ export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOu
 
   return (
     <View style={styles.page}>
-      <EnteteMobile />
-      <EnteteRetour
+      {!integre && <EnteteMobile />}
+      {!integre && <EnteteRetour
         titre="Comptes ouverts"
         sousTitre={
           comptes ? `${comptes.length} compte${comptes.length > 1 ? "s" : ""} ouvert${comptes.length > 1 ? "s" : ""}` : "Chargement…"
         }
         onRetour={onRetour}
-      />
+      />}
 
       {erreur && (
         <Text style={styles.erreur} accessibilityRole="alert">
@@ -88,7 +90,7 @@ export function EcranComptesOuverts({ onOuvrirCompte, onRetour }: EcranComptesOu
       {comptes?.length === 0 && (
         <View style={styles.videConteneur}>
           <ClipboardList size={32} color={couleurs.encreFaible} />
-          <Text style={styles.videTitre}>Aucun compte ouvert pour le moment.</Text>
+          <Text style={styles.videTitre}>Aucune table ouverte pour le moment.</Text>
         </View>
       )}
 

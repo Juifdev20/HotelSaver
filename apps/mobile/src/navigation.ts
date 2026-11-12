@@ -113,61 +113,45 @@ const CAFETARIA_ROLES = [Role.CAFETARIA, Role.PATRON];
 
 export const SECTIONS_PLUS: SectionMenuPlus[] = [
   {
-    // "Facturation" retirée d'ici : son contenu (facturer et check-out une
-    // réservation) vit maintenant dans l'onglet "Réserv." — un deuxième
-    // chemin vers le même endroit n'apporterait rien (même retour du
-    // patron que pour le menu hamburger de EnteteMobile, 25/09/2026).
+    // 12/11/2026 : « Plus » en tuiles, par métier. Cuisine, Retrait commande et Inventaire n'ont plus de ligne ici : ils vivent dans leur écran
+    // (En cours › En cuisine, bouton « Retirer une commande web », Stock › Inventaire). Les réglages de l'appareil (Paramètres, Imprimante, Sons, Notifications,
+    // Synchronisation, Mise à jour, Guide) sont rangés dans « Réglages » ; l'abonnement s'ouvre par la pastille du profil.
     titre: "Réception",
     entrees: [
+      { id: "planning", libelle: "Planning", roles: RECEPTION, disponible: true },
+      { id: "clients", libelle: "Clients", roles: RECEPTION, disponible: true },
+      { id: "journal-journee", libelle: "Journal du jour", roles: RECEPTION, disponible: true },
       // Acomptes payés en ligne à rendre ou à garder (PATRON : c'est son argent).
       { id: "remboursements", libelle: "Remboursements", roles: [Role.PATRON], disponible: true },
-      { id: "planning", libelle: "Planning", roles: RECEPTION, disponible: true },
-      { id: "journal-journee", libelle: "Journal de la journée", roles: RECEPTION, disponible: true },
-      { id: "clients", libelle: "Clients", roles: RECEPTION, disponible: true },
     ],
   },
   {
-    titre: "Cafétaria",
+    titre: "Cafétéria",
     entrees: [
-      // Caisse/Comptes ouverts ont leur propre onglet pour CAFETARIA (voir
-      // ONGLETS ci-dessus) — inutile de les dupliquer ici pour ce rôle ;
-      // PATRON, qui n'a pas ces onglets, les garde accessibles depuis Plus.
+      // Vente / En cours ont leur propre onglet pour CAFETARIA ; le PATRON, qui n'a pas ces onglets, les garde ici.
       { id: "caisse", libelle: "Vente", roles: [Role.PATRON], disponible: true },
       { id: "comptes-ouverts", libelle: "En cours", roles: [Role.PATRON], disponible: true },
-      { id: "retrait-commande", libelle: "Retrait commande", roles: CAFETARIA_ROLES, disponible: true },
-      { id: "cuisine", libelle: "Cuisine", roles: CAFETARIA_ROLES, disponible: true },
-      { id: "menu", libelle: "Menu", roles: CAFETARIA_ROLES, disponible: true },
+      { id: "menu", libelle: "Produits", roles: CAFETARIA_ROLES, disponible: true },
       { id: "stock", libelle: "Stock", roles: CAFETARIA_ROLES, disponible: true },
-      { id: "inventaire", libelle: "Inventaire", roles: CAFETARIA_ROLES, disponible: true },
     ],
   },
   {
-    // Un seul écran pour les deux métiers : les segments Séjours/Cafétaria
-    // sont filtrés par rôle dans EcranJournalRecus (PATRON voit les deux).
-    titre: "Reçus",
+    // Un seul écran « Reçus » pour les deux métiers (filtré par rôle dans EcranJournalRecus) ; rapports PDF par département.
+    titre: "Argent",
     entrees: [
-      { id: "journal-recus", libelle: "Journal des reçus", roles: TOUS, disponible: true },
-      // Rapports mensuels PDF : le personnel voit/génère son département,
-      // le patron consulte les deux (filtrage dans EcranRapports + API).
-      { id: "rapports", libelle: "Rapports mensuels", roles: TOUS, disponible: true },
+      { id: "journal-recus", libelle: "Reçus", roles: TOUS, disponible: true },
+      { id: "rapports", libelle: "Rapports", roles: TOUS, disponible: true },
       // Le personnel a l'onglet « Dépenses » ; le patron consulte ici.
       { id: "depenses", libelle: "Dépenses", roles: [Role.PATRON], disponible: true },
-    ],
-  },
-  {
-    // Comme sur desktop (EcranParametres) : Utilisateurs et Taux de change,
-    // PATRON uniquement, matrice 9.3.
-    titre: "Administration",
-    entrees: [
-      { id: "site-hotel", libelle: "Site de l'hôtel", roles: [Role.PATRON], disponible: true },
-      { id: "utilisateurs", libelle: "Utilisateurs", roles: [Role.PATRON], disponible: true },
       { id: "taux-de-change", libelle: "Taux de change", roles: [Role.PATRON], disponible: true },
     ],
   },
   {
-    // Visible par tous les rôles : l'état de l'abonnement concerne toute l'équipe ; seul le patron peut payer (voir EcranAbonnement).
-    titre: "Abonnement",
-    entrees: [{ id: "abonnement", libelle: "Abonnement", roles: TOUS, disponible: true }],
+    titre: "Mon hôtel",
+    entrees: [
+      { id: "site-hotel", libelle: "Site de l'hôtel", roles: [Role.PATRON], disponible: true },
+      { id: "utilisateurs", libelle: "Utilisateurs", roles: [Role.PATRON], disponible: true },
+    ],
   },
 ];
 

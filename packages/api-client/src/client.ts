@@ -544,6 +544,16 @@ export class ClientApi {
     await this.requete<unknown>(`/notifications/${id}/lue`, { method: "POST" });
   }
 
+  /** Efface une notification de MA liste. */
+  async effacerNotification(id: string): Promise<void> {
+    await this.requete<unknown>(`/notifications/${encodeURIComponent(id)}`, { method: "DELETE", body: "{}" });
+  }
+
+  /** « Tout effacer » : vide MA liste (les autres personnes gardent la leur). */
+  async effacerToutesNotifications(): Promise<{ effacees: number }> {
+    return this.requete<{ effacees: number }>("/notifications", { method: "DELETE", body: "{}" });
+  }
+
   async marquerToutesNotificationsLues(): Promise<void> {
     await this.requete<unknown>("/notifications/lues", { method: "POST" });
   }

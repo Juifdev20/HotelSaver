@@ -3,7 +3,9 @@ import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
-import { CreditCard, HandCoins, LogOut, Trash2, UserRound } from "lucide-react-native";
+import { BellRing, BookOpen, CreditCard, Download, HandCoins, Info, LogOut, Printer, RefreshCw, Trash2, UserRound, Volume2, ChevronRight } from "lucide-react-native";
+import { useSyncEtat } from "../hooks/useSyncEtat";
+import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
 import { couleurs, espacements, rayons } from "../tokens";
 import { LIBELLE_ROLE } from "../navigation";
@@ -30,6 +32,38 @@ export interface EcranParametresMobileProps {
   onOuvrirAbonnement?: () => void;
   /** Ouvre « Paiement en ligne des acomptes » (PATRON) : compte ScanLinkPay de l'hôtel et pourcentage d'acompte. */
   onOuvrirPaiementEnLigne?: () => void;
+  /** Rangées « Cet appareil » et « Aide » (12/11/2026) : tout ce qui se règle au même endroit. */
+  onOuvrirImprimante?: () => void;
+  onOuvrirSons?: () => void;
+  onOuvrirDiagnostic?: () => void;
+  onOuvrirSynchronisation?: () => void;
+  onOuvrirMiseAJour?: () => void;
+  onOuvrirGuide?: () => void;
+}
+
+/** Une rangée de « Réglages » : icône, nom, valeur à droite (état), pastille éventuelle et chevron quand elle ouvre un écran. */
+function LigneReglage({ icone: Icone, libelle, valeur, pastille, onPress, dernier }: { icone: React.ComponentType<{ size?: number; color?: string }>; libelle: string; valeur?: string; pastille?: string; onPress?: () => void; dernier?: boolean }) {
+  return (
+    <Pressable
+      style={[styles.ligneReglage, !dernier && styles.ligneReglageBordure]}
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={`${libelle}${valeur ? `, ${valeur}` : ""}${pastille ? `, ${pastille}` : ""}`}
+    >
+      <View style={styles.ligneReglageIcone}>
+        <Icone size={18} color={couleurs.bleu} />
+      </View>
+      <Text style={styles.ligneReglageTexte}>{libelle}</Text>
+      {pastille && (
+        <View style={styles.ligneReglagePastille}>
+          <Text style={styles.ligneReglagePastilleTexte}>{pastille}</Text>
+        </View>
+      )}
+      {valeur && <Text style={styles.ligneReglageValeur}>{valeur}</Text>}
+      {onPress && <ChevronRight size={16} color={couleurs.encreFaible} />}
+    </Pressable>
+  );
 }
 
 /**
@@ -40,7 +74,10 @@ export interface EcranParametresMobileProps {
  * thème (pas de mode sombre mobile), pas de bloc Administration (Utilisateurs et
  * Taux de change vivent dans « Plus »).
  */
-export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie, onOuvrirAbonnement, onOuvrirPaiementEnLigne }: EcranParametresMobileProps) {
+export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie, onOuvrirAbonnement, onOuvrirPaiementEnLigne, onOuvrirImprimante, onOuvrirSons, onOuvrirDiagnostic, onOuvrirSynchronisation, onOuvrirMiseAJour, onOuvrirGuide }: EcranParametresMobileProps) {
+  const etatSync = useSyncEtat();
+  const miseAJour = useMiseAJour();
+  const nouvelleVersion = miseAJour.etat === "disponible" || miseAJour.etat === "telechargement" || miseAJour.etat === "prete";
   const [enregistrement, setEnregistrement] = useState(false);
   const { miroir, effacerDonneesAppareil, utilisateur: profil } = useSession();
   const resumeAbonnement = profil.abonnement ? resumerAbonnement(actualiserEtatAbonnement(profil.abonnement)) : null;
@@ -113,11 +150,30 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
   return (
     <View style={styles.page}>
       <EnteteMobile />
-      <EnteteRetour titre="Paramètres" onRetour={onRetour} />
+      <EnteteRetour titre="Réglages" sousTitre="Tout ce qui se règle, rangé par thème" onRetour={onRetour} />
 
       <ConteneurFormulaire>
           {/* Apparence : tout en haut, propre à cet appareil (Auto par défaut). */}
           <CarteApparence />
+
+          {/* Cet appareil : imprimante, sons, notifications, synchronisation, mise à jour (avant : 6 lignes séparées dans « Plus »). */}
+          <Text style={styles.titreGroupe}>CET APPAREIL</Text>
+          <View style={styles.groupe}>
+            {onOuvrirImprimante && <LigneReglage icone={Printer} libelle="Imprimante" onPress={onOuvrirImprimante} />}
+            {onOuvrirSons && <LigneReglage icone={Volume2} libelle="Sons et voix" onPress={onOuvrirSons} />}
+            {onOuvrirDiagnostic && <LigneReglage icone={BellRing} libelle="Notifications" valeur="Vérifier et tester" onPress={onOuvrirDiagnostic} />}
+            {onOuvrirSynchronisation && (
+              <LigneReglage
+                icone={RefreshCw}
+                libelle="Synchronisation"
+                valeur={etatSync.enAttente + etatSync.conflits > 0 ? `${etatSync.enAttente + etatSync.conflits} à envoyer` : "À jour ✓"}
+                onPress={onOuvrirSynchronisation}
+              />
+            )}
+            {onOuvrirMiseAJour && miseAJour.possible && (
+              <LigneReglage icone={Download} libelle="Mise à jour" valeur={`v${miseAJour.versionInstallee}`} pastille={nouvelleVersion ? "Nouvelle" : undefined} onPress={onOuvrirMiseAJour} dernier />
+            )}
+          </View>
 
           {/* Abonnement : visible par tous (l'état concerne toute l'équipe) ; le paiement, lui, est réservé au patron dans l'écran qui s'ouvre. */}
           {onOuvrirAbonnement && (
@@ -210,6 +266,12 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
             </View>
           )}
 
+          <Text style={styles.titreGroupe}>AIDE</Text>
+          <View style={styles.groupe}>
+            {onOuvrirGuide && <LigneReglage icone={BookOpen} libelle="Guide d'utilisation" onPress={onOuvrirGuide} />}
+            <LigneReglage icone={Info} libelle="À propos de HotelSaver" valeur={`v${miseAJour.versionInstallee}`} dernier />
+          </View>
+
           {utilisateur && (
             <BlocSecuriteMobile client={client} actionsEnAttente={miroir.actionsEnAttenteTotal()} onEffacerDonnees={effacerDonneesAppareil} />
           )}
@@ -254,6 +316,15 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
 }
 
 const styles = StyleSheet.create({
+  titreGroupe: { fontSize: 12, fontWeight: "800", letterSpacing: 0.6, color: couleurs.encreAttenuee, marginTop: espacements.s2 },
+  groupe: { backgroundColor: couleurs.surface200, borderRadius: rayons.lg, borderWidth: 1, borderColor: couleurs.bordure, overflow: "hidden" },
+  ligneReglage: { minHeight: 54, flexDirection: "row", alignItems: "center", gap: espacements.s3, paddingHorizontal: espacements.s3 },
+  ligneReglageBordure: { borderBottomWidth: 1, borderBottomColor: couleurs.bordure },
+  ligneReglageIcone: { width: 32, height: 32, borderRadius: 9, backgroundColor: couleurs.bleuClair, alignItems: "center", justifyContent: "center" },
+  ligneReglageTexte: { flex: 1, fontSize: 14.5, fontWeight: "600", color: couleurs.encre },
+  ligneReglageValeur: { fontSize: 12.5, color: couleurs.encreAttenuee },
+  ligneReglagePastille: { paddingHorizontal: espacements.s2, paddingVertical: 3, borderRadius: rayons.pill, backgroundColor: couleurs.alerteClair },
+  ligneReglagePastilleTexte: { fontSize: 11, fontWeight: "800", color: couleurs.alerte },
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   chargement: { marginTop: espacements.s6 },
   carte: {

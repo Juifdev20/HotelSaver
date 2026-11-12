@@ -902,7 +902,12 @@ export interface NotificationApp {
   lien: LienNotification;
   createdAt: string;
   lue: boolean;
+  /** Quand MOI je l'ai lue (ISO) : la notification disparaît de ma liste 30 minutes plus tard. Absent/null tant qu'elle n'est pas lue. */
+  luLe?: string | null;
 }
+
+/** Une notification lue disparaît de la liste de son lecteur après ce délai (minutes), sauf s'il l'a effacée avant. */
+export const MINUTES_AVANT_DISPARITION_NOTIFICATION = 30;
 
 export interface ListeNotifications {
   notifications: NotificationApp[];

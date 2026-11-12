@@ -44,6 +44,8 @@ export interface EcranCuisineProps {
   onRetour: () => void;
   /** Tap sur l'en-tête d'une commande : ouvre le détail complet du compte. */
   onOuvrirCompte?: (compteId: string) => void;
+  /** Affiché dans « En cours › En cuisine » (12/11/2026) : sans en-tête ni bouton Retour, l'écran qui l'accueille les fournit. */
+  integre?: boolean;
 }
 
 /**
@@ -51,7 +53,7 @@ export interface EcranCuisineProps {
  * Affiche les lignes EN_ATTENTE et EN_PREPARATION groupées par table.
  * Actualisation automatique toutes les 10 secondes.
  */
-export function EcranCuisine({ client, onRetour, onOuvrirCompte }: EcranCuisineProps) {
+export function EcranCuisine({ client, onRetour, onOuvrirCompte, integre = false }: EcranCuisineProps) {
   const [groupes, setGroupes] = useState<GroupeCuisine[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -112,8 +114,8 @@ export function EcranCuisine({ client, onRetour, onOuvrirCompte }: EcranCuisineP
 
   return (
     <View style={styles.page}>
-      <EnteteMobile />
-      <EnteteRetour
+      {!integre && <EnteteMobile />}
+      {!integre && <EnteteRetour
         titre="Cuisine"
         sousTitre={
           attente === 0 && enPrep === 0 && !chargement ? "Aucune commande active." : undefined
@@ -124,7 +126,7 @@ export function EcranCuisine({ client, onRetour, onOuvrirCompte }: EcranCuisineP
             <RefreshCw size={18} color={couleurs.encre} />
           </Pressable>
         }
-      />
+      />}
 
       {(attente > 0 || enPrep > 0) && (
         <View style={styles.compteurs}>
@@ -162,9 +164,29 @@ export function EcranCuisine({ client, onRetour, onOuvrirCompte }: EcranCuisineP
 
       {!chargement && groupes.length === 0 && (
         <View style={styles.videConteneur}>
-          <ChefHat size={48} color={couleurs.encreFaible} />
-          <Text style={styles.videTitre}>Cuisine à jour !</Text>
-          <Text style={styles.videDescription}>Toutes les commandes ont été servies.</Text>
+          <ChefHat size={48} color={couleurs.succes} />
+          <Text style={styles.videTitre}>Cuisine à jour</Text>
+          <Text style={styles.videDescription}>Aucun plat en attente. Quand un plat est commandé, il apparaît ici automatiquement.</Text>
+          <View style={styles.explication}>
+            <Text style={styles.explicationTitre}>À QUOI SERT LA CUISINE ?</Text>
+            {["Le serveur ajoute un plat à une table.", "La cuisine le voit ici et le prend en charge.", "« Prêt » : le serveur le sert au client."].map((t, i) => (
+              <View key={t} style={styles.explicationLigne}>
+                <View style={styles.explicationNumero}>
+                  <Text style={styles.explicationNumeroTexte}>{i + 1}</Text>
+                </View>
+                <Text style={styles.explicationTexte}>{t}</Text>
+              </View>
+            ))}
+            <Text style={styles.explicationPied}>Pas de cuisine séparée (vente au comptoir) ? Réglages › Suivi cuisine : désactivez, et cet onglet disparaît.</Text>
+          </View>
+        </View>
+      )}
+
+      {groupes.length > 0 && (
+        <View style={styles.aideBandeau}>
+          <Text style={styles.aideBandeauTexte}>
+            <Text style={{ fontWeight: "800" }}>Comment ça marche : </Text>les plats commandés arrivent ici. La cuisine les prend en charge, puis touche « Prêt » : le serveur peut servir.
+          </Text>
         </View>
       )}
 
@@ -289,6 +311,15 @@ const styles = StyleSheet.create({
   },
 
   erreur: { color: couleurs.danger, fontSize: 13, padding: espacements.s4 },
+  aideBandeau: { marginHorizontal: espacements.s4, marginTop: espacements.s2, padding: espacements.s3, borderRadius: rayons.md, backgroundColor: couleurs.bleuClair },
+  aideBandeauTexte: { fontSize: 12.5, color: couleurs.bleu, lineHeight: 18 },
+  explication: { alignSelf: "stretch", marginTop: espacements.s5, padding: espacements.s3, gap: espacements.s2, borderRadius: rayons.lg, borderWidth: 1, borderColor: couleurs.bordure, backgroundColor: couleurs.surface200 },
+  explicationTitre: { fontSize: 12, fontWeight: "800", letterSpacing: 0.6, color: couleurs.encreAttenuee },
+  explicationLigne: { flexDirection: "row", alignItems: "center", gap: espacements.s3 },
+  explicationNumero: { width: 26, height: 26, borderRadius: 13, backgroundColor: couleurs.bleu, alignItems: "center", justifyContent: "center" },
+  explicationNumeroTexte: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  explicationTexte: { flex: 1, fontSize: 14, color: couleurs.encre },
+  explicationPied: { fontSize: 12.5, color: couleurs.encreAttenuee, marginTop: espacements.s2, lineHeight: 18 },
   liste: { padding: espacements.s4, gap: espacements.s4, paddingBottom: 40 },
 
   videConteneur: { flex: 1, alignItems: "center", justifyContent: "center", gap: espacements.s2, padding: espacements.s7 },

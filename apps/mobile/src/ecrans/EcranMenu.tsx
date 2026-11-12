@@ -1,11 +1,11 @@
 import * as React from "react";
 import { signalOk } from "../sons/sons";
-import { useRef, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { ErreurApi, type ClientApi } from "@hotel-chicago/api-client";
 import { construireEtiquette, genererEan13Interne } from "@hotel-chicago/receipts";
 import { Devise, Produit, Role, TypeProduit, UtilisateurAuthentifie } from "@hotel-chicago/types";
-import { Camera, Printer, UtensilsCrossed } from "lucide-react-native";
+import { Beer, Camera, Check, Printer, Search, Utensils, UtensilsCrossed } from "lucide-react-native";
 import { BoutonAjouterFlottant } from "../composants/BoutonAjouterFlottant";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -101,10 +101,26 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
   const [photosAvant, setPhotosAvant] = useState<string[]>([]);
   const [photosEnvoyees, setPhotosEnvoyees] = useState<string[]>([]);
 
-  function ouvrirCreation() {
-    formulaireInitial.current = { formulaire: FORMULAIRE_VIDE, photos: [] };
+  // 12/11/2026 : « Menu » devient « Produits » ; deux onglets selon la façon de vendre, recherche et catégories ; le « + » commence par une question claire.
+  const [onglet, setOnglet] = useState<"articles" | "plats">("articles");
+  const [recherche, setRecherche] = useState("");
+  const [categorieFiltre, setCategorieFiltre] = useState<string | null>(null);
+  const [choixType, setChoixType] = useState(false);
+  const [typeChoisi, setTypeChoisi] = useState<TypeProduit>(TypeProduit.ARTICLE);
+  const nbArticles = (produits ?? []).filter((p) => p.typeProduit !== TypeProduit.PLAT).length;
+  const nbPlats = (produits ?? []).filter((p) => p.typeProduit === TypeProduit.PLAT).length;
+  const dansOnglet = useMemo(() => (produits ?? []).filter((p) => (onglet === "plats") === (p.typeProduit === TypeProduit.PLAT)), [produits, onglet]);
+  const categories = useMemo(() => [...new Set(dansOnglet.map((p) => p.categorie.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr")), [dansOnglet]);
+  const produitsAffiches = useMemo(() => {
+    const terme = recherche.trim().toLowerCase();
+    return dansOnglet.filter((p) => (!categorieFiltre || p.categorie.trim() === categorieFiltre) && (!terme || p.nom.toLowerCase().includes(terme) || p.categorie.toLowerCase().includes(terme)));
+  }, [dansOnglet, categorieFiltre, recherche]);
+
+  function ouvrirCreation(type: TypeProduit = TypeProduit.ARTICLE) {
+    const depart = { ...FORMULAIRE_VIDE, typeProduit: type };
+    formulaireInitial.current = { formulaire: depart, photos: [] };
     setProduitEnEdition(null);
-    setFormulaire(FORMULAIRE_VIDE);
+    setFormulaire(depart);
     setCodeGenere(false);
     setMessageEtiquette(null);
     setNbEtiquettesSaisi(null);
@@ -352,8 +368,8 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
     <View style={styles.page}>
       <EnteteMobile />
       <EnteteRetour
-        titre="Menu"
-        sousTitre={peutModifier ? "Gérez les produits en vente." : "Seul le Patron peut modifier le menu."}
+        titre="Produits"
+        sousTitre={peutModifier ? "Ce que vous vendez et à quel prix" : "Seul le Patron peut modifier les produits."}
         onRetour={onRetour}
       />
 
@@ -368,15 +384,44 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         </Pressable>
       )}
 
+      <View style={styles.segments} accessibilityRole="tablist">
+        {([["articles", `Articles en stock · ${nbArticles}`], ["plats", `Plats préparés · ${nbPlats}`]] as const).map(([id, nom]) => (
+          <Pressable key={id} style={[styles.segment, onglet === id && styles.segmentActif]} onPress={() => { setOnglet(id); setCategorieFiltre(null); }} accessibilityRole="tab" accessibilityLabel={nom} accessibilityState={{ selected: onglet === id }}>
+            <Text style={[styles.segmentTexte, onglet === id && styles.segmentTexteActif]}>{nom}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.aideOnglet}>
+        {onglet === "articles" ? "Boissons et articles qui se vendent tels quels : le stock baisse à chaque vente." : "Plats cuisinés à la commande : pas de stock à suivre (ou des portions)."}
+      </Text>
+      <View style={styles.recherche}>
+        <Search size={17} color={couleurs.encreFaible} />
+        <TextInput style={styles.rechercheSaisie} value={recherche} onChangeText={setRecherche} placeholder="Chercher un produit" placeholderTextColor={couleurs.encreFaible} accessibilityLabel="Chercher un produit" />
+      </View>
+      {categories.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.chips}>
+          {[null, ...categories].map((c) => (
+            <Pressable key={c ?? "toutes"} style={[styles.chip, categorieFiltre === c && styles.chipActif]} onPress={() => setCategorieFiltre(c)} accessibilityRole="button" accessibilityState={{ selected: categorieFiltre === c }}>
+              <Text style={[styles.chipTexte, categorieFiltre === c && styles.chipTexteActif]}>{c ?? "Tous"}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
       {produits?.length === 0 && (
         <View style={styles.videConteneur}>
           <UtensilsCrossed size={32} color={couleurs.encreFaible} />
           <Text style={styles.videTitre}>Aucun produit enregistré.</Text>
         </View>
       )}
+      {produits && produits.length > 0 && produitsAffiches.length === 0 && (
+        <View style={styles.videConteneur}>
+          <Text style={styles.videTitre}>{recherche || categorieFiltre ? "Aucun produit ne correspond." : onglet === "plats" ? "Aucun plat préparé pour l'instant." : "Aucun article en stock pour l'instant."}</Text>
+        </View>
+      )}
 
       <FlatList
-        data={produits ?? []}
+        data={produitsAffiches}
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.liste}
         refreshControl={<RefreshControl refreshing={enCours} onRefresh={recharger} />}
@@ -495,8 +540,8 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
         <Text style={styles.label}>Type de produit</Text>
         <View style={styles.selecteurType} accessibilityRole="radiogroup" accessibilityLabel="Type de produit">
           {([
-            { valeur: TypeProduit.ARTICLE, titre: "Article comptoir", aide: "Stocké : bière, sucre…" },
-            { valeur: TypeProduit.PLAT, titre: "Plat préparé", aide: "Cuisiné : publiable sur le site" },
+            { valeur: TypeProduit.ARTICLE, titre: "Article en stock", aide: "Bière, soda, snack… se vend tel quel" },
+            { valeur: TypeProduit.PLAT, titre: "Plat préparé", aide: "Cuisiné à la commande" },
           ] as const).map((t) => (
             <Pressable
               key={t.valeur}
@@ -755,12 +800,63 @@ export function EcranMenu({ client, utilisateur, onRetour }: EcranMenuProps) {
       </FeuilleModale>
 
       {/* FAB bas-droite — modification réservée au PATRON (comme avant). */}
-      {peutModifier && <BoutonAjouterFlottant onPress={ouvrirCreation} accessibilityLabel="Nouveau produit" />}
+      <FeuilleModale visible={choixType} onFermer={() => setChoixType(false)} titre="Que voulez-vous ajouter ?">
+        <Text style={styles.aideOnglet}>Choisissez comment ce produit se vend.</Text>
+        {([
+          { valeur: TypeProduit.ARTICLE, Icone: Beer, titre: "Article en stock", texte: "Une bière, un soda, une eau, un snack… Il se vend tel quel.", points: ["Le stock baisse à chaque vente", "Code-barres et étiquette de prix", "Alerte quand il en reste peu"] },
+          { valeur: TypeProduit.PLAT, Icone: Utensils, titre: "Plat préparé", texte: "Brochettes, riz-haricots… Il est cuisiné à la commande.", points: ["Pas de stock à suivre (ou des portions)", "Part en cuisine si le suivi cuisine est activé", "Peut être commandé sur le site de l'hôtel"] },
+        ] as const).map((t) => {
+          const actif = typeChoisi === t.valeur;
+          return (
+            <Pressable key={t.valeur} style={[styles.grosChoix, actif && styles.grosChoixActif]} onPress={() => setTypeChoisi(t.valeur)} accessibilityRole="radio" accessibilityState={{ checked: actif }} accessibilityLabel={`${t.titre}. ${t.texte}`}>
+              <View style={styles.grosChoixEntete}>
+                <View style={[styles.grosChoixIcone, actif && { backgroundColor: couleurs.bleu }]}>
+                  <t.Icone size={24} color={actif ? "#fff" : couleurs.encreAttenuee} />
+                </View>
+                <Text style={styles.grosChoixTitre}>{t.titre}</Text>
+                {actif && <Check size={20} color={couleurs.bleu} strokeWidth={3} />}
+              </View>
+              <Text style={styles.grosChoixTexte}>{t.texte}</Text>
+              {t.points.map((p) => (
+                <Text key={p} style={styles.grosChoixPoint}>
+                  ✓ {p}
+                </Text>
+              ))}
+            </Pressable>
+          );
+        })}
+        <Pressable style={styles.bouton} onPress={() => { setChoixType(false); ouvrirCreation(typeChoisi); }} accessibilityRole="button" accessibilityLabel="Continuer">
+          <Text style={styles.boutonTexte}>Continuer</Text>
+        </Pressable>
+      </FeuilleModale>
+
+      {/* FAB bas-droite — modification réservée au PATRON (comme avant). Le « + » pose d'abord la question article ou plat. */}
+      {peutModifier && <BoutonAjouterFlottant onPress={() => { setTypeChoisi(onglet === "plats" ? TypeProduit.PLAT : TypeProduit.ARTICLE); setChoixType(true); }} accessibilityLabel="Nouveau produit" />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  segments: { flexDirection: "row", marginHorizontal: espacements.s4, marginTop: espacements.s2, padding: 4, gap: 4, borderRadius: rayons.md + 4, borderWidth: 1, borderColor: couleurs.bordure, backgroundColor: couleurs.surface200 },
+  segment: { flex: 1, minHeight: 42, borderRadius: rayons.sm + 2, alignItems: "center", justifyContent: "center" },
+  segmentActif: { backgroundColor: couleurs.navy },
+  segmentTexte: { fontSize: 13, fontWeight: "600", color: couleurs.encreAttenuee },
+  segmentTexteActif: { color: "#fff", fontWeight: "800" },
+  aideOnglet: { fontSize: 12.5, color: couleurs.encreAttenuee, paddingHorizontal: espacements.s4, paddingTop: espacements.s2, lineHeight: 18 },
+  recherche: { flexDirection: "row", alignItems: "center", gap: espacements.s2, minHeight: 44, marginHorizontal: espacements.s4, marginTop: espacements.s2, paddingHorizontal: espacements.s3, borderRadius: rayons.sm + 4, borderWidth: 1, borderColor: couleurs.bordure, backgroundColor: couleurs.surface200 },
+  rechercheSaisie: { flex: 1, fontSize: 14, color: couleurs.encre, paddingVertical: 0 },
+  chips: { gap: espacements.s2, paddingHorizontal: espacements.s4, paddingTop: espacements.s2 },
+  chip: { minHeight: 34, paddingHorizontal: espacements.s3, borderRadius: rayons.pill, borderWidth: 1, borderColor: couleurs.bordure, backgroundColor: couleurs.surface200, justifyContent: "center" },
+  chipActif: { backgroundColor: couleurs.bleu, borderColor: couleurs.bleu },
+  chipTexte: { fontSize: 13, fontWeight: "700", color: couleurs.encre },
+  chipTexteActif: { color: "#fff" },
+  grosChoix: { borderWidth: 2, borderColor: couleurs.bordure, borderRadius: rayons.lg + 2, padding: espacements.s3, gap: 4, backgroundColor: couleurs.surface200 },
+  grosChoixActif: { borderColor: couleurs.bleu, backgroundColor: couleurs.bleuClair },
+  grosChoixEntete: { flexDirection: "row", alignItems: "center", gap: espacements.s3 },
+  grosChoixIcone: { width: 46, height: 46, borderRadius: 13, backgroundColor: couleurs.surface100, alignItems: "center", justifyContent: "center" },
+  grosChoixTitre: { flex: 1, fontSize: 16.5, fontWeight: "800", color: couleurs.encre },
+  grosChoixTexte: { fontSize: 13.5, color: couleurs.encre, marginTop: 4, lineHeight: 19 },
+  grosChoixPoint: { fontSize: 12.5, color: couleurs.encreAttenuee },
   page: { flex: 1, backgroundColor: couleurs.surface100 },
   erreur: { color: couleurs.danger, fontSize: 13, paddingHorizontal: espacements.s4 },
   // 88px de marge basse : le FAB ne recouvre pas la dernière carte.

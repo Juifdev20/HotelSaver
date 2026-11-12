@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from "react-native";
 import * as Notifications from "expo-notifications";
 import type { ClientApi } from "@hotel-chicago/api-client";
-import { Role, type LienNotification, type NotificationApp } from "@hotel-chicago/types";
+import { MINUTES_AVANT_DISPARITION_NOTIFICATION, Role, type LienNotification, type NotificationApp } from "@hotel-chicago/types";
 import { fonctionManquante, ongletsPourRole, type IdOnglet } from "../navigation";
 import type { CodeFonction } from "../fonctions";
 import { enregistrerAppareil } from "./push";
@@ -45,6 +45,10 @@ interface ValeurNotifications {
   fermerCentre: () => void;
   marquerLue: (id: string) => Promise<void>;
   toutMarquerLu: () => Promise<void>;
+  /** Efface UNE notification de ma liste (les autres personnes gardent la leur). */
+  effacer: (id: string) => Promise<void>;
+  /** « Tout effacer » : vide ma liste. */
+  toutEffacer: () => Promise<void>;
   /** Clic dans la liste : marque lue puis ouvre l'écran concerné. */
   ouvrirNotification: (notification: NotificationApp) => void;
   /** Ouvre un écran de l'app comme le ferait le lien d'une notification
@@ -119,7 +123,17 @@ export function FournisseurNotifications({
   fonctions?: string[];
   children: React.ReactNode;
 }) {
-  const [notifications, setNotifications] = useState<NotificationApp[]>([]);
+  const [notificationsBrutes, setNotifications] = useState<NotificationApp[]>([]);
+  // Une notification lue disparaît 30 min plus tard (le serveur la masque aussi) : on re-filtre chaque minute sans attendre la prochaine lecture du serveur.
+  const [maintenant, setMaintenant] = useState(() => Date.now());
+  useEffect(() => {
+    const minuteur = setInterval(() => setMaintenant(Date.now()), 30_000);
+    return () => clearInterval(minuteur);
+  }, []);
+  const notifications = useMemo(
+    () => notificationsBrutes.filter((n) => !n.luLe || Date.parse(n.luLe) + MINUTES_AVANT_DISPARITION_NOTIFICATION * 60_000 > maintenant),
+    [notificationsBrutes, maintenant]
+  );
   const [nonLues, setNonLues] = useState(0);
   const [centreOuvert, setCentreOuvert] = useState(false);
   const [demandePlus, setDemandePlus] = useState<DemandePlus | null>(null);
@@ -270,7 +284,7 @@ export function FournisseurNotifications({
 
   const marquerLue = useCallback(
     async (id: string) => {
-      setNotifications((l) => l.map((n) => (n.id === id ? { ...n, lue: true } : n)));
+      setNotifications((l) => l.map((n) => (n.id === id ? { ...n, lue: true, luLe: n.luLe ?? new Date().toISOString() } : n)));
       try {
         await client.marquerNotificationLue(id);
       } finally {
@@ -281,10 +295,35 @@ export function FournisseurNotifications({
   );
 
   const toutMarquerLu = useCallback(async () => {
-    setNotifications((l) => l.map((n) => ({ ...n, lue: true })));
+    const instant = new Date().toISOString();
+    setNotifications((l) => l.map((n) => ({ ...n, lue: true, luLe: n.luLe ?? instant })));
     setNonLues(0);
     try {
       await client.marquerToutesNotificationsLues();
+    } finally {
+      void charger();
+    }
+  }, [client, charger]);
+
+  const effacer = useCallback(
+    async (id: string) => {
+      const etaitNonLue = notificationsBrutes.some((n) => n.id === id && !n.lue);
+      setNotifications((l) => l.filter((n) => n.id !== id));
+      if (etaitNonLue) setNonLues((x) => Math.max(0, x - 1));
+      try {
+        await client.effacerNotification(id);
+      } finally {
+        void charger();
+      }
+    },
+    [client, charger, notificationsBrutes]
+  );
+
+  const toutEffacer = useCallback(async () => {
+    setNotifications([]);
+    setNonLues(0);
+    try {
+      await client.effacerToutesNotifications();
     } finally {
       void charger();
     }
@@ -341,6 +380,8 @@ export function FournisseurNotifications({
       fermerCentre: () => setCentreOuvert(false),
       marquerLue,
       toutMarquerLu,
+      effacer,
+      toutEffacer,
       ouvrirNotification: (notification) => {
         setCentreOuvert(false);
         if (!notification.lue) void marquerLue(notification.id).catch(() => undefined);
@@ -359,7 +400,7 @@ export function FournisseurNotifications({
       ouvrirRemboursements,
       couperAlerteStock,
     }),
-    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, naviguer, ouvrirSynchronisation, ouvrirMiseAJour, ouvrirAbonnement, ouvrirRemboursements, couperAlerteStock, demandePlus, demandeCompte, demandeReservation]
+    [notifications, nonLues, centreOuvert, marquerLue, toutMarquerLu, effacer, toutEffacer, naviguer, ouvrirSynchronisation, ouvrirMiseAJour, ouvrirAbonnement, ouvrirRemboursements, couperAlerteStock, demandePlus, demandeCompte, demandeReservation]
   );
 
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;
