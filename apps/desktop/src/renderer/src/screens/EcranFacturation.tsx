@@ -142,13 +142,17 @@ function DetailFacturation({
         .filter(Boolean)
         .join(" + ") || formatMontant(0, reservation.chambre.devise);
     const mode = modePaiement === ModePaiement.CASH ? "en espèces" : "par mobile money";
+    // Séjour payé d'avance : rien à encaisser aujourd'hui, on ne parle ni de montant à confirmer ni de mode de paiement.
+    const rienAEncaisser = apercu.totalUSD === 0 && apercu.totalCDF === 0;
+    const sejourPaye = formatMontant(apercu.montantChambre, reservation.chambre.devise);
     const confirme = await demander({
-      titre: `Confirmer ${total} ${mode} ?`,
+      titre: rienAEncaisser ? (checkOut ? "Terminer le séjour (check-out) ?" : "Enregistrer la facture ?") : `Confirmer ${total} ${mode} ?`,
       message: (
         <>
           <p>
             Chambre {reservation.chambre.numero} — {reservation.client.nom}.
           </p>
+          {rienAEncaisser && <p>Séjour de {sejourPaye} entièrement payé d'avance : rien à encaisser aujourd'hui.</p>}
           {detailSaisi && (
             <p>
               Remis par le client : {formatMontant(regle, deviseReglee)}
@@ -162,7 +166,7 @@ function DetailFacturation({
           </p>
         </>
       ),
-      libelleConfirmer: checkOut ? `Facturer ${total}` : `Encaisser ${total}`,
+      libelleConfirmer: rienAEncaisser ? (checkOut ? "Terminer le séjour" : "Enregistrer") : checkOut ? `Facturer ${total}` : `Encaisser ${total}`,
     });
     if (!confirme) return;
     setEnCours(true);
@@ -390,29 +394,39 @@ function DetailFacturation({
 
           <div className="reservation-colonnes__lateral">
           <div className="carte-formulaire">
-            <p className="hc-text-label texte-discret">Total à payer</p>
+            <p className="hc-text-label texte-discret">{apercu.totalUSD === 0 && apercu.totalCDF === 0 ? "Reste à payer" : "Total à payer"}</p>
             {apercu.totalUSD > 0 && <p className="hc-text-price">{formatMontant(apercu.totalUSD, Devise.USD)}</p>}
             {apercu.totalCDF > 0 && <p className="hc-text-price">{formatMontant(apercu.totalCDF, Devise.CDF)}</p>}
             {apercu.totalUSD === 0 && apercu.totalCDF === 0 && (
-              <p className="hc-text-price">{formatMontant(0, reservation.chambre.devise)}</p>
+              <>
+                <p className="hc-text-price">{formatMontant(0, reservation.chambre.devise)}</p>
+                <p className="hc-text-body texte-discret">
+                  Séjour de {formatMontant(apercu.montantChambre, reservation.chambre.devise)} entièrement payé d'avance : rien à encaisser.
+                </p>
+              </>
             )}
 
-            <p className="hc-text-label texte-discret" style={{ marginTop: "var(--hc-space-3)" }}>
-              Mode de paiement
-            </p>
-            <div className="puces" role="group" aria-label="Mode de paiement">
-              {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className="puce"
-                  aria-pressed={modePaiement === m}
-                  onClick={() => setModePaiement(m)}
-                >
-                  {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
-                </button>
-              ))}
-            </div>
+            {/* Rien à encaisser (séjour payé d'avance) : aucun mode de paiement à choisir. */}
+            {!(apercu.totalUSD === 0 && apercu.totalCDF === 0) && (
+              <>
+                <p className="hc-text-label texte-discret" style={{ marginTop: "var(--hc-space-3)" }}>
+                  Mode de paiement
+                </p>
+                <div className="puces" role="group" aria-label="Mode de paiement">
+                  {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      className="puce"
+                      aria-pressed={modePaiement === m}
+                      onClick={() => setModePaiement(m)}
+                    >
+                      {m === ModePaiement.CASH ? "Espèces" : "Mobile money"}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             {factureMixte && (
               <p className="hc-text-body" style={{ color: "var(--hc-warning)", marginTop: "var(--hc-space-3)" }}>
