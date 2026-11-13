@@ -15,7 +15,7 @@ const INTERVALLE_MS = 30_000;
 
 /** Vue de l'onglet « Plus » à ouvrir (les écrans qui n'ont pas leur propre onglet). */
 export interface DemandePlus {
-  vue: "stock" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation" | "abonnement" | "remboursements" | "fonction-non-incluse" | "mise-a-jour" | "diagnostic-notifications";
+  vue: "stock" | "rapports" | "comptes-ouverts" | "compte" | "synchronisation" | "abonnement" | "remboursements" | "fonction-non-incluse" | "mise-a-jour";
   /** Compte cafétéria à ouvrir directement (deep-link notification). */
   compteId?: string;
   /** Avec « fonction-non-incluse » : la fonction que la formule de l'hôtel n'ouvre pas. */

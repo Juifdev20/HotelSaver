@@ -16,9 +16,13 @@ notifications **téléphone éteint / application fermée**.
 
 Au démarrage de l'API, le journal indique « Push désactivé » tant que la clé est absente.
 
-## Vérifier que ça marche (diagnostic)
+## Vérifier que ça marche
 
-Dans l'application mobile : **Plus › Diagnostic des notifications**. L'écran vérifie, dans l'ordre : la permission Android, l'identifiant Firebase du téléphone (absent = application
-construite sans `google-services.json`), l'enregistrement du téléphone auprès du serveur, la clé Firebase du serveur (`FIREBASE_SERVICE_ACCOUNT_JSON` sur Render) et les canaux sonores ;
-puis « Envoyer le test » envoie une vraie notification (fermer l'application et verrouiller l'écran pour l'essayer). Si le test est « envoyé » mais n'apparaît pas : réglages de
-batterie du téléphone (Tecno, Infinix, Xiaomi, Samsung… arrêtent les applications fermées) — le bouton de l'écran ouvre les réglages.
+L'écran « Diagnostic des notifications » a été **retiré de l'application** (13/11/2026) : les notifications fonctionnent, il n'a plus d'utilité pour les utilisateurs. Les routes du
+serveur qu'il utilisait (`GET /notifications/push/etat`, `POST /notifications/push/test`, réservées à MES téléphones) restent disponibles pour un contrôle à la main si besoin. Si une
+notification ne s'affiche pas application fermée : permission Android, `google-services.json` dans l'APK, clé Firebase du serveur (`FIREBASE_SERVICE_ACCOUNT_JSON` sur Render), et réglages de
+batterie du téléphone (Tecno, Infinix, Xiaomi, Samsung… arrêtent les applications fermées).
+
+**Icône des notifications** : Android n'utilise que la FORME (la transparence) de la petite icône, jamais ses couleurs. `assets/notification-icon.png` est donc une silhouette blanche du logo sur
+fond transparent (l'ancienne, un carré blanc plein, s'affichait comme une place vide). Elle est copiée par `expo prebuild`, ou sur un dossier `android/` déjà généré par
+`pnpm --filter mobile icone-notification` ; le serveur nomme aussi l'icône (`notification_icon`) et la couleur d'accent dans chaque message.

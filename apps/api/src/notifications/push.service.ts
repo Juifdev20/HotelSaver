@@ -98,7 +98,8 @@ export class PushService {
             priority: "high",
             // Le canal (créé par l app) détermine le son et l importance. Une étiquette UNIQUE par notification : avec une étiquette par type, la 2e demande de réservation remplaçait la 1re sur le téléphone.
             // Alertes de stock : canaux « voix » (sonnerie = la voix de Delphine, fichier res/raw créé par l'app) ; les autres, leur canal de catégorie.
-            notification: { channelId: canalDe(notification.type), tag: notification.id, ...(sonDe(notification.type) ? { sound: sonDe(notification.type) } : {}) },
+            // Petite icône (silhouette du logo, res/drawable/notification_icon) et couleur d'accent nommées explicitement : sans elles, une notification reçue application fermée peut afficher une icône vide.
+            notification: { channelId: canalDe(notification.type), tag: notification.id, icon: "notification_icon", color: "#053483", ...(sonDe(notification.type) ? { sound: sonDe(notification.type) } : {}) },
           },
         },
         aBlanc

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Role, type UtilisateurAuthentifie } from "@hotel-chicago/types";
-import { BellRing, BookOpen, CreditCard, Download, HandCoins, Info, LogOut, Printer, RefreshCw, Trash2, UserRound, Volume2, ChevronRight } from "lucide-react-native";
+import { BookOpen, CreditCard, Download, HandCoins, Info, LogOut, Printer, RefreshCw, Trash2, UserRound, Volume2, ChevronRight } from "lucide-react-native";
 import { useSyncEtat } from "../hooks/useSyncEtat";
 import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { actualiserEtatAbonnement, resumerAbonnement } from "@hotel-chicago/regles";
@@ -36,7 +36,6 @@ export interface EcranParametresMobileProps {
   /** Rangées « Cet appareil » et « Aide » (12/11/2026) : tout ce qui se règle au même endroit. */
   onOuvrirImprimante?: () => void;
   onOuvrirSons?: () => void;
-  onOuvrirDiagnostic?: () => void;
   onOuvrirSynchronisation?: () => void;
   onOuvrirMiseAJour?: () => void;
   onOuvrirGuide?: () => void;
@@ -75,7 +74,7 @@ function LigneReglage({ icone: Icone, libelle, valeur, pastille, onPress, dernie
  * thème (pas de mode sombre mobile), pas de bloc Administration (Utilisateurs et
  * Taux de change vivent dans « Plus »).
  */
-export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie, onOuvrirAbonnement, onOuvrirPaiementEnLigne, onOuvrirImprimante, onOuvrirSons, onOuvrirDiagnostic, onOuvrirSynchronisation, onOuvrirMiseAJour, onOuvrirGuide }: EcranParametresMobileProps) {
+export function EcranParametresMobile({ client, onRetour, utilisateur, onChangerProfil, onSeDeconnecter, onProfilModifie, onOuvrirAbonnement, onOuvrirPaiementEnLigne, onOuvrirImprimante, onOuvrirSons, onOuvrirSynchronisation, onOuvrirMiseAJour, onOuvrirGuide }: EcranParametresMobileProps) {
   const etatSync = useSyncEtat();
   const miseAJour = useMiseAJour();
   const nouvelleVersion = miseAJour.etat === "disponible" || miseAJour.etat === "telechargement" || miseAJour.etat === "prete";
@@ -163,7 +162,6 @@ export function EcranParametresMobile({ client, onRetour, utilisateur, onChanger
           <View style={styles.groupe}>
             {onOuvrirImprimante && <LigneReglage icone={Printer} libelle="Imprimante" onPress={onOuvrirImprimante} />}
             {onOuvrirSons && <LigneReglage icone={Volume2} libelle="Sons et voix" onPress={onOuvrirSons} />}
-            {onOuvrirDiagnostic && <LigneReglage icone={BellRing} libelle="Notifications" valeur="Vérifier et tester" onPress={onOuvrirDiagnostic} />}
             {onOuvrirSynchronisation && (
               <LigneReglage
                 icone={RefreshCw}
