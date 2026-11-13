@@ -4172,3 +4172,7 @@ Constat (photo du patron) : « Vos encaissements » restait à 0 $ / 0 FC pour l
 - **Limite assumée** : un acompte modifié à la baisse après coup change la recette du jour de la création (pas d'historique des acomptes). Après l'arrivée, l'acompte ne peut plus augmenter : le reste passe par « Encaisser le séjour » (facture, déjà comptée à sa date). Un vrai registre daté des acomptes ne serait utile que si on autorise plusieurs versements ; pas nécessaire aujourd'hui.
 - **Pas de changement** : rapport mensuel (compte déjà le séjour entier, `montantChambre`), écrans (ils affichent le total reçu du serveur ou du miroir).
 - Tests : règles (5 cas), serveur (3), hors ligne (3), intégration vraie base (réservation avec acompte 150 $ → réception +150, patron +150, autre hôtel inchangé, journal).
+
+## Version 1.0.16 (13/11/2026)
+
+versionCode 17. Contenu depuis la 1.0.15 : Annuler / Vider et anti-double-scan (Vente, consommations), icône des notifications (APK à reconstruire après `pnpm --filter mobile icone-notification`) et fin du « Diagnostic des notifications », séjour payé d'avance (reste 0.00 $, « soldé », plus de mode de paiement), acomptes comptés dans la recette du jour (réception et patron). **Ordre obligatoire : migration `20261113120000_reservation_date_creation` sur Supabase Test, puis Prod, AVANT la fusion dans master** (Render redéploie l'API dès la fusion et le client Prisma lit `Reservation.createdAt` : sans la colonne, toute lecture de réservation échoue).
