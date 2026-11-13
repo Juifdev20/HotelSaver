@@ -1,3 +1,4 @@
+import { acomptesEncaisses } from "@hotel-chicago/regles";
 import {
   ClientApi,
   ErreurApi,
@@ -501,6 +502,10 @@ export class ClientHorsLigne extends ClientApi {
     return { total, libres: n("LIBRE"), occupees: n("OCCUPEE"), reservees: n("RESERVEE"), enNettoyage: n("NETTOYAGE"), tauxOccupationPourcent: total === 0 ? 0 : Math.round((n("OCCUPEE") / total) * 1000) / 10 };
   }
 
+  private sommer(a: { montantUSD: number; montantCDF: number }, b: { montantUSD: number; montantCDF: number }) {
+    return { montantUSD: a.montantUSD + b.montantUSD, montantCDF: a.montantCDF + b.montantCDF };
+  }
+
   private recette(lignes: Doc[]): { montantUSD: number; montantCDF: number } {
     return lignes.reduce<{ montantUSD: number; montantCDF: number }>(
       (acc, l) => ({ montantUSD: acc.montantUSD + nombre(l.montantTotalUSD), montantCDF: acc.montantCDF + nombre(l.montantTotalCDF) }),
@@ -523,6 +528,24 @@ export class ClientHorsLigne extends ClientApi {
     });
   }
 
+  /** Acomptes pris à la réception sur la plage — même règle que le serveur (`acomptesEncaisses` dans packages/regles). */
+  private acomptesVisibles(depuis: string, jusqua?: string): { montantUSD: number; montantCDF: number } {
+    const u = this.ctx.utilisateur();
+    return acomptesEncaisses(
+      this.s.lister("Reservation").map((r) => ({
+        acompte: nombre(r.acompte),
+        devise: (this.v.chambre(r.chambreId)?.devise === "CDF" ? "CDF" : "USD") as "USD" | "CDF",
+        statut: String(r.statut),
+        origine: String(r.origine),
+        creePar: String(r.createdBy),
+        creeLe: String(r.createdAt),
+        annulee: Boolean(r.annuleLe),
+      })),
+      { debut: depuis, fin: jusqua },
+      u.role === "PATRON" ? null : u.userId
+    );
+  }
+
   private ventesVisibles(depuis: string, jusqua?: string): Doc[] {
     const u = this.ctx.utilisateur();
     return this.s.lister("VenteCafeteria").filter((v) => !v.annuleLe && String(v.createdAt) >= depuis && (!jusqua || String(v.createdAt) < jusqua) && (u.role === "PATRON" || v.createdBy === u.userId));
@@ -532,7 +555,7 @@ export class ClientHorsLigne extends ClientApi {
     if (!this.local()) return super.recetteDuJour();
     const u = this.ctx.utilisateur();
     const debut = debutJourneeHotel(this.ctx.maintenant()).toISOString();
-    const chambres = u.role !== "CAFETARIA" ? this.recette(this.facturesVisibles(debut)) : undefined;
+    const chambres = u.role !== "CAFETARIA" ? this.sommer(this.recette(this.facturesVisibles(debut)), this.acomptesVisibles(debut)) : undefined;
     const cafeteria = u.role !== "RECEPTIONNISTE" ? this.recette(this.ventesVisibles(debut)) : undefined;
     return {
       chambres,
@@ -565,7 +588,7 @@ export class ClientHorsLigne extends ClientApi {
     const departs = reservations.filter((r) => dans(r.dateDepart) && (r.statut === "EN_COURS" || r.statut === "TERMINEE"));
     const factures = this.facturesVisibles(d, f);
     const ventes = this.ventesVisibles(d, f);
-    const rc = this.recette(factures), rf = this.recette(ventes);
+    const rc = this.sommer(this.recette(factures), this.acomptesVisibles(d, f)), rf = this.recette(ventes);
     return {
       date: d,
       recette: {

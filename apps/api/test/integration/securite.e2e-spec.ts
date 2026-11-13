@@ -176,6 +176,24 @@ decrire("Sécurité : ce qu'un appareil ou un visiteur ne doit pas pouvoir faire
   });
 
   describe("Réservations : concurrence et acompte", () => {
+    it("l'acompte pris à la réception est compté dans la recette du jour, pour la réception ET pour le patron — jamais chez un autre hôtel (13/11/2026)", async () => {
+      const avant = async (j: JeuHotel, role: "patron" | "recep") => (await http().get("/dashboard/recette-du-jour").set("Authorization", as(j, role))).body.chambres;
+      const patronAvant = await avant(A, "patron");
+      const recepAvant = await avant(A, "recep");
+      const autreAvant = await avant(B, "patron");
+      // 3 nuits à 50 $ = 150 $, payés en entier à l'enregistrement
+      const res = await http().post("/reservations").set("Authorization", as(A, "recep")).send({
+        chambreId: A.chambreId, client: { nom: "Prépayé" }, dateArrivee: "2031-06-01T12:00:00.000Z", dateDepart: "2031-06-04T12:00:00.000Z", acompte: 150,
+      });
+      expect(res.status).toBe(201);
+      const apres = async (j: JeuHotel, role: "patron" | "recep") => (await http().get("/dashboard/recette-du-jour").set("Authorization", as(j, role))).body.chambres;
+      expect((await apres(A, "recep")).montantUSD).toBe(recepAvant.montantUSD + 150);
+      expect((await apres(A, "patron")).montantUSD).toBe(patronAvant.montantUSD + 150);
+      expect((await apres(B, "patron")).montantUSD).toBe(autreAvant.montantUSD);
+      const journal = (await http().get("/dashboard/journee-reception").set("Authorization", as(A, "recep"))).body;
+      expect(journal.recette.chambres.montantUSD).toBe(recepAvant.montantUSD + 150);
+    });
+
     it("deux réservations simultanées sur la même chambre et les mêmes dates : une seule est acceptée", async () => {
       const corps = { chambreId: A.chambreId, client: { nom: "Course" }, dateArrivee: "2031-03-01T12:00:00.000Z", dateDepart: "2031-03-04T12:00:00.000Z" };
       const reponses = await Promise.all(Array.from({ length: 6 }, () => http().post("/reservations").set("Authorization", as(A, "recep")).send(corps)));
