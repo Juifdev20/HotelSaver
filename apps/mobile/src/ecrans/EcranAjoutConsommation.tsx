@@ -4,6 +4,7 @@ import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, Vi
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Camera, Minus, Plus, ScanBarcode, Search, Star, X } from "lucide-react-native";
 import { normaliserCodeBarres, trouverProduitParCode } from "@hotel-chicago/receipts";
+import { evaluerScan, type DernierScan } from "@hotel-chicago/regles";
 import { Devise, TypeProduit, type CompteCafeteria, type MenuDuJour, type Produit, type SousCompte } from "@hotel-chicago/types";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
@@ -156,11 +157,21 @@ export function EcranAjoutConsommation({
     });
   }
 
+  const dernierScan = useRef<DernierScan | null>(null);
   /** Un code lu (caméra, douchette ou recherche) : ajoute l'article au panier
    * si le catalogue le connaît. Recherche locale, instantanée et hors ligne. */
   function ajouterParCode(brut: string): string {
     const code = normaliserCodeBarres(brut);
     if (!code) return "";
+    // Anti-double-scan : le même code relu en moins de quelques secondes n'ajoute rien (le même article reste devant le lecteur).
+    const verdictScan = evaluerScan(dernierScan.current, code, Date.now());
+    dernierScan.current = verdictScan.suivant;
+    if (!verdictScan.accepte) {
+      if (!verdictScan.aSignaler) return "";
+      const doublon = "Déjà scanné. Écartez l'article un instant, ou touchez « + » pour en ajouter un autre.";
+      setInfoScan(doublon);
+      return doublon;
+    }
     const idAssocie = codesAssocies[code];
     const produit = (idAssocie && produitsParId.get(idAssocie)) || trouverProduitParCode(produits, code);
     if (!produit) {

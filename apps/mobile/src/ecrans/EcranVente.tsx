@@ -22,7 +22,7 @@ import {
   type SegmentVente,
 } from "@hotel-chicago/regles";
 import { Devise, peutOperer, StatutCompte, TypeProduit, type CompteCafeteria, type Produit } from "@hotel-chicago/types";
-import { raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
+import { evaluerScan, raisonRefusAnnulationCompte, type DernierScan } from "@hotel-chicago/regles";
 import { couleurs, espacements, rayons } from "../tokens";
 import { formatMontant } from "../formatMontant";
 import { heureCourte } from "../dates";
@@ -85,6 +85,8 @@ export function EcranVente({ onRetour: _onRetour }: { onRetour: () => void }) {
   const [scannerOuvert, setScannerOuvert] = useState(false);
   const [saisieDouchette, setSaisieDouchette] = useState("");
   const [infoScan, setInfoScan] = useState<string | null>(null);
+  // Dernier article ajouté par un scan : le bandeau propose de l'annuler (« Annuler » retire UNE unité), sans ouvrir le panier.
+  const [dernierScanne, setDernierScanne] = useState<Produit | null>(null);
   const [codeInconnu, setCodeInconnu] = useState<string | null>(null);
   const [selecteurAssociation, setSelecteurAssociation] = useState(false);
   const [codesAssocies, setCodesAssocies] = useState<Record<string, string>>({});
@@ -177,9 +179,19 @@ export function EcranVente({ onRetour: _onRetour }: { onRetour: () => void }) {
     if (!scannerOuvert && !selecteurAssociation && !panierOuvert && !tableOuverte && !compteOuvert) champDouchette.current?.focus();
   }, [scannerOuvert, selecteurAssociation, panierOuvert, tableOuverte, compteOuvert]);
 
+  const dernierScan = useRef<DernierScan | null>(null);
   function ajouterParCode(brut: string): string {
     const code = normaliserCodeBarres(brut);
     if (!code) return "";
+    // Anti-double-scan : le même code relu en moins de quelques secondes n'ajoute rien (le même article reste devant le lecteur).
+    const verdictScan = evaluerScan(dernierScan.current, code, Date.now());
+    dernierScan.current = verdictScan.suivant;
+    if (!verdictScan.accepte) {
+      if (!verdictScan.aSignaler) return "";
+      const doublon = "Déjà scanné. Écartez l'article un instant, ou touchez « + » pour en ajouter un autre.";
+      setInfoScan(doublon);
+      return doublon;
+    }
     const idAssocie = codesAssocies[code];
     const produit = (idAssocie && produitsParId.get(idAssocie)) || trouverProduitParCode(produits, code);
     if (!produit) {
@@ -201,6 +213,7 @@ export function EcranVente({ onRetour: _onRetour }: { onRetour: () => void }) {
     changer(onglet, produit, 1);
     signalOk();
     setCodeInconnu(null);
+    setDernierScanne(produit);
     const message = `${produit.nom} ajouté (${deja + 1})`;
     setInfoScan(message);
     return message;
@@ -241,6 +254,23 @@ export function EcranVente({ onRetour: _onRetour }: { onRetour: () => void }) {
       c.suiteId = suite.id;
     }
     return c;
+  }
+
+  /** Le client renonce : tout le panier est retiré d'un coup (après confirmation), sans ouvrir le panier ni retirer les produits un par un. */
+  function viderLaVente() {
+    confirmerAction({
+      titre: "Vider la vente ?",
+      message: `${articles} article${articles > 1 ? "s" : ""} (${libelleTotal}) seront retirés du panier.`,
+      libelleConfirmer: "Vider",
+      destructif: true,
+      onConfirmer: () => {
+        vider(ONGLET_NOUVELLE_VENTE);
+        abandonnerCreation();
+        setInfoScan(null);
+        setCodeInconnu(null);
+        setDernierScanne(null);
+      },
+    });
   }
 
   function abandonnerCreation() {
@@ -486,10 +516,26 @@ export function EcranVente({ onRetour: _onRetour }: { onRetour: () => void }) {
               <Text style={styles.lien}>Associer</Text>
             </Pressable>
           )}
+          {dernierScanne && !codeInconnu && (selection[dernierScanne.id] ?? 0) > 0 && (
+            <Pressable
+              onPress={() => {
+                changer(onglet, dernierScanne, -1);
+                setInfoScan(`${dernierScanne.nom} retiré`);
+                setDernierScanne(null);
+              }}
+              hitSlop={8}
+              style={styles.zoneTactile}
+              accessibilityRole="button"
+              accessibilityLabel={`Annuler le dernier ajout : ${dernierScanne.nom}`}
+            >
+              <Text style={styles.lien}>Annuler</Text>
+            </Pressable>
+          )}
           <Pressable
             onPress={() => {
               setInfoScan(null);
               setCodeInconnu(null);
+              setDernierScanne(null);
             }}
             hitSlop={8}
             style={styles.zoneTactile}
@@ -560,9 +606,12 @@ export function EcranVente({ onRetour: _onRetour }: { onRetour: () => void }) {
       {/* Barre du bas : suit le client partout. */}
       {operer && !tableActive && articles > 0 && (
         <BarreBas
-          gauche={`Nouvelle vente · ${articles} article${articles > 1 ? "s" : ""}`}
+          gauche={`Vente · ${articles} article${articles > 1 ? "s" : ""}`}
           fort={libelleTotal}
-          actions={[{ libelle: "Voir le panier", principal: true, onPress: () => { setErreur(null); setPanierOuvert(true); } }]}
+          actions={[
+            { libelle: "Vider", onPress: viderLaVente },
+            { libelle: "Voir le panier", principal: true, onPress: () => { setErreur(null); setPanierOuvert(true); } },
+          ]}
         />
       )}
       {operer && tableActive && (articles > 0 || (reste?.articles ?? 0) > 0 || peutTerminerTable(tableActive) || annulable) && (
