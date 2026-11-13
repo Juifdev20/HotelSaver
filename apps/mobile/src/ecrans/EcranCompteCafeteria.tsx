@@ -6,7 +6,7 @@ import type { ClientApi, DonneesEncaissement, TauxChange } from "@hotel-chicago/
 import { CompteCafeteria, Devise, LigneCommande, MenuDuJour, ModePaiement, Produit, SousCompte, StatutCompte, StatutLigne, LIBELLE_STATUT_LIGNE, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Check, Globe, Plus, UserPlus } from "lucide-react-native";
-import { estRecuProvisoire, lireMontant, raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
+import { estRecuProvisoire, lireMontant, personnesAEncaisser, raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
 import { attendreNumeroDefinitif, retrouverRecu } from "@hotel-chicago/miroir-local";
 import { confirmerAction } from "../confirmer";
 import { couleurs, espacements, rayons } from "../tokens";
@@ -244,12 +244,16 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   /** Personnes qui ont encore quelque chose à régler (pas déjà payées, au moins une ligne). */
   const personnesARegler = compte ? compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0) : [];
 
+  // Personne visée à l'ouverture de la fenêtre : si son identifiant local est remplacé par le définitif (synchronisation), on la retrouve par son nom.
+  const cibleMemo = useRef<{ id: string; nom: string } | null>(null);
   function personnesCibles(cible: string): SousCompte[] {
-    return cible === "tout" ? personnesARegler : personnesARegler.filter((sc) => sc.id === cible);
+    return personnesAEncaisser(personnesARegler, cible, cibleMemo.current);
   }
 
   function ouvrirEncaissement(cible: string, gardeOuvert = false) {
     setGardeOuvertEncaissement(gardeOuvert);
+    const visee = cible === "tout" ? undefined : personnesARegler.find((sc) => sc.id === cible);
+    cibleMemo.current = visee ? { id: visee.id, nom: visee.nom } : null;
     const totalDeLaCible = totalCompte({ ...(compte as CompteCafeteria), sousComptes: personnesCibles(cible) });
     const deviseNote = totalDeLaCible.usd > 0 || totalDeLaCible.cdf === 0 ? Devise.USD : Devise.CDF;
     setCibleEncaissement(cible);
@@ -270,7 +274,11 @@ export function EcranCompteCafeteria({ client, compteId, onRetour, ouvrirAjoutAu
   async function encaisser() {
     if (!compte) return;
     const concernes = personnesCibles(cibleEncaissement);
-    if (concernes.length === 0 || enEnvoi) return;
+    if (enEnvoi) return;
+    if (concernes.length === 0) {
+      setErreurAction("Cette personne n'est plus à régler (déjà payée, ou la table vient de se mettre à jour). Fermez cette fenêtre puis touchez « Encaisser » sur sa carte.");
+      return;
+    }
     const problemeEspeces = verifierEspeces();
     if (problemeEspeces) {
       setErreurAction(problemeEspeces);

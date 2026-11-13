@@ -2,7 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientApi, TauxChange } from "@hotel-chicago/api-client";
 import { CompteCafeteria, Devise, MenuDuJour, ModePaiement, Produit, StatutLigne, LIBELLE_STATUT_LIGNE, StatutCompte, ProfilConnecte, VenteCafeteria, sousComptesVisibles, peutOperer } from "@hotel-chicago/types";
-import { raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
+import { personnesAEncaisser, raisonRefusAnnulationCompte } from "@hotel-chicago/regles";
 import { construireRecuVente, enteteHotel } from "@hotel-chicago/receipts";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { attendreNumeroDefinitif, lireMontant, retrouverRecu } from "@hotel-chicago/miroir-local";
@@ -107,6 +107,8 @@ export function EcranCompteCafeteria({
   const [enEncaissement, setEnEncaissement] = useState(false);
   // Qui l'on encaisse : null = rien en cours, "tout" = tout ce qui reste, sinon l'id d'une personne.
   const [cible, setCible] = useState<string | null>(null);
+  // Personne visée à l'ouverture : son identifiant local est remplacé par le définitif après la synchronisation, on la retrouve alors par son nom.
+  const cibleMemo = useRef<{ id: string; nom: string } | null>(null);
   // Ce que le reçu détaille (figé au moment de l'encaissement, le compte se recharge ensuite).
   const [recuCompte, setRecuCompte] = useState<CompteCafeteria | null>(null);
   const [compteSolde, setCompteSolde] = useState(false);
@@ -206,8 +208,11 @@ export function EcranCompteCafeteria({
   async function encaisser() {
     if (!compte || cible === null) return;
     const aRegler = compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0);
-    const concernes = cible === "tout" ? aRegler : aRegler.filter((sc) => sc.id === cible);
-    if (concernes.length === 0) return;
+    const concernes = personnesAEncaisser(aRegler, cible, cibleMemo.current);
+    if (concernes.length === 0) {
+      setErreur("Cette personne n'est plus à régler (déjà payée, ou la table vient de se mettre à jour). Fermez cette fenêtre puis cliquez « Encaisser » sur sa carte.");
+      return;
+    }
     // Espèces : le montant remis est obligatoire (sauf note en deux devises, où le règlement croisé n'existe pas).
     const totaux = totalCompte({ ...compte, sousComptes: concernes });
     const mixte = totaux.usd > 0 && totaux.cdf > 0;
@@ -250,7 +255,7 @@ export function EcranCompteCafeteria({
       // Objets non « frais » : api-client type encore l'encaissement sans les champs du paiement croisé, que l'API et `Ecritures` acceptent.
       const garde = gardeOuvertEncaissement ? { gardeOuvert: true } : {};
       const donneesGroupe = { mode: "GROUPE" as const, modePaiement, ...detail, ...garde };
-      const donneesPersonne = { mode: "UNE_PERSONNE" as const, modePaiement, sousCompteId: cible, ...detail, ...garde };
+      const donneesPersonne = { mode: "UNE_PERSONNE" as const, modePaiement, sousCompteId: concernes[0].id, ...detail, ...garde };
       const ventes =
         cible === "tout"
           ? await client.encaisserCompte(compteId, donneesGroupe)
@@ -292,6 +297,9 @@ export function EcranCompteCafeteria({
 
   function ouvrirEncaissement(cibleChoisie: string, gardeOuvert = false) {
     setGardeOuvertEncaissement(gardeOuvert);
+    const aReglerMaintenant = compte ? compte.sousComptes.filter((sc) => !sc.payeLe && sc.lignes.length > 0) : [];
+    const visee = cibleChoisie === "tout" ? undefined : aReglerMaintenant.find((sc) => sc.id === cibleChoisie);
+    cibleMemo.current = visee ? { id: visee.id, nom: visee.nom } : null;
     setErreur(null);
     setModePaiement(ModePaiement.CASH);
     setMontantRemis("");
@@ -369,7 +377,7 @@ export function EcranCompteCafeteria({
     : personnesVisibles;
   const unePersonneAPaye = compte.sousComptes.some((sc) => sc.payeLe);
   const reste = totalCompte({ ...compte, sousComptes: personnesARegler });
-  const cibles = cible === "tout" ? personnesARegler : personnesARegler.filter((sc) => sc.id === cible);
+  const cibles = cible === null ? [] : personnesAEncaisser(personnesARegler, cible, cibleMemo.current);
   const totalCible = totalCompte({ ...compte, sousComptes: cibles });
   // Espèces : montant remis obligatoire, monnaie à rendre calculée (note en deux devises : pas de règlement croisé possible).
   const noteMixte = totalCible.usd > 0 && totalCible.cdf > 0;

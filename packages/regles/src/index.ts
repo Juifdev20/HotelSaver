@@ -15,3 +15,4 @@ export * from "./chambres";
 export * from "./sejours-du-jour";
 export * from "./theme-sombre";
 export * from "./mise-a-jour";
+export * from "./cible-encaissement";
