@@ -212,9 +212,15 @@ export function construireRecuFacture(
   lignes.push(...lignesTotaux(facture.montantTotalUSD, facture.montantTotalCDF, "TOTAL À PAYER"));
   const rienAPayer = !(Number(facture.montantTotalUSD) > 0) && !(Number(facture.montantTotalCDF) > 0);
   if (rienAPayer) {
-    lignes.push({ type: "montant", libelle: "TOTAL À PAYER", valeur: formatMontant(0, devise) }, { type: "soustitre", texte: "Séjour entièrement payé d'avance." });
+    // Séjour payé d'avance (13/11/2026) : « TOTAL À PAYER 0.00 $ » faisait croire à un séjour gratuit. Le séjour et l'acompte sont déjà détaillés plus
+    // haut ; on dit ce qu'il reste (rien) et que le séjour est soldé. Aucune ligne « Mode de paiement » : rien n'a été encaissé aujourd'hui.
+    lignes.push(
+      { type: "montant", libelle: "RESTE À PAYER", valeur: formatMontant(0, devise) },
+      { type: "soustitre", texte: "SOLDÉ - séjour entièrement payé d'avance." }
+    );
+  } else {
+    lignes.push(...lignesReglement(facture));
   }
-  lignes.push(...lignesReglement(facture));
   lignes.push(...noteProvisoire(facture.numeroRecu));
   lignes.push(...piedDePage());
   return lignes;

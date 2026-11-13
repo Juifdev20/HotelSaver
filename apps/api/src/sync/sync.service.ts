@@ -137,7 +137,7 @@ const DELAI_RESERVATION_PERIMEE_MS = 2 * 60_000;
 const RECOUVREMENT_PULL_MS = 5_000;
 const LIMITE_PULL_DEFAUT = 1000;
 /** Écritures qui s'additionnent : leur date doit être celle de l'appareil, pas celle de l'envoi (hors ligne : des heures plus tard). */
-const ENTITES_HORODATEES: ReadonlySet<EntitePush> = new Set<EntitePush>(["MouvementStock", "LigneCommande"]);
+const ENTITES_HORODATEES: ReadonlySet<EntitePush> = new Set<EntitePush>(["MouvementStock", "LigneCommande", "Reservation"]);
 const FENETRE_HORODATAGE_MS = 30 * 24 * 3_600_000;
 /** Codes Prisma d'une panne passagère (connexion perdue, délai dépassé, conflit d'écriture à rejouer). */
 const CODES_PRISMA_PASSAGERS = new Set(["P1001", "P1002", "P1008", "P1017", "P2024", "P2034"]);

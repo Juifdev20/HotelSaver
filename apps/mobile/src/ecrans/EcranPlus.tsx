@@ -26,7 +26,7 @@ import {
   HandCoins,
   Users,
   UtensilsCrossed,
-  Volume2, Download, BellRing } from "lucide-react-native";
+  Volume2, Download } from "lucide-react-native";
 import { couleurs, espacements, rayons } from "../tokens";
 import { consommerRetourReglages, retourReglagesDemande } from "../theme/theme";
 import { LIBELLE_ROLE, fonctionManquante, sectionsPlusPourRole } from "../navigation";
@@ -41,7 +41,6 @@ import { FonctionNonIncluse } from "../composants/FonctionNonIncluse";
 import { EnteteMobile } from "../composants/EnteteMobile";
 import { useNombreComptesOuverts } from "../hooks/useNombreComptesOuverts";
 import { EcranMiseAJour } from "./EcranMiseAJour";
-import { EcranDiagnosticNotifications } from "./EcranDiagnosticNotifications";
 import { useMiseAJour } from "../miseAJour/ContexteMiseAJour";
 import { EcranParametresMobile } from "./EcranParametresMobile";
 import { EcranMenu } from "./EcranMenu";
@@ -101,8 +100,7 @@ type VuePlus =
   | { id: "depenses" }
   | { id: "inventaire" }
   | { id: "cuisine" }
-  | { id: "mise-a-jour" }
-  | { id: "diagnostic-notifications" };
+  | { id: "mise-a-jour" };
 
 const VUE_LISTE: VuePlus = { id: "liste" };
 
@@ -239,7 +237,6 @@ export function EcranPlus() {
         onSeDeconnecter={seDeconnecter}
         onOuvrirImprimante={() => setVue({ id: "imprimante" })}
         onOuvrirSons={() => setVue({ id: "sons" })}
-        onOuvrirDiagnostic={() => setVue({ id: "diagnostic-notifications" })}
         onOuvrirSynchronisation={() => setVue({ id: "synchronisation" })}
         onOuvrirMiseAJour={() => setVue({ id: "mise-a-jour" })}
         onOuvrirGuide={() => setVue({ id: "guides" })}
@@ -255,9 +252,6 @@ export function EcranPlus() {
   }
   if (vue.id === "remboursements") {
     return <EcranRemboursements client={client} onRetour={() => setVue(VUE_LISTE)} onCompteur={remboursements.definir} />;
-  }
-  if (vue.id === "diagnostic-notifications") {
-    return <EcranDiagnosticNotifications onRetour={() => setVue(VUE_LISTE)} />;
   }
   if (vue.id === "mise-a-jour") {
     return <EcranMiseAJour onRetour={() => setVue(VUE_LISTE)} />;

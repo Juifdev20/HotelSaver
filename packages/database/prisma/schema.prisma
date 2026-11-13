@@ -585,6 +585,8 @@ model Reservation {
   dateArrivee        DateTime
   dateDepart         DateTime
   acompte            Decimal   @default(0)
+  // Jour où la réservation (donc l'acompte) a été enregistrée : sert à compter l'acompte dans la recette du jour (13/11/2026).
+  createdAt          DateTime  @default(now())
   statut             String // EN_ATTENTE, CONFIRMEE, EN_COURS, TERMINEE, ANNULEE
   origine            String // RECEPTION, SITE_PUBLIC
   createdBy          String // Utilisateur.id

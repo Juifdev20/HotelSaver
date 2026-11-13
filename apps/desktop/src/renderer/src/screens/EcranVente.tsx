@@ -20,6 +20,8 @@ import {
   totauxSelection,
   TOUTES_CATEGORIES,
   type SegmentVente,
+  evaluerScan,
+  type DernierScan,
 } from "@hotel-chicago/regles";
 import { Devise, peutOperer, StatutCompte, TypeProduit, type CompteCafeteria, type ProfilConnecte, type Produit } from "@hotel-chicago/types";
 import { Banknote, Beer, Camera, LayoutGrid, ScanBarcode, Search, ShoppingCart, Star, Table2, Utensils, X, CircleCheck } from "lucide-react";
@@ -186,9 +188,19 @@ export function EcranVente({ client, utilisateur, interfaceImprimante, synchroni
   // ------------------------------------------------------------------------------------------------ scan (même comportement que l'ajout de consommations)
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
+  const dernierScan = useRef<DernierScan | null>(null);
   function ajouterParCode(brut: string): string {
     const code = normaliserCodeBarres(brut);
     if (!code) return "";
+    // Anti-double-scan : le même code relu en moins de quelques secondes n'ajoute rien (le même article reste devant le lecteur).
+    const verdictScan = evaluerScan(dernierScan.current, code, Date.now());
+    dernierScan.current = verdictScan.suivant;
+    if (!verdictScan.accepte) {
+      if (!verdictScan.aSignaler) return "";
+      const doublon = "Déjà scanné. Écartez l'article un instant, ou touchez « + » pour en ajouter un autre.";
+      setInfoScan(doublon);
+      return doublon;
+    }
     const idAssocie = codesAssocies[code];
     const produit = (idAssocie && produitsParId.get(idAssocie)) || trouverProduitParCode(produits, code);
     if (!produit) {

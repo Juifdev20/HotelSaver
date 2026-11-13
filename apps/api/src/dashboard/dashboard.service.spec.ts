@@ -6,6 +6,7 @@ function creerPrismaMock() {
     facture: { findMany: jest.fn().mockResolvedValue([]) },
     venteCafeteria: { findMany: jest.fn().mockResolvedValue([]) },
     chambre: { findMany: jest.fn().mockResolvedValue([]) },
+    reservation: { findMany: jest.fn().mockResolvedValue([]) },
     produit: { findMany: jest.fn().mockResolvedValue([]) },
   } as any;
 }
@@ -25,6 +26,38 @@ describe("DashboardService", () => {
   });
 
   describe("recetteDuJour", () => {
+    it("compte l'acompte pris à la réception : un séjour payé d'avance (facture à 0) apparaît quand même (13/11/2026)", async () => {
+      prisma.facture.findMany.mockResolvedValue([{ montantTotalUSD: 0, montantTotalCDF: 0 }]);
+      prisma.reservation.findMany.mockResolvedValue([
+        { acompte: 180, statut: "EN_COURS", origine: "RECEPTION", createdBy: "u-recep", createdAt: new Date(), chambre: { devise: "USD" } },
+      ]);
+
+      const resultat = await service.recetteDuJour(receptionniste);
+
+      expect(resultat.chambres).toEqual({ montantUSD: 180, montantCDF: 0 });
+      expect(prisma.reservation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ createdBy: "u-recep", origine: "RECEPTION" }) })
+      );
+    });
+
+    it("le patron voit les acomptes de toute la réception, sans filtre par utilisateur ; le reste payé au départ s'ajoute sans doublon", async () => {
+      prisma.facture.findMany.mockResolvedValue([{ montantTotalUSD: 60, montantTotalCDF: 0 }]);
+      prisma.reservation.findMany.mockResolvedValue([
+        { acompte: 100, statut: "CONFIRMEE", origine: "RECEPTION", createdBy: "u-recep", createdAt: new Date(), chambre: { devise: "USD" } },
+        { acompte: 20000, statut: "CONFIRMEE", origine: "RECEPTION", createdBy: "u-autre", createdAt: new Date(), chambre: { devise: "CDF" } },
+      ]);
+
+      const resultat = await service.recetteDuJour(patron);
+
+      expect(resultat.chambres).toEqual({ montantUSD: 160, montantCDF: 20000 });
+      expect(prisma.reservation.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ createdBy: undefined }) }));
+    });
+
+    it("la cafétaria ne touche jamais aux acomptes", async () => {
+      await service.recetteDuJour(cafetaria);
+      expect(prisma.reservation.findMany).not.toHaveBeenCalled();
+    });
+
     it("un RECEPTIONNISTE ne voit que ses propres factures, jamais la cafétaria", async () => {
       prisma.facture.findMany.mockResolvedValue([{ montantTotalUSD: 45, montantTotalCDF: 0 }]);
 

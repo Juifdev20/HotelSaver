@@ -143,9 +143,15 @@ export function EcranFacturation({ reservationId, onRetour, checkOut = true }: E
       apercu.totalUSD > 0 ? formatMontant(apercu.totalUSD, Devise.USD) : null,
       apercu.totalCDF > 0 ? formatMontant(apercu.totalCDF, Devise.CDF) : null,
     ].filter(Boolean);
-    const total = totaux.length > 0 ? totaux.join(" + ") : "0";
+    const rienAEncaisser = totaux.length === 0;
+    const total = totaux.join(" + ");
     const mode = modePaiement === ModePaiement.CASH ? "en espèces" : "par mobile money";
-    const lignes = [`Confirmer ${total} ${mode} ?`, `Client : ${reservation.client.nom} · chambre ${reservation.chambre.numero}.`];
+    const lignes = [
+      rienAEncaisser
+        ? `Séjour de ${formatMontant(apercu.montantChambre, reservation.chambre.devise)} entièrement payé d'avance : rien à encaisser aujourd'hui.`
+        : `Confirmer ${total} ${mode} ?`,
+      `Client : ${reservation.client.nom} · chambre ${reservation.chambre.numero}.`,
+    ];
     if (detailSaisi && apercuMonnaie?.statut === "ok") {
       lignes.push(`Remis par le client : ${formatMontant(regle, deviseReglee)}.`);
       lignes.push(`Monnaie à rendre : ${formatMontant(apercuMonnaie.monnaie, apercuMonnaie.deviseMonnaie)}.`);
@@ -365,17 +371,22 @@ export function EcranFacturation({ reservationId, onRetour, checkOut = true }: E
           </View>
 
           <View style={styles.carteTotal}>
-            <Text style={styles.labelTotal}>Total à payer</Text>
+            <Text style={styles.labelTotal}>{apercu.totalUSD === 0 && apercu.totalCDF === 0 ? "Reste à payer" : "Total à payer"}</Text>
             {apercu.totalUSD > 0 && <Text style={styles.montantTotal}>{formatMontant(apercu.totalUSD, Devise.USD)}</Text>}
             {apercu.totalCDF > 0 && <Text style={styles.montantTotal}>{formatMontant(apercu.totalCDF, Devise.CDF)}</Text>}
             {apercu.totalUSD === 0 && apercu.totalCDF === 0 && (
               <>
-                <Text style={styles.montantTotal}>0</Text>
-                <Text style={styles.libelleMontant}>Séjour entièrement payé d'avance : rien à encaisser.</Text>
+                <Text style={styles.montantTotal}>{formatMontant(0, reservation.chambre.devise)}</Text>
+                <Text style={styles.libelleMontant}>
+                  Séjour de {formatMontant(apercu.montantChambre, reservation.chambre.devise)} entièrement payé d'avance : rien à encaisser.
+                </Text>
               </>
             )}
           </View>
 
+          {/* Rien à encaisser (séjour payé d'avance) : aucun mode de paiement à choisir, rien n'est payé aujourd'hui. */}
+          {!(apercu.totalUSD === 0 && apercu.totalCDF === 0) && (
+            <>
           <Text style={styles.champLabel}>Mode de paiement</Text>
           <View style={styles.selecteurMode} accessibilityRole="radiogroup" accessibilityLabel="Mode de paiement">
             {[ModePaiement.CASH, ModePaiement.MOBILE_MONEY].map((m) => (
@@ -393,6 +404,8 @@ export function EcranFacturation({ reservationId, onRetour, checkOut = true }: E
               </Pressable>
             ))}
           </View>
+            </>
+          )}
 
           {factureMixte && (
             <Text style={styles.noteMixte}>

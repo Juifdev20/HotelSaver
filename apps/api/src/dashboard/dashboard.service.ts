@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { PrismaClient, StatutChambre } from "@hotel-chicago/database";
 import { Role, UtilisateurAuthentifie } from "@hotel-chicago/types";
+import { acomptesEncaisses } from "@hotel-chicago/regles";
 import { PRISMA } from "../prisma/prisma.module";
 import { bornesDuMois } from "../rapports/agregats/bornes";
 import { agregatCafeteria } from "../rapports/agregats/cafeteria";
@@ -28,6 +29,10 @@ function sommerParDevise(lignes: { montantTotalUSD: unknown; montantTotalCDF: un
   );
 }
 
+function ajouter(a: { montantUSD: number; montantCDF: number }, b: { montantUSD: number; montantCDF: number }) {
+  return { montantUSD: a.montantUSD + b.montantUSD, montantCDF: a.montantCDF + b.montantCDF };
+}
+
 @Injectable()
 export class DashboardService {
   constructor(@Inject(PRISMA) private readonly prisma: PrismaClient) {}
@@ -42,22 +47,45 @@ export class DashboardService {
    * Jamais de total fusionné entre USD et CDF, ni entre chambres et cafétaria
    * pour un rôle non-PATRON (section 9.4) — chaque source reste distincte.
    */
+  /** Acomptes pris par la réception sur la plage (règle commune `acomptesEncaisses`, la même que hors ligne). */
+  private async acomptesDuJour(currentUser: UtilisateurAuthentifie, debut: Date, fin?: Date) {
+    const reservations = await this.prisma.reservation.findMany({
+      where: {
+        hotelId: currentUser.hotelId,
+        origine: "RECEPTION",
+        annuleLe: null,
+        acompte: { gt: 0 },
+        createdAt: { gte: debut, ...(fin ? { lt: fin } : {}) },
+        createdBy: currentUser.role === Role.PATRON ? undefined : currentUser.userId,
+      },
+      select: { acompte: true, statut: true, origine: true, createdBy: true, createdAt: true, chambre: { select: { devise: true } } },
+    });
+    return acomptesEncaisses(
+      reservations.map((r) => ({ acompte: Number(r.acompte), devise: r.chambre.devise as "USD" | "CDF", statut: r.statut, origine: r.origine, creePar: r.createdBy, creeLe: r.createdAt })),
+      { debut, fin },
+      currentUser.role === Role.PATRON ? null : currentUser.userId
+    );
+  }
+
   async recetteDuJour(currentUser: UtilisateurAuthentifie) {
     const gte = debutJournee();
     const voitChambres = currentUser.role !== Role.CAFETARIA;
     const voitCafeteria = currentUser.role !== Role.RECEPTIONNISTE;
 
     const chambres = voitChambres
-      ? sommerParDevise(
-          await this.prisma.facture.findMany({
-            where: {
-              hotelId: currentUser.hotelId,
-              createdAt: { gte },
-              annuleLe: null,
-              createdBy: currentUser.role === Role.PATRON ? undefined : currentUser.userId,
-            },
-            select: { montantTotalUSD: true, montantTotalCDF: true },
-          })
+      ? ajouter(
+          sommerParDevise(
+            await this.prisma.facture.findMany({
+              where: {
+                hotelId: currentUser.hotelId,
+                createdAt: { gte },
+                annuleLe: null,
+                createdBy: currentUser.role === Role.PATRON ? undefined : currentUser.userId,
+              },
+              select: { montantTotalUSD: true, montantTotalCDF: true },
+            })
+          ),
+          await this.acomptesDuJour(currentUser, gte)
         )
       : undefined;
 
@@ -168,7 +196,7 @@ export class DashboardService {
       this.prisma.compteCafeteria.count({ where: { hotelId, statut: "OUVERT" } }),
     ]);
 
-    const recetteChambres = sommerParDevise(factures);
+    const recetteChambres = ajouter(sommerParDevise(factures), await this.acomptesDuJour(currentUser, debut, fin));
     const recetteCafeteria = sommerParDevise(ventes);
     const effectuees = arriveesJour.filter((r) => r.statut === "EN_COURS" || r.statut === "TERMINEE");
     const restantes = arriveesJour.filter((r) => r.statut === "EN_ATTENTE" || r.statut === "CONFIRMEE");

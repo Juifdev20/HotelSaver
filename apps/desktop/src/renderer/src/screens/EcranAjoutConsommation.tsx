@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import type { ClientApi } from "@hotel-chicago/api-client";
 import { Devise, TypeProduit, type CompteCafeteria, type MenuDuJour, type Produit } from "@hotel-chicago/types";
 import { normaliserCodeBarres, trouverProduitParCode } from "@hotel-chicago/receipts";
+import { evaluerScan, type DernierScan } from "@hotel-chicago/regles";
 import { Button, formatMontant } from "@hotel-chicago/ui";
 import { Camera, Minus, Plus, ScanBarcode, Search, Star, X } from "lucide-react";
 import { ScannerWebcam } from "../components/ScannerWebcam";
@@ -115,10 +116,20 @@ export function EcranAjoutConsommation({
   const panierRef = useRef(panier);
   panierRef.current = panier;
 
+  const dernierScan = useRef<DernierScan | null>(null);
   /** Code lu (douchette, webcam ou recherche) → l'article part au panier, sans appel réseau. */
   function ajouterParCode(brut: string): string {
     const code = normaliserCodeBarres(brut);
     if (!code) return "";
+    // Anti-double-scan : le même code relu en moins de quelques secondes n'ajoute rien (le même article reste devant le lecteur).
+    const verdictScan = evaluerScan(dernierScan.current, code, Date.now());
+    dernierScan.current = verdictScan.suivant;
+    if (!verdictScan.accepte) {
+      if (!verdictScan.aSignaler) return "";
+      const doublon = "Déjà scanné. Écartez l'article un instant, ou touchez « + » pour en ajouter un autre.";
+      setInfoScan(doublon);
+      return doublon;
+    }
     const idAssocie = codesAssocies[code];
     const produit = (idAssocie && produitsParId.get(idAssocie)) || trouverProduitParCode(produits, code);
     if (!produit) {

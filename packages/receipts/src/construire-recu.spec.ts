@@ -95,12 +95,25 @@ describe("construireRecuFacture", () => {
     ]));
   });
 
-  it("séjour payé d'avance : total à zéro dit clairement, pas un reçu vide", () => {
+  it("séjour payé d'avance : reste à payer à zéro et « soldé », séjour et acompte détaillés, pas un reçu vide", () => {
     const lignes = construireRecuFacture(creerFacture({ montantTotalUSD: "0" }), { ...creerReservation(), acompte: "135" }, "Alice", [], HOTEL);
     expect(lignes).toEqual(expect.arrayContaining([
-      { type: "montant", libelle: "TOTAL À PAYER", valeur: "0.00 $" },
-      { type: "soustitre", texte: "Séjour entièrement payé d'avance." },
+      { type: "montant", libelle: "Séjour (3 nuits)", valeur: "135.00 $" },
+      { type: "montant", libelle: "Acompte déjà payé", valeur: "-135.00 $" },
+      { type: "montant", libelle: "RESTE À PAYER", valeur: "0.00 $" },
+      { type: "soustitre", texte: "SOLDÉ - séjour entièrement payé d'avance." },
     ]));
+  });
+
+  it("séjour payé d'avance : jamais de « TOTAL À PAYER 0 » ni de « Mode de paiement » (rien n'est encaissé ce jour-là)", () => {
+    const lignes = construireRecuFacture(creerFacture({ montantTotalUSD: "0" }), { ...creerReservation(), acompte: "135" }, "Alice", [], HOTEL);
+    expect(lignes.some((l) => l.type === "montant" && l.libelle.startsWith("TOTAL À PAYER"))).toBe(false);
+    expect(lignes.some((l) => l.type === "champ" && l.label === "Mode de paiement")).toBe(false);
+  });
+
+  it("séjour à payer : le mode de paiement reste imprimé", () => {
+    const lignes = construireRecuFacture(creerFacture(), creerReservation(), "Alice", [], HOTEL);
+    expect(lignes.some((l) => l.type === "champ" && l.label === "Mode de paiement")).toBe(true);
   });
 
   it("n'imprime jamais une ligne de total à zéro", () => {
